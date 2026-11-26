@@ -1,0 +1,210 @@
+[package]
+name = "flm-host"
+description = "The FLM host library: files, front matter, settings, packages and outputs"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88: the reader of PDF files, `lopdf`, needs it (the library `flm-core`
+# stays on the workspace's 1.86).
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+# The table of the files of the compose templates of `std`, compiled into the program.
+build = "build.rs"
+
+# docs.rs, which builds the API documentation of the published crate, ignores
+# `.cargo/config.toml`. These settings make it turn on every feature of the crate, so
+# that its pages show the items of each feature and their links resolve, and add the
+# sidebar customization that `cargo docs` adds locally (the path resolves from the
+# package root, where `docs` links to the workspace's `docs/` folder).
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--html-in-header", "docs/rustdoc-header.html"]
+
+[lints]
+workspace = true
+
+[features]
+default = ["fs"]
+# The disk: reading files (`files::DiskFiles`) and writing outputs
+# (`output::DiskSink`), and the host service `programs` (`host_programs`). Without it the
+# crate performs no input or output and compiles for WebAssembly.
+fs = ["dep:nix", "dep:junction"]
+# Image files: the resolver, the inspector and the in-process converter of the module
+# `graphics`, and the feature `graphics-files` of the package `std`.
+graphics = ["dep:image", "dep:png", "dep:kamadak-exif", "dep:lopdf", "dep:roxmltree"]
+# Citations: fetching the details of cited works through the crate `autocitefetch`, and
+# the feature `citations-standard` of the package `std`.
+citations = ["dep:autocitefetch", "dep:autocitefetch-std", "dep:hayagriva", "dep:percent-encoding"]
+# The live preview (the module `watch`): watching the files a build read, rebuilding, and
+# serving the outputs to a browser on this machine.
+watch = ["fs", "dep:notify", "dep:notify-debouncer-full", "dep:tiny_http", "dep:percent-encoding", "dep:which", "dep:yaml-edit", "dep:flate2", "dep:zip"]
+# JavaScript extensions: the engine `js` in the loader of every preparation. Off by
+# default, so that flm-host without its default features still compiles for WebAssembly.
+js = ["flm-ext/quickjs"]
+# Extensions compiled to WebAssembly: the engine `wasm` in the loader of every preparation,
+# and the collections a request carries. Off by default, as `js`.
+wasm = ["flm-ext/wasm"]
+# Extensions written in Rust and linked into the program: the table of code of the
+# extensions a request offers (`bundled::Bundled`), and the engine `native` running them in
+# the loader of every preparation.
+native = ["flm-ext/native"]
+# The SQLite engine of the caches (`cachette`'s feature `sqlite`), on a manager over a
+# folder on disk. Without it, a cache declared with that engine is kept by another
+# (`cache::ServiceCaches`).
+sqlite = ["cachette/sqlite"]
+# Downloading the file at an `https` address over the network: the downloader
+# `download::network_downloader`, which a program gives in its request.
+download = ["dep:ureq"]
+
+[dependencies]
+flm-core = { workspace = true, default-features = true }
+# The extension layer: the loader, the data engine, the block step.
+flm-ext = { workspace = true, default-features = true }
+# Settings arrive as data in the library's one data model.
+serde = { version = "1", features = ["derive"] }
+# The schema of the settings of `std`'s features, as every crate declaring settings
+# derives it (the library's `SettingsData`).
+schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"] }
+serde_json = "1"
+# The caches (the module `cache`): the manager the program gives, the caches its owners
+# declare, their sessions, engines, lifetimes and maintenance.
+cachette = "0.1"
+# SHA-256, for the keys of cached values: the key of a value of the host service `cache`,
+# and of a converted image (cargo feature `graphics`).
+sha2 = "0.11"
+# Base64, the standard alphabet with padding: content that is not UTF-8 text, in the form
+# the extension layer gives an artifact's content: a file given to and read back from a
+# program run by the host service `programs`, and a blob of a value that the host service
+# `cache` stores and answers.
+base64 = "0.22"
+# YAML, for the front matter: a reader written in Rust alone that gives the
+# position of every value (floor Rust 1.85). Its default feature, the decoding
+# of text in encodings other than UTF-8, is left out.
+saphyr = { version = "0.1", default-features = false }
+# Templates, for the composer: no input or output of its own, builds for
+# WebAssembly, and delimiters that can be changed for LaTeX (`custom_syntax`).
+minijinja = { version = "2", default-features = false, features = ["builtins", "serde", "custom_syntax", "std_collections", "preserve_order", "multi_template", "loader", "json"] }
+# Image files (cargo feature `graphics`). `image` reads and writes the raster formats
+# (PNG, JPEG, GIF, WebP) and converts between them; its other formats and its thread
+# pool are left out. `png`, the crate `image` reads PNG files with, gives the
+# resolution a PNG file states, which `image` does not pass on.
+image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "gif", "webp"], optional = true }
+png = { version = "0.18", optional = true }
+# The resolution a JPEG file states in its EXIF data, where its JFIF header states none.
+kamadak-exif = { version = "0.6", optional = true }
+# The first page's size of a PDF file: object streams, cross-reference streams and
+# page attributes inherited from the page tree are the crate's to read. Its dates and
+# thread pool are left out.
+lopdf = { version = "0.45.0", default-features = false, optional = true }
+# The root element of an SVG file, whose `width` and `height` state its size.
+roxmltree = { version = "0.21", optional = true }
+# Fetching the details of cited works (cargo feature `citations`): the sources (the arXiv,
+# doi.org, bibliography files, entries written by hand), the cache and its lifetimes, the
+# waiting between requests and the retries are the crate's. `autocitefetch-std` gives the
+# cache file, the clock, the timer and, through its default feature `http`, the network
+# over `ureq`.
+autocitefetch = { version = "0.2", optional = true }
+autocitefetch-std = { version = "0.2", optional = true }
+# Downloads over the network (cargo feature `download`): one `GET` of an `https` address,
+# with its timeout, its redirects, its refusal of an address that is not `https` and the
+# proxy variables of the environment; the version that the citations' fetcher uses.
+ureq = { version = "2", optional = true }
+# Formatting a cited work's record as its entry under a style in the Citation Style
+# Language (cargo feature `citations`): the styles of its archive (`archive`), and records
+# in CSL-JSON (`csl-json`). Its reader of BibLaTeX files is left out.
+hayagriva = { version = "0.10.1", default-features = false, features = ["archive", "csl-json"], optional = true }
+# The DOI in the address of the link appended to an entry, percent-encoded (cargo feature
+# `citations`); an address the preview's server is asked for, decoded (cargo feature `watch`).
+percent-encoding = { version = "2.3", optional = true }
+# Watching files (cargo feature `watch`): one back end per operating system.
+notify = { version = "8.2", optional = true }
+# The quiet period over `notify` (cargo feature `watch`): the events of one save joined into
+# one, and the two halves of a rename matched.
+notify-debouncer-full = { version = "0.7", optional = true }
+# Serving the preview (cargo feature `watch`): a synchronous HTTP server, with no
+# asynchronous runtime.
+tiny_http = { version = "0.12", optional = true }
+# Finding an editor's program on the search path of programs (cargo feature `watch`), as the
+# system's own lookup does, the extensions of programs on Windows included.
+which = { version = "8", optional = true }
+# Editing a front matter's text in place (cargo feature `watch`), for the preview's settings
+# requests: a parser that keeps every byte of the text, comments and blank lines included, and
+# changes one value at a time. Its default feature, base64 for binary values, is left out.
+yaml-edit = { version = "0.3.2", default-features = false, optional = true }
+# Gzip (cargo feature `watch`): a file of the preview's tools page, embedded compressed,
+# decompressed for a request that does not accept gzip.
+flate2 = { version = "1.1", optional = true }
+# Zip archives (cargo feature `watch`): the files of an export that the preview's page
+# downloads, when there are several. No feature: the files are stored, not compressed.
+zip = { version = "9.6", default-features = false, optional = true }
+
+# Stopping a program run by the host service `programs` (cargo feature `fs`) together with
+# the programs it started: a signal sent to its process group (`killpg`), which the standard
+# library cannot send, through a safe call.
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["signal"], optional = true }
+
+# The link to a cache folder that the host service `programs` makes in a program's
+# temporary folder (cargo feature `fs`): a junction, which Windows lets every user make,
+# where Unix makes a symbolic link.
+[target.'cfg(windows)'.dependencies]
+junction = { version = "2.1", optional = true }
+
+[build-dependencies]
+# Gzip (cargo feature `watch`): the files of the preview's tools page, compressed when the
+# crate is built.
+flate2 = { version = "1.1", optional = true }
+
+[dev-dependencies]
+# The extensions shipped with FLM, which the tests of the extensions a request offers give
+# in their requests.
+flm-extensions = { workspace = true, features = ["all"] }
+# The tests of the preview's page drive Chrome without a window through its debugging
+# protocol, JSON messages over a WebSocket: the client side of the WebSocket, with no TLS.
+tungstenite = "0.30"
+# The keyword `pattern` of the schemas of settings, checked by the validator shared with
+# `flm-core`'s tests (`flm-core/tests/support/json_schema.rs`).
+regex = "1"
+
+[[test]]
+name = "graphics"
+required-features = ["graphics"]
+
+[[test]]
+name = "magick"
+required-features = ["graphics"]
+
+[[test]]
+name = "citations"
+required-features = ["citations"]
+
+[[test]]
+name = "citation_entries"
+required-features = ["citations"]
+
+[[test]]
+name = "watch_probe"
+required-features = ["watch"]
+
+[[test]]
+name = "watch"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_server"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_export"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_page"
+required-features = ["watch"]
+
+[[test]]
+name = "watch_gestures"
+required-features = ["watch"]

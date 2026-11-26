@@ -168,7 +168,8 @@ pub struct PlanView {
     /// The stages that provider selection ruled out, each with the stage that ruled it out
     /// and the capability both provide.
     pub excluded: Vec<Excluded>,
-    /// The preferences the plan could not honor.
+    /// The plan's warnings: the preferences it could not honor and the output of its
+    /// selected lowering rules that nothing checks.
     pub warnings: Vec<PlanWarning>,
     /// For each backend that takes part in the plan, in name order, the lowering rule
     /// chosen for each element.

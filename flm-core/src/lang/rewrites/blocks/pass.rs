@@ -15,7 +15,7 @@
 //! [`structure_with_guard`] runs it under a
 //! [guard policy](crate::lang::guard::GuardPolicy) the caller chooses. Both are
 //! plain functions over a tree, which need no pipeline around them. The rewrite
-//! stage of the [`blocks` feature](crate::stdcore::features::blocks) places the
+//! stage of the [`blocks` feature](crate::stdlib::features::blocks) places the
 //! pass in a plan.
 //!
 //! # The three region layouts

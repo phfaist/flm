@@ -18,7 +18,7 @@ use flm_core::core::registry::{
     BackendDef, BuildError, BuildPhase, CapabilityDef, FlmFeature, FlmRegistry, OrderingDef,
     OutputDef, RegistryBuilder, RegistryInputs, WorkflowDef, HOST_FEATURE,
 };
-use flm_core::stdcore::backends::lowering::{LoweredTrees, LoweringStage, lowered_table_name};
+use flm_core::stdlib::backends::lowering::{LoweredTrees, LoweringStage, lowered_table_name};
 use flm_core::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl, TreesTable};
 use flm_core::core::data::table::TableName;
 
@@ -807,6 +807,100 @@ fn a_preference_for_a_rule_of_another_backend_is_a_warning_and_the_ladder_goes_o
     );
 }
 
+/// A registry like [`lowering_registry`], whose rules for `t.foo` and
+/// `t.mid` declare unchecked output as `t_decls` gives, plus a second feature
+/// `u` owning `u.bar` and its rule, which declares unchecked output on `text`.
+fn unchecked_output_registry(t_decls: [LoweringDecl; 2]) -> Arc<FlmRegistry> {
+    let [foo_decl, mid_decl] = t_decls;
+    registry(vec![
+        feature("t", move |b| {
+            b.element(macro_def("t", "foo", 0))?;
+            b.element(macro_def("t", "pres", 0))?;
+            b.element(macro_def("t", "mid", 0))?;
+            register_backend(b, "text", &["t.pres"])?;
+            register_backend(b, "other", &["t.pres"])?;
+            b.lowering_rule(rule("t.mid.lower", "t.mid", mid_decl.clone(), DefaultMark::Everywhere))?;
+            b.lowering_rule(rule("t.foo.lower", "t.foo", foo_decl.clone(), DefaultMark::Everywhere))?;
+            b.workflow(WorkflowDef::new("text").demand(lowered_cap("text")))
+        }),
+        feature("u", |b| {
+            b.element(macro_def("u", "bar", 0))?;
+            b.lowering_rule(rule(
+                "u.bar.lower",
+                "u.bar",
+                produces("t.pres").unchecked_output("text", "bar text", "the bar reader"),
+                DefaultMark::Everywhere,
+            ))
+        }),
+    ])
+}
+
+#[test]
+fn unchecked_output_gives_one_warning_per_backend_and_feature() {
+    // Both rules of `t` declare `text`: one warning for `t`, written and reader
+    // taken from `t.foo.lower`, the first in rule-name order. `t.mid.lower`
+    // also declares `other`, which does not take part.
+    let registry = unchecked_output_registry([
+        produces("t.pres").unchecked_output("text", "foo text", "the foo reader"),
+        produces("t.pres")
+            .unchecked_output("other", "mid text elsewhere", "the other reader")
+            .unchecked_output("text", "mid text", "the mid reader"),
+    ]);
+    let plan = plan_for(&registry, &text_request());
+    assert_eq!(
+        plan.warnings().to_vec(),
+        vec![
+            PlanWarning::UncheckedOutput {
+                backend: "text".into(),
+                feature: "t".into(),
+                written: "foo text".into(),
+                reader: "the foo reader".into(),
+                workflow: None,
+            },
+            PlanWarning::UncheckedOutput {
+                backend: "text".into(),
+                feature: "u".into(),
+                written: "bar text".into(),
+                reader: "the bar reader".into(),
+                workflow: None,
+            },
+        ]
+    );
+}
+
+#[test]
+fn unchecked_output_warns_only_on_the_backends_a_rule_declares() {
+    // `t` declares `other` alone and `u` declares `text` alone: each backend's
+    // plan warns about one feature.
+    let registry = unchecked_output_registry([
+        produces("t.pres").unchecked_output("other", "foo text", "the foo reader"),
+        produces("t.pres"),
+    ]);
+    let plan = plan_for(&registry, &text_request());
+    assert_eq!(
+        plan.warnings().to_vec(),
+        vec![PlanWarning::UncheckedOutput {
+            backend: "text".into(),
+            feature: "u".into(),
+            written: "bar text".into(),
+            reader: "the bar reader".into(),
+            workflow: None,
+        }]
+    );
+    let other = PlanRequest::new().demand(lowered_cap("other"));
+    let plan = plan_for(&registry, &other);
+    assert_eq!(
+        plan.warnings().to_vec(),
+        vec![PlanWarning::UncheckedOutput {
+            backend: "other".into(),
+            feature: "t".into(),
+            written: "foo text".into(),
+            reader: "the foo reader".into(),
+            workflow: None,
+        }]
+    );
+}
+
 #[test]
 fn the_ladder_takes_the_unique_candidate_without_a_default() {
     let registry = lowering_registry(
@@ -1134,13 +1228,8 @@ fn an_error_of_a_workflows_plan_names_the_workflow() {
     let overrides = Overrides { prefer: vec!["t.nope".into()], ..Overrides::none() };
     match Plan::for_workflow(&workflow_registry(), "draft", &overrides).expect_err("unknown stage") {
         error @ PlanError::UnknownPreference { .. } => {
-            assert!(matches!(&error, PlanError::UnknownPreference { workflow: Some(w), .. } if w == "draft"));
-            assert!(
-                error.to_string().starts_with(
-                    "the plan request for workflow `draft` prefers the stage `t.nope`, but"
-                ),
-                "{error}"
-            );
+            assert!(matches!(&error, PlanError::UnknownPreference { workflow: Some(w), stage, .. }
+                if w == "draft" && stage == "t.nope"));
         }
         other => panic!("unexpected error: {other:?}"),
     }
@@ -1150,11 +1239,8 @@ fn an_error_of_a_workflows_plan_names_the_workflow() {
 fn an_error_of_a_hand_built_request_names_the_plan_request() {
     let request = PlanRequest::new().demand(output_cap("text")).prefer("t.nope");
     match Plan::build(&workflow_registry(), &request).expect_err("unknown stage") {
-        error @ PlanError::UnknownPreference { workflow: None, .. } => {
-            assert!(
-                error.to_string().starts_with("the plan request prefers the stage `t.nope`, but"),
-                "{error}"
-            );
+        PlanError::UnknownPreference { workflow: None, stage, .. } => {
+            assert_eq!(stage, "t.nope");
         }
         other => panic!("unexpected error: {other:?}"),
     }

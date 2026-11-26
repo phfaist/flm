@@ -54,11 +54,11 @@
 //! its own:
 //!
 //! ```text
-//! {model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+//! {model, lang} < core < dump < stdlib < math_passthrough        layout standalone
 //! ```
 //!
 //! This module uses [`crate::model`] and [`crate::lang`], and neither of those
-//! uses this module; [`crate::dump`], [`crate::stdcore`] and
+//! uses this module; [`crate::dump`], [`crate::stdlib`] and
 //! [`crate::math_passthrough`] use it. Within this
 //! module, [`data`] is the lowest level: it uses [`crate::model`] and a few
 //! types of [`crate::lang`], and no other submodule of `core`.

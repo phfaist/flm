@@ -118,10 +118,15 @@ impl Environment {
             name: element.name.to_string(),
             docs: element.docs.clone(),
             summary: summary_of(&element.docs).to_string(),
-            aspects: element.aspects.entries().map(|(_, name, _)| aspect_name(name).to_string()).collect(),
+            aspects: aspect_names(element),
             number: self.registry.elem_idx(element).map(|idx| idx.0),
         }
     }
+}
+
+/// The names of the aspects attached to the element value `element` ([`aspect_name`]).
+pub(super) fn aspect_names(element: &ElementSpec) -> Vec<String> {
+    element.aspects.entries().map(|(_, name, _)| aspect_name(name).to_string()).collect()
 }
 
 /// The name of an aspect's trait as the views write it: the Rust path of the trait, as the

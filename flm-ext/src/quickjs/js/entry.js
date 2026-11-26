@@ -130,6 +130,8 @@ export function define(stem, main) {
       if (!absent(object.templates) && !texts(object.templates)) refuse(`\`templates\` ${where} must be a list of texts`);
       if (!absent(object.host) && !texts(object.host)) refuse(`\`host\` ${where} must be a list of texts`);
       if (!absent(object.flm) && !is_object(object.flm)) refuse(`\`flm\` ${where} must be a map`);
+      if (!absent(object.caches) && !is_object(object.caches))
+        refuse(`‘caches’ ${where} must be a map from a cache's name to its declaration`);
       if (!absent(object.features) && !is_object(object.features))
         refuse(`\`features\` ${where} must be a map from a feature's name to its object`);
       const features = [];
@@ -160,6 +162,7 @@ export function define(stem, main) {
         flm: object.flm ?? null,
         templates: object.templates ?? null,
         host: object.host ?? null,
+        caches: object.caches ?? null,
         features,
       });
     },

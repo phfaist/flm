@@ -50,23 +50,23 @@ use flm_ext::guest::core::services::Arity;
 use flm_ext::guest::core::settings::ReadError;
 use flm_ext::guest::core::stage::{Effect, Needs, RewriteDecl, RewriteStage, Scope, Stage, StageDecl};
 use flm_ext::guest::lang::mint::{ArgDef, ElementDef, FallbackDef, FallbackKind, Mode, ScopedPackageDef, SyntaxDef};
-use flm_ext::guest::lang::rewrites::userdefs::{Definition, UserDefinition};
+use flm_ext::guest::lang::rewrites::userdefs::{Definition, StagedNodes, UserDefinition};
 use flm_ext::guest::lang::structural::{COMMENT, CONTAINER, GROUP, OPAQUE_WRAPPER, PARBREAK, TEXT};
 use flm_ext::guest::lang::{BuiltLang, FlmDiagnostics};
 use flm_ext::guest::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ContentRef, RefPoint, Referenceable, Sectioning,
 };
 use flm_ext::guest::model::element::{Aspect, ElementSpec};
-use flm_ext::guest::stdcore::backends::lowering::{LoweringStage, lowered_table_name};
-use flm_ext::guest::stdcore::backends::pres::{ALL, UNSUPPORTED};
-use flm_ext::guest::stdcore::features::citations::{
+use flm_ext::guest::stdlib::backends::lowering::{LoweringStage, lowered_table_name};
+use flm_ext::guest::stdlib::backends::pres::{ALL, UNSUPPORTED};
+use flm_ext::guest::stdlib::features::citations::{
     CitationProvider, CitationProviderError, CitationRequest, CitationResult, ProviderCx,
 };
-use flm_ext::guest::stdcore::features::compose::{
+use flm_ext::guest::stdlib::features::compose::{
     Accepts, TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule,
 };
-use flm_ext::guest::stdcore::features::refs::{label_fields_arg, label_uses, point_labels};
-use flm_ext::guest::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::guest::stdlib::features::refs::{label_fields_arg, label_uses, point_labels};
+use flm_ext::guest::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::guest::techy::error::Diagnostic;
 use flm_ext::guest::techy::node::Node;
 use flm_ext::guest::techy::transform::{Restage, Restager};
@@ -95,18 +95,20 @@ flm_ext::guest::extension!(extension);
 
 fn extension(ext: &mut Extension) {
     let package = |feature: &str, register: fn(&mut FeatureBuilder, &Value) -> Result<(), ExtError>| {
-        Package::new().uses(["stdcore"]).feature(feature, Feature::new().title(feature).register(register))
+        Package::new().feature(feature, Feature::new().title(feature).register(register))
     };
     ext.package("box", package("box", register_box));
     ext.package("rewrite", package("rewrite", register_rewrite));
     ext.package("cite", package("cite", register_cite));
-    ext.package("template", package("template", register_template));
+    let settings = json!({ "type": "object", "properties": {} });
+    let template = Feature::new().title("template").template("tiny", "html", settings).register(register_template);
+    ext.package("template", Package::new().feature("template", template));
     ext.package("hooks", package("hooks", register_hooks));
     ext.package("forms", package("forms", register_forms));
     ext.package("backend", package("backend", register_backend));
     let settings = json!({ "config": { "schema": { "type": "object", "properties": { "level": { "type": "integer" } } } } });
     let read = Feature::new().title("read").settings(settings).read(read_level).register(register_read);
-    ext.package("read", Package::new().uses(["stdcore"]).feature("read", read));
+    ext.package("read", Package::new().feature("read", read));
 }
 
 // --- rows#box: a rule's body, `points` and the sectioning ------------------------------------------
@@ -193,7 +195,7 @@ impl RewriteStage for Respell {
         if node.is_chars()? {
             let text = node.chars()?.unwrap_or_default();
             if text.contains("colour") {
-                return Ok(Restage::Emit(vec![rs.stage_chars(&text.replace("colour", "color"), node)?]));
+                return Ok(Restage::Emit(vec![rs.stage_chars(&text.replace("colour", "color"), node)?].into()));
             }
         }
         Ok(Restage::Descend)
@@ -236,7 +238,7 @@ impl TemplateModule for Tiny {
     }
 
     fn describe(&self, _: &Value) -> Result<TemplateDescription, ExtError> {
-        Ok(TemplateDescription { output: "html".to_string(), accepts: Accepts::All, requires: Vec::new(), config: Map::new() })
+        Ok(TemplateDescription { accepts: Accepts::All, requires: Vec::new(), config: Map::new() })
     }
 
     fn files(&self, _: &TemplateContext, _: &TemplateCx) -> Result<Vec<TemplateFile>, ExtError> {
@@ -343,7 +345,7 @@ impl Stage for Final {
 
     fn run(&self, cx: &StageCx, out: &mut StageOut) -> Result<(), ExtError> {
         let Some(TableValue::Ext(table)) = cx.get("rows.output")? else { return Ok(()) };
-        let text = table.items()?.first().and_then(Value::as_str).unwrap_or_default().to_string();
+        let text = table.items()?.get(0)?.as_ref().and_then(Value::as_str).unwrap_or_default().to_string();
         let artifact = Artifact::bytes(ArtifactId::new("rows", "document"), "text/plain", text.into_bytes()).as_entry();
         out.table(DOCUMENT)?.push(flm_ext::adapter::values::JsonForm::to_value(&artifact))
     }
@@ -355,7 +357,7 @@ struct NoImage;
 impl Lower for NoImage {
     fn lower(&self, _: &Node, cx: &mut LowerCx, lw: &mut Lowerer) -> Result<Lowering, ExtError> {
         let payload = json!({ "element": IMAGE, "message": "the backend `rows` writes no image" });
-        Ok(Lowering::Emit(vec![lw.pres(cx, UNSUPPORTED, &payload, vec![])?]))
+        Ok(Lowering::Emit(vec![lw.pres(cx, UNSUPPORTED, &payload, StagedNodes::default())?].into()))
     }
 }
 

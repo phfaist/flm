@@ -385,18 +385,18 @@ use std::sync::Arc;
 
 use flm_core::core::artifact::ArtifactNamer;
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::backends::latex::escape_url;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::features::href::display;
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+use flm_core::stdlib::backends::latex::escape_url;
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::features::href::display;
+use flm_core::stdlib::{StdlibConfig, add_features};
 
 mod common;
 
 use common::latex;
 use common::naming::JobNamer;
-use common::stdcore::run_workflow;
+use common::stdlib::run_workflow;
 
 /// Distinguishes the working directories of two compilations in one process.
 /// Together with the process id it makes each one unique: libtest runs the
@@ -1433,11 +1433,12 @@ fn inline_verbatim_content_in_a_grabbed_body_is_handed_over_unharmed_under() {
     // same text sets written out by hand. The golden
     // `userdefs-body-argument-verbatim.tex` is the recomposition's own document
     // for this, compiled by the suite above; the measurement here needs a body
-    // of one paragraph, so it uses the wrapping environment and a stand-in for
-    // the format hook the verbatim piece defines.
+    // of one paragraph, so it uses the wrapping environment and stand-ins for
+    // the format hook and the font family macro the verbatim piece defines.
     let golden = body_argument();
-    let verb = "\\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{a\\_b}";
-    let preamble = "\\usepackage{fvextra}\n\\newcommand\\flmFmtVRB[1]{}\n";
+    let verb = "\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{a\\_b}";
+    let preamble = "\\usepackage{fvextra}\n\\newcommand\\flmFmtVRB[1]{}\n\
+                    \\makeatletter\\newcommand\\flmVRBFamily{\\f@family}\\makeatother\n";
     let body = format!(
         "\\sbox0{{\\begin{{flmUEwrap}}{{W}}an {verb} body\\end{{flmUEwrap}}}}\
          \\typeout{{W call = \\the\\wd0}}\n         \\sbox1{{(\\emph{{an {verb} body}} — W)}}\\typeout{{W hand = \\the\\wd1}}\n         \\sbox2{{(\\emph{{an body}} — W)}}\\typeout{{W plain = \\the\\wd2}}\n"
@@ -1664,7 +1665,7 @@ fn a_bookmark_holds_the_text_of_inline_verbatim_content_and_of_a_block_under() {
     let golden = verbatim_block_in_template();
     let block = escaped_block(&[&["f(x)\\ \\%\\ y"], &["g"]]);
     let body = format!(
-        "\\section{{Inline \\EscVerb[formatcom=\\flmFmtVRB{{verbcode}}]{{a\\_b\\ \\%\\ c}} here}}\ntext\n\n\
+        "\\section{{Inline \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{{verbcode}}]{{a\\_b\\ \\%\\ c}} here}}\ntext\n\n\
          \\section{{Block {block} here}}\nmore text\n"
     );
     let result = compile_document(
@@ -2567,9 +2568,9 @@ fn verbatim_text_in_a_definitions_body_needs_no_hash_doubling_under() {
     let body = format!(
         "\\tableofcontents\n{}\n\
          \\sbox0{{\\flmUDsharp{{t}}}}\\typeout{{W call = \\the\\wd0}}\n\
-         \\sbox1{{\\EscVerb[formatcom=\\flmFmtVRB{{verbcode}}]{{a\\#b}} and \\# and t}}\
+         \\sbox1{{\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{{verbcode}}]{{a\\#b}} and \\# and t}}\
          \\typeout{{W text = \\the\\wd1}}\n\
-         \\sbox2{{\\EscVerb[formatcom=\\flmFmtVRB{{verbcode}}]{{ab}} and \\# and t}}\
+         \\sbox2{{\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{{verbcode}}]{{ab}} and \\# and t}}\
          \\typeout{{W nohash = \\the\\wd2}}\n",
         golden.output
     );
@@ -3259,7 +3260,7 @@ fn two_recomposed_style_files_load_in_one_latex_job_under() {
     // that holds two recomposed documents loads two of these files under two
     // names, and every declaration the family makes is made twice. That is the
     // invariant the guard discipline of
-    // `stdcore::backends::latex::preamble` buys and states, and nothing
+    // `stdlib::backends::latex::preamble` buys and states, and nothing
     // else in this suite exercises it: every other test loads one file.
     //
     // The two files here are one golden's style file under two package names,
@@ -4304,7 +4305,7 @@ fn the_copies_end_to_end_document_compiles_with_only_its_references_to_nothing_u
 }
 
 fn the_copies_end_to_end_document_compiles_with_only_its_references_to_nothing_undefined_under() {
-    // The end-to-end document of `stdcore_copies_end_to_end.rs`. `sec:nowhere`
+    // The end-to-end document of `stdlib_copies_end_to_end.rs`. `sec:nowhere`
     // is written under the key `ref10`, in the heading's title and in the kept
     // definition's template; every other reference resolves, the one to the
     // footnote labeled inside a starred heading's title among them.
@@ -4489,7 +4490,7 @@ fn the_graphics_and_floats_end_to_end_document_compiles_behind_the_authors_float
 }
 
 fn the_graphics_and_floats_end_to_end_document_compiles_behind_the_authors_float_environments_under() {
-    // The end-to-end document of `stdcore_graphics_floats_end_to_end.rs`:
+    // The end-to-end document of `stdlib_graphics_floats_end_to_end.rs`:
     // images and floats between paragraphs, in a list item, in a footnote,
     // in a quotation's block section and in a blockquote; the author declares
     // the two configured types' float environments; a small image is written
@@ -4665,7 +4666,7 @@ fn the_cells_end_to_end_documents_print_their_floats_and_the_references_to_them(
 }
 
 fn the_cells_end_to_end_documents_print_their_floats_and_the_references_to_them_under() {
-    // The end-to-end documents of `stdcore_cells_end_to_end.rs`: under
+    // The end-to-end documents of `stdlib_cells_end_to_end.rs`: under
     // `global`, every place, every token and every mistake of a table, the
     // mistakes' marks comment lines; under the default, tables in `table`
     // floats alone, one of them holding a picture (a one-pixel image written
@@ -4740,7 +4741,7 @@ fn a_style_file_named_through_the_naming_service_is_found_under_that_name_under(
     // recomposed LaTeX loads its style file under that name, which is written beside
     // the document under that name.
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.contribute_to(NAMER_SLOT, Arc::new(JobNamer) as Arc<dyn ArtifactNamer>);
     let registry = builder.build(&RegistryInputs::new()).unwrap_or_else(|error| panic!("{}", error.render()));

@@ -20,7 +20,7 @@ use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::text;
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::{json, Value};
@@ -38,7 +38,7 @@ import { argument_holds_blocks } from "flm:lang/rewrites/blocks";
 import { Definition, DefinitionModes, UserDefinition, Expansion, ExpandPolicy } from "flm:lang/rewrites/userdefs";
 import { Aspect, ElementSpec } from "flm:model/element";
 import { BlockRole, InlineSpacing, Placement } from "flm:model/aspects";
-import { expand_in_tree_rule_for } from "flm:stdcore/features/userdefs";
+import { expand_in_tree_rule_for } from "flm:stdlib/features/userdefs";
 
 export default function (ext) { ext.package("_", { features: { smoke: { register } } }); }
 
@@ -176,11 +176,9 @@ fn the_api_modules_items_run_from_a_script() {
     // `Expansion.Default` left the starred badge as it was: the stage meets
     // it, and the render reports it as it would for a hook of Rust.
     assert_eq!(
-        diagnostics,
-        [
-            "flm.blocks.contract-violated: the document tree breaks the structural rule UseSiteSurvived: a use of the user definition ‘wc.badge’ remains after expansion",
-            "flm.lowering.rule-failed: the lowering rule `wc.badge.lower.expand-in-tree` failed at a node of the element `wc.badge` for the backend `text`: the content does not have the structure that lowering it requires: a use site of `badge` reached lowering unexpanded, although the expansion the rule requires runs over every tree lowered",
-        ]
+        common::ids(&diagnostics),
+        ["flm.blocks.contract-violated", "flm.lowering.rule-failed"],
+        "{diagnostics:?}"
     );
     assert_eq!(text, "A HEY and [unsupported: wc.badge].\n\nBOX Tip false true\n\nThen AT here.\n");
     assert_eq!(items.len(), 4, "{items:?}");

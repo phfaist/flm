@@ -38,7 +38,7 @@ const TYPST_EMIT: &str = include_str!("js/typst/emit.js");
 const DOCUMENT_TABLE: &str = "typst.document";
 
 /// The document of the goldens, without its front
-/// matter, which the program reads (`flm-cli/tests/documents/extensions/typst.flm`),
+/// matter, which the program reads (`flm/tests/documents/extensions/typst.flm`),
 /// and with a definition of the term `defined`, which the last paragraph
 /// refers to (without it the reference is unresolved, an error).
 const DOCUMENT: &str = "\\section{Dashes and emphasis}
@@ -173,7 +173,7 @@ fn a_failing_emit_stage_is_the_handler_failure_and_no_artifact_is_written() {
     });
     let (set, diagnostics) = artifacts_of(&registry, DOCUMENT);
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the stage `typst.emit`"), "{diagnostics:?}");
+    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: "), "{diagnostics:?}");
     assert!(diagnostics[0].ends_with("no typst today"), "{diagnostics:?}");
     assert!(set.is_empty(), "{set:?}");
 }

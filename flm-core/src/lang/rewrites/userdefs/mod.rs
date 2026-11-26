@@ -14,7 +14,7 @@
 //! ordinary element declaration whose element carries the [`Expand`] aspect (an
 //! [aspect](crate::guide::concepts_overview#elements-and-aspects) is a piece of
 //! behavior attached to an element and read back through a trait object). The
-//! [`userdefs` feature](crate::stdcore::features::userdefs) declares the
+//! [`userdefs` feature](crate::stdlib::features::userdefs) declares the
 //! definitions of its configuration this way and compiles their templates when
 //! the registry is built. The **expand pass** ([`expand`]) then replaces every
 //! use site in a tree by the definition's template, instantiated with the

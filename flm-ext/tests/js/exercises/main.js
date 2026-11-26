@@ -7,11 +7,11 @@ import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowe
 import { ArgDef, BodyDef, ElementDef, ScopedPackageDef, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec, Aspect } from "flm:model/element";
 import { BlockRole, RefPoint, NumberSource, AnchorPolicy, ContentRef, AcceptedRefTypes } from "flm:model/aspects";
-import * as refs from "flm:stdcore/features/refs";
+import * as refs from "flm:stdlib/features/refs";
 import { COUNTERS, COUNTERS_SLOT, STYLES_SLOT, CounterDecl, CounterStyleDecl, FormatOptions, PrefixWords }
-  from "flm:stdcore/features/numbering";
-import * as latex from "flm:stdcore/backends/latex";
-import { BLOCK, SPAN, BODY_SLOT } from "flm:stdcore/backends/pres";
+  from "flm:stdlib/features/numbering";
+import * as latex from "flm:stdlib/backends/latex";
+import { BLOCK, SPAN, BODY_SLOT } from "flm:stdlib/backends/pres";
 
 const EXERCISE = "exercises.exercise";          // the element
 const HINT = "exercises.hint";                  // the element of \hint
@@ -42,16 +42,15 @@ function heading(node, cx, lw) {
   const children = [lw.text(cx, "Exercise ")];
   const counters = lw.get(COUNTERS)?.counters ?? null;
   const segments = counters?.format(point, new FormatOptions().without_word().without_delimiters()) ?? [];
-  for (const segment of segments) children.push(...lw.splice(cx, segment.content));
+  for (const segment of segments) children.push(lw.splice(cx, segment.content));
   if (node.argument_is_provided("title")) {
-    children.push(lw.text(cx, " ("), ...lw.lower_arg_named(cx, node, "title"), lw.text(cx, ")"));
+    children.push(lw.text(cx, " ("), lw.lower_arg_named(cx, node, "title"), lw.text(cx, ")"));
   }
   return lw.pres(cx, SPAN, { role: "exercises.heading" }, children);
 }
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: {
       exercises: {
         title: "Exercises",
@@ -64,12 +63,12 @@ export default function (ext) {
             new ElementSpec(EXERCISE)
               .with(Aspect.BlockRoleAspect(BlockRole.Block))
               .with(Aspect.Referenceable({ points })),
-          ).docs("`\\begin{exercise}[title]\\label{ex:…}…\\end{exercise}`: a numbered exercise."));
+          ).docs("Writes a numbered exercise, with an optional title; a label of the exercise has the label type `ex`."));
           // `\hint{…}`, legal inside an exercise alone.
           b.scoped_package(new ScopedPackageDef(HINTS, [
             new ElementDef(owner, ["hint"], SyntaxDef.Macro([ArgDef.mandatory("text")]),
               new ElementSpec(HINT).with(Aspect.BlockRoleAspect(BlockRole.DEFAULT)),
-            ).docs("`\\hint{…}`: a hint, written inside an exercise."),
+            ).docs("Writes a hint; the command is available inside an exercise only."),
           ], "The commands available inside an exercise: `\\hint`."));
           // The counter and its style, contributed to the numbering feature as data; the
           // style's words are what `\ref` writes before the number.
@@ -94,7 +93,7 @@ export default function (ext) {
             new LoweringDecl().reads_opt(COUNTERS).reads_opt(refs.ANCHORS).produces(BLOCK).produces(SPAN),
             { lower(node, cx, lw) {
                 const anchor = lw.get(refs.ANCHORS)?.anchors.id({ addr: lw.addr(), index: 0 }) ?? null;
-                const content = [heading(node, cx, lw), ...lw.lower_body(cx, node)];
+                const content = [heading(node, cx, lw), lw.lower_body(cx, node)];
                 return Lowering.Emit([lw.pres(cx, BLOCK, { role: EXERCISE, anchor }, content)]);
             } },
             DefaultMark.OnBackends(["html", "text"]),
@@ -112,7 +111,7 @@ export default function (ext) {
                   slots.push([latex.ARG_SLOT, lw.lower_arg_named(cx, node, "title")]);
                 }
                 const labels = refs.label_uses(node).map(use => refs.stage_label(cx, lw, use.text, use.label));
-                slots.push([BODY_SLOT, [...refs.stage_label_group(cx, lw, labels, false), ...lw.lower_body(cx, node)]]);
+                slots.push([BODY_SLOT, [refs.stage_label_group(cx, lw, labels, false), lw.lower_body(cx, node)]]);
                 return Lowering.Emit([lw.pres_slots(cx, latex.ENVIRONMENT, new latex.LatexEnvironmentPayload("exercise", shapes), slots)]);
             } },
             DefaultMark.OnBackends([latex.RECOMPOSED_BACKEND]),
@@ -121,7 +120,7 @@ export default function (ext) {
           b.lowering_rule(new LoweringRule("exercises.hint.lower.default", HINT,
             new LoweringDecl().produces(SPAN),
             { lower(node, cx, lw) {
-                return Lowering.Emit([lw.pres(cx, SPAN, { role: HINT }, [lw.text(cx, "Hint: "), ...lw.lower_arg_named(cx, node, "text")])]);
+                return Lowering.Emit([lw.pres(cx, SPAN, { role: HINT }, [lw.text(cx, "Hint: "), lw.lower_arg_named(cx, node, "text")])]);
             } },
             DefaultMark.Everywhere,
           ).docs("A hint lowers to a span: the word, then its text."));

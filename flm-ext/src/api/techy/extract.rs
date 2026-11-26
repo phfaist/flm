@@ -2,6 +2,7 @@
 //! key-value lists.
 
 use crate::adapter::node::KeyValsFacade;
+use crate::api::lang::copy::WrittenPiece;
 use crate::api::techy::node::Node;
 use crate::runtime::ExtError;
 use crate::sealed::{Sealed, Token};
@@ -39,12 +40,12 @@ pub fn parse_keyval_drop_annotations<'t>(nodes: &[Box<dyn Node<'t> + 't>]) -> Re
     let slice = tree.slice(range.0..range.1).ok_or_else(not_a_run)?;
     let list = flm_core::techy::extract::parse_keyval_drop_annotations(slice)
         .map_err(|error| ExtError::Core { kind: "extract".to_string(), detail: error.to_string(), data: serde_json::Value::Null })?;
-    Ok(Box::new(KeyValsFacade::new(list)))
+    Ok(Box::new(KeyValsFacade::new(list, slice, nodes[0].clone_box(Token::new()))))
 }
 
 /// Mirrors [`KeyVals`](flm_core::techy::extract::KeyVals): a key-value list.
 /// What differs: a façade; [`iter`](KeyVals::iter) answers a list. `'t` is the
-/// lifetime of the tree its value nodes belong to, as for [`Node`].
+/// lifetime of the tree of the nodes it was read from, as for [`Node`].
 ///
 /// The trait is sealed: the adapter alone implements it.
 pub trait KeyVals<'t>: Sealed {
@@ -70,7 +71,8 @@ pub trait KeyVals<'t>: Sealed {
 /// Mirrors [`KeyValEntry`](flm_core::techy::extract::KeyValEntry): one entry
 /// of a key-value list. What differs: a façade; its value nodes are nodes of
 /// the tree the key-value list owns, kept alive as long as a node of it is;
-/// `'t` is that tree's lifetime.
+/// `'t` is the lifetime of the tree of the nodes the list was read from,
+/// whose nodes [`value_pieces`](KeyValEntry::value_pieces) answers.
 ///
 /// The trait is sealed: the adapter alone implements it.
 pub trait KeyValEntry<'t>: Sealed {
@@ -85,6 +87,17 @@ pub trait KeyValEntry<'t>: Sealed {
     /// Mirrors [`KeyValEntry::value_content`](flm_core::techy::extract::KeyValEntry::value_content).
     /// What differs: a list.
     fn value_content(&self) -> Option<Vec<Box<dyn Node<'t> + 't>>>;
+
+    /// Mirrors [`key_value_pieces`](flm_core::lang::copy::key_value_pieces)
+    /// of [`flm_core::lang::copy`], called with the bracket the list was read
+    /// from and this entry's value: the value as pieces of the document,
+    /// whitespace at either end dropped. It answers `None` for an entry
+    /// without a value, as [`value`](KeyValEntry::value) does. A group or a callable of the value is answered as the node of
+    /// the bracket it was read from, which a rule lowers as document content;
+    /// characters split off a text node that also holds the key are answered
+    /// as text. What differs: one method of the entry, since the list keeps
+    /// the nodes it was read from.
+    fn value_pieces(&self) -> Option<Vec<WrittenPiece<'t>>>;
 }
 
 fn _object_safe(_: &dyn KeyVals<'_>, _: &dyn KeyValEntry<'_>) {}

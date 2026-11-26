@@ -1,0 +1,57 @@
+---
+title: Four levels of headings
+flm:
+  use: [lecturenotes]
+  features:
+    compose:
+      template_config:
+        html:
+          lecturenotes:
+            top_heading_level: 0
+            navigation_heading_level: 2
+            css: |
+              .flm-content .flm-pres-block--heading{{ css_selectors.headings.top }},
+              .flm-toc li{{ css_selectors.headings.top }} > .flm-pres-link { text-transform: uppercase; }
+    html: {root_heading_level: 0}
+    toc: {depth: 3}
+    headings:
+      headings:
+        part: {level: 0, counter: null, style: null}
+      commands:
+        part: {heading: part}
+---
+\part{The first part}
+
+\section{The first chapter}
+
+\subsection{The first unit}
+
+Text of the first unit.
+
+\subsubsection{A first section of the first unit}
+
+Text.
+
+\subsubsection{A second section of the first unit}
+
+Text.
+
+\subsection{The second unit}
+
+Text of the second unit.
+
+\subsubsection{A section of the second unit}
+
+Text.
+
+\part{The second part}
+
+\section{The second chapter}
+
+\subsection{The third unit}
+
+Text of the third unit.
+
+\subsubsection{A section of the third unit}
+
+Text.

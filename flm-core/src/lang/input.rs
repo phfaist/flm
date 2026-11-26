@@ -1,99 +1,90 @@
-//! Including another file in a document: the command `\input{reference}`, the
-//! interface through which the library asks the embedding program to read the
-//! file ([`InputResolver`]), and the parser of the command.
+//! This module provides file inclusion with the `\input{file}` command: the
+//! [`InputResolver`] trait, which a program that embeds FLM implements to read
+//! the included files, and the specification of inclusion macros
+//! ([`InputSpec`]), along with the error conditions that are reported for an
+//! inclusion.
 //!
-//! # What the embedding program provides, and what the library keeps
+//! # Reading the included files
 //!
-//! The library performs no input or output, so it cannot read a file. The
-//! embedding program supplies an **input resolver**, an object implementing
-//! [`InputResolver`]. For each `\input`, the library calls it with the
-//! reference as the document wrote it, the name of the file that holds the
-//! command, and the parsing settings that apply there. The resolver finds the
-//! file, reads it, splits off its front matter, reads from the front matter
-//! the keys the library needs, and returns the file's content and those facts
-//! as an [`IncludedFile`]. The embedding program sets the resolver for every
-//! parse of a registry with
+//! FLM performs no input or output, so the library cannot read a file itself. A
+//! program that embeds FLM provides an *input resolver*, an object that
+//! implements [`InputResolver`]. For each `\input` command, the library calls
+//! the input resolver with the reference written in the document, for instance
+//! `parts/intro.flm`. The input resolver finds and reads the file, reads the
+//! front matter of the file, and returns the content and the information from
+//! the front matter as an [`IncludedFile`].
+//!
+//! You set the input resolver in the inputs of a registry, with
 //! [`RegistryInputs::input_resolver`](crate::core::registry::RegistryInputs::input_resolver),
-//! or for one parse with
-//! [`ParseOptions::input_resolver`](crate::lang::ParseOptions::input_resolver);
-//! the parse driver holds it
-//! ([`FlmDriver::with_input_resolver`](crate::lang::FlmDriver::with_input_resolver)).
-//! The `flm` program supplies a resolver that reads files from disk.
+//! or for a single parse, with
+//! [`ParseOptions::input_resolver`](crate::lang::ParseOptions::input_resolver).
+//! The `flm` program provides an input resolver that reads files relative to
+//! the folder of the including file.
 //!
-//! The library keeps every fact about the document itself: which file
-//! includes which (and therefore whether a file includes itself or a chain of
-//! inclusions is too deep); the parsing settings of each file, which it passes
-//! to the resolver with each call, and the parsing state the included content
-//! is read under; and where the content goes in the tree.
+//! The library keeps track of which file includes which. It reports a file
+//! that includes itself and a chain of inclusions that is too deep, so the
+//! input resolver does not need to remember earlier calls.
 //!
 //! # Content inputs and heading inputs
 //!
-//! An included file is one of two kinds, as its front matter declares
-//! ([`IncludedFile::heading`]):
+//! An included file is either a content input or a heading input. The input
+//! resolver selects the kind with the field [`IncludedFile::heading`], usually
+//! according to the front matter of the file.
 //!
-//! - A **content input** continues the text around the command. Its content is
-//!   parsed where the command is written and becomes part of the including
-//!   file's tree.
-//! - A **heading input** opens with a heading, declared in its front matter
-//!   ([`InputHeading`]). It is a part of the document with a place of its own.
-//!   Only the assembly of a whole document ([`crate::model::assemble`]) can
-//!   include it: the assembly parses the file as a tree of its own and places
-//!   that tree at the command. A heading input may be included only once in a
-//!   document.
+//! - A *content input* continues the text around the `\input` command. Its
+//!   content is parsed at the place of the command, as if it were written
+//!   there. For instance, a paragraph can begin in the including file and end
+//!   in the included file.
+//! - A *heading input* is a part of the document with a heading of its own,
+//!   such as a chapter kept in a file. The input resolver provides the heading
+//!   as an [`InputHeading`]. The library parses the heading input as a separate
+//!   tree that begins with the heading, and places this tree in the document at
+//!   the `\input` command. Only the assembly of a whole document
+//!   ([`crate::model::assemble`]) places such trees. A heading input can
+//!   therefore be included only in a whole document, and only once.
 //!
-//! # What a parse makes of `\input`
+//! # The content of a content input in the tree
 //!
-//! The [`input` feature](crate::stdcore::features::input) of the library's
-//! standard features declares the command as an inclusion macro
-//! ([`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion)), which [minting](crate::lang::mint) builds as an [`InputSpec`]. Its parser
-//! reads the argument named [`REFERENCE_ARGUMENT`] as plain characters, calls
-//! the input resolver, and parses the content of a content input **where the
-//! command is written**: under the parsing state that applies there, with the
-//! file's own parsing settings ([`IncludedFile::parsing`]) on top. The state
-//! records which settings it was derived from
-//! ([`FlmStateExt::parsing`](crate::lang::FlmStateExt::parsing)), so that an
-//! `\input` inside the included file passes the resolver the settings that
-//! apply there. No change the included content makes to the parsing state
-//! applies after the command.
+//! The content of a content input is parsed under the parsing state in effect
+//! at the `\input` command, with the parsing settings of the file
+//! ([`IncludedFile::parsing`]) applied. A change that the included content
+//! makes to the parsing state does not apply after the command.
 //!
-//! The parsed content becomes the node slot named [`ATTACHED_SLOT`] of the
-//! command's node. A node slot (techy's `ParsedSlot`) is a part of a node's
-//! content outside its arguments, such as an environment's body. The nodes in
-//! that slot carry spans into the included file, and the command's node keeps
-//! its span in the including file. Before any other
-//! rewrite pass runs, the input rewrite pass ([`crate::lang::rewrites::input`])
-//! replaces the node by that content, so that a paragraph begun in one file
-//! may end in the other, and later passes and stages need not know that the
-//! content came from another file.
+//! The parsed content is stored in the node slot [`ATTACHED_SLOT`] of the node
+//! of the `\input` command. A *node slot* (techy's `ParsedSlot`) is a part of
+//! the content of a node that is not an argument, such as the body of an
+//! environment. The nodes of the included content have spans in the included
+//! file, and the node of the command has its span in the including file.
+//! [`attached_content`] returns the included content of such a node.
 //!
-//! The node of a heading input's command has an empty slot named
-//! [`PLACED_SLOT`] instead ([`is_placing`]), and the assembly places the file's
-//! tree there.
+//! The splicing pass ([`crate::lang::rewrites::input`]) runs before every
+//! other rewrite pass, and replaces the node of each `\input` command with the
+//! included content. The later passes and stages therefore process the
+//! included content as if it were written in the including file.
 //!
-//! # When the file cannot be included
+//! For a heading input, the node of the `\input` command has the empty node
+//! slot [`PLACED_SLOT`] instead, and [`is_placing`] returns `true` for this
+//! node.
 //!
-//! The parser reports the problem at the command, and the command's node
-//! includes nothing, when:
+//! # Errors
 //!
-//! - the reference is not plain characters ([`InputReferenceNotPlain`]);
-//! - no input resolver is set ([`InputUnavailable`]);
-//! - the resolver could not find or read the file ([`InputUnreadable`]);
-//! - the file is already being included further up the chain
-//!   ([`InputIncludesItself`]);
-//! - the chain of inclusions is deeper than [`DEPTH_LIMIT`] ([`InputTooDeep`]);
-//! - the command is written in a [user
-//!   definition](crate::lang::rewrites::userdefs::Definition)'s own text (its
-//!   template or an argument's default value) ([`InputInDefinition`]);
-//! - for a heading input: the parse is not the assembly of a whole document
-//!   ([`InputHeadingOutsideDocument`]), the heading command is not a command
-//!   name ([`InputHeadingCommandInvalid`]), or the file was already included
-//!   in the document ([`InputPlacedTwice`]).
+//! When a file cannot be included, the parser of the `\input` command reports
+//! an error at the command, and the command includes nothing. With the standard
+//! [`input` feature](crate::stdlib::features::input), the command then expands
+//! to a dropped mark (`flm.pres.dropped`). The following errors prevent the
+//! inclusion:
 //!
-//! Two problems are reported and the file is still included: a problem the
-//! resolver found in the file's front matter, reported at its place in the
-//! included file ([`IncludedFrontMatterProblem`]), and, for a heading input, a
-//! label holding a brace ([`InputHeadingLabelInvalid`]), after which the
-//! heading carries no label.
+//! - [`InputReferenceNotPlain`]: the reference is not plain text.
+//! - [`InputUnavailable`]: no input resolver is set.
+//! - [`InputUnreadable`]: the input resolver failed to provide the file.
+//! - [`InputIncludesItself`]: the file includes itself.
+//! - [`InputTooDeep`]: the chain of inclusions is too deep.
+//! - [`InputInDefinition`]: the command is written in a user definition.
+//! - [`InputHeadingOutsideDocument`], [`InputHeadingCommandInvalid`] and
+//!   [`InputPlacedTwice`]: a heading input cannot be included.
+//!
+//! The file is still included after the errors [`IncludedFrontMatterProblem`]
+//! and [`InputHeadingLabelInvalid`].
 
 use std::any::Any;
 use std::fmt;
@@ -120,120 +111,152 @@ use crate::lang::mint::specs::FlmCallable;
 use crate::lang::origin::{FlmOrigin, FlmSource, FlmSpan};
 use crate::lang::rules::FlmParsing;
 
-/// The name of the argument from which an inclusion macro reads the
-/// reference: `reference`.
+/// The name of the argument of an inclusion macro that contains the reference
+/// to the included file (`reference`).
+///
+/// An argument with this name must be declared for every inclusion macro
+/// ([`InputSpec::new`]).
 pub const REFERENCE_ARGUMENT: &str = "reference";
 
-/// The name of the node slot (techy's `ParsedSlot`, a part of a node's content
-/// outside its arguments, such as an environment's body) that holds the
-/// included content on the node of an `\input` of a content input: `attached`.
+/// The name of the node slot that contains the included content of a content
+/// input (`attached`).
+///
+/// The node of an `\input` command has this slot when the command included a
+/// content input. A node slot is a part of the content of a node that is not
+/// an argument; see [the module
+/// documentation](self#the-content-of-a-content-input-in-the-tree).
 pub const ATTACHED_SLOT: &str = "attached";
 
-/// The name of the node slot (techy's `ParsedSlot`, a part of a node's content
-/// outside its arguments, such as an environment's body), always empty, that
-/// marks the node of an `\input` whose file is a heading input placed as a
-/// tree of its own: `placed` ([`is_placing`]).
+/// The name of the empty node slot that marks the node of an `\input` command
+/// that included a heading input (`placed`).
+///
+/// The tree of the heading input is placed in the document at this node
+/// ([`is_placing`]).
 pub const PLACED_SLOT: &str = "placed";
 
-/// The maximum depth of a chain of inclusions: 32. The primary file is at depth
-/// zero and a file it includes at depth one; a file at a greater depth than
-/// this is not included ([`InputTooDeep`]).
+/// The maximum depth of an included file (32).
+///
+/// The primary file has depth zero, a file that the primary file includes has
+/// depth one, and so on. A file at a greater depth is not included
+/// ([`InputTooDeep`]).
 pub const DEPTH_LIMIT: usize = 32;
 
 // --- what the library asks of a host ----------------------------------------------------
 
-/// What an input resolver returns for one `\input`: the content of the
-/// included file and what the resolver read about it.
+/// An `IncludedFile` contains the content of an included file and the
+/// information that the input resolver read from the front matter of the file.
 ///
-/// An [`InputResolver`] builds it. Every field is a fact about the file that the
-/// library cannot find out itself, since it reads no file and no front
-/// matter.
+/// An [`InputResolver`] returns an `IncludedFile` for each `\input` command.
+/// The fields have defaults, so a resolver that reads no front matter only
+/// sets [`name`](Self::name), [`text`](Self::text) and
+/// [`first_line`](Self::first_line).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IncludedFile {
-    /// The name under which the file is known: what messages print, and what
-    /// tells two files apart when the library checks that no file includes
-    /// itself. Two references to the same file must give it the same name.
+    /// The name that identifies the file, for instance its canonical path.
+    ///
+    /// Diagnostics refer to the file by this name. The library also compares
+    /// names to detect a file that includes itself ([`InputIncludesItself`])
+    /// and a heading input that is included twice ([`InputPlacedTwice`]).
+    /// Therefore, two references to the same file must give the same name, and
+    /// two different files must have different names. The name of the primary
+    /// file is the canonical path of its [origin](crate::lang::FlmOrigin).
     pub name: String,
-    /// The file's content, its front matter removed.
+    /// The content of the file, without its front matter.
     pub text: String,
-    /// The line of the file, counted from one, on which
-    /// [`text`](Self::text) begins (one when the file has no front matter), so
-    /// that a problem in the content is reported at its line in the file.
+    /// The line of the file on which [`text`](Self::text) begins, counted from
+    /// one.
+    ///
+    /// The library uses this number to report a problem in the content at its
+    /// line in the file. For a file without front matter, the value is one.
+    /// The value zero counts as one.
     pub first_line: usize,
-    /// The parsing settings the content is read under, when the file sets any
-    /// of its own: the settings that apply where the command is written (which
-    /// the library passes to [`InputResolver::resolve`]), with the keys the file
-    /// sets replaced, as one complete value. `None` when the file sets none:
-    /// the content is then read under the parsing state that applies where the
-    /// command is written, unchanged.
+    /// The parsing settings of the content, if parsing settings are written in
+    /// the file itself, for instance in its front matter.
+    ///
+    /// The value is complete: it contains the `parsing` settings that the
+    /// library passes to [`InputResolver::resolve`], with the settings of the
+    /// file applied over them. With `None`, the content is parsed under the
+    /// parsing state in effect at the `\input` command.
     pub parsing: Option<FlmParsing>,
-    /// The problems the resolver found in the file's front matter, each at its
-    /// place in the file. They are reported, and the content is still
-    /// included.
+    /// The problems that the input resolver found in the front matter of the
+    /// file.
+    ///
+    /// The library reports each problem as an error
+    /// ([`IncludedFrontMatterProblem`]) and still includes the file.
     pub problems: Vec<IncludedFileProblem>,
-    /// The heading the file opens with, when its front matter declares it a
-    /// **heading input**; `None` for a **content input**, whose content
-    /// continues the text around the command. The [module
-    /// documentation](self#content-inputs-and-heading-inputs) describes both
-    /// kinds.
+    /// The heading of a heading input, or `None` for a content input.
+    ///
+    /// See [content inputs and heading
+    /// inputs](self#content-inputs-and-heading-inputs) for the two kinds of
+    /// included files.
     pub heading: Option<InputHeading>,
 }
 
-/// The heading a heading input opens with, as the input resolver read it from
-/// the file's front matter ([`IncludedFile::heading`]).
+/// An `InputHeading` describes the heading of a heading input
+/// ([`IncludedFile::heading`]).
 ///
-/// Before the file's content, the library writes the heading command given
-/// here applied to the title (`\section{Title}`, or `\section*{Title}` when
-/// the heading is not numbered), followed by `\label{label}` when a label is
-/// given. The library checks only that this text forms one command with its
-/// arguments: the command must be a command name
-/// ([`InputHeadingCommandInvalid`]), and the label must hold no brace
-/// ([`InputHeadingLabelInvalid`]). The command decides what it makes of the
-/// heading (its level, its number); the library checks nothing of it. A problem
-/// in the title is reported at its place in the file, given by
-/// [`title_at`](Self::title_at).
+/// The library writes the heading as FLM source before the content of the
+/// file, and parses it with the content. For instance, the heading command
+/// `section`, the title `Methods` and the label `sec:methods` give
+/// `\section{Methods}\label{sec:methods}`. An unnumbered heading uses the
+/// starred form of the command, as in `\section*{Methods}`.
+///
+/// The command is parsed like any command written in the document. The library
+/// does not check that the command is a heading command. It only checks that
+/// [`command`](Self::command) is a valid command name
+/// ([`InputHeadingCommandInvalid`]) and that [`label`](Self::label) contains
+/// no brace ([`InputHeadingLabelInvalid`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InputHeading {
-    /// The name of the heading command, without its backslash: `section`.
+    /// The name of the heading command, without the backslash, for instance
+    /// `section`.
     pub command: String,
-    /// The title, as FLM source: `The \emph{Art}`.
+    /// The title, as FLM source, for instance `The \emph{Art}`.
     pub title: String,
-    /// Where the title is written in the file — its line and column, counted
-    /// from one — so that a problem in it is reported there; `None` when the
-    /// file writes no title.
+    /// The line and the column of the title in the file, both counted from
+    /// one, or `None` if the title is not written in the file.
+    ///
+    /// The library uses this position to report a problem in the title at its
+    /// place in the file.
     pub title_at: Option<(usize, usize)>,
-    /// The label the heading carries, when one is given.
+    /// The label of the heading, if the heading has one.
     pub label: Option<String>,
-    /// Whether the heading is numbered; `false` writes the command's starred
-    /// form.
+    /// Whether the heading is numbered. If `false`, the library writes the
+    /// starred form of the heading command. The default is `false`.
     pub numbered: bool,
 }
 
-/// A problem an input resolver found in the front matter of an included file,
-/// at its place in that file ([`IncludedFile::problems`]). The library reports
-/// it as the condition [`IncludedFrontMatterProblem`].
+/// An `IncludedFileProblem` describes a problem that an input resolver found
+/// in the front matter of an included file ([`IncludedFile::problems`]).
+///
+/// The library reports the problem as the error
+/// [`IncludedFrontMatterProblem`], at the given line and column of the
+/// included file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncludedFileProblem {
-    /// The line, counted from one.
+    /// The line of the problem, counted from one.
     pub line: usize,
-    /// The column, counted from one.
+    /// The column of the problem, counted from one.
     pub column: usize,
-    /// The message that reports the problem. Like the library's own messages,
-    /// it should state the violated condition directly.
+    /// The message of the diagnostic. Write it like the messages of the
+    /// library: state directly what is wrong, as in `Unknown key ‘title2’`.
     pub message: String,
 }
 
-/// The error an input resolver returns when it cannot provide the file of an
-/// `\input`: the file does not exist or cannot be read. The library reports it as the
-/// condition [`InputUnreadable`].
+/// The error that an input resolver returns when it fails to provide the file
+/// of an `\input` command, for instance because the file does not exist.
+///
+/// The library reports the failure as the error [`InputUnreadable`], whose
+/// message contains [`message`](Self::message).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InputError {
-    /// What went wrong, including the file that was looked for.
+    /// The description of the failure. It should give the file that the input
+    /// resolver tried to read.
     pub message: String,
 }
 
 impl InputError {
-    /// Returns an error with `message`.
+    /// Returns an error with the description `message`.
     pub fn new(message: impl Into<String>) -> InputError {
         InputError { message: message.into() }
     }
@@ -247,45 +270,50 @@ impl fmt::Display for InputError {
 
 impl std::error::Error for InputError {}
 
-/// An input resolver: the object the embedding program implements so that the
-/// library can include files with `\input`. It finds a file from a reference,
-/// reads it, and reads the facts of [`IncludedFile`] from its front matter.
+/// An input resolver finds and reads the files that `\input` commands refer
+/// to. A program that embeds FLM implements this trait, because the library
+/// performs no input or output itself.
 ///
-/// Set it for every parse of a registry with
+/// You set the input resolver in the inputs of a registry, with
 /// [`RegistryInputs::input_resolver`](crate::core::registry::RegistryInputs::input_resolver),
-/// or for one parse with
+/// or for a single parse, with
 /// [`ParseOptions::input_resolver`](crate::lang::ParseOptions::input_resolver).
-/// Without one, every `\input` is reported ([`InputUnavailable`]) and includes
-/// nothing. The [module documentation](self) describes the whole exchange.
+/// If no input resolver is set, the library reports each `\input` command as
+/// an error ([`InputUnavailable`]) and includes nothing. See the [module
+/// documentation](self) for how included files are parsed.
 ///
-/// The library calls [`resolve`](Self::resolve) once for each `\input` it
-/// parses, with three arguments:
+/// The library calls [`resolve`](Self::resolve) once for each `\input` command
+/// that it parses. The method receives three arguments:
 ///
-/// - `reference`, exactly as the document wrote it. The resolver alone decides
-///   how it is turned into a path (usually relative to the including file,
-///   which `including` identifies).
-/// - `including`, the [name](IncludedFile::name) of the file that holds the
-///   command: for the primary file, the canonical path of its source's
-///   [origin](crate::lang::FlmOrigin); `None` for content that comes from no
+/// - `reference`: the reference to the file, as written in the document. The
+///   input resolver decides how to find the file from the reference, usually
+///   relative to the including file.
+/// - `including`: the [name](IncludedFile::name) of the file that contains
+///   the `\input` command, or `None` if the content does not come from a file.
+///   For the primary file, the name is the canonical path of its
+///   [origin](crate::lang::FlmOrigin).
+/// - `parsing`: the parsing settings in effect at the `\input` command. In an
+///   included file, these are the settings under which the library parses the
 ///   file.
-/// - `parsing`, the parsing settings that apply where the command is written:
-///   the document's in the primary file, and in an included file the settings
-///   it is read under, whether it set settings of its own or not.
 ///
-/// The library keeps track of which file includes which, and of the settings
-/// each file is read under, so the resolver needs no memory of earlier calls.
-/// When the file sets parsing settings of its own, the resolver returns them
-/// applied over `parsing`, as one complete value ([`IncludedFile::parsing`]).
+/// If parsing settings are written in the file itself, the input resolver
+/// applies them over `parsing` and returns the result in
+/// [`IncludedFile::parsing`].
 ///
-/// A resolver is shared across threads, so it must be `Send` and `Sync`; a
-/// resolver that records the files it read keeps the record behind a lock.
+/// The library keeps track of which file includes which, and of the parsing
+/// settings of each file. An input resolver therefore does not need to
+/// remember earlier calls.
+///
+/// An input resolver must be `Send` and `Sync`, because the library can call
+/// it from several threads. If your input resolver records the files that it
+/// reads, store the record behind a lock, for instance a `Mutex`.
 ///
 /// # Examples
 ///
-/// A resolver that serves files held in memory. It fills in the name, the
-/// content and the first line of each file, and leaves the other facts of
-/// [`IncludedFile`] at their defaults (no parsing settings of its own, no
-/// front-matter problem, a content input):
+/// The following input resolver provides files stored in memory. It sets the
+/// name, the content and the first line of each file. The other fields of
+/// [`IncludedFile`] keep their defaults, so each file is a content input
+/// without parsing settings of its own.
 ///
 /// ```
 /// use std::collections::HashMap;
@@ -325,12 +353,14 @@ impl std::error::Error for InputError {}
 /// ```
 pub trait InputResolver: Send + Sync {
     /// Finds and reads the file that `reference` refers to, and returns its
-    /// content and front-matter facts.
+    /// content and the information from its front matter. The [trait
+    /// documentation](InputResolver) describes the arguments.
     ///
     /// # Errors
     ///
-    /// An [`InputError`] when no file is found or it cannot be read; the
-    /// library reports it at the command ([`InputUnreadable`]).
+    /// Returns an [`InputError`] if the file cannot be found or read. The
+    /// library reports the error at the `\input` command ([`InputUnreadable`])
+    /// and includes nothing.
     fn resolve(
         &self,
         reference: &str,
@@ -341,223 +371,293 @@ pub trait InputResolver: Send + Sync {
 
 // --- the conditions -------------------------------------------------------------------
 
-/// Condition `flm.input.reference-not-plain`: the reference of an `\input`
-/// holds something other than plain characters (a group, a command, a
-/// comment).
+/// The error that is reported when the argument of `\input` is not plain text
+/// (`flm.input.reference-not-plain`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The argument must consist of characters only, as in
+/// `\input{parts/intro.flm}`.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.reference-not-plain",
-    message = "the file name given to \\input must be plain text, without commands, groups \
-               or comments"
+    message = "Invalid argument to ‘\\input’, expected plain text only"
 )]
 pub struct InputReferenceNotPlain;
 
-/// Condition `flm.input.unavailable`: an `\input` was parsed without an input
-/// resolver, so no file can be read.
+/// The error that is reported when a document uses `\input` and no input
+/// resolver is set (`flm.input.unavailable`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The library reads included files through an [`InputResolver`], which the
+/// program that processes the document must provide. The [`InputResolver`]
+/// documentation describes how to set one.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.unavailable",
-    message = "\\input{{{reference}}} requires a program that reads files, and the program \
-               processing this document reads none"
+    message = "Cannot process ‘\\input{{{reference}}}’: No input source resolver configured for this document"
 )]
 pub struct InputUnavailable {
     /// The reference, as written.
     pub reference: String,
 }
 
-/// Condition `flm.input.unreadable`: the input resolver found no file for the
-/// reference, or could not read it ([`InputError`]).
+/// The error that is reported when the input resolver fails to provide the
+/// file of an `\input` command (`flm.input.unreadable`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The input resolver returns an [`InputError`], for instance because the file
+/// does not exist or cannot be read. The message of the diagnostic contains
+/// the description of the failure from the [`InputError`].
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.unreadable",
-    message = "the file that \\input{{{reference}}} refers to must exist and be readable: \
-               {detail}"
+    message = "Source input ‘{reference}’ nonexistent or unreadable: {detail}"
 )]
 pub struct InputUnreadable {
     /// The reference, as written.
     pub reference: String,
-    /// The resolver's message, which includes the file that was looked for.
+    /// The description of the failure ([`InputError::message`]).
     pub detail: String,
 }
 
-/// Condition `flm.input.includes-itself`: the file an `\input` refers to is
-/// already being included further up the chain of inclusions, so including it
-/// again would never end.
+/// The error that is reported when a file includes itself, directly or
+/// through other files (`flm.input.includes-itself`).
 ///
-/// Reported at error severity at the command. Recovery: the file is not
-/// included again.
+/// The library compares the [name](IncludedFile::name) of the file that an
+/// `\input` command refers to with the names of the including file, the file
+/// that includes it, and so on up to the primary file.
+///
+/// Reported by the parser of `\input` at the command that would include the
+/// file again. The command includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.includes-itself",
-    message = "a file must not include itself, directly or through other files: {file} is \
-               already being included"
+    message = "Refusing recursive inclusion of ‘{file}’"
 )]
 pub struct InputIncludesItself {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
 }
 
-/// Condition `flm.input.too-deep`: the chain of inclusions that leads to this
-/// `\input` is already [`DEPTH_LIMIT`] files deep.
+/// The error that is reported when an included file would have a depth
+/// greater than [`DEPTH_LIMIT`] (`flm.input.too-deep`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The primary file has depth zero, a file that the primary file includes has
+/// depth one, and so on.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.too-deep",
-    message = "files may be included at most {limit} levels deep, and including {file} here \
-               would exceed that limit"
+    message = "Input depth limit ({limit} levels) reached while processing inclusion of ‘{file}’"
 )]
 pub struct InputTooDeep {
-    /// The limit, [`DEPTH_LIMIT`].
+    /// The maximum depth, [`DEPTH_LIMIT`].
     pub limit: usize,
-    /// The name of the file that this `\input` would include.
+    /// The [name](IncludedFile::name) of the file that the `\input` command
+    /// refers to.
     pub file: String,
 }
 
-/// Condition `flm.input.in-definition`: an `\input` is written in a [user
-/// definition](crate::lang::rewrites::userdefs::Definition)'s own text (its
-/// template or an argument's default value), where no file can be included.
+/// The error that is reported when `\input` is written in the definition of a
+/// user-defined command or environment (`flm.input.in-definition`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// This is the case when `\input` is written in the template of a [user
+/// definition](crate::lang::rewrites::userdefs::Definition), or in the default
+/// value of one of its arguments.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.in-definition",
-    message = "\\input must not appear in the template or default argument values of a \
+    message = "‘\\input’ must not appear in the template or default argument values of a \
                user-defined command or environment"
 )]
 pub struct InputInDefinition;
 
-/// Condition `flm.input.front-matter`: a problem the input resolver found in
-/// the front matter of an included file ([`IncludedFileProblem`]), reported at
-/// its place in that file. The message is the resolver's.
+/// The error that is reported for a problem that the input resolver found in
+/// the front matter of an included file (`flm.input.front-matter`).
 ///
-/// Reported at error severity. Recovery: the file is still included.
+/// The input resolver returns the problem as an [`IncludedFileProblem`]. The
+/// message of the diagnostic is the message of the [`IncludedFileProblem`].
+///
+/// Reported by the parser of `\input`, at the line and column of the problem
+/// in the included file. The file is still included.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(id = "flm.input.front-matter", message = "{message}")]
 pub struct IncludedFrontMatterProblem {
-    /// The resolver's message.
+    /// The message from the input resolver ([`IncludedFileProblem::message`]).
     pub message: String,
 }
 
-/// Condition `flm.input.placed-twice`: a heading input is included a second
-/// time in one document. A heading input is a part of the document with a
-/// place of its own, so it can be placed only once.
+/// The error that is reported when a heading input is included a second time
+/// in a document (`flm.input.placed-twice`).
 ///
-/// Reported at error severity at the second command. Recovery: the second
-/// command includes nothing.
+/// The tree of a [heading input](self#content-inputs-and-heading-inputs) is
+/// placed in the document at the `\input` command, so a heading input can be
+/// included only once. Two `\input` commands include the same file when the
+/// input resolver returns the same [name](IncludedFile::name) for both.
+///
+/// Reported by the parser of `\input` at the second command. The second
+/// command includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), it expands to a dropped mark
+/// (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.placed-twice",
-    message = "a file that opens with a heading can be included only once: {file} is already \
-               included"
+    message = "Duplicate heading-mode inclusion of ‘{file}’"
 )]
 pub struct InputPlacedTwice {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
 }
 
-/// Condition `flm.input.heading-outside-document`: a file that opens with a
-/// heading is included by a parse that does not assemble a whole document
-/// ([`crate::model::assemble`]), so there is no document to place it in.
+/// The error that is reported when a heading input is included outside the
+/// assembly of a whole document (`flm.input.heading-outside-document`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The tree of a [heading input](self#content-inputs-and-heading-inputs) is
+/// placed in the document at the `\input` command. Only the assembly of a
+/// whole document ([`crate::model::assemble`]) places such trees. Content that
+/// is parsed on its own, for instance with
+/// [`parse_fragment`](crate::lang::parse_fragment), is not part of a document.
+/// A site generator, for instance, parses each field of its data in this way.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.heading-outside-document",
-    message = "a file that opens with a heading can be included only in a whole document: \
-               {file} opens with a heading"
+    message = "Heading-mode inclusion of ‘{file}’ is only possible in a whole document"
 )]
 pub struct InputHeadingOutsideDocument {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
 }
 
-/// Condition `flm.input.placement-lost`: the assembly of a document found no
-/// node for the `\input` of a heading input that its parse recorded, so the
-/// file's tree has no place. The parse adds that node to the tree right after
-/// recording the file, so this reports an error in the library, not in the
-/// document.
+/// The error that is reported when the assembly of a document does not find
+/// the node of the `\input` command of a heading input
+/// (`flm.input.placement-lost`).
 ///
-/// Reported at error severity by the assembly ([`crate::model::assemble`]), at
-/// the command. Recovery: the file's tree is not placed.
+/// When the parser of `\input` includes a heading input, it records the file
+/// for the assembly ([`crate::model::assemble`]) and adds the node of the
+/// command to the tree. The assembly then places the tree of the heading input
+/// at this node. A document cannot cause this error: a missing node indicates
+/// a fault in the library or in an extension.
+///
+/// Reported by the assembly, at the `\input` command. The tree of the heading
+/// input is not placed in the document.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.placement-lost",
-    message = "the \\input that includes {file}, a file that opens with a heading, must \
-               remain in the parsed document for the file to be placed there; this is an \
-               error in the program processing the document"
+    message = "Misconfigured input processing: The node of a heading-mode ‘\\input’ for ‘{file}’ was not found in the final document tree"
 )]
 pub struct InputPlacementLost {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
 }
 
-/// Condition `flm.input.heading-command`: the heading command that a heading
-/// input specifies ([`InputHeading::command`], which the input resolver reads
-/// from the file's front matter) is not a command name: it is empty, or it holds a character a command name cannot hold.
+/// The error that is reported when the heading command of a heading input is
+/// not a valid command name (`flm.input.heading-command`).
 ///
-/// Reported at error severity at the command. Recovery: no file is included.
+/// The input resolver provides the heading command in
+/// [`InputHeading::command`], usually from the front matter of the included
+/// file. The heading command must be the name of a command without the
+/// backslash, as in `section`. It may contain only the characters that the
+/// parsing settings in effect at the `\input` command allow in a command name.
+///
+/// Reported by the parser of `\input` when it parses the command. The command
+/// includes no file. With the standard [`input`
+/// feature](crate::stdlib::features::input), the command expands to a dropped
+/// mark (`flm.pres.dropped`).
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.heading-command",
-    message = "the heading command of {file} must be a command name without its backslash: \
-               ‘{command}’ is not a command name"
+    message = "Invalid heading command ‘\\{command}’ configured for heading-mode input of ‘{file}’"
 )]
 pub struct InputHeadingCommandInvalid {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
-    /// The heading command as written.
+    /// The heading command, as provided by the input resolver.
     pub command: String,
 }
 
-/// Condition `flm.input.heading-label`: the label that a heading input gives
-/// its heading ([`InputHeading::label`], which the input resolver reads from
-/// the file's front matter) holds a brace.
+
+// ### Why do we have to check that the label doesn't hold a brace??? How is this even a condition??? What's the deal here????
+
+/// The error that is reported when the label of the heading of a heading input
+/// contains a brace (`flm.input.heading-label`).
 ///
-/// Reported at error severity at the command. Recovery: the file is included,
-/// and its heading carries no label.
+/// The input resolver provides the label in [`InputHeading::label`], usually
+/// from the front matter of the included file. The library writes the heading
+/// as FLM source, as in `\section{Methods}\label{sec:methods}`, and parses it. A
+/// brace in the label would change where the argument of `\label` ends.
+/// Therefore, the label must not contain `{` or `}`.
+///
+/// Reported by the parser of `\input` when it parses the command. The file is
+/// still included, and its heading has no label.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.input.heading-label",
-    message = "the heading label of {file} must not hold a brace: ‘{label}’"
+    message = "Invalid label ‘{label}’ specified in heading-mode inclusion of ‘{file}’"
 )]
 pub struct InputHeadingLabelInvalid {
-    /// The name of the file.
+    /// The [name](IncludedFile::name) of the file.
     pub file: String,
-    /// The label as written.
+    /// The label, as provided by the input resolver.
     pub label: String,
 }
 
 // --- the record of heading inputs -------------------------------------------------------
 
-/// One heading input found by a parse: what the assembly of the document needs
-/// to parse the file as a tree of its own and place it at its command.
+/// A `PlacedInput` records a heading input that the parser of `\input`
+/// included. It contains what the assembly of the document needs to parse the
+/// file as a separate tree and to place this tree at the `\input` command.
 #[derive(Debug, Clone)]
 pub(crate) struct PlacedInput {
-    /// The span of the `\input` command, in the including file: the assembly
-    /// finds the node that places the tree by this span.
+    /// The span of the `\input` command in the including file. The assembly
+    /// finds the node of the command by this span.
     pub(crate) site: FlmSpan,
-    /// The name the input resolver gave the file.
+    /// The [name](IncludedFile::name) of the file.
     pub(crate) name: String,
-    /// The file's content, as a source included from the command.
+    /// The content of the file, as a source included from the `\input`
+    /// command.
     pub(crate) source: Arc<FlmSource>,
-    /// The heading the file opens with.
+    /// The heading of the heading input.
     pub(crate) heading: InputHeading,
-    /// The parsing state the file is read under: the state at the command,
-    /// with the file's own parsing settings on top.
+    /// The parsing state under which the file is parsed: the state at the
+    /// `\input` command, with the parsing settings of the file applied.
     pub(crate) state: Arc<ParsingState<Flm>>,
 }
 
-/// The heading inputs found while one document is assembled, in the order the
-/// parses found them. The assembly sets one on the parse driver
-/// ([`FlmDriver::with_placements`](crate::lang::FlmDriver)) and reads it back
-/// after each parse.
+/// `Placements` collects the heading inputs that are included while one
+/// document is assembled, in the order in which they are parsed.
+///
+/// The assembly ([`crate::model::assemble`]) sets a `Placements` on the parse
+/// driver (`FlmDriver::with_placements`), and reads the new records after each
+/// parse. The parser of `\input` reports [`InputHeadingOutsideDocument`] when
+/// the parse driver has no `Placements`.
 #[derive(Debug, Default)]
 pub(crate) struct Placements {
     records: std::sync::Mutex<Vec<PlacedInput>>,
@@ -568,19 +668,19 @@ impl Placements {
         self.records.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// Returns how many heading inputs were found so far.
+    /// Returns the number of heading inputs recorded so far.
     pub(crate) fn len(&self) -> usize {
         self.lock().len()
     }
 
-    /// Returns the heading inputs found from the `from`-th on, up to the
-    /// `to`-th.
+    /// Returns the records with the indices `from..to`, or an empty vector if
+    /// this range is out of bounds.
     pub(crate) fn range(&self, from: usize, to: usize) -> Vec<PlacedInput> {
         self.lock().get(from..to).map(<[PlacedInput]>::to_vec).unwrap_or_default()
     }
 
-    /// Records `placed`, unless a heading input of the same name was found
-    /// before; returns whether it was recorded.
+    /// Records `placed` and returns `true`, or returns `false` without
+    /// recording if a heading input with the same name was recorded before.
     fn record(&self, placed: PlacedInput) -> bool {
         let mut records = self.lock();
         if records.iter().any(|known| known.name == placed.name) {
@@ -591,15 +691,19 @@ impl Placements {
     }
 }
 
-/// Returns the source of the heading a heading input opens with, with the
-/// file's name as its origin, included from the command that includes the
-/// file: `\COMMAND` (`\COMMAND*` when not numbered) on a first line, then
-/// `{title}`, `\label{label}` and a line end on a second, so that the title's
-/// first character is reported at the title's line and column in the file (the
-/// line and column offsets of a source apply to every one of its lines).
+/// Returns the FLM source of the heading of a heading input.
 ///
-/// The command name and the label were checked when the file was recorded
-/// ([`attach`]), so the text holds exactly one command and one argument each.
+/// The source has two lines: the heading command on the first line, as in
+/// `\section` or `\section*`, and the title in braces followed by
+/// `\label{label}` on the second line. The origin of the source is the name of
+/// the file, and the source is included from the `\input` command. The line
+/// and column offsets of the source place the title at its position in the
+/// file ([`InputHeading::title_at`]), so that a problem in the title is
+/// reported there. These offsets apply to every line of the source, which is
+/// why the title is on a line of its own.
+///
+/// [`attach`] checks the command name and the label before it records the
+/// heading input, so the source contains exactly one command and its argument.
 pub(crate) fn heading_source(placed: &PlacedInput) -> Arc<FlmSource> {
     let heading = &placed.heading;
     let star = if heading.numbered { "" } else { "*" };
@@ -620,9 +724,9 @@ pub(crate) fn heading_source(placed: &PlacedInput) -> Arc<FlmSource> {
     Arc::new(source)
 }
 
-/// Returns whether `name` is read whole as a command name by the command rule
-/// with the escape character `\` under `state`: not empty, and made only of
-/// characters a command name may contain.
+/// Returns whether `name` is a valid command name under `state`: `name` is not
+/// empty, and a command rule of `state` with the escape character `\` accepts
+/// every character of `name` in a command name.
 fn is_command_name(state: &ParsingState<Flm>, name: &str) -> bool {
     !name.is_empty()
         && state
@@ -632,10 +736,12 @@ fn is_command_name(state: &ParsingState<Flm>, name: &str) -> bool {
             .any(|rule| rule.escape_char == '\\' && name.chars().all(|c| rule.name_chars.contains(c)))
 }
 
-/// The root parser of a heading input's own tree: the heading first, from
-/// [`heading_source`], then the file's content, each through techy's parse of
-/// an included source, so that a problem in either is reported with the chain
-/// of inclusions; the root spans the file's content.
+/// The root parser of the tree of a heading input.
+///
+/// The parser parses the heading ([`heading_source`]) and then the content of
+/// the file, both as included sources, so that a problem in either is reported
+/// with the chain of inclusions. The root node contains the nodes of both and
+/// spans the content of the file.
 pub(crate) struct PlacedRoot {
     pub(crate) heading: Arc<FlmSource>,
 }
@@ -665,39 +771,40 @@ impl ConstructParser<Flm> for PlacedRoot {
 
 // --- the specification ----------------------------------------------------------------
 
-/// The specification of an inclusion macro: its declared arguments, one of
-/// them named [`REFERENCE_ARGUMENT`], and the parser described in the [module
-/// documentation](self).
+/// An `InputSpec` is the specification of an inclusion macro, such as
+/// `\input`. It contains the arguments of the macro and provides the parser
+/// that includes the file (see the [module documentation](self)).
 ///
-/// [Minting](crate::lang::mint) builds it from
-/// [`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion) and wraps
-/// it, like every macro, in an [`FlmCallable`] carrying the element. A feature
-/// declares an inclusion macro and never builds this specification itself.
+/// To define an inclusion macro in a feature, declare an element with the
+/// syntax [`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion).
+/// [Minting](crate::lang::mint) then creates the `InputSpec`, and wraps it in
+/// an [`FlmCallable`] like the specification of every macro.
 #[derive(Debug)]
 pub struct InputSpec {
     arguments: Vec<Arc<ArgumentSpec<Flm>>>,
 }
 
 impl InputSpec {
-    /// Returns the specification over `arguments`, in the order they are
-    /// written.
+    /// Returns the specification of an inclusion macro with the arguments
+    /// `arguments`, in the order in which they are written.
     ///
     /// # Errors
     ///
-    /// A description of the declared arguments when none of them is named
-    /// [`REFERENCE_ARGUMENT`].
+    /// Returns an error if no argument is named [`REFERENCE_ARGUMENT`]. The
+    /// error is a description of the declared arguments, which minting embeds
+    /// in the message of its own error.
     pub fn new(arguments: Vec<Arc<ArgumentSpec<Flm>>>) -> Result<InputSpec, String> {
         if arguments.iter().any(|argument| argument.name.as_deref() == Some(REFERENCE_ARGUMENT)) {
             return Ok(InputSpec { arguments });
         }
         let names: Vec<String> = arguments
             .iter()
-            .map(|argument| argument.name.as_deref().map_or_else(|| String::from("<unnamed>"), |n| format!("`{n}`")))
+            .map(|argument| argument.name.as_deref().map_or_else(|| String::from("<unnamed>"), |n| format!("‘{n}’")))
             .collect();
         Err(if names.is_empty() {
-            String::from("it declares no argument")
+            String::from("no argument declared")
         } else {
-            format!("it declares {}", names.join(", "))
+            format!("declared arguments: {}", names.join(", "))
         })
     }
 }
@@ -717,8 +824,9 @@ impl CallableSpec<Flm> for InputSpec {
     }
 }
 
-/// Returns whether `node` is the node of an inclusion macro (an `\input`),
-/// whether or not its file was included.
+/// Returns whether `node` is the node of an inclusion macro, such as `\input`.
+///
+/// The result does not depend on whether the file was included.
 pub fn is_input(node: &NodeRef<'_, Flm>) -> bool {
     let Some(spec) = node.spec() else { return false };
     (&**spec as &dyn Any)
@@ -726,16 +834,23 @@ pub fn is_input(node: &NodeRef<'_, Flm>) -> bool {
         .is_some_and(|callable| (&**callable.syntax() as &dyn Any).is::<InputSpec>())
 }
 
-/// Returns whether `node` is the node of an `\input` whose file is a heading
-/// input placed as a tree of its own: the node at which that tree is placed
+/// Returns whether `node` is the node of an inclusion macro that included a
+/// heading input.
+///
+/// The tree of the heading input is placed in the document at this node
 /// ([`DocContent::resolve`](crate::model::doc::DocContent::resolve)).
 pub fn is_placing(node: &NodeRef<'_, Flm>) -> bool {
     is_input(node) && node.slot_content_nodes_named(PLACED_SLOT).is_ok()
 }
 
-/// Returns the included content of `node`, the node of an `\input`: the nodes
-/// of its [`ATTACHED_SLOT`], or `None` when `node` is not an `\input` or no
-/// content input was included.
+/// Returns the included content of a content input: the nodes in the node
+/// slot [`ATTACHED_SLOT`] of `node`.
+///
+/// Returns `None` if `node` is not the node of an inclusion macro, or if the
+/// macro did not include a content input. The splicing pass
+/// ([`crate::lang::rewrites::input`]) replaces the node of each inclusion macro
+/// with its included content, so this function is useful only on a tree
+/// before this pass.
 pub fn attached_content<'t>(node: &NodeRef<'t, Flm>) -> Option<Vec<NodeRef<'t, Flm>>> {
     if !is_input(node) {
         return None;
@@ -745,7 +860,7 @@ pub fn attached_content<'t>(node: &NodeRef<'t, Flm>) -> Option<Vec<NodeRef<'t, F
 
 // --- the parser -----------------------------------------------------------------------
 
-/// The parser of one `\input` invocation.
+/// The parser of one invocation of an inclusion macro.
 struct InputParser<'a> {
     invocation: Invocation<'a, Flm>,
 }
@@ -820,19 +935,25 @@ impl ConstructParser<Flm> for InputParser<'_> {
     }
 }
 
-/// What became of the file of one `\input`.
+/// The result of [`attach`] for one `\input` command.
 enum Attached {
-    /// A content input: its content, parsed where the command is written.
+    /// A content input was included. The vector contains the parsed content.
     Content(Vec<BuildId>),
-    /// A heading input, recorded for the assembly of the document.
+    /// A heading input was recorded for the assembly of the document.
     Placed,
-    /// Nothing was included; the problem was reported.
+    /// No file was included, and an error was reported.
     Nothing,
 }
 
-/// Asks the input resolver for the file `reference` refers to and, for a
-/// content input, parses its content where the command at `at` is written; a
-/// heading input is recorded for the assembly of the document instead.
+/// Includes the file that `reference` refers to, for the `\input` command at
+/// the span `at`.
+///
+/// Calls the input resolver and checks the chain of inclusions. Parses the
+/// content of a content input under the parsing state at the command, with the
+/// parsing settings of the file applied. Records a heading input in the
+/// [`Placements`] of the parse driver. Reports each problem with
+/// [`ParseContext::recover`] and returns [`Attached::Nothing`] when the file
+/// cannot be included.
 fn attach(
     cx: &mut ParseContext<'_, '_, Flm>,
     reference: &str,

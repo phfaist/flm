@@ -7,7 +7,8 @@
 //! never used up); the step sends its requests through `flm.call` in order
 //! (burning fuel where it says so), then answers its reply, or fails: a trap
 //! (`unreachable`), a loop (the fuel runs out), memory grown until refused
-//! then a trap, a panic message kept for `flm_last_panic` then a trap. An
+//! then a trap, a panic message kept for `flm_last_panic` then a trap, or a
+//! request sent in a loop that never ends. An
 //! entry call with no step left answers an `err` reply saying so.
 //!
 //! In a request's text and a reply's text, `$H1`, `$H2`, … stand for the
@@ -18,7 +19,7 @@
 //!
 //! The guest sends every entry request, and every reply it receives, to the
 //! host's `console` (level `log`) as `entry TEXT` and `reply TEXT`, so that a
-//! test reads what the guest received from its console sink. The used steps
+//! test reads what the guest received from the host's log sink. The used steps
 //! are marked in the instance's memory: each instance runs the script from
 //! its start.
 
@@ -37,6 +38,9 @@ enum End {
     Grow,
     /// The message kept for `flm_last_panic`, then `unreachable`.
     Panic(String),
+    /// Sends this request's text (with the substitutions) again and again,
+    /// never ending; the heap is restored after each.
+    Forever(String),
 }
 
 /// What a step does before it ends.
@@ -108,6 +112,12 @@ impl Step {
     /// Keeps `message` as its panic message, then traps.
     pub fn panic(mut self, message: &str) -> Step {
         self.end = End::Panic(message.to_string());
+        self
+    }
+
+    /// Sends the request `text` in a loop that never ends.
+    pub fn request_forever(mut self, text: &str) -> Step {
+        self.end = End::Forever(text.to_string());
         self
     }
 
@@ -382,6 +392,18 @@ const RUNTIME: &str = r#"
       (i64.shl (i64.extend_i32_u (global.get $start)) (i64.const 32))
       (i64.extend_i32_u (i32.sub (global.get $out) (global.get $start)))))
 
+  ;; Sends the request [$p, $p + $n) in a loop that never ends, the heap
+  ;; restored after each.
+  (func $request_forever (param $p i32) (param $n i32)
+    (local $heap i32)
+    (local.set $heap (global.get $heap))
+    (loop $again
+      (call $begin)
+      (call $expand (local.get $p) (local.get $n))
+      (call $send)
+      (global.set $heap (local.get $heap))
+      (br $again)))
+
   (func $burn (param $n i32)
     (block $done (loop $more
       (br_if $done (i32.eqz (local.get $n)))
@@ -454,6 +476,10 @@ impl Script {
                     let (at, len) = data.add(message.as_bytes());
                     let packed = (u64::from(at) << 32) | u64::from(len);
                     let _ = writeln!(dispatch, "        (global.set $panic (i64.const {packed}))\n        unreachable))");
+                }
+                End::Forever(text) => {
+                    let (at, len) = data.add(text.as_bytes());
+                    let _ = writeln!(dispatch, "        (call $request_forever (i32.const {at}) (i32.const {len}))\n        unreachable))");
                 }
             }
         }

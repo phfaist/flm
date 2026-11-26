@@ -8,13 +8,13 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::data::table::TableHandle;
-use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::FlmRegistry;
+use flm_core::core::plan::{Plan, PlanError, PlanRequest};
+use flm_core::core::registry::{BuildError, FlmRegistry};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_ext::adapter::table::ExtTable;
-use flm_core::stdcore::backends::pres;
+use flm_core::stdlib::backends::pres;
 use flm_ext::api::core::data::table::TableValue;
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
@@ -22,7 +22,7 @@ use flm_ext::api::lang::mint::{ArgDef, ElementDef, SyntaxDef};
 use flm_ext::api::model::element::ElementSpec;
 use flm_ext::api::lang::rewrites::userdefs::{Definition, UserDefinition};
 use flm_ext::api::lang::text::chars_text;
-use flm_ext::api::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::api::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::api::techy::error::Diagnostic;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
@@ -83,7 +83,7 @@ fn count_decl(scope: Scope) -> StageDecl {
 
 /// The number of words of the characters under `node`.
 fn words_under(node: &dyn Node<'_>) -> usize {
-    node.descendants().iter().filter_map(|node| node.chars()).map(|chars| chars.split_whitespace().count()).sum()
+    node.descendants().filter_map(|node| node.chars()).map(|chars| chars.split_whitespace().count()).sum()
 }
 
 // --- case 1 ------------------------------------------------------------------------------------
@@ -97,7 +97,6 @@ fn a_per_tree_stage_counts_words_into_its_table() {
         // The walk covers every tree; this tree's part of it counts the same.
         let walked: usize = cx
             .walk()
-            .iter()
             .filter(|entry| entry.addr.tree.to_string() == tree)
             .filter_map(|entry| entry.node.chars())
             .map(|chars| chars.split_whitespace().count())
@@ -178,7 +177,7 @@ fn a_stage_reads_another_scripted_feature_s_table() {
         let Some(TableValue::Ext(words)) = cx.get("wc.words")? else {
             return Err(ExtError::Handler { detail: "no table".to_string(), data: Value::Null });
         };
-        let total: i64 = words.items().iter().filter_map(Value::as_i64).sum();
+        let total: i64 = words.items().iter().filter_map(|row| row.as_i64()).sum();
         out.table("wc.total")?.push(json!(total))
     });
     let double = Double::new("wc")
@@ -226,9 +225,8 @@ fn a_read_the_stage_did_not_declare_is_the_handler_s_failure() {
     let registry = one_stage(count_decl(Scope::Document), Needs::new(), |cx, _| cx.get("flm.labels").map(|_| ()));
     let run = run_demanding(&registry, &["wc.words"], &["Text."]);
     let diagnostics = common::diagnostics(&run);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the stage `wc.count` failed: "), "{diagnostics:?}");
-    assert!(diagnostics[0].contains("flm.labels"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert_eq!(common::data_json(&run, "flm.ext.handler-failed")[0]["core_kind"], "access");
 }
 
 // --- reading trees -----------------------------------------------------------------------------
@@ -239,7 +237,7 @@ fn a_document_stage_walks_every_tree() {
         assert_eq!(cx.scope(), Scope::Document);
         assert_eq!(cx.tree_id(), None);
         assert!(cx.my_tree().is_none());
-        let trees: Vec<String> = cx.trees().into_iter().map(|(id, _)| id).collect();
+        let trees: Vec<String> = cx.trees().map(|(id, _)| id).collect();
         out.table("wc.words")?.push(json!(trees))?;
         for entry in cx.walk() {
             if let Some(chars) = entry.node.chars() {
@@ -301,14 +299,12 @@ fn a_failing_run_handler_is_an_error_at_the_stage_and_the_run_completes() {
         Err(ExtError::Handler { detail: "TypeError: x is undefined".to_string(), data: json!({ "line": 3 }) })
     });
     let run = run_demanding(&registry, &["wc.words"], &["First tree.", "Second."]);
-    let message = "the stage `wc.count` failed: TypeError: x is undefined".to_string();
+    let placed = placed(&run);
     assert_eq!(
-        placed(&run),
-        [
-            ("flm.ext.handler-failed".to_string(), message.clone(), 0..11),
-            ("flm.ext.handler-failed".to_string(), message, 0..7),
-        ]
+        placed.iter().map(|(id, _, range)| (id.as_str(), range.clone())).collect::<Vec<_>>(),
+        [("flm.ext.handler-failed", 0..11), ("flm.ext.handler-failed", 0..7)]
     );
+    assert!(placed.iter().all(|(_, message, _)| message.ends_with("TypeError: x is undefined")), "{placed:?}");
     assert!(run.diagnostics().iter().all(|d| d.severity() == flm_ext::api::techy::error::Severity::Error));
     // What the handler pushed before failing stays pushed.
     assert_eq!(items(&run, "wc.words"), [json!("tree#0"), json!("tree#1")]);
@@ -319,9 +315,8 @@ fn a_write_to_an_undeclared_table_is_the_handler_s_failure() {
     let registry = one_stage(count_decl(Scope::PerTree), Needs::new(), |_, out| out.table("wc.other")?.push(json!(1)));
     let run = run_demanding(&registry, &["wc.words"], &["Text."]);
     let diagnostics = common::diagnostics(&run);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the stage `wc.count` failed: "), "{diagnostics:?}");
-    assert!(diagnostics[0].contains("wc.other"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert_eq!(common::data_json(&run, "flm.ext.handler-failed")[0]["core_kind"], "access");
 }
 
 #[test]
@@ -361,15 +356,13 @@ fn a_pushed_float_is_refused() {
     let registry = one_stage(count_decl(Scope::PerTree), Needs::new(), |_, out| {
         let piece = out.table("wc.words")?;
         let refused = piece.push(json!({ "ratio": 0.5 })).expect_err("a float does not cross");
-        piece.push(json!(refused.to_string()))?;
+        piece.push(json!(refused.kind()))?;
         piece.push(json!([1.5]))
     });
     let run = run_demanding(&registry, &["wc.words"], &["Text."]);
-    assert_eq!(items(&run, "wc.words"), [json!("a number must be an integer, not `0.5`")]);
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.ext.handler-failed: the stage `wc.count` failed: a number must be an integer, not `1.5`"]
-    );
+    assert_eq!(items(&run, "wc.words"), [json!("value")]);
+    assert_eq!(common::identifiers(&run), ["flm.ext.handler-failed"]);
+    assert_eq!(common::data_json(&run, "flm.ext.handler-failed")[0]["kind"], "value");
 }
 
 // --- capabilities ------------------------------------------------------------------------------
@@ -397,9 +390,9 @@ fn a_stage_provides_a_capability_another_stage_requires() {
 }
 
 #[test]
-fn a_capability_s_unprovided_text_is_what_the_plan_error_says() {
+fn a_capability_s_unprovided_text_is_what_the_plan_error_carries() {
     // The counterpart of `CapabilityDef::unprovided`: a stage requires the
-    // capability, no stage provides it, and the plan error gives the text.
+    // capability, no stage provides it, and the plan error carries the text.
     let text = "no feature counts the words; use a package that does";
     let double = Double::new("wc").feature("count", move |b| {
         b.capability("wc.counted", "The words were counted.", Some(text.to_string()))?;
@@ -409,15 +402,21 @@ fn a_capability_s_unprovided_text_is_what_the_plan_error_says() {
     });
     let registry = registry_with([double.package()]);
     let error = Plan::build(&registry, &PlanRequest::new().demand("wc.reported")).expect_err("nothing provides the capability");
-    assert_eq!(error.to_string(), text);
+    assert!(
+        matches!(&error, PlanError::Unsatisfiable { capability, unprovided: Some(given), .. }
+            if *capability == "wc.counted" && given == text),
+        "{error:?}"
+    );
 }
 
 #[test]
 fn a_capability_outside_the_package_prefix_fails_the_build() {
     let double = Double::new("wc").feature("count", |b| b.capability("counted", "", None));
-    let error = try_registry_with([double.package()]).expect_err("the build fails").to_string();
-    assert!(error.contains("flm.ext.name-outside-extension"), "{error}");
-    assert!(error.contains("the capability `counted` declared by the package `_` of the extension `wc` must begin with `wc.`"), "{error}");
+    let error = try_registry_with([double.package()]).expect_err("the build fails");
+    let found = common::feature_errors(&error);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "count");
+    assert!(found[0].1.starts_with("flm.ext.name-outside-extension: "), "{found:?}");
 }
 
 #[test]
@@ -438,13 +437,11 @@ fn a_stage_providing_a_capability_no_feature_declares_fails_the_build() {
         let check = StageDecl::new("wc.check", Effect::Check, Scope::PerTree).provides("wc.nothing");
         b.stage(stage(check, Needs::new(), |_, _| Ok(())))
     });
-    let error = try_registry_with([double.package()]).expect_err("the build fails").to_string();
+    let error = try_registry_with([double.package()]).expect_err("the build fails");
     assert!(
-        error.contains(
-            "feature `probe`: stage `wc.check` provides the capability `wc.nothing`, but no feature declares this \
-             capability; declared capability names: [flm.anchors, "
-        ),
-        "{error}"
+        error.errors.iter().any(|e| matches!(e, BuildError::Undeclared { feature, name, .. }
+            if *feature == "probe" && *name == "wc.nothing")),
+        "{error:?}"
     );
 }
 

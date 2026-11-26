@@ -7,35 +7,37 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::FlmRegistry;
+use flm_core::core::registry::{FlmRegistry, PackageEntry};
 use flm_core::core::run::Run;
 use flm_core::lang::text::plain_text;
 use flm_core::core::piece::Piece;
-use flm_core::stdcore::backends::pieces;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::pieces;
+use flm_core::stdlib::backends::pres::{
     self, payload_of, BlockPayload, DroppedPayload, HeadingPayload, LinkPayload, ListPayload, SpanPayload,
 };
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::citations::{
     bibliography_table, CitationAnswer, CitationEntry, CitationPlacement, CitationProvider,
     CitationRequest, CitationResult, CitationsConfig, MarkForm, MissingEntry, ProviderCx, Retrieval, ENTRIES, ENTRY_NUMBER_ROLE, IN_PLACE, MARK_ROLE,
 };
-use flm_core::stdcore::{StdcoreConfig, CHECK_WORKFLOW};
+use flm_core::stdlib::{StdlibConfig, CHECK_WORKFLOW};
+use flm_core::dump::diag::expect;
+use serde_json::json;
 
 use common::citations::{registry_with, Asked, Counting, EveryKey, Failing, FromMap};
 use common::lowering::text as printed;
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{identifiers, refusing_features, run_workflow};
 
 // --- helpers ---------------------------------------------------------------------------------
 
 /// The standard package, the default configuration, with `providers`.
 fn with(providers: Vec<Arc<dyn CitationProvider>>) -> Arc<FlmRegistry> {
-    registry_with(StdcoreConfig::new(), providers)
+    registry_with(StdlibConfig::new(), providers)
 }
 
 /// The standard package under `config`, with `providers`.
 fn with_config(config: CitationsConfig, providers: Vec<Arc<dyn CitationProvider>>) -> Arc<FlmRegistry> {
-    registry_with(StdcoreConfig::new().citations(config), providers)
+    registry_with(StdlibConfig::new().citations(config), providers)
 }
 
 /// Renders one document to text under `registry`.
@@ -155,9 +157,6 @@ fn a_provider_s_error_leaves_the_key_missing_and_the_next_provider_unasked() {
         "{}",
         run.diagnostics().render_all()
     );
-    let rendered = run.diagnostics().render_all();
-    assert!(rendered.contains("the bibliography entry of the key `a` could not be retrieved: offline"), "{rendered}");
-    assert!(rendered.contains("the cited key `a` must have a bibliography entry; retrieving it failed: offline"), "{rendered}");
     assert_eq!(next_asked.keys(), ["b"]);
     let found = entries(&run);
     assert!(matches!(&found[0].1, Err(MissingEntry::Failed(error)) if error.detail == "offline"));
@@ -173,7 +172,7 @@ fn no_provider_is_an_error_and_every_key_is_then_missing() {
         "{}",
         run.diagnostics().render_all()
     );
-    assert!(entries(&run).iter().all(|(_, found)| *found == Err(MissingEntry::NoProvider)));
+    assert!(entries(&run).iter().all(|(_, found)| *found == Err(MissingEntry::NoProviderInstalled)));
     // A document citing nothing reports nothing.
     let run = render(&with(Vec::new()), "Nothing cited.");
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
@@ -209,11 +208,6 @@ fn an_entry_that_does_not_parse_is_the_provider_s_error() {
 fn a_missing_entry_is_an_error_the_key_numbered_and_its_mark_unchanged() {
     let run = render(&with(vec![Arc::new(FromMap::of(&[("a", "A")]))]), "X \\cite{a,b}. Y \\cite{b}.");
     assert_eq!(identifiers(&run), ["flm.citations.no-entry"], "{}", run.diagnostics().render_all());
-    let rendered = run.diagnostics().render_all();
-    assert!(
-        rendered.contains("the cited key `b` must have a bibliography entry; no source of bibliography entries knows it"),
-        "{rendered}"
-    );
     let text = text_of(&run);
     assert!(text.starts_with("X\u{a0}[1,2]. Y\u{a0}[2]."), "{text}");
 }
@@ -355,7 +349,7 @@ fn a_citation_inside_a_provider_s_entry_is_an_error_and_the_entry_is_refused() {
         "{}",
         run.diagnostics().render_all()
     );
-    assert!(run.diagnostics().render_all().contains("the bibliography entry of the key `a` may not cite other works"));
+    expect(run.diagnostics().iter(), "flm.citations.entry-cites").data(json!({ "key": "a" })).once();
     assert!(text_of(&run).ends_with("[1] [dropped: bibliography entry]"), "{}", text_of(&run));
     // The same entry under the in-place placement: refused, no loop.
     let provider = Arc::new(FromMap::of(&[("a", "Knuth, see \\cite{a}")]));
@@ -369,7 +363,7 @@ fn a_citation_inside_a_provider_s_entry_is_an_error_and_the_entry_is_refused() {
 
 #[test]
 fn a_registry_holding_citations_without_pieces_builds() {
-    let features = common::stdcore::package_features_but(StdcoreConfig::new(), "pieces");
+    let features = common::stdlib::package_features_but(StdlibConfig::new(), "pieces");
     let registry = common::citations::registry_over(features);
     assert!(registry.has_feature("citations"));
     assert!(!registry.has_feature("pieces"));
@@ -438,15 +432,16 @@ fn the_digest_changes_with_the_placement_and_the_title() {
 #[test]
 fn a_title_that_does_not_compile_fails_the_build_naming_it() {
     let mut builder = flm_core::core::registry::RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(
-        StdcoreConfig::new().citations(CitationsConfig::new().heading_title("}")),
+    builder.use_package(flm_core::stdlib::add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().citations(CitationsConfig::new().heading_title("}")),
     ));
     builder.use_package(flm_core::math_passthrough::package());
-    let message = match builder.build(&flm_core::core::registry::RegistryInputs::new()) {
+    let error = match builder.build(&flm_core::core::registry::RegistryInputs::new()) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => error,
     };
-    assert!(message.contains("the option `heading_title` of the feature `citations`"), "{message}");
+    assert_eq!(refusing_features(&error), ["citations"], "{error}");
 }
 
 #[test]
@@ -463,9 +458,9 @@ fn in_place_an_entry_stating_a_document_fact_fails_the_chunk_s_rule() {
 fn with_mycite(citations: CitationsConfig, provider: Arc<dyn CitationProvider>) -> Arc<FlmRegistry> {
     use flm_core::lang::mint::ArgDef;
     use flm_core::lang::rewrites::userdefs::Definition;
-    use flm_core::stdcore::features::userdefs::UserdefsConfig;
+    use flm_core::stdlib::features::userdefs::UserdefsConfig;
     let definition = Definition::macro_("mycite", vec![ArgDef::mandatory("key")]).content("\\cite{#1}");
-    let config = StdcoreConfig::new().userdefs(UserdefsConfig::new().definition(definition)).citations(citations);
+    let config = StdlibConfig::new().userdefs(UserdefsConfig::new().definition(definition)).citations(citations);
     registry_with(config, vec![provider])
 }
 
@@ -506,13 +501,9 @@ fn an_entry_holding_a_paragraph_break_or_a_block_is_refused() {
                 run.diagnostics().render_all()
             );
             assert_eq!(entries(&run)[0].1, Err(MissingEntry::NotInline));
-            assert!(
-                run.diagnostics().render_all().contains(
-                    "the bibliography entry of the key `a` may not hold a paragraph break or a block such as a list or a heading"
-                ),
-                "{}",
-                run.diagnostics().render_all()
-            );
+            expect(run.diagnostics().iter(), "flm.citations.entry-not-inline")
+                .data(json!({ "key": "a" }))
+                .once();
         }
     }
     // Built structurally, as a provider may: refused the same.

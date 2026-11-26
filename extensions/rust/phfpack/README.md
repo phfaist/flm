@@ -17,9 +17,10 @@ flm:
 ```
 
 Then, in a formula: `\ket{\psi}`, ``\braket`\Big{\phi}{\psi}``, `\abs*{x}`, `` `(a+b) ``,
-`\tr`, `\SU(2)`. The crate's rustdoc lists every macro, the three ways of asking for a
-size (after a backtick, in brackets, or a star), the backtick form, how a document
-declares macros of its own (under `flm:`, `features:`, `phfqit:`, `macro_definitions:`), and the named values the
+`\tr`, `\SU(2)`. The rustdoc of the module `flm_extensions::phfpack` lists every macro,
+the three ways of asking for a size (after a backtick, in brackets, or a star), the
+backtick form, how a document declares macros of its own (under `flm:`, `features:`,
+`phfqit:`, `macro_definitions:`), and the named values the
 templates read (`spaceKets`, `spaceOKets`, `space`).
 
 The macros are written in formulas. A macro whose replacement is valid in running text

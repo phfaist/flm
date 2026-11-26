@@ -3,12 +3,12 @@
 //! projection.
 //!
 //! The table holds every element of the standard presentation vocabulary
-//! ([`pres::names::ALL`](flm_core::stdcore::backends::pres::names::ALL)), each
+//! ([`pres::names::ALL`](flm_core::stdlib::backends::pres::names::ALL)), each
 //! read through its payload type's `from_projection`, and the HTML construct
-//! [`flm.pres.html.tag`](flm_core::stdcore::backends::html::construct::TAG)
+//! [`flm.pres.html.tag`](flm_core::stdlib::backends::html::construct::TAG)
 //! with children ([`HtmlTagPayload::from_projection`]), and the four
 //! construct elements of the LaTeX family
-//! ([`ALL`](flm_core::stdcore::backends::latex::construct::ALL)), each read
+//! ([`ALL`](flm_core::stdlib::backends::latex::construct::ALL)), each read
 //! through its payload type's `from_projection`; a tag whose payload holds
 //! `markup` (the construct's markup body) is refused, since that body is not
 //! offered to extensions.
@@ -24,13 +24,13 @@ use std::sync::Arc;
 
 use flm_core::dump::json::from_json;
 use flm_core::lang::PresPayload;
-use flm_core::stdcore::backends::html::construct::{HtmlTagPayload, TagBody, TAG};
-use flm_core::stdcore::backends::latex::construct::{DEFINITION, ENVIRONMENT, MACRO, RAW};
-use flm_core::stdcore::backends::latex::{
+use flm_core::stdlib::backends::html::construct::{HtmlTagPayload, TagBody, TAG};
+use flm_core::stdlib::backends::latex::construct::{DEFINITION, ENVIRONMENT, MACRO, RAW};
+use flm_core::stdlib::backends::latex::{
     LatexDefinitionPayload, LatexEnvironmentPayload, LatexMacroPayload, LatexRawPayload,
 };
-use flm_core::stdcore::backends::pres::names;
-use flm_core::stdcore::backends::pres::payload::{
+use flm_core::stdlib::backends::pres::names;
+use flm_core::stdlib::backends::pres::payload::{
     BlockPayload, CellsPayload, DecoMarkPayload, DecorationPayload, DroppedPayload, HeadingPayload, ImagePayload,
     LinePayload, LinesPayload, LinkPayload, ListPayload, MathPassthroughPayload, MathTextPayload, ParPayload,
     SpanPayload, SubtreePayload, UnknownPayload, UnsupportedPayload, VerbatimPayload,
@@ -46,7 +46,7 @@ use crate::runtime::ExtError;
 /// floating-point number, no reserved key).
 ///
 /// A Rust rule or emitter reads it with
-/// [`payload_of::<DataPayload>`](flm_core::stdcore::backends::pres::payload_of);
+/// [`payload_of::<DataPayload>`](flm_core::stdlib::backends::pres::payload_of);
 /// a scripted one with [`Node::payload`](crate::api::techy::node::Node::payload).
 ///
 /// No reader of the saved form is registered for it
@@ -158,7 +158,7 @@ mod tests {
     fn the_table_holds_the_vocabulary_the_tag_and_the_latex_constructs() {
         let mut expected: Vec<&str> = names::ALL.to_vec();
         expected.push(TAG);
-        expected.extend(flm_core::stdcore::backends::latex::construct::ALL);
+        expected.extend(flm_core::stdlib::backends::latex::construct::ALL);
         assert_eq!(elements().collect::<Vec<_>>(), expected);
     }
 }

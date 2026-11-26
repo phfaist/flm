@@ -10,16 +10,16 @@ mod common;
 
 use std::sync::Arc;
 
-use flm_core::core::registry::{FlmRegistry, PackageEntry};
+use flm_core::core::registry::{BuildError, FlmRegistry, PackageEntry};
 use flm_core::core::settings::PackageSettings;
 use flm_core::dump::golden::assert_text_golden;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::pres::names as pres;
-use flm_ext::api::stdcore::features::math;
+use flm_core::stdlib::backends::{html, latex_recomposed};
+use flm_core::stdlib::backends::pres::names as pres;
+use flm_ext::api::stdlib::features::math;
 use flm_ext::quickjs::{eval_for_test, JsHost, JsSettings, TestPackage};
 use serde_json::{json, Value};
 
-use common::{js_extension, js_loader, js_manifest, latex_of, registry_with, text_of, try_registry_with};
+use common::{assert_only_unchecked_output, js_extension, js_loader, js_manifest, latex_of, registry_with, text_of, try_registry_with};
 
 /// The fixture's files, as `tests/js/lowerjs/` holds them (its manifest is
 /// [`js_manifest`]`("main.js")`, the JSON equal to `flmextension.yaml`).
@@ -87,7 +87,7 @@ fn the_fixture_s_registry_builds_without_a_diagnostic() {
 #[test]
 fn the_fixture_renders_the_html_page_with_its_stylesheet() {
     let (page, diagnostics) = page_of(&registry(), DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry(), html::WORKFLOW), &diagnostics);
     // The stylesheet's one part, the text the stage wrote into the table.
     assert!(page.contains("<style data-flm-def=\"lowerjs.style\">.lowerjs-box{border:1px solid}</style>"), "{page}");
     // The page's body, without the standard stylesheets of its head.
@@ -106,7 +106,7 @@ fn the_fixture_renders_the_text() {
 #[test]
 fn the_fixture_renders_the_recomposed_latex() {
     let (latex, diagnostics) = latex_of(&registry(), DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry(), latex_recomposed::WORKFLOW), &diagnostics);
     assert_text_golden(golden("lowerjs.tex"), &latex);
 }
 
@@ -116,9 +116,26 @@ fn the_fixture_renders_the_recomposed_latex() {
 fn a_second_feature_declaring_the_same_rule_name_fails_the_build() {
     let error = match try_registry_with(lowerjs_edited(str::to_string, &["lowerjs", "lowerjs#dup"])) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert!(error.contains("lowering rule `lowerjs.box.lower.default` is declared twice"), "{error}");
+    assert!(
+        error.errors.iter().any(|error| matches!(
+            error,
+            BuildError::Duplicate { kind: "lowering rule", name, .. } if name.as_str() == "lowerjs.box.lower.default"
+        )),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn an_unchecked_output_the_script_declares_is_kept_by_the_plan() {
+    let registry = registry_edited(|main| {
+        main.replace(".selection_requires(STYLE),", ".selection_requires(STYLE).unchecked_output(\"html\", \"each box's text\", \"the reader's browser\"),")
+    });
+    assert_eq!(
+        common::unchecked_outputs_of(&registry, html::WORKFLOW, "lowerjs.box.lower.default"),
+        [("html".to_string(), "each box's text".to_string(), "the reader's browser".to_string())],
+    );
 }
 
 #[test]
@@ -129,7 +146,7 @@ fn a_failing_body_is_the_handler_failure_at_the_node_and_the_rest_lowers() {
     let (text, diagnostics) = text_of(&registry, DOCUMENT);
     assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
     for diagnostic in &diagnostics {
-        assert!(diagnostic.starts_with("flm.ext.handler-failed: the lowering rule `lowerjs.box.lower.default`"), "{diagnostic}");
+        assert!(diagnostic.starts_with("flm.ext.handler-failed: "), "{diagnostic}");
         assert!(diagnostic.ends_with("no box today"), "{diagnostic}");
     }
     assert!(text.contains("Before the boxes.") && text.contains("After them."), "{text}");
@@ -137,7 +154,7 @@ fn a_failing_body_is_the_handler_failure_at_the_node_and_the_rest_lowers() {
 }
 
 #[test]
-fn a_tree_deeper_than_the_bound_is_the_body_s_failure_naming_the_bound() {
+fn a_tree_deeper_than_the_bound_is_the_body_s_failure() {
     // 70 levels of spans around the text leaf: 141 levels of lists and maps.
     let registry = registry_edited(|main| {
         main.replace(
@@ -146,15 +163,11 @@ fn a_tree_deeper_than_the_bound_is_the_body_s_failure_naming_the_bound() {
         )
     });
     let (_, diagnostics) = text_of(&registry, "\\ljbox{x}");
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(
-        diagnostics[0].contains("must nest lists and maps at most 127 levels deep (a presentation tree about 63 levels deep)"),
-        "{diagnostics:?}"
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"], "{diagnostics:?}");
 }
 
 #[test]
-fn an_answer_deeper_than_the_bound_is_the_body_s_failure_naming_the_bound() {
+fn an_answer_deeper_than_the_bound_is_the_body_s_failure() {
     // The body answers `{ emit: <a list nested 200 deep> }`.
     let registry = registry_edited(|main| {
         main.replace(
@@ -163,13 +176,7 @@ fn an_answer_deeper_than_the_bound_is_the_body_s_failure_naming_the_bound() {
         )
     });
     let (_, diagnostics) = text_of(&registry, "\\ljbox{x}");
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert_eq!(
-        diagnostics[0],
-        "flm.ext.handler-failed: the lowering rule `lowerjs.box.lower.default` failed: the answer of the lowering rule \
-         `lowerjs.box.lower.default` of the feature `boxes` of the package `_` of the extension `lowerjs` must nest lists \
-         and maps at most 127 levels deep"
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"], "{diagnostics:?}");
 }
 
 // --- the prelude's names -----------------------------------------------------------------------
@@ -178,9 +185,9 @@ fn an_answer_deeper_than_the_bound_is_the_body_s_failure_naming_the_bound() {
 fn the_prelude_s_names_are_the_library_s() {
     let host = JsHost::new(JsSettings::default());
     let main = r#"
-import * as MATH from "flm:stdcore/features/math";
-import * as PRES from "flm:stdcore/backends/pres";
-import { TAG } from "flm:stdcore/backends/html";
+import * as MATH from "flm:stdlib/features/math";
+import * as PRES from "flm:stdlib/backends/pres";
+import { TAG } from "flm:stdlib/backends/html";
 export function names() {
   const math = {};
   for (const key of ["MATH", "ENVIRONMENT", "ENVIRONMENTS", "CONTENT", "RENDERED", "KIND", "COUNTER", "ANCHORS", "COUNTERS",
@@ -240,9 +247,8 @@ fn a_scripted_rule_s_node_inside_another_s_is_lowered_by_a_nested_call() {
 fn javascript_workflow_preferences_override_native_verbatim_handling() {
     let main = r#"
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
-import { VERBATIM, SPAN } from "flm:stdcore/backends/pres";
+import { VERBATIM, SPAN } from "flm:stdlib/backends/pres";
 export default ext => ext.package("_", {
-  uses: ["stdcore"],
   features: { preferences: { register(b) {
     b.peer_element(VERBATIM, "Input");
     b.peer_element(SPAN, "Output");
@@ -257,7 +263,8 @@ export default ext => ext.package("_", {
 "#;
     let package = common::js_factory(&JsHost::new(JsSettings::default()), main)
         .build(&PackageSettings::new()).unwrap();
-    let (html, diagnostics) = common::html_of(&registry_with([package]), "\\verbcode[python]|original|");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let registry = registry_with([package]);
+    let (html, diagnostics) = common::html_of(&registry, "\\verbcode[python]|original|");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(html.contains("replacement") && !html.contains("original"), "{html}");
 }

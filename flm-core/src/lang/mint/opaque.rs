@@ -135,7 +135,7 @@ impl ConstructParser<Flm> for OpaqueWrapperBodyParser<'_> {
 ///
 /// A reader that decides from what it read whether the content is kept as
 /// written, such as the title reader of the
-/// [`theorems`](crate::stdcore::features::theorems) feature, calls it itself.
+/// [`theorems`](crate::stdlib::features::theorems) feature, calls it itself.
 pub(crate) fn wrap_argument(
     cx: &mut ParseContext<'_, '_, Flm>,
     mut read: ParsedArgumentNodes<Flm>,

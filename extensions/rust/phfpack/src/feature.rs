@@ -38,15 +38,15 @@ use flm_ext::guest::lang::rewrites::userdefs::{
     Expansion, ExtraValues, PlaceholderTarget, PlaceholderVocabulary, TemplateLanguage, TemplateSpec, UserDefinition,
     compile_template_with,
 };
-use flm_ext::guest::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::guest::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::guest::techy::error::Diagnostic;
 use flm_ext::guest::techy::node::Node;
 use serde_json::{Value, json};
 
-use crate::macros::{CONFIG_PLACEHOLDER, Macro, display_name};
-use crate::settings::{self, PhfqitConfig, PhfqitData, default_values};
-use crate::sizing::{BAD_SIZE, SIDES, Side, SlotKind, size_of_use, sized_delimiter};
-use crate::tables::{MAIN_DELIMITED_ARGUMENT, MAIN_DELIMITERS, TABLES};
+use crate::phfpack::macros::{CONFIG_PLACEHOLDER, Macro, display_name};
+use crate::phfpack::settings::{self, PhfqitConfig, PhfqitData};
+use crate::phfpack::sizing::{BAD_SIZE, SIDES, Side, SlotKind, size_of_use, sized_delimiter};
+use crate::phfpack::tables::{MAIN_DELIMITED_ARGUMENT, MAIN_DELIMITERS, TABLES};
 
 /// The feature's name, `phfqit`: the name under which a document gives the
 /// feature's settings (in its front matter under `flm`, `features`, `phfqit`)
@@ -83,10 +83,10 @@ const COMPILE_TEMPLATE: &str = "compile_template";
 const SMALL_TEMPLATES: &str = "phfqit";
 
 /// Returns the declaration of the feature's settings, as data: the
-/// configuration with its JSON schema ([`settings::schema`]); the four keys
-/// merged entry by entry, so that a document that sets one entry keeps the
-/// default entries it does not set; and the templates, default values and named
-/// values marked as FLM markup.
+/// configuration with its JSON schema ([`settings::schema`]), which carries
+/// the marks: the four keys merged entry by entry, so that a document that
+/// sets one entry keeps the default entries it does not set, and the
+/// templates, default values and named values marked as FLM markup.
 pub fn settings() -> Value {
     json!({
         "config": {
@@ -95,24 +95,11 @@ pub fn settings() -> Value {
                      values the macros' templates read (`spaceKets`, `spaceOKets`, `space`). Fixed when the \
                      registry is built: it cannot vary per document or per render.",
         },
-        "merge_entries": {
-            "macro_definitions": {},
-            "spaceKets": default_values("spaceKets"),
-            "spaceOKets": default_values("spaceOKets"),
-            "space": default_values("space"),
-        },
-        "markup": [
-            "macro_definitions.*.content",
-            "macro_definitions.*.defaults",
-            "spaceKets.*",
-            "spaceOKets.*",
-            "space.*",
-        ],
     })
 }
 
 /// Registers the feature `phfqit` with the configuration `settings`: for each
-/// macro, in a fixed order (the built-in macros of the crate's tables, except
+/// macro, in a fixed order (the built-in macros of the extension's tables, except
 /// each one that a declared macro of the same name replaces, then the declared
 /// macros in the order of their names), the macro's element, expanded by the
 /// feature's expansion hook, and the lowering rule that has the element
@@ -120,7 +107,7 @@ pub fn settings() -> Value {
 /// input of the registry digest.
 ///
 /// The lowering rule ([`expand_in_tree_rule_for`]) requires the capability
-/// `flm.userdefs.always-expanded` of the standard package's `userdefs` feature,
+/// `flm.userdefs.always-expanded` of the standard feature `userdefs`,
 /// so every plan that lowers one of the macros runs the `userdefs` stage that
 /// replaces it by its template, and a registry without that feature fails to
 /// build.
@@ -156,7 +143,7 @@ pub fn register(b: &mut FeatureBuilder, settings: &Value) -> Result<(), ExtError
 }
 
 /// Returns every macro of the feature, in the order they are registered: the
-/// built-in macros of the crate's tables, except each built-in macro that a
+/// built-in macros of the extension's tables, except each built-in macro that a
 /// declared macro of the same name replaces, then the declared macros of
 /// `config`.
 ///
@@ -367,7 +354,7 @@ fn main_delimiters(node: &Node) -> Result<Option<[&'static str; 3]>, ExtError> {
         Err(error) => return Err(error),
     };
     let mut open = None;
-    for node in &nodes {
+    for node in nodes.to_vec()? {
         if let Some((delimiter, _)) = node.group_delimiters()? {
             open = Some(delimiter);
             break;

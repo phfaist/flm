@@ -55,9 +55,10 @@
 //! decides whether to proceed; [`BuiltLang::is_sound`] tells whether there was
 //! any problem.
 
+use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use techy::core::specs::{ScopeOp, SpecsProvider};
 use techy::core::{DeriveError, Language, ParsingState, ParsingStateDelta};
@@ -247,9 +248,19 @@ pub struct BuiltLang {
     parsing: FlmParsing,
     guard: GuardPolicy,
     driver: FlmDriver,
+    /// The values built against this language for its elements, which read
+    /// them through a [`LangOwned`](super::LangOwned) cell. They are freed
+    /// with the language.
+    owned: Mutex<Vec<Arc<dyn Any + Send + Sync>>>,
 }
 
 impl BuiltLang {
+    /// Makes this language the owner of `value`, the value of a
+    /// [`LangOwned`](super::LangOwned) cell.
+    pub(super) fn own(&self, value: Arc<dyn Any + Send + Sync>) {
+        self.owned.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(value);
+    }
+
     /// Returns the techy language value: the driver, the initial state and the
     /// recursion guard, ready to parse.
     pub fn language(&self) -> &Language<Flm> {
@@ -529,5 +540,6 @@ pub fn build_language(inputs: LangInputs) -> BuiltLang {
         parsing,
         guard: policy,
         driver,
+        owned: Mutex::new(Vec::new()),
     }
 }

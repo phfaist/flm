@@ -123,6 +123,13 @@ impl From<&Name> for Name {
     }
 }
 
+/// The shared text of a name, given up without a copy of the text.
+impl From<Name> for Arc<str> {
+    fn from(name: Name) -> Arc<str> {
+        name.0
+    }
+}
+
 impl PartialEq<str> for Name {
     fn eq(&self, other: &str) -> bool {
         &*self.0 == other

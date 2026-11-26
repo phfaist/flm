@@ -9,7 +9,7 @@
 //! name of `flm:_runtime`, then the import lines of the module's fragment
 //! file; the re-exports (each re-exported item from its home module, then
 //! each submodule of the surface as a namespace, `export * as preamble from
-//! "flm:stdcore/backends/latex/preamble"`); the module's token
+//! "flm:stdlib/backends/latex/preamble"`); the module's token
 //! (`const MODULE = module(…)`) when a function or a constructor forwards to
 //! it; then the items in source
 //! order: a handle class per façade trait and opaque type, registered under
@@ -18,8 +18,9 @@
 //! answering the fields in declaration order); a frozen object of tokens per
 //! unit enum, of static constructors per data enum; a constant per `const`,
 //! its value read from the compiled table; a forwarding function per free
-//! function. Each item carries the first sentence of its rustdoc as a
-//! comment.
+//! function; last, the class of each list sequence of the module
+//! (`mapping::LISTS`), a `Sequence` registered under its kind. Each item
+//! carries the first sentence of its rustdoc as a comment.
 //!
 //! # The fragments
 //!
@@ -38,7 +39,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::inventory::{FirstStatement, Function, Inventory, Item, ItemClass, ItemKind, Module};
-use crate::mapping::{self, Ts};
+use crate::mapping::{self, Receiver, Ts};
 
 /// The folder of the generated stubs, from the crate's root.
 pub const API_DIR: &str = "src/quickjs/js/api";
@@ -51,7 +52,7 @@ pub const MODULES_RS: &str = "src/quickjs/generated_modules.rs";
 
 /// The names of `flm:_runtime` every stub imports.
 const RUNTIME_NAMES: &str =
-    "Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower";
+    "Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower";
 
 /// The width the comments are wrapped at.
 const WIDTH: usize = 100;
@@ -419,6 +420,11 @@ fn emit_module(
             exports.push(item.name.clone());
         }
     }
+    for list in mapping::LISTS.iter().filter(|list| list.module == module.path) {
+        out.push('\n');
+        out.push_str(&list_class(list));
+        exports.push(list.class().to_string());
+    }
     (out, exports)
 }
 
@@ -484,6 +490,17 @@ fn enum_object(name: &str) -> Option<String> {
     Some(out)
 }
 
+/// The class of a list sequence, registered under its kind: a `Sequence`
+/// whose `get(i)` asks for the item at an index.
+fn list_class(list: &mapping::ListRow) -> String {
+    let doc = comment(list.doc, "");
+    format!(
+        "{doc}export class {0} extends Sequence {{\n  get(i) {{ return call(this, \"get\", [i]); }}\n}}\nregister_class(\"{1}\", {0});\n",
+        list.class(),
+        list.kind
+    )
+}
+
 /// The handle class of a façade trait or an opaque type, registered under
 /// its kind.
 fn handle_class(item: &Item, fragments: &Fragments) -> String {
@@ -503,6 +520,11 @@ fn handle_class(item: &Item, fragments: &Fragments) -> String {
         let params = param_names(method);
         if method.is_constructor() {
             let _ = writeln!(body, "  constructor({params}) {{ return call(MODULE, \"{}::{}\", [{params}]); }}", item.name, method.name);
+        } else if matches!(kind.receiver, Receiver::Pulled(_)) {
+            // A traversal's method sends, last, the number of the items its
+            // group holds and has not handed over (`Traversal._release()`).
+            let args = if params.is_empty() { "this._release()".to_string() } else { format!("{params}, this._release()") };
+            let _ = writeln!(body, "  {0}({params}) {{ return call(this, \"{0}\", [{args}]); }}", method.name);
         } else if kind.rehearsable {
             let _ = writeln!(body, "  {0}({params}) {{ if (this._token !== null) return call(this, \"{0}\", [{params}]); }}", method.name);
         } else {
@@ -523,10 +545,17 @@ fn handle_class(item: &Item, fragments: &Fragments) -> String {
             }
         }
     }
+    // A traversal's class iterates by the pulls of `Traversal`, a
+    // sequence's by those of `Sequence`.
+    let base = match kind.receiver {
+        Receiver::Indexed(_) => "Sequence",
+        Receiver::Pulled(_) => "Traversal",
+        _ => "Handle",
+    };
     let class = if body.is_empty() {
-        format!("export class {} extends Handle {{}}\n", item.name)
+        format!("export class {} extends {base} {{}}\n", item.name)
     } else {
-        format!("export class {} extends Handle {{\n{body}}}\n", item.name)
+        format!("export class {} extends {base} {{\n{body}}}\n", item.name)
     };
     format!("{class}register_class(\"{}\", {});\n", kind.kind, item.name)
 }
@@ -589,15 +618,22 @@ fn data_class(item: &Item, fragments: &Fragments, module: &str) -> String {
         out.push_str(&comment(&method.doc, "  "));
         let param = method.params.first().map_or("", |param| param.name.as_str());
         let line = match &method.first {
-            Some(FirstStatement::Push(field)) => format!("{}({param}) {{ this.{}.push({param}); return this; }}", method.name, holder(item, field)),
+            Some(FirstStatement::Push(field)) if method.params.len() == 1 => {
+                format!("{}({param}) {{ this.{}.push({param}); return this; }}", method.name, holder(item, field))
+            }
+            Some(FirstStatement::PushRecord(field, names)) if *names == method.params.iter().map(|param| param.name.clone()).collect::<Vec<_>>() => {
+                let params = param_names(method);
+                format!("{}({params}) {{ this.{}.push({{ {params} }}); return this; }}", method.name, holder(item, field))
+            }
             Some(FirstStatement::Set(field)) if !param.is_empty() => {
                 format!("{}({param}) {{ this.{} = {param}; return this; }}", method.name, holder(item, field))
             }
             Some(FirstStatement::SetTo(field, value)) => format!("{}() {{ this.{} = {value}; return this; }}", method.name, holder(item, field)),
             Some(FirstStatement::Get(field)) => format!("{}() {{ return this.{}; }}", method.name, holder(item, field)),
             _ => panic!(
-                "the first statement of `{}::{}` (`src/api/{module}.rs`) must push onto a field, assign a field (the method's parameter, or \
-                 a boolean literal when it has none) or answer a field, so that the generated class can hold it",
+                "the first statement of `{}::{}` (`src/api/{module}.rs`) must push onto a field (the method's one parameter, or a struct \
+                 literal whose fields are the method's parameters, in order), assign a field (the method's parameter, or a boolean literal \
+                 when it has none) or answer a field, so that the generated class can hold it",
                 item.name, method.name
             ),
         };

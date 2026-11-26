@@ -1,0 +1,96 @@
+# A compact, phfnote-inspired memo for LuaLaTeX.
+name: simple
+output: latex-rendered
+engine: minijinja
+main: simple.tex
+accepts: all
+
+delimiters:
+  block: ["<<*", "*>>"]
+  variable: ["<<<", ">>>"]
+  comment: ["<<!--", "-->>"]
+
+# Override with, for example:
+# -O 'compose.template_config={latex-rendered: {simple: {accent: "7B493D"}}}'
+# Font names, geometry and class options are passed to LaTeX as written.
+settings:
+  type: object
+  properties:
+    classoptions:
+      type: string
+      default: "11pt,a4paper"
+      description: "The options of the document class article, as LaTeX reads them."
+    linespread:
+      type: string
+      default: "1.25"
+      description: "The factor of the line spacing (article's 10pt body has a 12pt baseline: 1.18 gives 14.16pt leading)."
+    geometry:
+      type: string
+      default: "hmargin=24mm,top=19mm,bottom=20mm,includeheadfoot,headheight=24pt,headsep=7mm,footskip=10mm,marginparwidth=15mm,marginparsep=3mm"
+      description: "The options of the package geometry, as LaTeX reads them."
+    mainfont:
+      type: string
+      default: ""
+      description: "The fontspec family name of the main font (for instance Source Serif 4); empty for TeX's package sourceserifpro (oldstyle, proportional figures), whose version depends on TeX Live."
+    sansfont:
+      type: string
+      default: ""
+      description: "The fontspec family name of the sans font (for instance Source Sans 3); empty for TeX's package sourcesanspro."
+    monofont:
+      type: string
+      default: ""
+      description: "The fontspec family name of the mono font (for instance Source Code Pro); empty for TeX's package sourcecodepro."
+    mathfont:
+      type: string
+      default: "STIX Two Math"
+      description: "The font of the mathematics, as the package unicode-math reads it."
+    default_sans_font:
+      type: boolean
+      default: false
+      description: "Whether the text is set in the sans font."
+    headings_use_sans_font:
+      type: boolean
+      default: false
+      description: "Whether the headings are set in the sans font."
+    accent:
+      type: string
+      default: "000000"
+      description: "The accent color: six hexadecimal digits of an HTML color, without '#' (222222 for a monochrome accent)."
+    ink:
+      type: string
+      default: "000000"
+      description: "The color of the text: six hexadecimal digits of an HTML color, without '#'."
+    muted:
+      type: string
+      default: "000000"
+      description: "The color of secondary text: six hexadecimal digits of an HTML color, without '#'."
+    titleblock_top_rule:
+      type: boolean
+      default: false
+      description: "Whether a rule is drawn above the title block."
+    titleblock_bottom_rule:
+      type: boolean
+      default: true
+      description: "Whether a rule is drawn below the title block."
+
+# Another look, written under `compose.template_config.latex-rendered.simple`:
+#   classoptions: "10pt,a4paper"
+#   # Article's 10pt body has a 12pt baseline: 1.18 gives 14.16pt leading.
+#   linespread: "1.18"
+#   geometry: "hmargin=24mm,top=19mm,bottom=20mm,includeheadfoot,headheight=24pt,headsep=7mm,footskip=10mm,marginparwidth=15mm,marginparsep=3mm"
+#   # Empty: load TeX's sourceserifpro package (oldstyle, proportional figures).
+#   # Set a fontspec family name to override, e.g. "Source Serif Pro" for a
+#   # separately installed version. The bundled font version depends on TeX Live.
+#   mainfont: "" #"Source Serif 4"
+#   # Same for the sans font, default goes through TeX's sourcesanspro package.
+#   sansfont: "" #"Source Sans 3"
+#   # Same for the mono font, default goes through TeX's sourcecodepro package.
+#   monofont: "" #"Source Code Pro"
+#   mathfont: "STIX Two Math"
+
+#   headings_use_sans_font: true
+
+#   # Six-digit HTML colors, without '#'. Use 222222 for a monochrome accent.
+#   accent: "245C63"
+#   ink: "252D30"
+#   muted: "657477"

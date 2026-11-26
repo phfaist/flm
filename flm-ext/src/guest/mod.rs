@@ -23,7 +23,9 @@
 //! struct of each façade forwarding every method to the host as a request),
 //! the runtime (what each feature's `register` recorded, the rehearsal, the
 //! entries), the requests and the module's side of the ABI ([`abi`]), and the
-//! macro [`extension!`]. It is the twin of the JavaScript prelude, item for
+//! macros [`extension!`], for a crate that is one extension, and
+//! [`extensions!`], for a module that holds the extensions of a table of code
+//! ([`NamedExtension`]). It is the twin of the JavaScript prelude, item for
 //! item. One extension crate written against it has two forms, and its source
 //! is the same for both:
 //!
@@ -44,9 +46,9 @@
 //!   guest's values converted into the API's and the answer back; the
 //!   lending of a handler object builds its host object with the body of the
 //!   lending native every binding shares and hands it to the API method that
-//!   takes it; a line of console output goes to the console sink of the
-//!   instance; and the engine calls the entries directly, their arguments
-//!   and replies the guest's values. Only the data that is JSON by nature
+//!   takes it; a line of console output goes to the log sink the engine
+//!   gave the instance; and the engine calls the entries directly, their
+//!   arguments and replies the guest's values. Only the data that is JSON by nature
 //!   stays JSON: a feature's settings, which its `register` and its
 //!   template modules' `describe` receive as a `serde_json::Value`, and the
 //!   declarations of the extension's packages, which every engine reads as
@@ -107,7 +109,7 @@
 //! flm_ext::guest::extension!(extension);
 //!
 //! fn extension(ext: &mut Extension) {
-//!     ext.package("_", Package::new().uses(["stdcore"]).feature(
+//!     ext.package("_", Package::new().feature(
 //!         "wordcount",
 //!         Feature::new().title("Word count").register(register),
 //!     ));
@@ -127,7 +129,8 @@
 //!         Needs::new()
 //!     }
 //!     fn run(&self, cx: &StageCx, out: &mut StageOut) -> Result<(), ExtError> {
-//!         for (id, tree) in cx.trees()? {
+//!         for pair in cx.trees()? {
+//!             let (id, tree) = pair?;
 //!             let _ = (id, tree, &out);
 //!         }
 //!         Ok(())
@@ -135,11 +138,38 @@
 //! }
 //! ```
 //!
+//! A crate can also hold several extensions, each in a module of its own. Each
+//! module declares the code of its extension as a static [`CompiledExtension`],
+//! made with [`CompiledExtension::new`] from its declaring function, its name
+//! and its version. The crate's root lists the extensions in a *table of code*,
+//! a static slice of [`NamedExtension`] rows (a stem and its code), and invokes
+//! [`extensions!`] once over the table, in place of [`extension!`]:
+//!
+//! ```ignore
+//! pub static COMPILED_EXTENSIONS: &[flm_ext::guest::NamedExtension] = &[
+//!     flm_ext::guest::NamedExtension { stem: "todo", compiled: &todo::FLM_EXTENSION },
+//!     flm_ext::guest::NamedExtension { stem: "wordcount", compiled: &wordcount::FLM_EXTENSION },
+//! ];
+//!
+//! flm_ext::guest::extensions!(COMPILED_EXTENSIONS);
+//! ```
+//!
+//! A program that compiles the crate in gives the table to the engine `native`.
+//! Built as a WebAssembly module, the crate runs, in one instance, every
+//! extension that the host defines in it: each entry names its extension by
+//! its stem ([`abi`]). Such a module takes one of two forms. Named by the
+//! manifest of an extension's folder, it holds code alone, and the extension's
+//! files stand beside it in the folder. As a *collection*, it also holds the
+//! files of its extensions in its custom section `flmextensions`
+//! ([`crate::collection`]), and a program loads it itself. The crate
+//! `flm-extensions` holds the extensions shipped with FLM in this way.
+//!
 //! # The packages and the features
 //!
 //! [`Extension::package`] declares a package, as the JavaScript prelude's
 //! `ext.package(name, object)` does: [`Package`] holds its `uses`, its `flm`
-//! block, its `templates`, its `host` services and its features in order;
+//! block, its `templates`, its `host` services, its `caches` and its
+//! features in order;
 //! [`Feature`] a feature's `title`, `docs`, `version`, `settings`, its
 //! optional configuration reader ([`Feature::read`], the JavaScript
 //! feature object's `read`) and its `register`, a function or a closure
@@ -223,7 +253,33 @@
 //!    handler's own error crosses back as it was returned.
 //! 9. **`Option<T>`** is `Option<T>`; a `Vec<T>` and a tuple as in the api;
 //!    a borrowed result is answered owned (`&str` is `String`, `&[T]` is
-//!    `Vec<T>`).
+//!    `Vec<T>`). Two kinds of struct stand for the collections whose length
+//!    can grow with the document; each holds one handle, whose items the
+//!    struct pulls from the host in groups:
+//!    - A traversal of the api (`Walk`, `Descendants`, `Trees`) is a struct
+//!      of the same name that implements `Iterator`, iterated once. Each item
+//!      is a `Result`, since a pull crosses to the host and can fail.
+//!      `Walk` and `Descendants` have `elements(names)` and `kinds(kinds)`,
+//!      which return the traversal restricted, on the host, to the nodes of
+//!      the named elements or of the given kinds:
+//!      `root.descendants()?.kinds(&[NodeKindName::Chars])?`. A node that does
+//!      not match costs no crossing.
+//!    - A list of nodes of the api (a node's `children()`, a `body()`, a
+//!      line's `content`, …) is [`Nodes`](crate::guest::techy::node::Nodes),
+//!      and a list of staged nodes is
+//!      [`StagedNodes`](crate::guest::lang::rewrites::userdefs::StagedNodes):
+//!      a *sequence*, with `len()` and `is_empty()` (no crossing), `get(i)`
+//!      and `iter()` (which cross). `to_vec()` pulls every item into a `Vec`,
+//!      one value per item. The rows of an extension's table are `Rows`,
+//!      a sequence with `len()`, `is_empty()`, `get(i)` and `iter()`.
+//!
+//!    What takes several nodes takes `&Nodes`, and what takes several
+//!    staged nodes takes a `StagedNodes` (`Lowerer::pres`, `Lowering::Emit`,
+//!    `PresTree::Build`, …): a sequence the host answered, or one the
+//!    extension built, empty (`Default`) or from a `Vec`, and extended with
+//!    `push` (one item) and `push_all` (another sequence) without any
+//!    crossing. A sequence the host answered crosses back as its handle,
+//!    whatever its length, so content passed on this way is never pulled.
 //! 10. **Values are JSON.** A value of the api's `serde_json::Value` is the
 //!     same. Compiled into a program, it is passed as it is; in a
 //!     WebAssembly module, a number that is not an integer and a reserved
@@ -245,7 +301,7 @@
 //!
 //! One module per module of the extension API, generated from `src/api/`
 //! with the JavaScript prelude's modules (`core`, `host`, `lang`, `model`,
-//! `stdcore`, `techy`, and their submodules); the hand-written types and
+//! `stdlib`, `techy`, and their submodules); the hand-written types and
 //! traits are re-exported from their module. The guest's own types (rule 2)
 //! are written by hand, each checked against the host's reading and writing
 //! of the same JSON form by a test that converts in both directions; beside
@@ -301,15 +357,15 @@
 //! # The digest
 //!
 //! The engine's: the engine `wasm` enters the module's bytes into the
-//! registry digest; the engine `native` enters the extension crate's name and
-//! version. The guest client adds nothing.
+//! registry digest; the engine `native` enters the extension's name and
+//! version ([`CompiledExtension`]). The guest client adds nothing.
 //!
 //! # `unsafe`
 //!
 //! The guest's `unsafe` is at two places, both compiled only for `wasm32` in a
 //! build without the feature `native` (the crate a WebAssembly module of its
 //! own): the import block of [`abi`], and the attribute `#[unsafe(no_mangle)]`
-//! on the four exports [`extension!`] writes in the author's crate, each a
+//! on the four exports [`extensions!`] writes in the author's crate, each a
 //! call of a safe function of [`abi`]. Compiled for another target, or with
 //! the feature `native`, the guest client has no `unsafe`.
 
@@ -324,32 +380,37 @@ pub use entry::{Extension, Feature, Package};
 pub use generated::*;
 
 /// What a program that compiles an extension crate in needs to run the
-/// extension: the function that declares its packages, and the crate's name
-/// and version. The macro [`extension!`] writes one, the static
-/// `FLM_EXTENSION` at the root of the extension's crate; a program that
-/// carries the crate gives `&my_extension::FLM_EXTENSION` to the engine
-/// `native` (cargo feature `native`), which runs the extension through the
-/// guest client in the same process. The type exists with the feature `guest`
-/// alone, the one an extension's crate turns on.
+/// extension: the function that declares its packages, and the extension's
+/// name and version. The macro [`extension!`] writes one, the static
+/// `FLM_EXTENSION` at the root of a crate of one extension, named after the
+/// crate; a crate of several extensions writes one per extension, each
+/// calling [`CompiledExtension::new`] with the extension's own name. A program
+/// that carries the crate gives the static, in a [`NamedExtension`] row such as
+/// `NamedExtension { stem: "my-extension", compiled: &my_extension::FLM_EXTENSION }`,
+/// to the engine `native` (cargo feature `native`), which runs the extension
+/// through the guest client in the same process. The type exists with the
+/// feature `guest` alone, the one an extension's crate turns on.
 #[derive(Debug, Clone, Copy)]
 pub struct CompiledExtension {
     /// The function that declares the extension's packages.
     define: fn(&mut Extension),
-    /// The crate's name, `CARGO_PKG_NAME`.
+    /// The extension's name: the crate's name, `CARGO_PKG_NAME`, for a crate
+    /// of one extension; the name the crate gives, for a crate of several.
     name: &'static str,
     /// The crate's version, `CARGO_PKG_VERSION`.
     version: &'static str,
 }
 
 impl CompiledExtension {
-    /// The extension whose packages `define` declares, from the crate `name`
-    /// at the version `version`. The macro [`extension!`] calls it with the
-    /// crate's own name and version.
+    /// The extension `name` at the version `version`, whose packages `define`
+    /// declares. The macro [`extension!`] calls it with the crate's own name
+    /// and version; a crate of several extensions calls it once per
+    /// extension, with the extension's name and the crate's version.
     pub const fn new(define: fn(&mut Extension), name: &'static str, version: &'static str) -> CompiledExtension {
         CompiledExtension { define, name, version }
     }
 
-    /// The crate's name.
+    /// The extension's name.
     pub fn name(&self) -> &'static str {
         self.name
     }
@@ -365,37 +426,38 @@ impl CompiledExtension {
     }
 }
 
+/// One row of a table of code: an extension written in Rust that a program or
+/// a module carries, by its stem, with its code. A table of code is a static
+/// slice of rows, `&'static [NamedExtension]`: the engine `native` takes rows
+/// of this type (cargo feature `native`), and the macro [`extensions!`] writes
+/// the exports of a module that holds the extensions of a table. The files of
+/// the extension, its manifest among them, are a row of a table of files
+/// ([`crate::source::BundledExtension`]), so that no file is linked into a
+/// module's memory. The type exists with the feature `guest` alone.
+#[derive(Debug, Clone, Copy)]
+pub struct NamedExtension {
+    /// The extension's stem, the name a `use` entry gives it (`pdf-latex`).
+    pub stem: &'static str,
+    /// The extension's code: `&my_extension::FLM_EXTENSION`.
+    pub compiled: &'static CompiledExtension,
+}
+
 /// The extension's entry points, routing the entry `define` to `$define`, a
 /// function `fn(&mut Extension)` that declares the extension's packages
-/// ([`Extension::package`]); invoked once, at the root of the extension's
-/// crate: `flm_ext::guest::extension!(extension);`.
+/// ([`Extension::package`]); invoked once, at the root of a crate that is one
+/// extension: `flm_ext::guest::extension!(extension);`.
 ///
 /// It writes the public static `FLM_EXTENSION`, a [`CompiledExtension`]
 /// holding `$define` and the crate's name and version, through which a
 /// program that compiles the crate in reaches it (the engine `native`). The
 /// name is the same in every extension's crate; a static has no exported
-/// symbol, so several extension crates link into one program.
-///
-/// Compiled for `wasm32` in a build where `flm-ext`'s cargo feature `native`
-/// is off, the crate is a WebAssembly module of its own, and the macro also
-/// writes the four exports of the ABI ([`abi`]), each a call of a safe
-/// function there: `flm_alloc` ([`abi::alloc`]), `flm_free` ([`abi::free`]),
-/// `flm_entry` ([`abi::entry`], whose first call installs the panic hook that
-/// keeps a panic's message) and `flm_last_panic` ([`abi::last_panic`]). The
-/// module exports its memory as `memory`, as every Rust module for
-/// `wasm32-unknown-unknown` does. Compiled for another target, or in a build
-/// where the feature `native` is on (the build of a program that carries the
-/// engine `native`, for any target, `wasm32` included), it writes no export:
-/// two extension crates linked into one program would clash. Within one
-/// build, cargo compiles `flm-ext` once, with one set of features, so a
-/// module built in a cargo run where any crate turns on `native` lacks the
-/// exports, and the engine `wasm` refuses it when it loads, saying which
-/// export it lacks.
+/// symbol, so several extension crates link into one program. It then writes
+/// what [`extensions!`] writes over the table of that one row, whose stem is
+/// the crate's name; a module of one row runs that row for any stem, since
+/// the folder that holds the module can be renamed.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __flm_guest_extension {
-    // One output on every target: the static for a program that compiles the crate in,
-    // the exports for a WebAssembly module of its own.
     ($define:expr) => {
         /// What a program that compiles this crate in needs to run the
         /// extension: the function that declares its packages, and the
@@ -403,11 +465,51 @@ macro_rules! __flm_guest_extension {
         pub static FLM_EXTENSION: $crate::guest::CompiledExtension =
             $crate::guest::CompiledExtension::new($define, env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
 
-        $crate::__flm_guest_exports!($define);
+        $crate::__flm_guest_extensions!(&[$crate::guest::NamedExtension {
+            stem: env!("CARGO_PKG_NAME"),
+            compiled: &FLM_EXTENSION,
+        }]);
     };
 }
 
-/// The four exports of the guest's ABI for [`extension!`], in `flm-ext`'s
+/// The entry points of a module that holds the extensions of a table of code,
+/// `$extensions` being an expression of the type `&[NamedExtension]`
+/// ([`NamedExtension`]); invoked once, at the root of the crate:
+/// `flm_ext::guest::extensions!(COMPILED_EXTENSIONS);`.
+///
+/// The entry `define(stem, module)` runs the declaring function of the row
+/// whose stem is `stem`. A table of one row runs that row for any stem. A
+/// table of several rows that holds no row of the stem answers an error
+/// that gives the stems it holds. Every entry names the extension it is for,
+/// by the stem `define` was given, and runs with that extension's own state
+/// (what `define` declared, what each feature's `register` recorded), so that
+/// one instance of the module runs several extensions.
+///
+/// Compiled for `wasm32` in a build where `flm-ext`'s cargo feature `native`
+/// is off, the crate is a WebAssembly module of its own, and the macro
+/// writes the four exports of the ABI ([`abi`]), each a call of a safe
+/// function there: `flm_alloc` ([`abi::alloc`]), `flm_free` ([`abi::free`]),
+/// `flm_entry` ([`abi::entry`], whose first call installs the panic hook that
+/// keeps a panic's message) and `flm_last_panic` ([`abi::last_panic`]). The
+/// module exports its memory as `memory`, as every Rust module for
+/// `wasm32-unknown-unknown` does. Compiled for another target, or in a build
+/// where the feature `native` is on (the build of a program that carries the
+/// engine `native`, for any target, `wasm32` included), it writes nothing:
+/// two extension crates linked into one program would clash. Within one
+/// build, cargo compiles `flm-ext` once, with one set of features, so a
+/// module built in a cargo run where any crate turns on `native` lacks the
+/// exports, and the engine `wasm` refuses it when it loads, saying which
+/// export it lacks. Two invocations in one module, or this macro beside
+/// [`extension!`], would write each export twice.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __flm_guest_extensions {
+    ($extensions:expr) => {
+        $crate::__flm_guest_exports!($extensions);
+    };
+}
+
+/// The four exports of the guest's ABI for [`extensions!`], in `flm-ext`'s
 /// form without the cargo feature `native`: compiled for `wasm32`, the
 /// exports; for another target, nothing. A `cfg` written in the body of a
 /// `macro_rules!` macro is read in the crate where the macro expands (the
@@ -420,7 +522,7 @@ macro_rules! __flm_guest_exports {
     // The feature `native`, not the target alone, is the sign of a program that carries the
     // engine: a program built for `wasm32` may carry several extensions compiled in, whose
     // exports would clash.
-    ($define:expr) => {
+    ($extensions:expr) => {
         /// The export `flm_alloc` of the guest's ABI: a buffer of `len`
         /// bytes for the host to write.
         #[cfg(target_arch = "wasm32")]
@@ -442,7 +544,7 @@ macro_rules! __flm_guest_exports {
         #[cfg(target_arch = "wasm32")]
         #[unsafe(no_mangle)]
         pub extern "C" fn flm_entry(ptr: i32, len: i32) -> i64 {
-            $crate::guest::abi::entry(ptr, len, $define)
+            $crate::guest::abi::entry(ptr, len, $extensions)
         }
 
         /// The export `flm_last_panic` of the guest's ABI: the message of
@@ -455,7 +557,7 @@ macro_rules! __flm_guest_exports {
     };
 }
 
-/// The four exports of the guest's ABI for [`extension!`], in `flm-ext`'s
+/// The four exports of the guest's ABI for [`extensions!`], in `flm-ext`'s
 /// form with the cargo feature `native`: nothing, on every target, since the
 /// crate is compiled into a program that carries the engine `native` (see the
 /// form without the feature).
@@ -463,11 +565,13 @@ macro_rules! __flm_guest_exports {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __flm_guest_exports {
-    ($define:expr) => {};
+    ($extensions:expr) => {};
 }
 
 #[doc(inline)]
 pub use crate::__flm_guest_extension as extension;
+#[doc(inline)]
+pub use crate::__flm_guest_extensions as extensions;
 
 #[cfg(test)]
 mod tests {

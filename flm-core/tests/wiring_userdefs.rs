@@ -1,5 +1,5 @@
 //! The `userdefs` feature at registry build
-//! (`flm_core::stdcore::features::userdefs`): definitions as elements carrying
+//! (`flm_core::stdlib::features::userdefs`): definitions as elements carrying
 //! `Expand`, their names, the templates compiled in the late-init hook, the
 //! build diagnostics, overrides, the digest, and one feature value serving
 //! several registries.
@@ -14,8 +14,8 @@ use flm_core::dump::ExpectDiag;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::blocks::BlocksConfig;
 use flm_core::lang::rewrites::userdefs::{Definition, Expand, UserDefinition};
-use flm_core::stdcore::features::blocks::Blocks;
-use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig, element_name};
+use flm_core::stdlib::features::blocks::Blocks;
+use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig, element_name};
 
 use common::pipeline::{feature, registry as build, registry_error};
 use common::wiring::{registry, registry_with};
@@ -93,12 +93,9 @@ fn two_definitions_of_one_name_and_kind_refuse_the_build() {
     assert_eq!(error.phase, BuildPhase::Collect);
     assert_eq!(error.errors.len(), 1, "{}", error.render());
     match &error.errors[0] {
-        BuildError::Feature { feature, detail } => {
-            assert_eq!(feature, "userdefs");
-            // Both apply in every mode, so only one of them could ever be in
-            // force; a pair whose modes do not overlap is accepted instead.
-            assert!(detail.contains("the same parsing mode"), "{detail}");
-        }
+        // Both apply in every mode, so only one of them could ever be in
+        // force; a pair whose modes do not overlap is accepted instead.
+        BuildError::Feature { feature, .. } => assert_eq!(feature, "userdefs"),
         other => panic!("unexpected error: {other:?}"),
     }
 }

@@ -1567,23 +1567,6 @@ mod tests {
     }
 
     #[test]
-    fn the_messages_state_the_condition() {
-        let unknown = arg_def_from_code("q").unwrap_err().to_string();
-        assert!(unknown.starts_with("`q` is not an argument code; the codes are `{`, `m`"), "{unknown}");
-        assert!(unknown.contains("`e{<chars>}`"), "{unknown}");
-        let incomplete = arg_def_from_code("r(").unwrap_err().to_string();
-        assert_eq!(
-            incomplete,
-            "in the argument code `r(`, `r` must be followed by an opening and a closing character, as in `r()`"
-        );
-        assert!(unknown.contains("`u<terminator>`, `U<terminator>`, `f<c><terminator>`, `F<c><terminator>`"), "{unknown}");
-        assert_eq!(
-            arg_def_from_code("u").unwrap_err().to_string(),
-            "in the argument code `u`, `u` must be followed by the terminator, one or more characters, as in `u\\endm`"
-        );
-    }
-
-    #[test]
     fn each_form_s_example_reads_and_matches_its_pattern() {
         for form in &CODE_FORMS {
             assert!(ArgCode::read(form.example).is_ok(), "{}", form.example);

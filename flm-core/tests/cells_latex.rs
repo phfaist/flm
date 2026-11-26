@@ -1,5 +1,5 @@
 //! The `cells` feature on the recomposed LaTeX
-//! (`flm_core::stdcore::features::cells::latex`): one call of the hook
+//! (`flm_core::stdlib::features::cells::latex`): one call of the hook
 //! `\flmCellsTable` over the two column specifications, the `tabularray`
 //! options and the rows, the definition piece and the two packages it
 //! requests (test 11); a table in a `table` float with its caption and a
@@ -19,34 +19,34 @@ use flm_core::core::registry::{BuildError, FeatureBuilder, FeatureInfo, FlmFeatu
 use flm_core::core::run::Run;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::{LatexPreambleDef, packages, preamble};
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::cells::latex::definition_piece;
-use flm_core::stdcore::features::cells::{CellStyle, CellsConfig, LATEX_PIECE, STYLES_SLOT};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::{LatexPreambleDef, packages, preamble};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::cells::latex::definition_piece;
+use flm_core::stdlib::features::cells::{CellStyle, CellsConfig, LATEX_PIECE, STYLES_SLOT};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use flm_core::model::names::Name;
 
 use common::latex::{assert_golden, output, style, style_if_any};
-use common::stdcore::identifiers;
+use common::stdlib::{assert_only_unchecked_output, identifiers};
 
-fn global() -> StdcoreConfig {
-    StdcoreConfig::new().cells(CellsConfig::new().global(true))
+fn global() -> StdlibConfig {
+    StdlibConfig::new().cells(CellsConfig::new().global(true))
 }
 
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(global())
+    common::stdlib::registry(global())
 }
 
 fn run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
-    common::stdcore::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
+    common::stdlib::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
 }
 
-/// The recomposed LaTeX and the style file of `document` under `registry`;
-/// the run must report nothing.
+/// The recomposed LaTeX and the style file of `document` under `registry`; the
+/// run must report nothing but the Warnings of its plan's unchecked output.
 fn written(registry: &Arc<FlmRegistry>, document: &str) -> (String, String, Run) {
     let run = run(registry, document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let written = output(&run);
     let style = style(&run).0;
     (written, style, run)
@@ -167,7 +167,7 @@ fn a_table_wider_than_the_line_is_one_call_like_any() {
 
 #[test]
 fn a_table_in_a_table_float_stands_in_the_float_hook_with_its_caption() {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     let (written, _, run) = written(
         &registry,
         "\\begin{table}\\begin{cells}\\celldata<H>{A & B}\\celldata{1 & 2}\\end{cells}\
@@ -192,7 +192,7 @@ fn a_user_definition_writing_a_table_is_expanded_where_it_is_used() {
         vec![ArgDef::mandatory("styles"), ArgDef::mandatory("placement"), ArgDef::mandatory("content")],
     )
     .text("\\begin{cells}\\cell<#1>[#2]{#3}\\cell{x}\\end{cells}");
-    let registry = common::stdcore::registry(global().userdefs(UserdefsConfig::new().definitions(vec![onecell])));
+    let registry = common::stdlib::registry(global().userdefs(UserdefsConfig::new().definitions(vec![onecell])));
     let (written, _, _) = written(&registry, "\\onecell{r H}{2}{right}\n");
     // The placement and the styles are read where the use site is expanded:
     // the cell stands in column 2, right-aligned, a header.
@@ -254,9 +254,9 @@ impl FlmFeature for HostStyles {
 
 #[test]
 fn a_hosts_custom_styles_are_table_commands_in_token_order_requiring_the_hosts_piece() {
-    let mut features = common::stdcore::package_features_but(global(), "");
+    let mut features = common::stdlib::package_features_but(global(), "");
     features.push(Arc::new(HostStyles));
-    let registry = common::stdcore::registry_over(features);
+    let registry = common::stdlib::registry_over(features);
     let (out, style, run) =
         written(&registry, "\\begin{cells}\\cell<r orange bold>{A}\\cell<bold green>{B}\\cell{C}\\end{cells}\n");
     assert!(

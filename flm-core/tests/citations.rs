@@ -8,7 +8,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::core::run::Run;
@@ -17,25 +17,25 @@ use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::addr::TreeId;
 use flm_core::model::element::element_of;
-use flm_core::stdcore::backends::pres::{payload_of, DroppedPayload, LinkPayload, SpanPayload, SpanStyle};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::backends::pres::{payload_of, DroppedPayload, LinkPayload, SpanPayload, SpanStyle};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::citations::{
     read_chunk, CitationsConfig, MarkForm, Reading, ATTACHED, CITATIONS, CITE, MARK_ROLE,
     STANDALONE, WORD_ROLE,
 };
-use flm_core::stdcore::features::numbering::{Delimiters, PluralWords, PrefixWords};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::{package, StdcoreConfig};
+use flm_core::stdlib::features::numbering::{Delimiters, PluralWords, PrefixWords};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{add_features, StdlibConfig};
 
 use common::citations::{Asked, Counting, EveryKey};
 use common::lowering::{lowered, text as printed};
-use common::stdcore::{identifiers, projection, run_workflow};
+use common::stdlib::{identifiers, projection, refusing_features, run_workflow};
 
 // --- helpers ---------------------------------------------------------------------------------
 
 /// The standard package under `config`.
 fn registry_of(config: CitationsConfig) -> Arc<FlmRegistry> {
-    common::citations::registry(StdcoreConfig::new().citations(config))
+    common::citations::registry(StdlibConfig::new().citations(config))
 }
 
 /// The standard package, the default configuration.
@@ -196,7 +196,7 @@ fn a_key_s_quotes_and_dashes_are_recorded_as_typed() {
 fn two_spellings_of_a_key_differing_only_in_whitespace_are_one_key() {
     let asked = Asked::default();
     let counting = Counting { asked: asked.clone(), inner: Arc::new(EveryKey) };
-    let registry = common::citations::registry_with(StdcoreConfig::new(), vec![Arc::new(counting)]);
+    let registry = common::citations::registry_with(StdlibConfig::new(), vec![Arc::new(counting)]);
     let run = render_on(&registry, &["A\\cite{manual:{A   B}} and B\\cite{manual:{A\nB}}."]);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(asked.keys(), ["manual:{A B}"]);
@@ -210,7 +210,7 @@ fn a_key_synthesized_by_a_user_definition_is_recomposed_from_its_nodes() {
     let userdefs = UserdefsConfig::new()
         .definition(Definition::macro_("man", vec![ArgDef::mandatory("x")]).content("\\cite{manual:\\emph{#1}}"))
         .definition(Definition::macro_("arxiv", vec![ArgDef::mandatory("key")]).content("\\cite{arxiv:#1}"));
-    let registry = common::citations::registry_with(StdcoreConfig::new().userdefs(userdefs), vec![Arc::new(counting)]);
+    let registry = common::citations::registry_with(StdlibConfig::new().userdefs(userdefs), vec![Arc::new(counting)]);
     let run = render_on(&registry, &["A\\man{Title} and B\\arxiv{1234}."]);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(asked.keys(), ["manual:\\emph{Title}", "arxiv:1234"]);
@@ -243,7 +243,7 @@ fn a_key_holding_a_command_reaches_the_providers() {
     let counting = Counting { asked: asked.clone(), inner: Arc::new(EveryKey) };
     let userdefs = UserdefsConfig::new()
         .definition(Definition::macro_("arxiv", vec![ArgDef::mandatory("key")]).content("\\cite{arxiv:#1}"));
-    let registry = common::citations::registry_with(StdcoreConfig::new().userdefs(userdefs), vec![Arc::new(counting)]);
+    let registry = common::citations::registry_with(StdlibConfig::new().userdefs(userdefs), vec![Arc::new(counting)]);
     let run = render_on(&registry, &["See \\cite{a}\\arxiv{\\emph{b}}."]);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(asked.keys(), ["a", "arxiv:\\emph{b}"]);
@@ -259,7 +259,7 @@ fn with_arxiv() -> Arc<FlmRegistry> {
             Definition::macro_("mynote", vec![ArgDef::mandatory("note"), ArgDef::mandatory("key")])
                 .content("\\cite[see #1]{#2}"),
         );
-    common::citations::registry(StdcoreConfig::new().userdefs(userdefs))
+    common::citations::registry(StdlibConfig::new().userdefs(userdefs))
 }
 
 #[test]
@@ -272,12 +272,15 @@ fn a_user_definition_s_placeholder_in_a_key_or_a_note_substitutes() {
 #[test]
 fn a_user_definition_named_cite_replaces_the_standard_one_only_when_it_says_so() {
     let definition = || Definition::macro_("cite", vec![ArgDef::mandatory("key")]).content("<#1>");
-    let config = StdcoreConfig::new().userdefs(UserdefsConfig::new().definition(definition().overriding()));
+    let config = StdlibConfig::new().userdefs(UserdefsConfig::new().definition(definition().overriding()));
     let run = render_on(&common::citations::registry(config), &["See \\cite{a}."]);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(text_of(&run), "See <a>.");
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().userdefs(UserdefsConfig::new().definition(definition()))));
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definition(definition())),
+    ));
     builder.use_package(flm_core::math_passthrough::package());
     let refused = builder.build(&RegistryInputs::new());
     assert!(refused.is_err(), "a second `\\cite` without `overrides` must fail the build");
@@ -443,8 +446,8 @@ fn a_cite_after_a_formula_or_a_footnote_mark_writes_its_space() {
 
 #[test]
 fn a_cite_starting_a_cell_or_a_line_shows_its_space() {
-    let config = StdcoreConfig::new()
-        .cells(flm_core::stdcore::features::cells::CellsConfig::new().global(true));
+    let config = StdlibConfig::new()
+        .cells(flm_core::stdlib::features::cells::CellsConfig::new().global(true));
     let run = render_on(
         &common::citations::registry(config),
         &["\\begin{cells}\\cell{\\cite{a}}\\celldata{x & \\cite{b}}\\end{cells}"],
@@ -608,11 +611,13 @@ fn a_chunk_in_a_heading_title_shows_its_numbers_where_a_reference_shows_the_titl
 
 #[test]
 fn a_report_raised_in_a_copy_carries_the_copy_s_frame() {
-    let run = render("\\section{Results \\cite{}}\\label{sec:r}\n\nSee \\ref{sec:r}.");
+    let document = "\\section{Results \\cite{}}\\label{sec:r}\n\nSee \\ref{sec:r}.";
+    let run = render(document);
     assert_eq!(identifiers(&run), ["flm.citations.no-key", "flm.citations.no-key"]);
-    let framed = common::stdcore::frames(&run)
+    let reference = document.find("\\ref{sec:r}").expect("the reference");
+    let framed = common::stdlib::frames(&run)
         .iter()
-        .filter(|frames| frames.iter().any(|(title, _)| title == common::stdcore::SHOWN_HERE))
+        .filter(|frames| frames.contains(&reference))
         .count();
     assert_eq!(framed, 1);
 }
@@ -643,7 +648,7 @@ fn the_keys_are_no_words_of_the_text_and_the_notes_are() {
 
 /// The standard package, the feature `left_out` left out.
 fn registry_without(left_out: &str) -> Arc<FlmRegistry> {
-    common::citations::registry_over(common::stdcore::package_features_but(StdcoreConfig::new(), left_out))
+    common::citations::registry_over(common::stdlib::package_features_but(StdlibConfig::new(), left_out))
 }
 
 const EVERY_FORM: &str = "A \\cite{a}\\cite[Thm 4]{b}, \\R\\cite{a,b} and \\R[S]\\cite{c}.";
@@ -661,8 +666,8 @@ fn the_marks_are_the_same_without_numbering_refs_or_a_backend() {
 
 #[test]
 fn without_the_feature_cite_is_an_unknown_command() {
-    let features = common::stdcore::package_features_but(StdcoreConfig::new(), "citations");
-    let run = render_on(&common::stdcore::registry_over(features), &["A \\cite{a}."]);
+    let features = common::stdlib::package_features_but(StdlibConfig::new(), "citations");
+    let run = render_on(&common::stdlib::registry_over(features), &["A \\cite{a}."]);
     assert_eq!(identifiers(&run), ["core.specs.unresolvable-command"]);
 }
 
@@ -672,19 +677,19 @@ fn without_the_feature_cite_is_an_unknown_command() {
 fn a_style_text_or_a_separator_that_does_not_compile_fails_the_build_naming_it() {
     let build = |config: CitationsConfig| {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(StdcoreConfig::new().citations(config)));
+        builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new().citations(config)));
         builder.use_package(flm_core::math_passthrough::package());
         match builder.build(&RegistryInputs::new()) {
             Ok(_) => panic!("the registry build was expected to fail"),
-            Err(error) => error.render(),
+            Err(error) => error,
         }
     };
     let mut config = CitationsConfig::new();
     config.style.delimiters = Delimiters::new("{", "]");
-    let message = build(config);
-    assert!(message.contains("the option `style` of the feature `citations` is not a valid counter style"), "{message}");
-    let message = build(CitationsConfig::new().note_separator("}"));
-    assert!(message.contains("the option `note_separator` of the feature `citations`"), "{message}");
+    let error = build(config);
+    assert_eq!(refusing_features(&error), ["citations"], "{error}");
+    let error = build(CitationsConfig::new().note_separator("}"));
+    assert_eq!(refusing_features(&error), ["citations"], "{error}");
 }
 
 #[test]
@@ -757,8 +762,8 @@ fn the_hard_inputs_render_as_expected() {
     let fifty: String = (1..=50).map(|index| format!("\\cite{{k{index}}}")).collect();
     assert_eq!(clean(&format!("A {fifty}.")), format!("A{NBSP}[1–50]."));
     assert_eq!(clean(&format!("A \\R{fifty}.")), format!("A refs.{NBSP}[1–50]."));
-    let config = StdcoreConfig::new()
-        .cells(flm_core::stdcore::features::cells::CellsConfig::new().global(true));
+    let config = StdlibConfig::new()
+        .cells(flm_core::stdlib::features::cells::CellsConfig::new().global(true));
     let run = render_on(
         &common::citations::registry(config),
         &["\\begin{cells}\\cell{\\begin{cells}\\cell{A \\cite{a}}\\cell{c}\\end{cells}}\\end{cells}"],

@@ -1,8 +1,8 @@
 //! The data engine: an extension written as data, whose manifest's `flm:`
-//! block is its one package and whose `templates/` folder holds its compose
-//! templates, each the file `templates/OUTPUT/NAME.yaml` or the folder
-//! `templates/OUTPUT/NAME/` holding `flmtemplate.yaml`
-//! ([`templates::read_folder`]).
+//! block is its one package and whose `templates/` folder holds the
+//! descriptions of its compose templates, each the file
+//! `templates/OUTPUT/NAME.yaml` or the file `flmtemplate.yaml` of the folder
+//! `templates/OUTPUT/NAME/` ([`templates::read_folder`]).
 
 use std::sync::Arc;
 
@@ -14,6 +14,7 @@ use crate::block;
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded, PackageReport, DATA};
 use crate::entry::DEFAULT_PACKAGE;
 use crate::manifest::{Manifest, FLM_VERSION};
+use crate::paths::Root;
 use crate::runtime::{ExtError, ExtRuntime};
 use crate::source::ExtensionFiles;
 use crate::block::BLOCK_KEYS;
@@ -63,7 +64,8 @@ impl Engine for DataEngine {
             errors.push(LoadError::Manifest { path: format!("flm.{key}"), detail });
         }
         let package = extension.factory_name(DEFAULT_PACKAGE);
-        let templates = templates::read_folder(files.as_ref(), &package, extension).unwrap_or_else(|found| {
+        let root = Root::Ext(extension.name.clone());
+        let templates = templates::read_folder(files.as_ref(), &root, &package, extension).unwrap_or_else(|found| {
             errors.extend(found);
             Vec::new()
         });
@@ -77,6 +79,7 @@ impl Engine for DataEngine {
             templates,
             features: Vec::new(),
             host: Vec::new(),
+            caches: Default::default(),
         };
         Ok(Loaded { packages: vec![report], runtime: Arc::new(DataRuntime) })
     }

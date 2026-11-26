@@ -1,0 +1,8 @@
+name: iconic
+output: html
+engine: minijinja
+main: iconic.html
+accepts: all
+artifacts:
+  icons:
+    dir: icons

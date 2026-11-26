@@ -17,19 +17,22 @@ use flm_core::core::lowering::{DefaultMark, LoweringDecl, LoweringRule};
 use flm_core::core::registry::{
     BackendDef, BuildError, BuildPhase, CapabilityDef, CollectionDef, FeatureBuilder, Finalizer,
     LateInit, LateInitError, OrderingDef, OutputDef, PackageEntry, RegistryBuilder, RegistryInputs,
-    Site,
+    Site, UnresolvedPeer,
 };
 use flm_core::core::registry::{FlmFeature, NativeImplication, NativeImplicationKind};
+use flm_core::lang::LangBuildError;
+use flm_core::lang::mint::MintError;
 use flm_core::core::services::Arity;
 use flm_core::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_core::core::data::table::TableName;
 use flm_core::dump::session::{self, ElementResolver};
 use flm_core::lang::{BuiltLang, FlmDiagnostics};
 use flm_core::lang::ext::PresPayload;
-use flm_core::lang::mint::{ArgDef, ArgLayout, ArgStdKind, ElementDef, ScopedPackageDef, SyntaxDef};
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::{lowering, pres};
-use flm_core::stdcore::features::blocks::Blocks;
+use flm_core::lang::mint::{ArgDef, ArgLayout, ArgStdKind, ElementDef, LANGUAGE_OWNER, ScopedPackageDef, SyntaxDef, TackOnField};
+use flm_core::lang::structural;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::{lowering, pres};
+use flm_core::stdlib::features::blocks::Blocks;
 
 use common::pipeline::{COUNT, Note, feature, noop, provider, registry, registry_error, span};
 use common::pipeline::{lowered_cap, plan_for, register_backend};
@@ -404,11 +407,6 @@ fn an_output_is_made_from_declared_outputs_only() {
         }
         other => panic!("unexpected error: {other:?}"),
     }
-    assert_eq!(
-        single.to_string(),
-        "feature `t`: output `pdf` is made from the output `txe`, but no feature declares this output; declared \
-         output names: [pdf, tex]"
-    );
 }
 
 // --- aspects and elements ------------------------------------------------------------------------
@@ -683,9 +681,9 @@ fn a_callable_clash_between_features_is_a_language_phase_error() {
     ]);
     assert_eq!(error.phase, BuildPhase::Language);
     match single(error) {
-        BuildError::Lang(error) => {
-            let rendered = error.to_string();
-            assert!(rendered.contains("t.first") && rendered.contains("t.second"), "{rendered}");
+        BuildError::Lang(LangBuildError::Mint(MintError::Clash { owners, .. })) => {
+            let owners: Vec<&str> = owners.iter().map(|owner| owner.as_str()).collect();
+            assert_eq!(owners, ["t.first", "t.second"]);
         }
         other => panic!("unexpected error: {other:?}"),
     }
@@ -1083,7 +1081,7 @@ fn an_aspect_another_feature_attaches_brings_the_implication_into_force() {
 
 #[test]
 fn the_standard_package_declares_the_two_implications_and_builds() {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     let listed: Vec<(&str, &str, bool)> = registry
         .native_implications()
         .iter()
@@ -1186,13 +1184,9 @@ fn an_unresolved_peer_declaration_is_a_note_and_sets_the_rule_aside() {
         ["flm.registry.unresolved-peer", "flm.registry.unresolved-peer"]
     );
     assert!(!registry.build_diagnostics().has_errors());
-    let messages: Vec<String> =
-        registry.build_diagnostics().iter().map(|d| d.message()).collect();
-    assert_eq!(
-        messages[0],
-        "feature `t.rule` refers to the backend `html` and expects another feature to declare it, but no feature of this registry declares it; the rules depending on it are set aside: [t.foo.lower.html]"
-    );
-    assert!(messages[1].contains("refers to the element `t.pres.box`"), "{}", messages[1]);
+    let peers = peers(&registry);
+    assert_eq!(peers[0], unresolved("t.rule", "backend", "html", &["t.foo.lower.html"], &[]));
+    assert_eq!((peers[1].kind.as_str(), peers[1].name.as_str()), ("element", "t.pres.box"), "{peers:?}");
     let set_aside: Vec<(&str, Vec<PeerName>)> = registry
         .set_aside_rules()
         .map(|entry| (entry.rule.name.as_str(), entry.set_aside.clone()))
@@ -1261,8 +1255,8 @@ fn a_peer_element_value_is_kept_where_a_feature_declares_its_element_type_and_dr
     // Alone: one Note for the element type, both declarations dropped.
     let alone = registry(vec![value()]);
     assert_eq!(build_diagnostic_ids(&alone), ["flm.registry.unresolved-peer"]);
-    let message = alone.build_diagnostics().iter().next().expect("one").to_string();
-    assert!(message.contains("refers to the element type `t.owner.kind`"), "{message}");
+    let found = peers(&alone);
+    assert_eq!((found[0].kind.as_str(), found[0].name.as_str()), ("element type", "t.owner.kind"), "{found:?}");
     assert_eq!(values_of(&alone), [("extra".to_string(), false), ("more".to_string(), false)]);
     assert_eq!(kinds(&alone), 0);
     // Beside the owner: kept, attributed to the declaring feature.
@@ -1289,6 +1283,93 @@ fn a_peer_element_value_is_kept_where_a_feature_declares_its_element_type_and_dr
     let scoped = registry(vec![value(), scoped_owner]);
     assert_eq!(build_diagnostic_ids(&scoped), Vec::<&str>::new());
     assert_eq!(values_of(&scoped), [("extra".to_string(), true), ("more".to_string(), true)]);
+}
+
+// --- documentation texts of element types ------------------------------------------------------
+
+#[test]
+fn an_element_type_text_is_read_back_by_the_type_name_with_the_feature_that_gave_it() {
+    let registry = registry(vec![feature("t", |b| {
+        b.element(macro_def("t", "box", 0).docs("Starts a box."))?;
+        b.element_type_text("t.box", "A box around content.")?;
+        b.presentation_element::<Payload>("t.pres", "A presentation element.")?;
+        Ok(())
+    })]);
+    let text = registry.element_type_text("t.box").expect("given by `t`");
+    assert_eq!((text.element.as_str(), text.owner.as_str()), ("t.box", "t"));
+    #[cfg(feature = "docs")]
+    assert_eq!(text.docs, "A box around content.");
+    // The language gives the texts of its structural element types, and a
+    // presentation element has the text it is declared with.
+    assert_eq!(registry.element_type_text(structural::FIELD).map(|text| text.owner.as_str()), Some(LANGUAGE_OWNER));
+    assert_eq!(registry.element_type_text("t.pres").map(|text| text.owner.as_str()), Some("t"));
+    #[cfg(feature = "docs")]
+    assert_eq!(registry.element_type_text("t.pres").map(|text| text.docs.as_str()), Some("A presentation element."));
+    assert!(registry.element_type_text("t.nope").is_none());
+    assert_eq!(registry.element_type_texts().count(), structural::NAMES.len() + 2);
+}
+
+#[test]
+fn an_element_type_text_from_a_feature_not_declaring_the_type_is_an_error() {
+    // `t.value` adds a value of `t.owner.kind` as a peer element value, which
+    // does not make it a declarer of the type.
+    let value = feature("t.value", |b| {
+        b.peer_element_value(ElementDef::new(
+            "t.value",
+            ["extra"],
+            SyntaxDef::Macro { args: Vec::new() },
+            element("t.owner.kind"),
+        ))?;
+        b.element_type_text("t.owner.kind", "A kind.")
+    });
+    let owner = feature("t.owner", |b| {
+        b.element(ElementDef::new("t.owner", Vec::<&str>::new(), SyntaxDef::Synthesized, element("t.owner.kind")))
+    });
+    match single(registry_error(vec![value, owner])) {
+        BuildError::UndeclaredElementTypeText { feature, element, declarers } => {
+            assert_eq!((feature.as_str(), element.as_str()), ("t.value", "t.owner.kind"));
+            assert_eq!(declarers, ["t.owner"]);
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+    // A type that no feature declares has no declarers.
+    match single(registry_error(vec![feature("t", |b| b.element_type_text("t.nothing", "Nothing."))])) {
+        BuildError::UndeclaredElementTypeText { element, declarers, .. } => {
+            assert_eq!(element, "t.nothing");
+            assert!(declarers.is_empty());
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[test]
+fn a_second_text_for_one_element_type_is_an_error() {
+    let declaring = |name: &'static str| {
+        feature(name, move |b| {
+            b.element(ElementDef::new(name, [name], SyntaxDef::Macro { args: Vec::new() }, element("t.shared")))?;
+            b.element_type_text("t.shared", "Shared.")
+        })
+    };
+    match single(registry_error(vec![declaring("t.first"), declaring("t.second")])) {
+        BuildError::DuplicateElementTypeText { element, first, second } => {
+            assert_eq!((element.as_str(), first.as_str(), second.as_str()), ("t.shared", "t.first", "t.second"));
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
+    // A feature with a tack-on field declares the field element, whose text
+    // the language gives.
+    let fields = feature("t", |b| {
+        let label = TackOnField::new("label", Vec::new());
+        let args = vec![ArgDef::new(ArgStdKind::TackOn { fields: vec![label] })];
+        b.element(ElementDef::new("t", ["box"], SyntaxDef::Macro { args }, element("t.box")))?;
+        b.element_type_text(structural::FIELD, "A field.")
+    });
+    match single(registry_error(vec![fields])) {
+        BuildError::DuplicateElementTypeText { element, first, second } => {
+            assert_eq!((element.as_str(), first.as_str(), second.as_str()), (structural::FIELD, LANGUAGE_OWNER, "t"));
+        }
+        other => panic!("unexpected error: {other:?}"),
+    }
 }
 
 #[test]
@@ -1475,10 +1556,7 @@ fn an_unresolved_peer_table_sets_aside_the_rule_that_reads_it_and_not_the_one_th
     let alone = registry(vec![reader_feature()]);
     assert_eq!(build_diagnostic_ids(&alone), ["flm.registry.unresolved-peer"]);
     assert!(!alone.build_diagnostics().has_errors());
-    assert_eq!(
-        alone.build_diagnostics().iter().next().expect("the note").message(),
-        "feature `t.reader` refers to the table `t.count` and expects another feature to declare it, but no feature of this registry declares it; the rules depending on it are set aside: [t.foo.lower.reads]"
-    );
+    assert_eq!(peers(&alone), [unresolved("t.reader", "table", "t.count", &["t.foo.lower.reads"], &[])]);
     let set_aside: Vec<(&str, Vec<PeerName>)> = alone
         .set_aside_rules()
         .map(|entry| (entry.rule.name.as_str(), entry.set_aside.clone()))
@@ -1541,10 +1619,23 @@ fn a_stage_writing_an_unresolved_peer_table_is_set_aside_with_its_orderings() {
     assert_eq!(stages, ["t.s"]);
     assert!(registry.orderings().is_empty());
     assert_eq!(build_diagnostic_ids(&registry), ["flm.registry.unresolved-peer"]);
-    assert_eq!(
-        registry.build_diagnostics().iter().next().expect("the note").message(),
-        "feature `t.writer` refers to the table `t.count` and expects another feature to declare it, but no feature of this registry declares it; the stages writing it are set aside: [t.count.write]"
-    );
+    assert_eq!(peers(&registry), [unresolved("t.writer", "table", "t.count", &[], &["t.count.write"])]);
+}
+
+/// The conditions of the `flm.registry.unresolved-peer` Notes of `registry`.
+fn peers(registry: &FlmRegistry) -> Vec<UnresolvedPeer> {
+    registry.build_diagnostics().conditions::<UnresolvedPeer>().cloned().collect()
+}
+
+/// The condition of an `flm.registry.unresolved-peer` Note.
+fn unresolved(feature: &str, kind: &str, name: &str, rules: &[&str], stages: &[&str]) -> UnresolvedPeer {
+    UnresolvedPeer {
+        feature: feature.into(),
+        kind: kind.into(),
+        name: name.into(),
+        rules: rules.iter().map(|rule| String::from(*rule)).collect(),
+        stages: stages.iter().map(|stage| String::from(*stage)).collect(),
+    }
 }
 
 #[test]
@@ -1625,12 +1716,9 @@ fn an_unresolved_peer_slot_is_noted_beside_the_other_peer_declarations() {
         build_diagnostic_ids(&registry),
         ["flm.registry.unresolved-peer", "flm.registry.unresolved-peer"]
     );
-    let messages: Vec<String> = registry.build_diagnostics().iter().map(|d| d.message()).collect();
-    assert!(messages[0].contains("refers to the table `t.count`"), "{}", messages[0]);
-    assert_eq!(
-        messages[1],
-        "feature `t.contributor` refers to the slot `t.styles` and expects another feature to declare it, but no feature of this registry declares it; the value contributed to it is dropped"
-    );
+    let peers = peers(&registry);
+    assert_eq!((peers[0].kind.as_str(), peers[0].name.as_str()), ("table", "t.count"), "{peers:?}");
+    assert_eq!(peers[1], unresolved("t.contributor", "slot", "t.styles", &[], &[]));
     let slots: Vec<(&str, &str, bool)> = registry
         .peer_slots()
         .iter()
@@ -1745,7 +1833,7 @@ fn a_set_aside_rule_is_not_selected_as_the_marked_default_on_its_backend() {
 
 #[test]
 fn the_standard_package_resolves_every_peer_declaration() {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     assert!(registry.build_diagnostics().is_empty());
     assert_eq!(registry.set_aside_rules().count(), 0);
     // Every peer backend, in declaration order, which is the feature order (the
@@ -1786,7 +1874,7 @@ fn the_standard_package_resolves_every_peer_declaration() {
             ("cells", "latex-recomposed", true),
             ("citations", "latex-recomposed", true),
             ("userdefs", "latex-recomposed", true),
-            ("meta", "latex-recomposed", true),
+            ("metadata", "latex-recomposed", true),
             ("toc", "latex-recomposed", true),
             ("latex", "latex-recomposed", true),
             ("math-passthrough", "latex-recomposed", true)

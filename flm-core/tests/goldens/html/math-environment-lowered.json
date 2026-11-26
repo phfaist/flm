@@ -66,7 +66,8 @@
     ],
     "payload": {
       "display": "display",
-      "env": "align"
+      "env": "align",
+      "role": "flm.math.formula"
     }
   }
 ]

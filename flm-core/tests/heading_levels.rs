@@ -17,15 +17,15 @@ use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::pres::DEFAULT_ROOT_HEADING_LEVEL;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::citations::CitationsConfig;
-use flm_core::stdcore::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
-use flm_core::stdcore::features::xnotes::{XnoteKind, XnotesConfig};
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::pres::DEFAULT_ROOT_HEADING_LEVEL;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::citations::CitationsConfig;
+use flm_core::stdlib::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::features::xnotes::{XnoteKind, XnotesConfig};
+use flm_core::stdlib::StdlibConfig;
 use techy::error::Severity;
 
-use common::stdcore::{reports, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, reports, run_workflow};
 
 /// The identifier of the condition a heading above the root is reported as.
 const ABOVE_ROOT: &str = "flm.pres.heading-above-root";
@@ -42,7 +42,7 @@ fn with_chapter() -> HeadingsConfig {
 /// The standard package under `headings`, the test citation provider
 /// answering every key.
 fn registry_of(headings: HeadingsConfig) -> Arc<FlmRegistry> {
-    common::citations::registry(StdcoreConfig::new().headings(headings))
+    common::citations::registry(StdlibConfig::new().headings(headings))
 }
 
 /// The standard package with a `chapter` of level 0.
@@ -87,6 +87,12 @@ fn text_of(registry: &Arc<FlmRegistry>, source: &str, level: u8) -> (String, Vec
     (common::lowering::text(&run), reports(&run))
 }
 
+/// What a run of the page reports where `reports` is the document's own: the
+/// Warning of the unchecked formulas of `math-passthrough`, then `reports`.
+fn unchecked_then(reports: Vec<(String, Severity)>) -> Vec<(String, Severity)> {
+    [vec![(String::from(UNCHECKED_OUTPUT), Severity::Warning)], reports].concat()
+}
+
 /// `count` reports of the heading above the root, as Errors.
 fn above_root(count: usize) -> Vec<(String, Severity)> {
     vec![(String::from(ABOVE_ROOT), Severity::Error); count]
@@ -111,10 +117,10 @@ fn the_three_settings_that_take_a_level_accept_zero() {
     let xnotes = XnotesConfig::empty().kind(XnoteKind::footnote().title_level(0));
     let citations = CitationsConfig::new().heading_level(0);
     let registry = common::citations::registry(
-        StdcoreConfig::new().headings(with_chapter()).xnotes(xnotes).citations(citations),
+        StdlibConfig::new().headings(with_chapter()).xnotes(xnotes).citations(citations),
     );
     let (page, reports) = page_of(&registry, "\\chapter{C}\n\nA\\footnote{N} \\cite{k}.\n", 0);
-    assert_eq!(reports, [], "{page}");
+    assert_eq!(reports, unchecked_then(Vec::new()), "{page}");
     assert!(page.contains(&heading_open("h1", "chapter", "sec--C", 0)), "{page}");
     assert!(page.contains("data-flm-heading=\"xnotes\" data-flm-level=\"0\""), "{page}");
     assert!(page.contains("data-flm-heading=\"citations\" data-flm-level=\"0\""), "{page}");
@@ -133,22 +139,17 @@ fn the_default_root_is_one() {
 fn under_the_default_root_a_level_zero_heading_is_an_error_written_as_a_first_level_heading() {
     let registry = registry();
     let (html, reports) = html_of(&registry, LADDER, DEFAULT_ROOT_HEADING_LEVEL);
-    assert_eq!(reports, above_root(1));
+    assert_eq!(reports, unchecked_then(above_root(1)));
     assert!(html.contains(&heading_open("h1", "chapter", "sec--C", 0)), "{html}");
     assert!(html.contains(&heading_open("h1", "section", "sec--S", 1)), "{html}");
     assert!(html.contains(&heading_open("h2", "subsection", "sec--U", 2)), "{html}");
     assert!(html.contains(&heading_open("h3", "subsubsection", "sec--V", 3)), "{html}");
 
     let run = text_run(&registry, LADDER, DEFAULT_ROOT_HEADING_LEVEL);
-    assert_eq!(common::stdcore::reports(&run), above_root(1));
-    let diagnostics = run.diagnostics().render_all();
-    assert!(
-        diagnostics.contains(
-            "a heading's level must be at least the root heading level 1 (the render option \
-             `root_heading_level`); this heading's level is 0"
-        ),
-        "{diagnostics}"
-    );
+    assert_eq!(common::stdlib::reports(&run), above_root(1));
+    flm_core::dump::diag::expect(run.diagnostics().iter(), ABOVE_ROOT)
+        .data(serde_json::json!({ "level": 0, "root": 1 }))
+        .once();
     assert_eq!(
         common::lowering::text(&run),
         "C\n=\n\nS\n=\n\nU\n-\n\n### V\n",
@@ -161,7 +162,7 @@ fn under_the_default_root_a_level_zero_heading_is_an_error_written_as_a_first_le
 fn under_a_root_of_zero_a_chapter_is_h1_and_a_section_h2() {
     let registry = registry();
     let (html, reports) = html_of(&registry, LADDER, 0);
-    assert_eq!(reports, []);
+    assert_eq!(reports, unchecked_then(Vec::new()));
     assert!(html.contains(&heading_open("h1", "chapter", "sec--C", 0)), "{html}");
     assert!(html.contains(&heading_open("h2", "section", "sec--S", 1)), "{html}");
     assert!(html.contains(&heading_open("h3", "subsection", "sec--U", 2)), "{html}");
@@ -175,7 +176,7 @@ fn under_a_root_of_zero_a_chapter_is_h1_and_a_section_h2() {
 fn under_a_root_of_two_a_subsection_is_h1_and_a_section_an_error_written_h1() {
     let registry = registry();
     let (html, reports) = html_of(&registry, LADDER, 2);
-    assert_eq!(reports, above_root(2));
+    assert_eq!(reports, unchecked_then(above_root(2)));
     assert!(html.contains(&heading_open("h1", "chapter", "sec--C", 0)), "{html}");
     assert!(html.contains(&heading_open("h1", "section", "sec--S", 1)), "{html}");
     assert!(html.contains(&heading_open("h1", "subsection", "sec--U", 2)), "{html}");
@@ -191,7 +192,7 @@ fn the_deeper_depths_share_h6_and_take_one_hash_per_depth() {
     let source = "\\section{A}\n\n\\subsection{B}\n\n\\subsubsection{C}\n\n\\paragraph{D} x\n\n\\subparagraph{E} y\n";
     let deep = registry_of(HeadingsConfig::new());
     let (html, reports) = html_of(&deep, source, 0);
-    assert_eq!(reports, []);
+    assert_eq!(reports, unchecked_then(Vec::new()));
     assert!(html.contains(&heading_open("h6", "subparagraph", "sec--E", 5)), "{html}");
     assert!(html.contains(&heading_open("h5", "paragraph", "sec--D", 4)), "{html}");
     let (text, _) = text_of(&deep, source, 0);
@@ -237,7 +238,7 @@ fn the_recomposed_latex_does_not_follow_the_root() {
     let registry = registry();
     let latex = |level: u8| {
         let run = run_workflow(&registry, latex_recomposed::WORKFLOW, &[LADDER], &root(level));
-        assert_eq!(reports(&run), []);
+        assert_only_unchecked_output(&run);
         common::latex::output(&run)
     };
     let default = latex(DEFAULT_ROOT_HEADING_LEVEL);
@@ -257,7 +258,7 @@ fn the_footnotes_and_references_titles_follow_the_root_like_any_heading() {
     let references = |tag: &str| format!("<{tag} class=\"flm-pres-block--heading\" data-flm-heading=\"citations\" data-flm-level=\"2\"");
     for (level, tag, count) in [(DEFAULT_ROOT_HEADING_LEVEL, "h2", 0), (2, "h1", 0), (3, "h1", 2)] {
         let (page, reports) = page_of(&registry, source, level);
-        assert_eq!(reports, above_root(count), "root {level}");
+        assert_eq!(reports, unchecked_then(above_root(count)), "root {level}");
         assert!(page.contains(&footnotes(tag)), "root {level}: {page}");
         assert!(page.contains(&references(tag)), "root {level}: {page}");
         let (text, reports) = text_of(&registry, source, level);
@@ -288,7 +289,7 @@ fn mapped_html_run(registry: &Arc<FlmRegistry>, source: &str, level: u8) -> Run 
 fn a_heading_above_the_root_is_reported_whatever_tag_a_host_maps_its_kind_to() {
     let registry = registry();
     let run = mapped_html_run(&registry, "\\section{S}\n\n\\subsection{U}\n\n\\subsubsection{V}\n", 2);
-    assert_eq!(reports(&run), above_root(1));
+    assert_eq!(reports(&run), unchecked_then(above_root(1)));
     let html = common::html::fragment(&run);
     assert!(html.contains(&heading_open("h3", "section", "sec--S", 1)), "{html}");
     assert!(html.contains(&heading_open("h4", "subsection", "sec--U", 2)), "{html}");
@@ -299,7 +300,7 @@ fn a_heading_above_the_root_is_reported_whatever_tag_a_host_maps_its_kind_to() {
 fn a_heading_with_a_host_mapped_tag_at_or_below_the_root_reports_nothing() {
     let registry = registry();
     let run = mapped_html_run(&registry, "\\section{S}\n\n\\subsection{U}\n", 1);
-    assert_eq!(reports(&run), []);
+    assert_only_unchecked_output(&run);
     let html = common::html::fragment(&run);
     assert!(html.contains(&heading_open("h3", "section", "sec--S", 1)), "{html}");
     assert!(html.contains(&heading_open("h4", "subsection", "sec--U", 2)), "{html}");
@@ -314,12 +315,12 @@ fn a_level_of_255_and_a_root_of_255_render_without_a_panic() {
     let registry = registry_of(HeadingsConfig::new().headings(kinds));
     let source = "\\section{S}\n\n\\deepest{D}\n";
     let (html, reports) = html_of(&registry, source, DEFAULT_ROOT_HEADING_LEVEL);
-    assert_eq!(reports, []);
+    assert_eq!(reports, unchecked_then(Vec::new()));
     assert!(html.contains(&heading_open("h6", "deepest", "sec--D", 255)), "{html}");
     let (text, _) = text_of(&registry, source, DEFAULT_ROOT_HEADING_LEVEL);
     assert!(text.contains(&format!("{} D", "#".repeat(255))), "{text}");
     let (html, reports) = html_of(&registry, source, 255);
-    assert_eq!(reports, above_root(1));
+    assert_eq!(reports, unchecked_then(above_root(1)));
     assert!(html.contains(&heading_open("h1", "deepest", "sec--D", 255)), "{html}");
     assert!(html.contains(&heading_open("h1", "section", "sec--S", 1)), "{html}");
     let (text, reports) = text_of(&registry, source, 255);

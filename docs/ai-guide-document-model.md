@@ -85,7 +85,7 @@ in [`crate::model::aspects`]:
 | [`Sectioning`](crate::model::aspects::Sectioning) | the heading level (every `u32` is valid; the standard kinds use 1 to 5), whether the occurrence is listed in the table of contents, and what its entry there shows (`toc_title`; the standard headings answer the `alt=` key's copy, else the title argument) |
 | [`ApartFromText`](crate::model::aspects::ApartFromText) | the content of the occurrence that is not part of the words around it (a footnote's content in a heading's title, a citation's keys); [`plain_text_of`](crate::lang::text::plain_text_of) leaves it out; read with [`apart_from_text_of`](crate::model::aspects::apart_from_text_of) |
 | [`InCopy`](crate::model::aspects::InCopy) → [`CopiedAs`](crate::model::aspects::CopiedAs) | what replaces the occurrence in a copy shown a second time: `Verbatim` (the default), `Nothing`, or `StandIn` ([`StandIn`](crate::model::aspects::StandIn), a childless node of an element of the feature's own); read with [`copied_as`](crate::model::aspects::copied_as) |
-| [`Whitespace`](crate::model::aspects::Whitespace) | that the occurrence is whitespace (`~`, `\ `): a marker with no method, attached as [`IsWhitespace`](crate::model::aspects::IsWhitespace). The block-structure pass treats such a *whitespace node* as whitespace-only text: removed beside an element that absorbs the whitespace on that side, on both sides of a `Displayed` node, at a paragraph's edges and between blocks; no paragraph content; a straight quote after it opens. A paragraph a rule writes itself over content it cuts out (a quotation's passage, attribution and lines, a `\celldata` entry) is trimmed by [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which removes the same whitespace at its edges as the pass does, whitespace nodes included. The standard features' tests for blank content count it as whitespace (`\footnote{~}` is empty), except those of text read as typed or with its markup, of which it is part (a citation key, a term: `\term{~}` is not empty). Elsewhere it stays a node of its own, never merged into text or collapsed (`a~~b` keeps two), lowered by its own rule. Read with [`is_whitespace_of`](crate::model::aspects::is_whitespace_of) (`false` without the aspect) |
+| [`Whitespace`](crate::model::aspects::Whitespace) | that the occurrence is whitespace (`~`, `\ `): a marker with no method, attached as [`IsWhitespace`](crate::model::aspects::IsWhitespace). The block-structure pass treats such a *whitespace node* as whitespace-only text: removed beside an element that absorbs the whitespace on that side, on both sides of a `Displayed` node, at a paragraph's edges and between blocks; no paragraph content; a straight quote after it opens. A paragraph a rule writes itself over content it cuts out (a quotation's passage, attribution and lines, a `\celldata` entry) is trimmed by [`stage_trimmed`](crate::stdlib::backends::lowering::stage_trimmed), which removes the same whitespace at its edges as the pass does, whitespace nodes included. The standard features' tests for blank content count it as whitespace (`\footnote{~}` is empty), except those of text read as typed or with its markup, of which it is part (a citation key, a term: `\term{~}` is not empty). Elsewhere it stays a node of its own, never merged into text or collapsed (`a~~b` keeps two), lowered by its own rule. Read with [`is_whitespace_of`](crate::model::aspects::is_whitespace_of) (`false` without the aspect) |
 
 Aspects defined beside the code that reads them:
 
@@ -94,9 +94,9 @@ Aspects defined beside the code that reads them:
 | [`Expand`](crate::lang::rewrites::userdefs::Expand) | the expand pass | how the element rewrites its own use sites |
 | [`BlockStructure`](crate::lang::rewrites::blocks::BlockStructure) | the block-structure pass | how the element lays out its own content (a block-structure hook) |
 | [`BlockTransparent`](crate::lang::rewrites::blocks::BlockTransparent) | the block-structure pass | the element is block-transparent: laid out as if its content were written in the content around it, cut into parts at paragraph breaks and blocks ([block-transparent elements](crate::guide::concepts_overview#block-transparent-elements)) |
-| [`Decoration`](crate::stdcore::backends::pres::Decoration) | the lowering driver | a node of the element is a decoration, moved out of a presentation node's content into an attached slot, a `flm.pres.deco-mark` node left in its place ([decorations, roles and kinds](crate::guide::concepts_overview#decorations-roles-and-kinds)) |
-| [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent) | the lowering driver | the node's content is source text, copied unchanged and written again byte for byte |
-| [`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque) | the lowering driver | the node's content is document content even inside opaque content (`flm.pres.math-text`, the argument of `\text` in a formula) |
+| [`Decoration`](crate::stdlib::backends::pres::Decoration) | the lowering driver | a node of the element is a decoration, moved out of a presentation node's content into an attached slot, a `flm.pres.deco-mark` node left in its place ([decorations, roles and kinds](crate::guide::concepts_overview#decorations-roles-and-kinds)) |
+| [`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent) | the lowering driver | the node's content is source text, copied unchanged and written again byte for byte |
+| [`ContentInOpaque`](crate::stdlib::backends::pres::ContentInOpaque) | the lowering driver | the node's content is document content even inside opaque content (`flm.pres.math-text`, the argument of `\text` in a formula) |
 
 ## Names
 
@@ -229,9 +229,9 @@ keyed by node address.
 | state | produced by | read with |
 |---|---|---|
 | as parsed | [`parse_fragment`](crate::lang::parse_fragment) | [`Fragment::tree`](crate::model::doc::Fragment::tree) |
-| spliced | [`crate::lang::rewrites::input`]: the content of every included file inserted in place of its `\input` (rewrite `flm.input.splice`) | [`flm.input.spliced`](crate::stdcore::features::input::SPLICED) |
-| expanded | [`crate::lang::rewrites::userdefs`]: every use site of a user definition replaced by its template (rewrites `flm.userdefs.expand-always`, `flm.userdefs.expand`) | [`flm.userdefs.always-expanded`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED) (expand-always), [`flm.userdefs.expanded`](crate::stdcore::features::userdefs::EXPANDED) (expand) |
-| structured | [`crate::lang::rewrites::blocks`]: paragraphs and blocks built, text resolved once (rewrite `flm.blocks.structure`) | [`flm.blocks.structured`](crate::stdcore::features::blocks::STRUCTURED) |
+| spliced | [`crate::lang::rewrites::input`]: the content of every included file inserted in place of its `\input` (rewrite `flm.input.splice`) | [`flm.input.spliced`](crate::stdlib::features::input::SPLICED) |
+| expanded | [`crate::lang::rewrites::userdefs`]: every use site of a user definition replaced by its template (rewrites `flm.userdefs.expand-always`, `flm.userdefs.expand`) | [`flm.userdefs.always-expanded`](crate::stdlib::features::userdefs::ALWAYS_EXPANDED) (expand-always), [`flm.userdefs.expanded`](crate::stdlib::features::userdefs::EXPANDED) (expand) |
+| structured | [`crate::lang::rewrites::blocks`]: paragraphs and blocks built, text resolved once (rewrite `flm.blocks.structure`) | [`flm.blocks.structured`](crate::stdlib::features::blocks::STRUCTURED) |
 | frozen | the last rewrite stage the plan scheduled | [`Run::frozen_tree`](crate::core::run::Run::frozen_tree), [`StageCx::frozen_tree`](crate::core::run::StageCx::frozen_tree) |
 
 - Each pass is a plain function on a tree, callable without a pipeline, *and* a
@@ -276,7 +276,7 @@ also a capability ([`Table`](crate::core::data::table::Table)).
 | [`TableRef`](crate::core::data::table::TableRef) | a table's name with its value type's identity, type-erased; stage declarations, plans and messages carry it |
 
 One Rust type may back many named tables
-([`LoweredTrees`](crate::stdcore::backends::lowering::LoweredTrees) holds one table per
+([`LoweredTrees`](crate::stdlib::backends::lowering::LoweredTrees) holds one table per
 backend; [`TreesTable`](crate::core::stage::TreesTable) one per rewrite stage).
 
 The store is the run's collection of computed tables: one writer per table, a declared
@@ -338,13 +338,13 @@ use std::sync::Arc;
 
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::{element_of, element_value};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::features::textstyles::{TEXT_STYLE, TextStyle, TextStyleElement};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::features::textstyles::{TEXT_STYLE, TextStyle, TextStyleElement};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 let registry = builder.build(&RegistryInputs::new())?;
 
 let source = Arc::new(

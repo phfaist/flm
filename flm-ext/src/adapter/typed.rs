@@ -36,10 +36,25 @@
 //! `CompiledTemplate` from a template the call lent and from a durable one).
 //! `'c` is the table's lifetime, the running call's.
 //!
-//! Here: the shapes that wrap another type (`Option`, `Vec`, pairs, `()`, a
-//! `Result` of [`ExtError`] or of [`NotCharacters`]), mirroring
-//! `IntoReply`'s; the plain data, both ways; and the structs of the handle
-//! kinds, resolved and lent. The conversions of the guest's own types are in
+//! Here: the shapes that wrap another type, mirroring `IntoReply`'s; the
+//! plain data, both ways; and the structs of the handle kinds, resolved and
+//! lent. The shapes that wrap another type are these:
+//!
+//! - `Option`, pairs, `()`, and a `Result` of [`ExtError`] or of
+//!   [`NotCharacters`];
+//! - `Vec`: into the API's value, item by item; from the API's answer, item
+//!   by item only for an item type marked [`ByItem`] (a type that holds no
+//!   handle, or the item of a list bounded by one construct of the
+//!   document), as `IntoReply` writes such a list;
+//! - [`Group`], the items of one pull of a traversal or of a sequence, which
+//!   the guest receives as a `Vec` of its items whatever their type.
+//!
+//! A list of nodes or of staged nodes is the guest's sequence (`Nodes`,
+//! `StagedNodes`): from the API's answer, the list is lent as one entry of
+//! the table and the guest's sequence holds its handle; into the API's
+//! value, the guest's sequence is read part by part, as the dispatcher reads
+//! a joined list. These conversions are in `src/guest/hand/joined.rs`, with
+//! the guest's sequences. The conversions of the guest's other types are in
 //! `src/guest/hand/`, each beside its type's JSON form.
 //!
 //! No conversion checks a value of its own: the guest's value is well typed,
@@ -60,9 +75,9 @@
 
 use serde_json::Value;
 
-use crate::adapter::handles::{CallTable, Entry, HandleKind};
+use crate::adapter::handles::{CallTable, Entry, HandleKind, TraversalEntry};
 use crate::adapter::values::{
-    bundle_at, mismatch, node_from_table, not_characters, staged_at, take_restaged_argument, take_restaged_slot,
+    ByItem, Group, bundle_at, mismatch, node_from_table, not_characters, staged_at, take_restaged_argument, take_restaged_slot,
     tree_from_table,
 };
 use crate::api;
@@ -144,9 +159,18 @@ impl<'c, A, T: FromApi<'c, A>> FromApi<'c, Option<A>> for Option<T> {
     }
 }
 
-impl<'c, A, T: FromApi<'c, A>> FromApi<'c, Vec<A>> for Vec<T> {
+/// A list of a type [`ByItem`], item by item.
+impl<'c, A: ByItem, T: FromApi<'c, A>> FromApi<'c, Vec<A>> for Vec<T> {
     fn from_api(api: Vec<A>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
         api.into_iter().map(|item| T::from_api(item, table)).collect()
+    }
+}
+
+/// The items of one pull, item by item whatever their type (a group of
+/// nodes as a list of nodes): the number of items is bounded by the pull.
+impl<'c, A, T: FromApi<'c, A>> FromApi<'c, Group<A>> for Vec<T> {
+    fn from_api(api: Group<A>, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        api.0.into_iter().map(|item| T::from_api(item, table)).collect()
     }
 }
 
@@ -212,6 +236,7 @@ plain!(
     String,
     usize,
     u32,
+    u64,
     bool,
     Value,
     api::core::stage::Effect,
@@ -229,8 +254,8 @@ plain!(
     api::lang::mint::Mode,
     api::core::registry::StandardTable,
     api::core::services::Arity,
-    api::host::FilesScope,
-    api::stdcore::backends::latex::LatexArgShape,
+    api::progress::Unit,
+    api::stdlib::backends::latex::LatexArgShape,
     api::core::stage::StageDecl,
     api::core::stage::Needs,
     api::core::stage::RewriteDecl,
@@ -241,14 +266,14 @@ plain!(
     api::core::registry::ScriptDef,
     api::lang::rewrites::userdefs::TemplateSpec,
     api::lang::rewrites::userdefs::PlaceholderRef,
-    api::stdcore::features::numbering::FormatOptions,
-    api::stdcore::features::citations::EntryPiece,
-    api::stdcore::features::refs::LabelUse,
+    api::stdlib::features::numbering::FormatOptions,
+    api::stdlib::features::citations::EntryPiece,
+    api::stdlib::features::refs::LabelUse,
     api::model::aspects::Label,
     api::model::aspects::MalformedLabel,
     api::techy::node::Span,
     api::lang::text::CharsContent,
-    api::stdcore::features::math::NormalizedLine,
+    api::stdlib::features::math::NormalizedLine,
 );
 
 /// The unsized plain data, borrowed: the same reference.
@@ -269,8 +294,10 @@ macro_rules! plain_borrowed {
 plain_borrowed!(
     str,
     [u8],
-    [api::stdcore::features::refs::LabelUse],
-    [api::stdcore::features::citations::EntryPiece],
+    [api::stdlib::features::refs::LabelUse],
+    [api::stdlib::features::citations::EntryPiece],
+    [String],
+    [api::techy::node::NodeKindName],
 );
 
 // The structs of the handle kinds, resolved.
@@ -282,15 +309,6 @@ impl<'c> IntoApi<'c> for &guest::techy::node::Node {
 
     fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
         node_from_table(table, self.handle)
-    }
-}
-
-/// A list of nodes, each an owned copy.
-impl<'c> IntoApi<'c> for &[guest::techy::node::Node] {
-    type Api = Vec<Box<dyn api::techy::node::Node<'c> + 'c>>;
-
-    fn into_api(self, table: &mut CallTable<'c>) -> Result<Self::Api, ExtError> {
-        self.iter().map(|node| node.into_api(table)).collect()
     }
 }
 
@@ -384,14 +402,47 @@ lent!(
     guest::core::registry::LibraryStage => LibraryStage: api::core::registry::LibraryStage,
     guest::techy::transform::RestagedArgument => RestagedArgument: Box<dyn api::techy::transform::RestagedArgument>,
     guest::techy::transform::RestagedSlot => RestagedSlot: Box<dyn api::techy::transform::RestagedSlot>,
-    guest::stdcore::features::citations::CitationEntry => CitationEntry: Box<dyn api::stdcore::features::citations::CitationEntry>,
+    guest::stdlib::features::citations::CitationEntry => CitationEntry: Box<dyn api::stdlib::features::citations::CitationEntry>,
     guest::lang::rewrites::userdefs::ValueBindings => ValueBindings: api::lang::rewrites::userdefs::ValueBindings,
     guest::host::Files => Files: Box<dyn api::host::Files>,
     guest::host::HostService => HostService: Box<dyn api::host::HostService>,
     guest::core::data::table::ExtTableRead => ExtTableRead: Box<dyn api::core::data::table::ExtTableRead + 'c>,
     guest::core::stage::TreesTable => TreesTable: Box<dyn api::core::stage::TreesTable + 'c>,
-    guest::stdcore::backends::lowering::LoweredTrees => LoweredTrees: Box<dyn api::stdcore::backends::lowering::LoweredTrees + 'c>,
+    guest::stdlib::backends::lowering::LoweredTrees => LoweredTrees: Box<dyn api::stdlib::backends::lowering::LoweredTrees + 'c>,
+    guest::progress::ProgressScope => ProgressScope: Box<dyn api::progress::ProgressScope>,
+    guest::progress::Pending => Pending: Box<dyn api::progress::Pending>,
+    guest::progress::Task => Task: Box<dyn api::progress::Task>,
+    guest::progress::Counted => Counted: Box<dyn api::progress::Counted>,
 );
+
+/// The traversals, lent as their entry; the guest's struct holds the handle
+/// and nothing pulled yet.
+macro_rules! traversal {
+    ($($guest:ty => $variant:ident: $api:ty),+ $(,)?) => {
+        $(
+            impl<'c> FromApi<'c, $api> for $guest {
+                fn from_api(api: $api, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+                    Ok(Self { handle: table.lend(Entry::$variant(TraversalEntry::new(api))), pulled: Default::default() })
+                }
+            }
+        )+
+    };
+}
+
+traversal!(
+    guest::core::run::Walk => Walk: api::core::run::Walk<'c>,
+    guest::techy::node::Descendants => Descendants: api::techy::node::Descendants<'c>,
+    guest::core::run::Trees => Trees: api::core::run::Trees,
+);
+
+/// A table's rows, lent as their entry; the guest's struct holds the handle
+/// and the length.
+impl<'c> FromApi<'c, api::core::data::table::Rows> for guest::core::data::table::Rows {
+    fn from_api(api: api::core::data::table::Rows, table: &mut CallTable<'c>) -> Result<Self, ExtError> {
+        let len = api.len();
+        Ok(Self { handle: table.lend(Entry::Rows(api)), len })
+    }
+}
 
 /// The boxed façades with no lifetime of a tree, lent as their entry: a box
 /// that outlives the call is lent as one of the call (`IntoReply`'s

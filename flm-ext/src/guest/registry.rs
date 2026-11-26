@@ -66,9 +66,9 @@ use crate::guest::hand::model_element::AspectForm;
 use crate::guest::lang::rewrites::userdefs::Expand;
 use crate::guest::model::aspects::{Referenceable, Sectioning};
 use crate::guest::model::element::Aspect;
-use crate::guest::stdcore::features::citations::CitationProvider;
+use crate::guest::stdlib::features::citations::CitationProvider;
 use crate::guest::state;
-use crate::guest::stdcore::features::compose::TemplateModule;
+use crate::guest::stdlib::features::compose::TemplateModule;
 use crate::runtime::ExtError;
 
 /// The handler aspects recorded for one element.
@@ -601,10 +601,10 @@ mod tests {
     use crate::guest::lang::mint::{ArgDef, ElementDef, FallbackDef, ScopedPackageDef, SyntaxDef};
     use crate::guest::lang::rewrites::userdefs::{ExpandCx, Expander, Expansion};
     use crate::guest::model::aspects::RefPoint;
-    use crate::guest::stdcore::features::citations::{CitationRequest, CitationResult, ProviderCx};
-    use crate::guest::stdcore::features::compose::{TemplateContext, TemplateCx};
+    use crate::guest::stdlib::features::citations::{CitationRequest, CitationResult, ProviderCx};
+    use crate::guest::stdlib::features::compose::{TemplateContext, TemplateCx};
     use crate::guest::techy::node::Node;
-    use crate::api::stdcore::features::compose::TemplateDescription;
+    use crate::api::stdlib::features::compose::TemplateDescription;
 
     /// The host's stand-ins for the objects the binding lends in.
     struct HostObject;
@@ -644,27 +644,27 @@ mod tests {
         }
     }
 
-    impl api::stdcore::features::citations::CitationProvider for HostObject {
+    impl api::stdlib::features::citations::CitationProvider for HostObject {
         fn name(&self) -> String {
             "wc.cites".to_string()
         }
         fn answer(
             &self,
-            _: &api::stdcore::features::citations::CitationRequest,
-            _: &dyn api::stdcore::features::citations::ProviderCx,
-        ) -> Result<api::stdcore::features::citations::CitationResult, ExtError> {
+            _: &api::stdlib::features::citations::CitationRequest,
+            _: &dyn api::stdlib::features::citations::ProviderCx,
+        ) -> Result<api::stdlib::features::citations::CitationResult, ExtError> {
             Ok(Ok(None))
         }
     }
 
-    impl api::stdcore::features::compose::TemplateModule for HostObject {
+    impl api::stdlib::features::compose::TemplateModule for HostObject {
         fn name(&self) -> String {
             "wc.page".to_string()
         }
         fn describe(&self, _: &Value) -> Result<TemplateDescription, ExtError> {
-            TemplateDescription::from_value(&json!({ "output": "html", "accepts": "all", "requires": [], "config": {} }))
+            TemplateDescription::from_value(&json!({ "accepts": "all", "requires": [], "config": {} }))
         }
-        fn render(&self, _: &api::stdcore::features::compose::TemplateContext, _: &dyn api::stdcore::features::compose::TemplateCx) -> Result<String, ExtError> {
+        fn render(&self, _: &api::stdlib::features::compose::TemplateContext, _: &dyn api::stdlib::features::compose::TemplateCx) -> Result<String, ExtError> {
             Ok(String::new())
         }
     }
@@ -716,7 +716,7 @@ mod tests {
             "wc.page".to_string()
         }
         fn describe(&self, _: &Value) -> Result<TemplateDescription, ExtError> {
-            TemplateDescription::from_value(&json!({ "output": "html", "accepts": "all", "requires": [], "config": {} }))
+            TemplateDescription::from_value(&json!({ "accepts": "all", "requires": [], "config": {} }))
         }
         fn render(&self, _: &TemplateContext, _: &TemplateCx) -> Result<String, ExtError> {
             Ok(String::new())
@@ -815,7 +815,7 @@ mod tests {
         let table: Table = Rc::new(RefCell::new(CallTable::new(1)));
         let calls: Rc<RefCell<Vec<Value>>> = Rc::default();
         host_lending(&table, &calls);
-        let library = api::stdcore::backends::lowering::LoweringStage::new("html");
+        let library = api::stdlib::backends::lowering::LoweringStage::new("html");
         let library = LibraryStage::from_value(&handle_to_value(table.borrow_mut().lend(Entry::LibraryStage(library)))).expect("a library stage");
         let own: Arc<dyn Stage> = Arc::new(GuestObject);
         let def = BackendDef::new("wc", vec!["wc.box".to_string()], BackendStage::Library(library), BackendStage::Own(Arc::clone(&own)), BackendStage::Own(own))
@@ -864,23 +864,23 @@ mod citation_tests {
 
     use crate::adapter::handles::{CallTable, Entry};
     use crate::adapter::values::{self as host, handle_to_value, JsonForm};
-    use crate::guest::stdcore::features::citations::{CitationAnswer, CitationResult};
+    use crate::guest::stdlib::features::citations::{CitationAnswer, CitationResult};
 
     #[test]
     fn a_citation_answer_s_entry_is_accepted_by_the_host() {
-        use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+        use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
         use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
         use flm_core::model::doc::FragmentLayout;
-        use flm_core::stdcore::{self, StdcoreConfig};
+        use flm_core::stdlib::{self, StdlibConfig};
         let mut builder = RegistryBuilder::new();
-        builder.use_package(stdcore::package(StdcoreConfig::new()));
+        builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
         let registry = builder.build(&RegistryInputs::new()).expect("the registry builds");
         let source = Arc::new(FlmSource::new("Ann, 2001").with_origin(FlmOrigin::none()));
         let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default()).expect("the text parses");
-        let entry = flm_core::stdcore::features::citations::CitationEntry::new(Arc::clone(fragment.tree()));
+        let entry = flm_core::stdlib::features::citations::CitationEntry::new(Arc::clone(fragment.tree()));
         let mut table = CallTable::new(1);
         let lent = handle_to_value(table.lend(Entry::CitationEntry(Box::new(crate::adapter::citations::CitationEntryFacade(entry)))));
-        let entry = crate::guest::stdcore::features::citations::CitationEntry::from_value(&lent).expect("the guest reads the entry");
+        let entry = crate::guest::stdlib::features::citations::CitationEntry::from_value(&lent).expect("the guest reads the entry");
         let results: Vec<CitationResult> = vec![Ok(Some(CitationAnswer::new(entry).with_identity("ann2001"))), Ok(None)];
         let read = host::citation_results_from_value(&mut table, &results.to_value()).expect("the host accepts the entry");
         assert!(matches!(&read[0], Ok(Some(answer)) if answer.identity.as_deref() == Some("ann2001")));

@@ -22,11 +22,12 @@ mod wordcount;
 use std::sync::Arc;
 
 use flm_core::core::registry::PackageFactory;
-use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_ext::guest::NamedExtension;
+use flm_ext::native::NativeEngine;
 use flm_ext::{ExtensionLoader, MemoryFiles, MemorySource};
 use serde_json::json;
 
-use case1::{Loads, PANIC_PREFIX};
+use case1::Loads;
 
 /// The two extensions compiled into this test program, each loaded by a loader of its
 /// own whose source answers its stem with the manifest `engine: native`.
@@ -34,11 +35,11 @@ struct NativeCase;
 
 impl Loads for NativeCase {
     fn factory(&self, stem: &str) -> PackageFactory {
-        let held = [
-            NativeExtension { stem: "wordcount", manifest: "", compiled: &wordcount::FLM_EXTENSION },
-            NativeExtension { stem: "failing", manifest: "", compiled: &failing::FLM_EXTENSION },
+        static HELD: &[NamedExtension] = &[
+            NamedExtension { stem: "wordcount", compiled: &wordcount::FLM_EXTENSION },
+            NamedExtension { stem: "failing", compiled: &failing::FLM_EXTENSION },
         ];
-        let engine = NativeEngine::new(held).with_console(Arc::new(|_, _| {}));
+        let engine = NativeEngine::new(HELD.iter().copied());
         let manifest = json!({ "extension": { "engine": "native" } });
         let source = MemorySource::new().with(stem, stem, manifest, MemoryFiles::new());
         let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine)));
@@ -101,6 +102,7 @@ fn a_hook_answering_an_error_fails_with_the_guest_s_error() {
 #[test]
 fn a_hook_that_panics_fails_with_the_panic_s_message() {
     let (diagnostics, data) = case1::the_panicking_hook_s_failure(&NativeCase);
-    assert_eq!(diagnostics, [format!("{PANIC_PREFIX}panic: the hook is not ready either")]);
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with("the hook is not ready either"), "{diagnostics:?}");
     assert_eq!(data, json!({ "panic": "the hook is not ready either" }));
 }

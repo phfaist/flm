@@ -4,14 +4,14 @@
 //!
 //! The extension is written against the guest client `flm_ext::guest`. The `flm` program
 //! carries it compiled in (the engine `native`); `extensions/rust/build-wasm.sh` builds the
-//! same crate as a WebAssembly module (the engine `wasm`).
+//! same code as a WebAssembly module (the engine `wasm`).
 //!
-//! Its package `_` uses `stdcore`, declares the host service `programs` and the workflow
-//! `pdf-latex` (extending `latex-rendered`, with the output `pdf-latex`), and holds the
-//! feature `pdf-latex`. The workflow, the feature and the output are named after the
-//! profile, and the names of the table, the stage and the diagnostics begin with
-//! `pdf-latex.`: the extension layer lets an extension whose stem is `profile-X` declare its
-//! names under `X` as well as under its stem. The feature declares:
+//! Its package `_` declares the host service `programs`, the folder cache `latexmk.aux`
+//! (one per document) and the workflow `pdf-latex` (extending `latex-rendered`, with the
+//! output `pdf-latex`), and holds the feature `pdf-latex`. The workflow, the feature and
+//! the output are named after the profile, and the names of the table, the stage and the
+//! diagnostics begin with `pdf-latex.`: the extension layer lets an extension whose stem is
+//! `profile-X` declare its names under `X` as well as under its stem. The feature declares:
 //!
 //! - the table `pdf-latex.document`, of the type `ArtifactSet`, which holds the PDF file;
 //! - the output `pdf-latex` (media type `application/pdf`, extension `pdf`), made from the
@@ -19,18 +19,27 @@
 //!   `latex-rendered`;
 //! - the stage `pdf-latex.compile` (effect `Io`, once per document), which reads the files
 //!   of `latex-rendered`, finds `latexmk` on `PATH`, runs it through the host service
-//!   `programs` in a temporary folder holding those files, and writes the PDF it collects;
+//!   `programs` in a temporary folder holding those files and the cache folder, and writes
+//!   the PDF it collects;
 //! - the configuration key `timeout_s`: the time, in seconds, that `latexmk` may take
 //!   (600 by default).
 //!
 //! `latexmk` runs as `latexmk -norc -lualatex -f -interaction=nonstopmode -file-line-error
-//! ENTRY`: `-norc` keeps a user's `latexmkrc` files from changing where the PDF is written;
-//! without `-halt-on-error`, LaTeX goes on past an error, so a PDF usually results; with
-//! `-f`, `latexmk` goes on running LaTeX after a pass that reported an error, as many passes
-//! as the document needs, so that the cross-references of that PDF are resolved. An exit
-//! status other than 0 is the Error `pdf-latex.failed`, and the PDF is still written when
-//! LaTeX produced one. `-shell-escape` is never passed.
+//! -auxdir=_aux ENTRY`: `-norc` keeps a user's `latexmkrc` files from changing where the
+//! PDF is written; without `-halt-on-error`, LaTeX goes on past an error, so a PDF usually
+//! results; with `-f`, `latexmk` goes on running LaTeX after a pass that reported an error,
+//! as many passes as the document needs, so that the cross-references of that PDF are
+//! resolved. An exit status other than 0 is the Error `pdf-latex.failed`, and the PDF is
+//! still written when LaTeX produced one. `-shell-escape` is never passed.
+//!
+//! LaTeX's auxiliary files and its log go into the folder `_aux` (`-auxdir`), which the
+//! service `programs` links to the document's instance of the cache `latexmk.aux`: the
+//! auxiliary files of one build are there at the next, so that `latexmk` runs LaTeX only
+//! as many times as the changes since then need. When the program running the extension
+//! offers no cache folder, `_aux` is an empty folder, and `latexmk` runs as on a first
+//! build. The PDF stays in the temporary folder, and the log is collected from `_aux`.
 
+use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 
 use flm_ext::ExtError;
@@ -42,6 +51,7 @@ use flm_ext::guest::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_ext::guest::host::HostHandle;
 use flm_ext::guest::techy::error::Diagnostic;
 use flm_ext::guest::{Extension, Feature, Package};
+use flm_ext::host::{CacheDeclaration, CacheKind, CacheScope, CacheTime};
 use serde_json::{Map, Value, json};
 
 /// The extension's stem.
@@ -67,8 +77,26 @@ const PROGRAMS: &str = "programs";
 /// The program that compiles the LaTeX.
 const LATEXMK: &str = "latexmk";
 
-/// The arguments given to `latexmk` before the entry file's path.
+/// The folder of LaTeX's auxiliary files and its log, relative to the folder `latexmk` runs
+/// in: the path at which the service `programs` puts the folder of the cache [`AUX_CACHE`].
+const AUX_DIR: &str = "_aux";
+
+/// The arguments given to `latexmk` before `-auxdir` and the entry file's path.
 const LATEXMK_ARGS: [&str; 5] = ["-norc", "-lualatex", "-f", "-interaction=nonstopmode", "-file-line-error"];
+
+/// The folder cache of LaTeX's auxiliary files, one per document.
+const AUX_CACHE: &str = "latexmk.aux";
+
+/// The declaration of [`AUX_CACHE`]: one folder per document, kept 30 days after its last
+/// use, whose content costs an estimated 10 s to produce again.
+fn aux_cache() -> CacheDeclaration {
+    CacheDeclaration {
+        version: NonZeroU32::MIN,
+        kind: CacheKind::Folder { unused: CacheTime::Seconds(30 * 24 * 60 * 60) },
+        cost_ms: const { NonZeroU64::new(10_000).unwrap() },
+        scope: CacheScope::Document,
+    }
+}
 
 /// The time `latexmk` may take when the configuration does not set `timeout_s`.
 const DEFAULT_TIMEOUT_S: u64 = 600;
@@ -89,9 +117,10 @@ const NO_PATH: &str = "pdf-latex.no-path";
 /// How many lines of the program's output a failure quotes when the log records no error.
 const LAST_LINES: usize = 5;
 
-// The static `FLM_EXTENSION`, through which a program carrying the crate compiled in reaches
-// it, and the module's exports in a build of the WebAssembly form.
-flm_ext::guest::extension!(extension);
+/// The extension's code, which its row of the table of code of `flm-extensions` holds: the
+/// function that declares its packages, and the extension's name and version.
+pub static FLM_EXTENSION: flm_ext::guest::CompiledExtension =
+    flm_ext::guest::CompiledExtension::new(extension, "profile-pdf-latex", env!("CARGO_PKG_VERSION"));
 
 fn extension(ext: &mut Extension) {
     // LaTeX runs in a temporary folder holding the files of `latex-rendered` alone, so each
@@ -105,7 +134,7 @@ fn extension(ext: &mut Extension) {
     });
     ext.package(
         "_",
-        Package::new().uses(["stdcore"]).host([PROGRAMS]).flm(json!({ "workflows": { PROFILE: workflow } })).feature(
+        Package::new().host([PROGRAMS]).caches([(AUX_CACHE, aux_cache())]).flm(json!({ "workflows": { PROFILE: workflow } })).feature(
             PROFILE,
             Feature::new()
                 .title("PDF through LaTeX")
@@ -231,37 +260,37 @@ impl Stage for Compile {
             return Ok(());
         };
         let job = job_name(&entry_path);
-        let (pdf, log) = (format!("{job}.pdf"), format!("{job}.log"));
+        let (pdf, log) = (format!("{job}.pdf"), format!("{AUX_DIR}/{job}.log"));
         let timeout_ms = self.timeout_s.saturating_mul(1000);
         let mut args: Vec<Value> = LATEXMK_ARGS.iter().map(|arg| Value::from(*arg)).collect();
+        args.push(Value::from(format!("-auxdir={AUX_DIR}")));
         args.push(Value::from(entry_path.as_str()));
         let mut request = Map::new();
         request.insert("program".to_string(), Value::from(latexmk));
         request.insert("args".to_string(), Value::Array(args));
         request.insert("files".to_string(), Value::Object(files));
+        request.insert("cache".to_string(), json!({ AUX_DIR: { "name": AUX_CACHE } }));
         request.insert("collect".to_string(), json!([pdf, log]));
         request.insert("timeout_ms".to_string(), Value::from(timeout_ms));
         let mut answer = match programs.call("run", Value::Object(request)) {
             Ok(answer) => answer,
             Err(ExtError::Host { detail, .. }) => {
-                // The service answers a program that runs past its time with this text, which
-                // ends with the time given, and has no structured answer for it; the text is
-                // recognized so that the message speaks of the setting `timeout_s`.
-                let message = if detail.ends_with(&format!("must finish within {timeout_ms} milliseconds")) {
-                    let unit = if self.timeout_s == 1 { "second" } else { "seconds" };
-                    format!(
-                        "`{LATEXMK}` must finish compiling `{entry_path}` within {} {unit}, the time that the setting \
-                         `timeout_s` of the feature `{PROFILE}` allows",
-                        self.timeout_s
-                    )
-                } else {
-                    format!("`{LATEXMK}` must run to compile `{entry_path}`: {detail}")
-                };
+                let message = format!("`{LATEXMK}` must run to compile `{entry_path}`: {detail}");
                 out.diags(Diagnostic::error(FAILED, message).with_data(json!({ "entry": entry_path })))?;
                 return Ok(());
             }
             Err(other) => return Err(other),
         };
+        if answer["timed_out"].as_bool() == Some(true) {
+            let unit = if self.timeout_s == 1 { "second" } else { "seconds" };
+            let message = format!(
+                "`{LATEXMK}` must finish compiling `{entry_path}` within {} {unit}, the time that the setting \
+                 `timeout_s` of the feature `{PROFILE}` allows",
+                self.timeout_s
+            );
+            out.diags(Diagnostic::error(FAILED, message).with_data(json!({ "entry": entry_path })))?;
+            return Ok(());
+        }
         let status = answer["status"].as_i64();
         let mut collected = match answer.get_mut("files").map(Value::take) {
             Some(Value::Object(collected)) => collected,

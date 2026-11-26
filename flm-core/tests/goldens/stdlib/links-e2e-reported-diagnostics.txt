@@ -1,0 +1,23 @@
+===== check =====
+Error flm.blocks.block-in-inline {"element":"flm.defterm"} — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Warning flm.refs.unresolved {"label":"defterm:nothing"} — at `\term{nothing}`
+Warning flm.refs.unresolved {"label":"defterm:\\emph{no} such term"} — at `\term{\emph{no} such term}`
+Warning flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+===== text =====
+Error flm.blocks.block-in-inline {"element":"flm.defterm"} — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Error flm.refs.unresolved {"label":"defterm:nothing"} — at `\term{nothing}`
+Error flm.refs.unresolved {"label":"defterm:\\emph{no} such term"} — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:shown}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.blocks.block-in-inline {"element":"flm.defterm"} — at `\begin{defterm}{title term}Defined in a title.\end{defterm}`
+Error flm.refs.unresolved {"label":"defterm:nothing"} — at `\term{nothing}`
+Error flm.refs.unresolved {"label":"defterm:\\emph{no} such term"} — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:shown}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.refs.unresolved {"label":"defterm:nothing"} — at `\term{nothing}`
+Error flm.refs.unresolved {"label":"defterm:\\emph{no} such term"} — at `\term{\emph{no} such term}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`

@@ -10,7 +10,7 @@
 // capability and require the definition at every formula.
 import { StageDecl, Effect, Scope } from "flm:core/stage";
 import { ScriptDef, DefContent } from "flm:core/registry";
-import { ENVIRONMENT as MATH_ENVIRONMENT } from "flm:stdcore/features/math";
+import { ENVIRONMENT as MATH_ENVIRONMENT } from "flm:stdlib/features/math";
 import { MACRO, ENVIRONMENT, OWN } from "./definitions.js";
 
 // The script definition the formulas require.
@@ -22,13 +22,13 @@ export const PACKAGES_STAGE = "math-mathjax.packages";
 // The class of a formula's element in the page, which MathJax typesets.
 export const FORMULA_CLASS = "math-mathjax-formula";
 // The address MathJax is loaded from by default: the HTML backend's
-// `MATHJAX_LOADER` (`flm_core::stdcore::backends::html::mathjax`), the same
+// `MATHJAX_LOADER` (`flm_core::stdlib::backends::html::mathjax`), the same
 // pinned major version.
 export const DEFAULT_LOADER_URL = "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js";
 
 // The click listener and the in-place update code, copied from the HTML
 // backend's MathJax configuration
-// (`flm-core/src/stdcore/backends/html/mathjax-config.js`, the two parts after
+// (`flm-core/src/stdlib/backends/html/mathjax-config.js`, the two parts after
 // the configuration object), unchanged.
 const LISTENERS = `/* A reference written in text inside a formula is a link that the HTML
    backend writes into the HTML that the formula carries.  The renderer
@@ -58,7 +58,18 @@ document.addEventListener('click', function (event) {
    typesets the formula; and on the event, it typesets the formulas of the
    region that carry no such attribute: the new formulas, and those whose
    source changed.  Before the renderer has started, there is nothing to do,
-   because the renderer typesets every formula of the page when it starts. */
+   because the renderer typesets every formula of the page when it starts.
+   A script that shows a copy of part of the page elsewhere on the page (a
+   popup that previews the target of a link, say) dispatches the event
+   \`flm:content-copied\` on the element holding the copy once the copy is in
+   the page; the copy holds none of the page's identifiers and keeps the
+   attribute of each element it copies.  On that event, this code typesets the
+   formulas of the copy that are not typeset: those that carry no attribute,
+   and those that the renderer had not typeset when they were copied (in its
+   lazy mode, it typesets a formula only when the formula scrolls into view),
+   each of which first gets back the HTML of its attribute, without the
+   identifiers in it.  It also makes the renderer forget the formulas it
+   typeset in a copy that is no longer in the page. */
 (function () {
   var ORIGINAL = 'data-flm-original-html';
   var formulas = window.MathJax.startup.elements.join(', ');
@@ -83,6 +94,31 @@ document.addEventListener('click', function (event) {
     renderer.startup.promise = renderer.startup.promise.then(function () {
       var fresh = record(untypeset(event.target));
       if (fresh.length > 0) { return renderer.typesetPromise(fresh); }
+    });
+  });
+  function typeset(element) {
+    return element.querySelector('mjx-container') !== null && element.querySelector('mjx-lazy') === null;
+  }
+  var copies = [];
+  document.addEventListener('flm:content-copied', function (event) {
+    var renderer = window.MathJax;
+    if (!renderer.startup || !renderer.startup.promise) { return; }
+    renderer.startup.promise = renderer.startup.promise.then(function () {
+      var gone = copies.filter(function (copy) { return !copy.isConnected; });
+      if (gone.length > 0) { renderer.typesetClear(gone); }
+      copies = copies.filter(function (copy) { return copy.isConnected; });
+      var waiting = Array.prototype.filter.call(event.target.querySelectorAll(formulas), function (element) {
+        if (!element.hasAttribute(ORIGINAL)) { return true; }
+        if (typeset(element)) { return false; }
+        element.innerHTML = element.getAttribute(ORIGINAL);
+        Array.prototype.forEach.call(element.querySelectorAll('[id]'), function (inner) {
+          inner.removeAttribute('id');
+        });
+        return true;
+      });
+      if (waiting.length === 0) { return; }
+      copies.push(event.target);
+      return renderer.typesetPromise(record(waiting));
     });
   });
 })();
@@ -132,7 +168,8 @@ export function configuration_text(used, lazy, own, preamble) {
    and \\rrangle` : ""}.  After the configuration object come a listener that follows a
    link inside a formula when it is clicked, and the code that keeps the
    formulas typeset while a script of the page updates parts of the page in
-   place, both copied from the HTML backend's configuration${preamble === "" ? "" : `; then the
+   place or shows a copy of part of it, both copied from the HTML backend's
+   configuration${preamble === "" ? "" : `; then the
    preamble of the feature math-mathjax, which MathJax processes once, before
    it typesets the page, and for which every TeX package the feature's
    settings allow is listed`}. */
@@ -201,7 +238,7 @@ export function register_page(b, settings, commands, bundled) {
     run(cx, out) {
       const used = new Set(["base"]);
       const add = (pkg) => { if (pkg !== undefined && pkg !== null) used.add(pkg); };
-      for (const { node } of cx.walk()) {
+      for (const { node } of cx.walk().elements([MACRO, ENVIRONMENT, MATH_ENVIRONMENT])) {
         const element = node.element_name();
         if (element === MACRO || element === ENVIRONMENT) {
           add(node.element_value()?.package);

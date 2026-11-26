@@ -8,7 +8,7 @@
 // `root()`; and per node `element_name()`, `payload()`, `body()`, `children()`,
 // `is_chars()`, `chars()`, `span_content()`, `slot_count()`,
 // `slot_content_nodes(index)`.
-import { PAR, BLOCK, BLOCK_HEADING, SPAN, LIST, VERBATIM, MATH_PASSTHROUGH, MATH_TEXT, LINK, UNSUPPORTED, DROPPED } from "flm:stdcore/backends/pres";
+import { PAR, BLOCK, BLOCK_HEADING, SPAN, LIST, VERBATIM, MATH_PASSTHROUGH, MATH_TEXT, LINK, UNSUPPORTED, DROPPED } from "flm:stdlib/backends/pres";
 import { PARBREAK } from "flm:lang/structural";
 
 const CALLOUT = "typst.pres.callout";
@@ -27,7 +27,7 @@ export function emit(cx, lowered) {
 }
 
 // A run of blocks.
-function blocks(nodes) { return nodes.map(block).filter(text => text !== "").join("\n\n"); }
+function blocks(nodes) { return [...nodes].map(block).filter(text => text !== "").join("\n\n"); }
 
 // One block-shaped node.
 function block(node) {
@@ -63,7 +63,7 @@ function list(node) {
 }
 
 // An inline run.
-function inline(nodes) { return nodes.map(span).join(""); }
+function inline(nodes) { return [...nodes].map(span).join(""); }
 
 // One inline node.
 function span(node) {
@@ -97,5 +97,5 @@ function span(node) {
 }
 
 // Verbatim content, byte for byte; a formula's content as written.
-function raw(nodes) { return nodes.map(node => node.is_chars() ? node.chars() : node.span_content()).join(""); }
-function source(nodes) { return nodes.map(node => node.span_content()).join(""); }
+function raw(nodes) { return [...nodes].map(node => node.is_chars() ? node.chars() : node.span_content()).join(""); }
+function source(nodes) { return [...nodes].map(node => node.span_content()).join(""); }

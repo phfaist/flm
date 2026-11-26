@@ -1,24 +1,27 @@
 //! The settings cascade (`flm_core::core::settings::cascade`): the rule of the ranks,
 //! peers and reach, the entry-by-entry merge, the switch-off rule, workflow fields and
 //! workflow settings, path resolution, the parsing settings and the settings in effect,
-//! over a test origin and the standard package's declarations. Moved from
-//! `flm-main/src/settings.rs` with the cascade; an integration test because the module
-//! layering keeps `core` from naming `stdcore`.
+//! over a test origin and the standard features' declarations. Moved from
+//! `flm-host/src/settings.rs` with the cascade; an integration test because the module
+//! layering keeps `core` from naming `stdlib`.
 
 use std::fmt;
 use std::sync::Arc;
 
-use flm_core::core::registry::{BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, PackageFactory};
-use flm_core::core::settings::SettingsDecl;
-use flm_core::core::settings::cascade::{Cascade, CascadeOrigin, Problem, Reach, SettingValue};
+use flm_core::core::registry::{
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, PackageError, PackageFactory,
+};
+use flm_core::core::settings::{Mark, PackageSettings, SettingsDecl};
+use flm_core::core::settings::cascade::{Cascade, CascadeOrigin, Problem, Reach, SettingValue, Warning};
 use flm_core::model::names::Name;
 use flm_core::model::options::DataValue;
-use flm_core::stdcore::backends::html::HtmlRenderOptions;
-use flm_core::stdcore::backends::pieces::PiecesRenderOptions;
-use flm_core::stdcore::backends::text::TextRenderOptions;
-use flm_core::stdcore::factory;
-use flm_core::stdcore::features::numbering::NumberingOptions;
-use flm_core::stdcore::features::xnotes::XnotesConfig;
+use flm_core::stdlib::backends::html::HtmlRenderOptions;
+use flm_core::stdlib::backends::pieces::PiecesRenderOptions;
+use flm_core::stdlib::backends::text::TextRenderOptions;
+use flm_core::stdlib::features::compose::{ComposeFeature, ComposeOptions};
+use flm_core::stdlib::features::numbering::NumberingOptions;
+use flm_core::stdlib::features::xnotes::XnotesConfig;
+use flm_core::stdlib;
 use serde_json::{Map, Value};
 
 /// The origin of the tests: five sources, from the lowest rank to the highest, each
@@ -79,17 +82,24 @@ impl CascadeOrigin for TestOrigin {
         }
     }
 
-    fn resolve_path(&self, path: &str) -> Option<String> {
+    fn resolve_path(&self, path: &str) -> Result<Option<String>, String> {
         let file = match self {
             Package(file, _) | Workflow(_, file, _) => *file,
-            _ => return None,
+            _ => return Ok(None),
         };
-        let (folder, _) = file.rsplit_once('/')?;
-        if path.starts_with('/') { None } else { Some(format!("{folder}/{path}")) }
+        let Some((folder, _)) = file.rsplit_once('/') else { return Ok(None) };
+        Ok(if path.starts_with('/') { None } else { Some(format!("{folder}/{path}")) })
     }
 }
 
 type Settings = Cascade<TestOrigin>;
+
+/// The factory of a package `std` that holds the standard features.
+fn factory() -> Result<PackageFactory, PackageError> {
+    PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+}
 
 #[test]
 fn a_higher_rank_replaces_a_value_whole_and_a_lower_one_does_not() {
@@ -126,50 +136,54 @@ fn keys_of_each_binding_are_read_into_their_places() {
 fn a_problem_is_placed_at_the_value_at_fault() {
     let mut settings = Settings::new();
     settings.set("text", "wdth", Value::from(1), Document(4));
-    settings.set("nosuch", "x", Value::from(1), Defaults);
     let factory = factory().unwrap();
     let problems = settings.read(&[&factory]).unwrap_err().errors;
-    assert_eq!(problems.len(), 2);
-    assert!(problems.iter().any(|problem| problem.origin == Some(Document(4))));
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].origin, Some(Document(4)));
 }
 
 #[test]
-fn false_for_a_feature_no_package_has_is_a_warning_each_time_and_settings_for_it_a_problem() {
+fn what_a_source_writes_for_a_feature_no_package_has_is_one_warning_and_read_by_nothing() {
     let factory = factory().unwrap();
-    let warning = "`nosuch` is switched off, but no package in use has a feature `nosuch`";
-    // `false` alone: accepted, one warning for each `false` written, at its origin.
+    let origins = |warnings: &[Warning<TestOrigin>]| -> Vec<Option<TestOrigin>> {
+        warnings.iter().map(|warning| warning.problem.origin.clone()).collect()
+    };
+    // A switch either way or any key: accepted, one warning for each source that writes the
+    // feature, at the first origin of that source.
     let mut settings = Settings::new();
-    settings.switch_off("nosuch", Package("a.yaml", 2));
+    settings.set("nosuch", "x", Value::from(1), Package("a.yaml", 2));
+    settings.switch_off("nosuch", Package("a.yaml", 3));
+    settings.switch_on("nosuch", Package("b.yaml", 5));
     settings.switch_off("nosuch", Document(3));
+    settings.set("nosuch", "x", Value::from(2), Document(4));
+    settings.set("nosuch", "y", Value::from(2), Workflow("text", "a.yaml", 8));
+    settings.set("nosuch", "x", Value::from(3), CommandLine(1));
+    settings.set("nosuch", "y", Value::from(3), CommandLine(2));
     let read = settings.read(&[&factory]).unwrap();
-    let warnings: Vec<(Option<TestOrigin>, &str)> =
-        read.warnings.iter().map(|problem| (problem.origin.clone(), problem.detail.as_str())).collect();
-    assert_eq!(warnings, [(Some(Package("a.yaml", 2)), warning), (Some(Document(3)), warning)]);
+    assert_eq!(
+        origins(&read.warnings),
+        [
+            Some(Package("a.yaml", 2)),
+            Some(Package("b.yaml", 5)),
+            Some(Document(3)),
+            Some(Workflow("text", "a.yaml", 8)),
+            Some(CommandLine(1)),
+        ]
+    );
+    // Such a feature has no entry among the settings in effect.
+    assert!(settings.in_effect(&[&factory]).is_empty());
     // A feature that a package has gives no warning when switched off.
     let mut known = Settings::new();
     known.switch_off("text", Document(1));
     assert!(known.read(&[&factory]).unwrap().warnings.is_empty());
-    // Settings for it, a key or an empty map, are a problem at the settings written.
-    let unknown = "`nosuch` must be the name of a feature of a package the document uses";
-    let mut keyed = Settings::new();
-    keyed.switch_off("nosuch", Document(3));
-    keyed.set("nosuch", "x", Value::from(1), Document(4));
-    let failure = keyed.read(&[&factory]).unwrap_err();
-    assert_eq!(failure.errors, [Problem { origin: Some(Document(4)), detail: unknown.to_string() }]);
-    // The warning of a `false` comes with the problems.
-    assert_eq!(failure.warnings, [Problem { origin: Some(Document(3)), detail: warning.to_string() }]);
-    let mut mapped = Settings::new();
-    mapped.switch_on("nosuch", Package("a.yaml", 5));
-    let problems = mapped.read(&[&factory]).unwrap_err().errors;
-    assert_eq!(problems, [Problem { origin: Some(Package("a.yaml", 5)), detail: unknown.to_string() }]);
     // A problem with another feature's settings: the warning comes with it.
     let mut beside = Settings::new();
-    beside.switch_off("nosuch", Document(3));
+    beside.set("nosuch", "x", Value::from(1), Document(3));
     beside.set("text", "wdth", Value::from(1), Document(4));
     let failure = beside.read(&[&factory]).unwrap_err();
     assert_eq!(failure.errors.len(), 1, "{:?}", failure.errors);
     assert_eq!(failure.errors[0].origin, Some(Document(4)));
-    assert_eq!(failure.warnings, [Problem { origin: Some(Document(3)), detail: warning.to_string() }]);
+    assert_eq!(origins(&failure.warnings), [Some(Document(3))], "{:?}", failure.warnings);
 }
 
 #[test]
@@ -194,7 +208,6 @@ fn a_workflow_sets_only_keys_bound_per_render() {
     let problems = settings.read(&[&factory]).unwrap_err().errors;
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert_eq!(problems[0].origin, Some(Workflow("w", "p.yaml", 2)));
-    assert!(problems[0].detail.contains("the workflow `w` must not set `xnotes.kinds`"), "{}", problems[0].detail);
 }
 
 #[test]
@@ -232,7 +245,6 @@ fn peers_combine_agree_or_disagree_and_a_higher_source_settles_them() {
     settings.set("text", "width", Value::from(71), Package("b.yaml", 7));
     let problems = settings.read(&[&factory]).unwrap_err().errors;
     assert_eq!(problems.len(), 1);
-    assert!(problems[0].detail.contains("a.yaml:2:1") && problems[0].detail.contains("b.yaml:7:1"), "{}", problems[0].detail);
     settings.set("text", "width", Value::from(50), Document(3));
     assert!(settings.read(&[&factory]).is_ok());
 }
@@ -264,8 +276,6 @@ fn the_fields_packages_write_for_a_workflow_are_peers() {
     settings.add_workflow_fields("text", docs("B", Package("c.yaml", 4)));
     let problems = settings.read(&[&factory]).unwrap_err().errors;
     assert_eq!(problems.len(), 1);
-    assert!(problems[0].detail.contains("a.yaml:2:1") && problems[0].detail.contains("c.yaml:4:1"), "{}", problems[0].detail);
-    assert!(!problems[0].detail.contains("front matter"), "{}", problems[0].detail);
 }
 
 #[test]
@@ -279,7 +289,7 @@ fn the_parsing_settings_combine_key_by_key() {
 }
 
 /// A package of one feature, `feature`, whose settings are declared from data with the
-/// one key `key`, merged entry by entry over the default entries `stdcore` gives it: read
+/// one key `key`, merged entry by entry over the default entries `std` gives it: read
 /// through it, the combined value of the key is kept as written.
 fn mirror(feature: &'static str, key: &'static str) -> PackageFactory {
     struct Mirror(&'static str, &'static str, Map<String, Value>);
@@ -291,9 +301,12 @@ fn mirror(feature: &'static str, key: &'static str) -> PackageFactory {
             Ok(())
         }
         fn settings(&self) -> Option<SettingsDecl> {
-            let schema = serde_json::json!({ "type": "object", "properties": { self.1: {} } });
-            let decl = SettingsDecl::new(self.0).config_data(schema, "Mirror.").unwrap();
-            Some(decl.merge_entries_data(self.1, self.2.clone()).unwrap())
+            let marks = ["merge-object-key-values", "remove-key-when-value-is-false"];
+            let schema = serde_json::json!({
+                "type": "object",
+                "properties": { self.1: { "x-flm-marks": marks, "default": self.2 } },
+            });
+            Some(SettingsDecl::new(self.0).config_data(schema, "Mirror.").unwrap())
         }
     }
     let defaults = factory().unwrap().settings(feature).unwrap().default_entries(key).unwrap().clone();
@@ -301,9 +314,9 @@ fn mirror(feature: &'static str, key: &'static str) -> PackageFactory {
     PackageFactory::new("mirror", move |_| Ok(PackageEntry::new("mirror").feature(feature.clone()))).unwrap()
 }
 
-/// The value `settings` give the key `key` of the feature `feature` of `stdcore`, which is
+/// The value `settings` give the key `key` of the feature `feature` of `std`, which is
 /// merged entry by entry, combined as [`Cascade::read`] combines it; or the problems that
-/// reading the settings through `stdcore` finds.
+/// reading the settings through `std` finds.
 fn entries_of(
     settings: &Settings,
     feature: &'static str,
@@ -346,7 +359,7 @@ fn a_key_merged_entry_by_entry_is_combined_one_entry_at_a_time() {
         .features()
         .iter()
         .filter_map(|feature| feature.settings.as_ref())
-        .map(|decl| decl.marks().iter().filter(|mark| mark.merge_entries).count())
+        .map(|decl| decl.marks().iter().filter(|mark| mark.has(Mark::MergeObjectKeyValues)).count())
         .sum();
     assert_eq!(marked, merged_keys().len(), "every key merged entry by entry is tested");
     for (feature, key, entry) in merged_keys() {
@@ -377,7 +390,6 @@ fn a_key_merged_entry_by_entry_is_combined_one_entry_at_a_time() {
         peers.set(feature, key, map(&[("new-a", Value::Null)]), Package("c.yaml", 4));
         let problems = entries_of(&peers, feature, key).unwrap_err();
         assert_eq!(problems.len(), 1, "{feature}.{key}: {problems:?}");
-        assert!(problems[0].detail.contains("the entry `new-a`"), "{}", problems[0].detail);
     }
 }
 
@@ -404,8 +416,7 @@ fn a_marked_key_whose_value_is_no_map_is_a_problem() {
     settings.set("floats", "types", serde_json::json!(["figure"]), Document(3));
     let factory = factory().unwrap();
     let problems = settings.read(&[&factory]).unwrap_err().errors;
-    assert!(problems[0].detail.contains("must be a map"), "{problems:?}");
-    assert_eq!(problems[0].origin, Some(Document(3)));
+    assert_eq!(problems[0].origin, Some(Document(3)), "{problems:?}");
 }
 
 /// The relation of packages each reaching the ones listed: `("a.yaml", &["b.yaml"])`.
@@ -448,8 +459,6 @@ fn a_package_wins_over_the_packages_it_reaches_whatever_the_order_written() {
     assert_eq!(value.value, Value::from(30));
     let problems = width_of(&reach, &[("b.yaml", 40, 3), ("d.yaml", 60, 5), ("a.yaml", 30, 2)]).unwrap_err();
     assert_eq!(problems.len(), 1, "{problems:?}");
-    let detail = &problems[0].detail;
-    assert!(detail.contains("d.yaml:5:1") && detail.contains("a.yaml:2:1") && !detail.contains("b.yaml"), "{detail}");
 }
 
 #[test]
@@ -541,29 +550,24 @@ fn an_origin_without_a_peer_takes_the_value_written_last() {
 }
 
 #[test]
-fn a_higher_source_is_suggested_only_where_a_document_can_write_the_setting() {
+fn packages_that_disagree_are_one_problem_on_a_key_a_workflow_field_or_a_workflow_s_setting() {
     let factory = factory().unwrap();
-    let suggests = |problems: Vec<Problem<TestOrigin>>| -> bool {
-        assert_eq!(problems.len(), 1, "{problems:?}");
-        problems[0].detail.contains("or set the value in the document's front matter")
-    };
-    // Packages that disagree on a key: the front matter can decide it.
+    let one = |problems: Vec<Problem<TestOrigin>>| assert_eq!(problems.len(), 1, "{problems:?}");
+    // Packages that disagree on a key.
     let mut settings = Settings::new();
     settings.set("text", "width", Value::from(30), Package("a.yaml", 2));
     settings.set("text", "width", Value::from(40), Package("b.yaml", 3));
-    assert!(suggests(settings.read(&[&factory]).unwrap_err().errors));
+    one(settings.read(&[&factory]).unwrap_err().errors);
     // On a field of a workflow, which no document writes.
     let mut settings = Settings::new();
     settings.add_workflow_fields("text", [(String::from("docs"), Value::from("A"), Package("a.yaml", 2))]);
     settings.add_workflow_fields("text", [(String::from("docs"), Value::from("B"), Package("b.yaml", 3))]);
-    assert!(!suggests(settings.read(&[&factory]).unwrap_err().errors));
+    one(settings.read(&[&factory]).unwrap_err().errors);
     // Between the settings packages give a workflow, an origin with no higher source.
     let mut settings = Settings::new();
     settings.set("text", "width", Value::from(30), Workflow("w", "a.yaml", 2));
     settings.set("text", "width", Value::from(40), Workflow("w", "b.yaml", 3));
-    let problems = settings.read(&[&factory]).unwrap_err().errors;
-    assert!(!suggests(problems.clone()));
-    assert!(problems[0].detail.starts_with("the packages that set `text.width` must agree"), "{}", problems[0].detail);
+    one(settings.read(&[&factory]).unwrap_err().errors);
 }
 
 /// A feature `files` whose settings are declared from data: `bib` and `list` paths, and
@@ -580,12 +584,18 @@ impl FlmFeature for Files {
     }
 
     fn settings(&self) -> Option<SettingsDecl> {
-        let schema = serde_json::json!({ "type": "object", "properties": { "bib": {}, "list": {}, "entries": {} } });
-        let decl = SettingsDecl::new("files")
-            .config_data(schema, "Files.")
-            .and_then(|decl| decl.merge_entries_data("entries", Map::new()))
-            .unwrap();
-        Some(decl.path("bib").path("list").path("entries.*.file"))
+        let schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "bib": { "x-flm-marks": ["path"] },
+                "list": { "x-flm-marks": ["path"] },
+                "entries": {
+                    "x-flm-marks": ["merge-object-key-values", "remove-key-when-value-is-false"],
+                    "additionalProperties": { "properties": { "file": { "x-flm-marks": ["path"] } } },
+                },
+            },
+        });
+        Some(SettingsDecl::new("files").config_data(schema, "Files.").unwrap())
     }
 }
 
@@ -704,4 +714,86 @@ fn the_settings_in_effect_say_where_a_feature_was_switched_off() {
     let in_effect = settings.in_effect(&[&factory]);
     assert_eq!(in_effect["text"].switched_off, None);
     assert_eq!(in_effect["text"].keys["width"].value, Value::from(30));
+}
+
+// --- the settings of compose templates, combined key by key ----------------------------------
+
+/// The factory of a package `std` that holds the feature `compose`, whose declaration
+/// `decl` makes from the feature's own.
+fn compose_factory(decl: fn(SettingsDecl) -> SettingsDecl) -> PackageFactory {
+    struct Compose(fn(SettingsDecl) -> SettingsDecl);
+    impl FlmFeature for Compose {
+        fn info(&self) -> FeatureInfo {
+            ComposeFeature::new().info()
+        }
+        fn register(&self, b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> {
+            ComposeFeature::new().register(b)
+        }
+        fn settings(&self) -> Option<SettingsDecl> {
+            ComposeFeature::new().settings().map(self.0)
+        }
+    }
+    let feature = Arc::new(Compose(decl));
+    PackageFactory::new("std", move |_| Ok(PackageEntry::new("std").feature(feature.clone()))).unwrap()
+}
+
+/// The settings that the combined settings `settings` give the compose template `name` of
+/// HTML, as the composer receives them, read through `factory`.
+fn template_settings(settings: &Settings, factory: &PackageFactory, name: &str) -> Map<String, Value> {
+    let read = settings.read(&[factory]).unwrap_or_else(|failure| panic!("{:?}", failure.errors));
+    read.render.get::<ComposeOptions>().unwrap().config_for("html", name).cloned().unwrap_or_default()
+}
+
+#[test]
+fn a_setting_of_a_compose_template_written_in_the_front_matter_leaves_the_package_s_others() {
+    let factory = compose_factory(|decl| decl);
+    let mut settings = Settings::new();
+    let package = serde_json::json!({ "html": { "base": { "accent": "navy", "logo": "a.svg" }, "other": { "width": 3 } } });
+    settings.set("compose", "template_config", package, Package("a.yaml", 2));
+    settings.set("compose", "template_config", serde_json::json!({ "html": { "base": { "accent": "red" } } }), Document(4));
+    let base = template_settings(&settings, &factory, "base");
+    assert_eq!(Value::Object(base), serde_json::json!({ "accent": "red", "logo": "a.svg" }));
+    assert_eq!(Value::Object(template_settings(&settings, &factory, "other")), serde_json::json!({ "width": 3 }));
+    let in_effect = settings.in_effect(&[&factory]);
+    let config = &in_effect["compose"].keys["template_config"];
+    assert_eq!(config.origin_at(&["html", "base", "accent"]), &Document(4));
+    assert_eq!(config.origin_at(&["html", "base", "logo"]), &Package("a.yaml", 2));
+    assert_eq!(config.origin_at(&["html", "other", "width"]), &Package("a.yaml", 2));
+}
+
+#[test]
+fn a_setting_of_a_compose_template_written_false_is_false() {
+    let factory = compose_factory(|decl| decl);
+    let mut settings = Settings::new();
+    settings.set("compose", "template_config", serde_json::json!({ "html": { "base": { "logo": "a.svg" } } }), Package("a.yaml", 2));
+    settings.set("compose", "template_config", serde_json::json!({ "html": { "base": { "logo": false } } }), Document(4));
+    assert_eq!(template_settings(&settings, &factory, "base").get("logo"), Some(&Value::Bool(false)));
+}
+
+#[test]
+fn a_setting_whose_null_gives_its_default_is_left_out_of_the_combined_settings() {
+    let factory = compose_factory(|decl| decl.default_on_null("template_config.*.*.*"));
+    let mut settings = Settings::new();
+    let package = serde_json::json!({ "html": { "base": { "accent": "navy", "logo": "a.svg" } } });
+    settings.set("compose", "template_config", package, Package("a.yaml", 2));
+    settings.set("compose", "template_config", serde_json::json!({ "html": { "base": { "logo": null } } }), Document(4));
+    // The composer writes these settings over the compose template's defaults key by key,
+    // so that the template reads its own default of `logo`.
+    let base = template_settings(&settings, &factory, "base");
+    assert_eq!(Value::Object(base), serde_json::json!({ "accent": "navy" }));
+}
+
+#[test]
+fn peers_that_disagree_on_a_setting_of_a_compose_template_are_a_problem_for_that_setting() {
+    let factory = compose_factory(|decl| decl);
+    let mut settings = Settings::new();
+    let a = serde_json::json!({ "html": { "base": { "accent": "navy", "logo": "a.svg" } } });
+    settings.set("compose", "template_config", a, Package("a.yaml", 2));
+    settings.set("compose", "template_config", serde_json::json!({ "html": { "base": { "accent": "red" } } }), Package("b.yaml", 3));
+    let problems = settings.read(&[&factory]).unwrap_err().errors;
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].detail.contains("`accent` of `compose.template_config.html.base`"), "{}", problems[0].detail);
+    let in_effect = settings.in_effect(&[&factory]);
+    let base = &in_effect["compose"].keys["template_config"].value["html"]["base"];
+    assert_eq!(base["logo"], Value::from("a.svg"));
 }

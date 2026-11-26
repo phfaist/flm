@@ -1,4 +1,4 @@
-//! The text emitter (`flm_core::stdcore::backends::text`) over hand-built
+//! The text emitter (`flm_core::stdlib::backends::text`) over hand-built
 //! presentation trees: every element of the presentation vocabulary against a
 //! golden under `tests/goldens/text/`, a full document at width 40, subtree
 //! splicing and its two conditions, the interpolated group inside verbatim
@@ -19,14 +19,14 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::dump::diag::expect;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::Flm;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::pres::{
     self, HeadingPayload, BlockPayload, DecoMarkPayload, DecorationPayload, DocRole, ImagePayload,
     Length, LineAlign, LinePayload, LinesPayload, LinkPayload, ListPayload, MathDisplay, MathPassthroughPayload,
     MathTextPayload, ParPayload, SpanPayload, SpanStyle, SubtreePayload, UnsupportedPayload,
     VerbatimDisplay, VerbatimKind, VerbatimPayload,
 };
-use flm_core::stdcore::backends::lowering::LoweredAddr;
-use flm_core::stdcore::backends::text::{DEPTH_LIMIT, Emitted, TextOutput};
+use flm_core::stdlib::backends::lowering::LoweredAddr;
+use flm_core::stdlib::backends::text::{DEPTH_LIMIT, Emitted, TextOutput};
 
 use common::layout::assert_well_formed;
 use common::lowering::{PresSite, emit_tree, emit_trees, golden_path, registry};
@@ -58,7 +58,7 @@ fn verbatim(site: &mut PresSite, display: VerbatimDisplay, text: &str) -> BuildI
 
 fn math(site: &mut PresSite, display: MathDisplay, env: Option<&str>, source: &str) -> BuildId {
     let text = site.text(source);
-    let payload = MathPassthroughPayload { display, env: env.map(String::from) };
+    let payload = MathPassthroughPayload { display, env: env.map(String::from), role: None };
     site.pres(pres::MATH_PASSTHROUGH, payload, vec![text])
 }
 
@@ -308,7 +308,7 @@ fn content_inside_mathematics_is_written_as_its_command_around_its_content() {
         vec![word],
     );
     let tail = site.text(" + y");
-    let payload = MathPassthroughPayload { display: MathDisplay::Inline, env: None };
+    let payload = MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None };
     let inline = site.pres(pres::MATH_PASSTHROUGH, payload, vec![head, content, tail]);
     let before = site.text("Let ");
     let after = site.text(" hold.");
@@ -321,7 +321,7 @@ fn content_inside_mathematics_is_written_as_its_command_around_its_content() {
     );
     let line = site.text("a &= b");
     let payload =
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")) };
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")), role: None };
     let env = site.pres(pres::MATH_PASSTHROUGH, payload, vec![anchor, line]);
 
     let tree = site.finish(vec![first, env]);
@@ -343,7 +343,7 @@ fn content_at_a_tags_place_is_written_as_it_stands() {
     );
     let close = site.text("}");
     let payload =
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("equation")) };
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("equation")), role: None };
     let env = site.pres(pres::MATH_PASSTHROUGH, payload, vec![line, tag, close]);
     let tree = site.finish(vec![env]);
     let out = text_of(&emit_tree(tree, Some(40)));
@@ -641,8 +641,8 @@ fn a_superscript_span_with_empty_or_no_text_prints_nothing() {
 
 #[test]
 fn the_unicodesuperscript_format_writes_the_shared_tables_digits() {
-    use flm_core::stdcore::backends::text::superscript::{subscript_form, superscript_form};
-    use flm_core::stdcore::features::numbering::NumberFormat;
+    use flm_core::stdlib::backends::text::superscript::{subscript_form, superscript_form};
+    use flm_core::stdlib::features::numbering::NumberFormat;
 
     assert_eq!(NumberFormat::Superscript.text(17), "¹⁷");
     assert_eq!(NumberFormat::Subscript.text(17), "₁₇");

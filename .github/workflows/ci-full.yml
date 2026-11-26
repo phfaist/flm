@@ -2,8 +2,9 @@
 # `CI (full)`, the button "Run workflow"), with a choice of the parts to run and of the
 # platforms for the tests. The tests run on Linux, and on macOS and Windows when selected;
 # the other parts run on Linux, one after the other in one job, each after installing
-# what it needs (the Rust toolchains, the WebAssembly target, TeX Live, Node and the npm
-# workspace). The script runs with `--strict`: a test skipped for a missing program fails.
+# what it needs (the Rust toolchains, the WebAssembly target, TeX Live and Poppler, Node
+# and the npm workspace). The script runs with `--strict`: a test skipped for a missing
+# program fails.
 #
 # The test programs of the workspace take more disk than a runner has free: the tests run
 # in pieces, each piece's programs deleted after it runs (`--on-tight-disk-space`), and
@@ -111,14 +112,20 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: npm/package-lock.json
-      # MathJax's own files for the browser tests; the TypeScript compiler and esbuild for
-      # the tests of the part `npm`.
+      # MathJax's own files for the browser tests; the TypeScript compiler, esbuild and the
+      # two libraries of the watch client for the tests of the part `npm`.
       - name: Install the npm workspace
         if: ${{ inputs.browser || inputs.npm }}
         working-directory: npm
         run: npm ci
-      # The LaTeX programs and the packages that the generated documents load.
-      - uses: teatimeguest/setup-texlive-action@v3
+      # The LaTeX programs and the packages that the generated documents load, by their
+      # names in TeX Live: `collection-langcyrillic` holds the Cyrillic font encodings and
+      # their fonts, `bbm` and `bbm-macros` hold `bbm.sty` and its fonts, `doublestroke`
+      # holds `dsfont.sty`, `stix` holds the STIX fonts' encodings, `stix2-otf` holds the
+      # OpenType font "STIX Two Math" that the template `simple` of `latex-rendered` gives
+      # to `unicode-math` under LuaLaTeX, and `sourceserif` and `sourcesans` hold
+      # `sourceserifpro.sty` and `sourcesanspro.sty`.
+      - uses: TeX-Live/setup-texlive-action@v3
         if: ${{ inputs.latex }}
         with:
           packages: |
@@ -128,11 +135,20 @@ jobs:
             collection-luatex
             collection-fontsrecommended
             collection-mathscience
+            collection-langcyrillic
             latexmk
-            dsfont
-            sourceserifpro
-            sourcesanspro
+            bbm
+            bbm-macros
+            doublestroke
+            stix
+            stix2-otf
+            sourceserif
+            sourcesans
             sourcecodepro
+      # `pdftotext`, with which the LaTeX compilation tests read the text of a PDF.
+      - name: Install Poppler's pdftotext
+        if: ${{ inputs.latex }}
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - uses: Swatinem/rust-cache@v2
       # Each part runs even when an earlier one failed.
       - name: Clippy

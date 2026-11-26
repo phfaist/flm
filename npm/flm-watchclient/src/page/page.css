@@ -1,0 +1,58 @@
+/* The stylesheet of the live preview's page script: the marks on the elements a problem
+   lies in, the flash of an element shown, the outline of the element Inspect selected,
+   and the server's waiting page. Every color, size and duration is a custom property
+   declared on `:root`, so a page changes it by setting the property. The script does not
+   repeat the duration of the flash: it removes the flash when the animation ends. */
+
+:root {
+  --flm-preview-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --flm-preview-mono: ui-monospace, Menlo, Consolas, monospace;
+  --flm-preview-text: #1c2024;
+  --flm-preview-error: #b3261e;
+  --flm-preview-warning: #8a5a00;
+  --flm-preview-accent: #1f5fd1;
+  --flm-preview-mark-width: 2px;
+  --flm-preview-mark-offset: 2px;
+  --flm-preview-flash: #fff0b3;
+  --flm-preview-flash-duration: 1.2s;
+  --flm-preview-waiting-width: 40em;
+  --flm-preview-waiting-margin: 4em auto;
+  --flm-preview-waiting-padding: 0 1em;
+  --flm-preview-waiting-font-size: 16px;
+  --flm-preview-waiting-line-height: 1.5;
+}
+
+[data-flm-preview-problem] {
+  outline: var(--flm-preview-mark-width) dashed var(--flm-preview-error);
+  outline-offset: var(--flm-preview-mark-offset);
+}
+
+[data-flm-preview-problem="warning"] {
+  outline-color: var(--flm-preview-warning);
+}
+
+[data-flm-preview-inspected] {
+  outline: var(--flm-preview-mark-width) solid var(--flm-preview-accent);
+  outline-offset: var(--flm-preview-mark-offset);
+}
+
+[data-flm-preview-flash] {
+  animation: flm-preview-flash var(--flm-preview-flash-duration) ease-out;
+}
+
+@keyframes flm-preview-flash {
+  from { background-color: var(--flm-preview-flash); }
+  to { background-color: transparent; }
+}
+
+.flm-preview-waiting {
+  max-width: var(--flm-preview-waiting-width);
+  margin: var(--flm-preview-waiting-margin);
+  padding: var(--flm-preview-waiting-padding);
+  font: var(--flm-preview-waiting-font-size)/var(--flm-preview-waiting-line-height) var(--flm-preview-font);
+  color: var(--flm-preview-text);
+}
+
+.flm-preview-waiting code {
+  font-family: var(--flm-preview-mono);
+}

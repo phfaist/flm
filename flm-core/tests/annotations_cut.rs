@@ -12,23 +12,23 @@ use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::dump::session::PayloadReaders;
 use flm_core::model::addr::TreeId;
-use flm_core::stdcore::CHECK_WORKFLOW;
+use flm_core::stdlib::CHECK_WORKFLOW;
 use flm_core::lang::rewrites::blocks::{BlocksConfig, check_block_contract, structure};
 use flm_core::lang::{Flm, FlmDiagnostics, FlmGroupType, FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::aspects::{BlockRole, block_role_of};
 use flm_core::model::doc::{Fragment, FragmentLayout};
-use flm_core::stdcore::backends::pres::read::payload_of;
-use flm_core::stdcore::features::annotations::{
+use flm_core::stdlib::backends::pres::read::payload_of;
+use flm_core::stdlib::features::annotations::{
     ANNOTATION, AnnotationPiece, AnnotationsConfig, Annotator, TEXT_ARG, payload_readers,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::{NodeRef, NodeTree};
 
 /// The two annotators these tests use: `phf` with the initials `PhF`,
 /// annotator 0, and `abc` with none, annotator 1.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(
-        StdcoreConfig::new().annotations(
+    common::stdlib::registry(
+        StdlibConfig::new().annotations(
             AnnotationsConfig::new()
                 .annotator(Annotator::new("phf").initials("PhF"))
                 .annotator(Annotator::new("abc")),
@@ -295,7 +295,7 @@ fn structuring_a_structured_tree_changes_nothing() {
 fn a_frozen_tree_holding_pieces_reads_back_with_its_records() {
     let registry = registry();
     let text = "Some text \\phf[A comment.\n\nWith multiple paragraphs.] More text";
-    let run = common::stdcore::run_workflow(&registry, CHECK_WORKFLOW, &[text], &Overrides::none());
+    let run = common::stdlib::run_workflow(&registry, CHECK_WORKFLOW, &[text], &Overrides::none());
     let tree = run.frozen_tree(TreeId::tree(0)).expect("a frozen tree");
     assert_eq!(records(tree), [piece(0, 0, 2), piece(0, 1, 2)]);
     let elements: Vec<_> = registry.elements().iter().map(|entry| Arc::clone(&entry.element)).collect();

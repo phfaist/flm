@@ -1,0 +1,15 @@
+name: fancy
+output: html
+engine: minijinja
+main: fancy.html
+accepts: all
+settings:
+  type: object
+  properties:
+    color: {type: string, default: teal, description: The color of the paragraphs.}
+artifacts:
+  style:
+    file: look.css
+    template: true
+  logo:
+    file: ../../../img/logo.png

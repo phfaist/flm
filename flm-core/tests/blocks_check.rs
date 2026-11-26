@@ -24,7 +24,7 @@ use flm_core::lang::rewrites::blocks::{
 use flm_core::lang::{
     Flm, FlmCallableType, FlmGroupType, FlmNodeExt, FlmSource, LangInputs, RestrictedInterior,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::{
     BuildId, CallableData, ChildRegion, GroupData, NodeBuildError, NodeId, NodeKind, NodeRef,
     NodeTree, ParsedArgument, ParsedArguments, ParsedSlots,
@@ -71,7 +71,7 @@ fn the_pass_leaves_no_whitespace_beside_a_displayed_item() {
     // The inputs of the pass's own tests of displayed items: in a paragraph
     // and in content laid out inline, beside spaces, whitespace nodes,
     // comments and decorators.
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     let toy = toy_lang();
     let arg = ArgDef::mandatory("text").layout(ArgLayout::InlineOrBlocks);
     let either = toy_lang_with(vec![ElementDef::new(

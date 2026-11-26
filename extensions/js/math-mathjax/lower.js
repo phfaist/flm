@@ -2,7 +2,7 @@
 //
 // | rule | element | backend | what it stages |
 // |---|---|---|---|
-// | `math-mathjax.formula.lower.html`, `math-mathjax.environment.lower.html` | `flm.math`, `flm.math.environment` | `html` | by mode: in `load-in-browser`, the formula's TeX in a span for MathJax to typeset in the browser (`register_browser_rules`); in `mathml`, the formula's MathML in a span, read from the render stage's table (`render.js`) and converted to HTML constructs (`register_mathml_rules`, `mathml_construct`), with the stylesheet `math-mathjax.style` |
+// | `math-mathjax.formula.lower.html`, `math-mathjax.environment.lower.html` | `flm.math`, `flm.math.environment` | `html` | by mode: in `load-in-browser`, the formula's TeX in a span for MathJax to typeset in the browser, with the anchors of its lines inside the TeX, or before it under the setting `lazy` (`register_browser_rules`); in `mathml`, the formula's MathML, read from the render stage's table (`render.js`) and converted to HTML constructs (`register_mathml_rules`, `mathml_construct`), with the stylesheet `math-mathjax.style`; in both modes, the formula's outermost element (the span, the `math` element) carries the mark of a formula (`formula_attributes`) |
 // | `math-mathjax.formula.lower.latex-recomposed`, `math-mathjax.environment.lower.latex-recomposed` | the two | `latex-recomposed` | the formula recomposed as written, through the `math` library and the mathematics writer |
 // | `math-mathjax.formula.lower.latex-rendered`, `math-mathjax.environment.lower.latex-rendered` | the two | `latex-rendered` | the formula staged as `flm.pres.math-passthrough` over its source, each text command lowered through the rules, an environment's lines with their anchors and tags in `flm.pres.math-text` nodes |
 // | `math-mathjax.formula.lower.text`, `math-mathjax.environment.lower.text` | the two | `text` | the formula staged as `flm.pres.math-passthrough` over its TeX, each text command lowered through the rules, each line's tag after the line in a `flm.pres.math-text` node (the backend sets a displayed formula on lines of its own) |
@@ -10,12 +10,12 @@
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
 import {
   MATH, ENVIRONMENT, ENSUREMATH, ANCHORS, COUNTERS, line_frames, stage_tag_content,
-  group_opening, group_closing, environment_opening, stage_lines, environment_closing,
-} from "flm:stdcore/features/math";
-import { write_math_run } from "flm:stdcore/features/userdefs";
+  group_opening, group_closing, environment_opening, stage_lines, environment_closing, formula_attributes,
+} from "flm:stdlib/features/math";
+import { write_math_run } from "flm:stdlib/features/userdefs";
 import { StyleDef, DefContent } from "flm:core/registry";
-import { SPAN, MATH_TEXT, MATH_PASSTHROUGH } from "flm:stdcore/backends/pres";
-import { TAG } from "flm:stdcore/backends/html";
+import { MATH_TEXT, MATH_PASSTHROUGH } from "flm:stdlib/backends/pres";
+import { TAG } from "flm:stdlib/backends/html";
 import { formula_tex, NOTAG, TAG_OPEN, TAG_CLOSE } from "./tex.js";
 import { RENDERED_TABLE, FIRST_MARKER } from "./render.js";
 import { MACRO, ENVIRONMENT as COMMAND_ENVIRONMENT } from "./definitions.js";
@@ -35,11 +35,6 @@ const LATEX_DEFINITION = "flm.pres.latex.definition";
 const SAFE_LABELS = "flm.labels.safe";
 // The option types the LaTeX parts of the `math` library read.
 const LATEX_OPTIONS = ["MathRecomposeOptions", "LatexRecomposedRenderOptions"];
-
-// The role of a formula's span, and of an environment's span, in `mathml`
-// mode.
-export const FORMULA_ROLE = "math-mathjax.formula";
-export const ENVIRONMENT_ROLE = "math-mathjax.environment";
 
 // The frames of the environment `node`'s lines, with its anchors and numbers
 // when `tables`.
@@ -78,14 +73,27 @@ function is_formula(node) {
 function formula_of(node) {
   if (is_formula(node)) return node;
   if (node.element_name() !== ENSUREMATH) return null;
-  return (node.argument_content_nodes(0) ?? []).find(is_formula) ?? null;
+  return [...(node.argument_content_nodes(0) ?? [])].find(is_formula) ?? null;
+}
+
+// An empty span carrying the anchor `anchor`: a point a link can lead to.
+function anchor_span(anchor) {
+  return { element: TAG, payload: { tag: "span", attributes: [["id", anchor]] } };
 }
 
 // The children of a formula's span in `load-in-browser` mode: its TeX as
 // text, each hole a `<tex-html>` element holding the hole's lowered content.
-function browser_children(tex, cx, lw) {
+//
+// Each equation line's anchor is an empty span: inside the TeX, at the start
+// of its line; or, when `lazy`, before the TeX, the anchors of all the lines
+// in their order. MathJax's lazy mode replaces a formula's TeX with a
+// placeholder until the formula scrolls into view, and the anchors inside the
+// TeX with it, so that a link to a line would lead nowhere. The anchors before
+// the TeX stay in the page, and a link to any line leads to the formula.
+function browser_children(tex, cx, lw, lazy) {
   const [open, close] = delimiters(tex);
   const children = [];
+  const anchors = lazy ? [] : null;
   const text = (string) => {
     if (string === "") return;
     const last = children[children.length - 1];
@@ -93,14 +101,15 @@ function browser_children(tex, cx, lw) {
     else children.push({ text: string });
   };
   text(open);
-  write_browser_parts(tex, cx, lw, children, text);
+  write_browser_parts(tex, cx, lw, children, text, anchors);
   text(close);
-  return children;
+  return anchors === null ? children : [...anchors.map(anchor_span), ...children];
 }
 
 // Writes the parts of `tex` into `children` (`text` appends characters), the
-// holes as `<tex-html>` elements.
-function write_browser_parts(tex, cx, lw, children, text) {
+// holes as `<tex-html>` elements; an anchor's hole goes into `anchors` when
+// it is a list.
+function write_browser_parts(tex, cx, lw, children, text, anchors) {
   for (const part of tex.parts) {
     if (typeof part === "string") { text(neutralized(part)); continue; }
     if (part === NOTAG) { text("\\notag"); continue; }
@@ -108,16 +117,18 @@ function write_browser_parts(tex, cx, lw, children, text) {
     if (part === TAG_CLOSE) { text("}"); continue; }
     const hole = tex.holes[part.hole];
     if (hole.kind === "text") {
-      write_text_hole(hole, cx, lw, children, text);
+      write_text_hole(hole, cx, lw, children, text, anchors);
     } else if (hole.kind === "tag") {
       // The tag's content stands in text mode inside `\tag*{…}`, where MathJax
       // reads a `<tex-html>` element only between dollar signs, as the HTML
       // backend writes it.
       text("$");
-      children.push(tex_html(stage_tag_content(cx, lw, hole.frame).map((build) => ({ build }))));
+      children.push(tex_html([{ build: stage_tag_content(cx, lw, hole.frame) }]));
       text("$");
+    } else if (anchors !== null) {
+      anchors.push(hole.anchor);
     } else {
-      children.push(tex_html([{ element: TAG, payload: { tag: "span", attributes: [["id", hole.anchor]] } }]));
+      children.push(tex_html([anchor_span(hole.anchor)]));
     }
   }
 }
@@ -133,38 +144,38 @@ function write_browser_parts(tex, cx, lw, children, text) {
 // that holds no formula is lowered by the text command's own rule, in one
 // hole. A formula deeper inside the argument (inside a styled command inside
 // it) is lowered by its own rule inside the hole.
-function write_text_hole(hole, cx, lw, children, text) {
-  const content = hole.node.argument_content_nodes(0) ?? [];
+function write_text_hole(hole, cx, lw, children, text, anchors) {
+  const content = [...(hole.node.argument_content_nodes(0) ?? [])];
   if (!content.some((node) => formula_of(node) !== null)) {
-    children.push(tex_html(lw.lower_nodes(cx, [hole.node]).map((build) => ({ build }))));
+    children.push(tex_html([{ build: lw.lower_nodes(cx, [hole.node]) }]));
     return;
   }
   let run = [];
   const flush = () => {
     if (run.length === 0) return;
-    const staged = lw.lower_nodes(cx, run).map((build) => ({ build }));
-    children.push(tex_html([{ element: MATH_TEXT, payload: { command: hole.command }, children: staged }]));
+    const staged = lw.lower_nodes(cx, run);
+    children.push(tex_html([{ element: MATH_TEXT, payload: { command: hole.command }, children: [{ build: staged }] }]));
     run = [];
   };
   for (const node of content) {
     const formula = formula_of(node);
     if (formula === null) { run.push(node); continue; }
     flush();
-    write_browser_parts(formula_tex(formula, frames_of(lw, formula, true)), cx, lw, children, text);
+    write_browser_parts(formula_tex(formula, frames_of(lw, formula, true)), cx, lw, children, text, anchors);
   }
   flush();
 }
 
-// The rules of the `html` backend in `load-in-browser` mode.
-function register_browser_rules(b) {
+// The rules of the `html` backend in `load-in-browser` mode; `lazy`, the
+// setting, places the anchors of an environment's lines before its TeX.
+function register_browser_rules(b, lazy) {
   const body = {
     lower(node, cx, lw) {
       const tex = formula_tex(node, frames_of(lw, node, true));
       lw.require(SCRIPT);
-      const attributes = [["class", FORMULA_CLASS], ["data-flm-display", tex.display ? "display" : "inline"]];
-      if (tex.environment !== null) attributes.push(["data-flm-env", tex.environment]);
+      const attributes = formula_attributes(FORMULA_CLASS, tex.display, tex.environment);
       return Lowering.Emit([lw.pres_tree(cx, {
-        element: TAG, payload: { tag: "span", attributes }, children: browser_children(tex, cx, lw),
+        element: TAG, payload: { tag: "span", attributes }, children: browser_children(tex, cx, lw, lazy),
       })]);
     },
   };
@@ -178,8 +189,9 @@ function register_browser_rules(b) {
     "math-mathjax.environment.lower.html", ENVIRONMENT, decl().reads_opt(ANCHORS).reads_opt(COUNTERS), body,
     DefaultMark.OnBackends([HTML]),
   ).docs("A display-math environment lowers to its TeX, rebuilt from its equation lines, as the text of a "
-    + "span that MathJax typesets in the reader's browser; each line begins with its anchor and ends "
-    + "with its number or tag inside `\\tag*{…}`, or with `\\notag`."));
+    + "span that MathJax typesets in the reader's browser; each line begins with its anchor (under the "
+    + "setting `lazy`, every line's anchor stands before the TeX instead) and ends with its number or tag "
+    + "inside `\\tag*{…}`, or with `\\notag`."));
 }
 
 // The stylesheet of `mathml` mode, which every formula lowered in that mode
@@ -351,7 +363,7 @@ export function mathml_construct(math, holes, anchors) {
   const convert = (tree) => {
     if (typeof tree === "string") return { text: tree };
     const hole = marker_hole(tree, holes.length);
-    if (hole !== null) return tag("mtext", kept(tree.attributes), (holes[hole] ?? []).map((build) => ({ build })));
+    if (hole !== null) return tag("mtext", kept(tree.attributes), holes[hole] == null ? [] : [{ build: holes[hole] }]);
     if (tree.tag === "mtable") return convert_table(tree);
     let attributes = kept(tree.attributes);
     if (tree === math && own_id !== null) attributes = [...attributes, ["id", own_id]];
@@ -414,6 +426,16 @@ export function mathml_construct(math, holes, anchors) {
   return convert(math);
 }
 
+// The `math` element `math`, a tree as `mathml_construct` answers it, with
+// the mark of the formula `tex` (`formula_attributes`) after its other
+// attributes, its own classes kept before the mark's.
+function marked(math, tex) {
+  const own = attribute(math.payload, "class") ?? "";
+  const others = math.payload.attributes.filter(([name]) => name !== "class");
+  const attributes = [...others, ...formula_attributes(own, tex.display, tex.environment)];
+  return { ...math, payload: { ...math.payload, attributes } };
+}
+
 // The rules of the `html` backend in `mathml` mode, and their stylesheet
 // (`settings`: the feature's configuration as read).
 function register_mathml_rules(b, settings) {
@@ -425,35 +447,35 @@ function register_mathml_rules(b, settings) {
       const tex = formula_tex(node, frames);
       lw.require(STYLE);
       const [row] = lw.get_at(RENDERED_TABLE, node) ?? [];
-      let children;
+      // A formula MathJax could not typeset: its source, in a span.
       if (row === undefined) {
-        children = [{ text: node.span_content() }];
-      } else {
-        const holes = tex.holes.map((hole) => {
-          if (hole.kind === "text") return lw.lower_nodes(cx, [hole.node]);
-          if (hole.kind === "tag") return stage_tag_content(cx, lw, hole.frame);
-          return null;
-        });
-        const anchors = frames === null ? [] : frames.map((frame) => frame.anchor);
-        children = [mathml_construct(row.mathml, holes, anchors)];
+        const attributes = formula_attributes("", tex.display, tex.environment);
+        return Lowering.Emit([lw.pres_tree(cx, {
+          element: TAG, payload: { tag: "span", attributes }, children: [{ text: node.span_content() }],
+        })]);
       }
-      const tree = tex.environment === null
-        ? { element: SPAN, payload: { role: FORMULA_ROLE, kinds: [tex.display ? "display" : "inline"] }, children }
-        : { element: SPAN, payload: { role: ENVIRONMENT_ROLE, kinds: [tex.environment] }, children };
-      return Lowering.Emit([lw.pres_tree(cx, tree)]);
+      const holes = tex.holes.map((hole) => {
+        if (hole.kind === "text") return lw.lower_nodes(cx, [hole.node]);
+        if (hole.kind === "tag") return stage_tag_content(cx, lw, hole.frame);
+        return null;
+      });
+      const anchors = frames === null ? [] : frames.map((frame) => frame.anchor);
+      return Lowering.Emit([lw.pres_tree(cx, marked(mathml_construct(row.mathml, holes, anchors), tex))]);
     },
   };
-  const decl = () => new LoweringDecl().produces(TAG).produces(SPAN).reads(RENDERED_TABLE);
+  const decl = () => new LoweringDecl().produces(TAG).reads(RENDERED_TABLE);
   b.lowering_rule(new LoweringRule(
     "math-mathjax.formula.lower.html", MATH, decl(), body, DefaultMark.OnBackends([HTML]),
-  ).docs("Inline or displayed mathematics lowers to the MathML MathJax made of it, in a span; the argument "
-    + "of each text command is document content inside its `mtext` element. A formula MathJax could not "
-    + "typeset lowers to its source as text."));
+  ).docs("Inline or displayed mathematics lowers to the MathML MathJax made of it, its `math` element "
+    + "marked as a formula; the argument of each text command is document content inside its `mtext` "
+    + "element. A formula MathJax could not typeset lowers to its source as text, in a span marked as a "
+    + "formula."));
   b.lowering_rule(new LoweringRule(
     "math-mathjax.environment.lower.html", ENVIRONMENT,
     decl().reads_opt(ANCHORS).reads_opt(COUNTERS), body, DefaultMark.OnBackends([HTML]),
-  ).docs("A display-math environment lowers to the MathML MathJax made of it, in a span; each line's row "
-    + "carries the line's anchor, and its last cell the line's number or tag."));
+  ).docs("A display-math environment lowers to the MathML MathJax made of it, its `math` element marked "
+    + "as a formula; each line's row carries the line's anchor, and its last cell the line's number or "
+    + "tag."));
 }
 
 // The parts of `tex` as the body of a `flm.pres.math-passthrough`: an
@@ -499,10 +521,10 @@ function register_text_rules(b) {
         if (part === NOTAG || part === TAG_OPEN || part === TAG_CLOSE) continue;
         const hole = tex.holes[part.hole];
         if (hole.kind === "text") {
-          children.push(...lw.lower_nodes(cx, [hole.node]).map((build) => ({ build })));
+          children.push({ build: lw.lower_nodes(cx, [hole.node]) });
         } else if (hole.kind === "tag") {
-          const content = stage_tag_content(cx, lw, hole.frame).map((build) => ({ build }));
-          if (content.length > 0) children.push({ element: MATH_TEXT, payload: {}, children: content });
+          const content = stage_tag_content(cx, lw, hole.frame);
+          if (!content.is_empty()) children.push({ element: MATH_TEXT, payload: {}, children: [{ build: content }] });
         }
       }
       return Lowering.Emit([lw.pres_tree(cx, { element: MATH_PASSTHROUGH, payload: passthrough_payload(tex), children })]);
@@ -537,7 +559,7 @@ function register_latex_rules(b) {
     {
       lower(node, cx, lw) {
         return Lowering.Emit([
-          ...group_opening(cx, lw, node), ...write_math_run(cx, lw, node.children()), ...group_closing(cx, lw, node),
+          group_opening(cx, lw, node), write_math_run(cx, lw, node.children()), group_closing(cx, lw, node),
         ]);
       },
     },
@@ -549,9 +571,9 @@ function register_latex_rules(b) {
     {
       lower(node, cx, lw) {
         return Lowering.Emit([
-          ...environment_opening(cx, lw, node),
-          ...stage_lines(cx, lw, line_frames(lw, false, false, node)),
-          ...environment_closing(cx, lw, node),
+          environment_opening(cx, lw, node),
+          stage_lines(cx, lw, line_frames(lw, false, false, node)),
+          environment_closing(cx, lw, node),
         ]);
       },
     },
@@ -581,14 +603,14 @@ function register_rendered_rules(b) {
         if (part === NOTAG || part === TAG_OPEN || part === TAG_CLOSE) continue;
         const hole = tex.holes[part.hole];
         if (hole.kind === "text") {
-          children.push(...lw.lower_nodes(cx, [hole.node]).map((build) => ({ build })));
+          children.push({ build: lw.lower_nodes(cx, [hole.node]) });
         } else if (hole.kind === "anchor") {
           children.push({ element: MATH_TEXT, payload: { anchor: hole.anchor }, children: [] });
         } else if (hole.kind === "tag") {
-          const content = stage_tag_content(cx, lw, hole.frame).map((build) => ({ build }));
-          if (content.length > 0) {
+          const content = stage_tag_content(cx, lw, hole.frame);
+          if (!content.is_empty()) {
             children.push({ text: "\\tag*{" });
-            children.push({ element: MATH_TEXT, payload: { at_tag: true }, children: content });
+            children.push({ element: MATH_TEXT, payload: { at_tag: true }, children: [{ build: content }] });
             children.push({ text: "}" });
           }
         }
@@ -642,7 +664,7 @@ export function register_rules(b, settings, commands) {
   b.peer_element(LATEX_MACRO, "the LaTeX family's macro construct, which the recomposition stages");
   b.peer_element(LATEX_DEFINITION, "the LaTeX family's definition construct, which the recomposition stages");
   b.peer_element(TAG, "the HTML backend's construct, which the HTML rules stage");
-  if (settings.mode === "load-in-browser") register_browser_rules(b);
+  if (settings.mode === "load-in-browser") register_browser_rules(b, settings.lazy);
   else register_mathml_rules(b, settings);
   register_text_rules(b);
   register_latex_rules(b);

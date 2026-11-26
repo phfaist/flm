@@ -18,7 +18,7 @@
 //!
 //! | Kind | Methods |
 //! |---|---|
-//! | `feature_builder` | `feature`, `element`, `fallback`, `override_callable`, `table`, `table_refining`, `definition_text_table`, `table_named`, `presentation_element`, `backend`, `output`, `workflow_lowering`, `stage`, `capability`, `lowering_rule`, `peer_table`, `peer_backend`, `peer_element`, `style_def`, `script_def`, `rewrite_stage`, `require_service`, `service_slot`, `contribute_to`, `contribute_first_to`, `peer_slot`, `digest_input`, `attach`, `collection_member`, `scoped_package`, `argument_role`, `peer_argument_role`, `late_init`, `finalizer` |
+//! | `feature_builder` | `feature`, `element`, `element_type_text`, `fallback`, `override_callable`, `table`, `table_refining`, `definition_text_table`, `table_named`, `presentation_element`, `backend`, `output`, `workflow_lowering`, `stage`, `capability`, `lowering_rule`, `peer_table`, `peer_backend`, `peer_element`, `style_def`, `script_def`, `rewrite_stage`, `require_service`, `service_slot`, `contribute_to`, `contribute_first_to`, `peer_slot`, `digest_input`, `attach`, `collection_member`, `scoped_package`, `argument_role`, `peer_argument_role`, `late_init`, `finalizer` |
 //! | `stage_cx` | `scope`, `tree_id`, `tree`, `frozen_tree`, `my_tree`, `trees`, `walk`, `addr_of`, `get`, `option`, `service`, `services`, `host` |
 //! | `host_service` | `name`, `call` |
 //! | `files` | `read_text` |
@@ -28,11 +28,14 @@
 //! | `table_piece` | `push` |
 //! | `ext_table_read` | `items` |
 //! | `trees_table` | `trees`, `tree` |
-//! | `lowered_trees` | `trees`, `tree`, `requires`, `rounds` |
+//! | `walk`, `descendants` | `pull`, `elements`, `kinds` (each with the trailing count of the items of the last pull not handed over) |
+//! | `trees` | `pull` |
+//! | `rows`, `nodes`, `staged_nodes` | `pull`, `get` |
+//! | `lowered_trees` | `trees`, `tree`, `requires`, `rounds`, `node_at` |
 //! | `node` | every method of [`Node`](crate::api::techy::node::Node) |
 //! | `tree` | `root` |
 //! | `key_vals` | `len`, `is_empty`, `keyval`, `get`, `iter` |
-//! | `key_val_entry` | `key`, `value`, `value_content` |
+//! | `key_val_entry` | `key`, `value`, `value_content`, `value_pieces` |
 //! | `expand_cx` | `stage_chars`, `definition` |
 //! | `expander` | `depth`, `recursion_limit`, `lang`, `instantiate`, `recover`, `diagnose` |
 //! | `user_definition` | `definition`, `element_def`, `element_def_with`, `variant_for_use` |
@@ -56,28 +59,61 @@
 //! | `core/artifact` | `media_type_of` |
 //! | `lang/mint` | `arg_def_from_code` |
 //! | `lang/text` | `chars_text`, `read_chars` |
+//! | `math_passthrough` | `math_rule_named`, `environment_rule_named` |
+//! | `math_passthrough/latex` | `math_rule_named`, `environment_rule_named` |
 //! | `core/lowering` | `chars_at_lowering`, `spelling_at_lowering`, `LoweringRule::new`, `pres_tree` |
+//! | `host` | `path` |
 //! | `techy/extract` | `parse_keyval_drop_annotations` |
 //! | `lang/rewrites/blocks` | `argument_holds_blocks` |
 //! | `lang/rewrites/userdefs` | `UserDefinition::new`, `DefinitionBindings::new`, `TemplateLanguage::new`, `compile_template_with`, `ValueBindings::new`, `instantiate`, `ExtraValues::over` |
-//! | `stdcore/features/userdefs` | `element_name_under`, `expand_in_tree_rule_for`, `write_math_run` |
+//! | `stdlib/features/userdefs` | `element_name_under`, `expand_in_tree_rule_for`, `write_math_run` |
 //! | `lang/structural` | `names` |
-//! | `stdcore/backends/html` | `names` |
-//! | `stdcore/backends/lowering` | `LoweringStage::new`, `lowered_table_name` |
-//! | `stdcore/backends/pres` | `names` |
-//! | `stdcore/features/math` | `names`, `equation_lines`, `formula_display`, `environment_numbered`, `line_frames`, `number_text`, `stage_tag_content`, `environment_opening`, `line_closing`, `stage_lines`, `normalize_line_newlines`, `environment_closing`, `group_opening`, `group_closing` |
-//! | `stdcore/features/refs` | `names`, `label_fields_arg`, `label_uses`, `point_labels`, `stage_label`, `stage_label_group` |
+//! | `stdlib/backends/html` | `names` |
+//! | `stdlib/backends/lowering` | `LoweringStage::new`, `lowered_table_name`, `is_blank`, `stage_trimmed` |
+//! | `stdlib/backends/pres` | `names` |
+//! | `stdlib/features/math` | `names`, `equation_lines`, `formula_display`, `environment_numbered`, `line_frames`, `number_text`, `stage_tag_content`, `environment_opening`, `line_closing`, `stage_lines`, `normalize_line_newlines`, `environment_closing`, `group_opening`, `group_closing`, `group_tex`, `line_tex` |
+//! | `stdlib/features/refs` | `names`, `label_fields_arg`, `label_uses`, `point_labels`, `stage_label`, `stage_label_group` |
 //!
 //! # The value shapes
 //!
-//! Arguments and results cross in these shapes: a handle is
-//! `{"@handle": {"kind", "call", "index"}}`; `Option<T>` is `T` or `null`; a
-//! tuple is the list of its elements (`trees()` answers `[[id, tree], …]`,
-//! `group_delimiters()` `[open, close]`); `&[u8]` is the bytes in a form of
-//! an artifact's content, a string (its UTF-8 bytes), `{"text": text}` or
-//! `{"base64": text}`; a method answering nothing answers `null`. No number may
-//! be a floating-point one, no map key may begin with `$`, and a data map may
-//! not hold the key `@handle` or `@durable`, in either direction ([`ExtError::Value`]).
+//! Arguments and results cross in these shapes:
+//!
+//! - A handle is `{"@handle": {"kind", "call", "index"}}`.
+//! - `Option<T>` is `T` or `null`; a method that returns nothing returns
+//!   `null`.
+//! - A tuple is the list of its elements (`group_delimiters()` returns
+//!   `[open, close]`).
+//! - A *traversal* (`walk()`, `descendants()`, `trees()`) is a handle of the
+//!   kind `walk`, `descendants` or `trees`. Its method `pull` takes `[max]`
+//!   and returns the next items, at most `max` of them, fewer only at the
+//!   end; `trees()` hands over `[id, tree]` pairs. The entry keeps a copy of
+//!   the items of the last pull.
+//! - A restriction of a traversal (`elements`, `kinds`) consumes the
+//!   traversal and returns the restricted one. It takes one more trailing
+//!   argument: the number of items of the last pull that the binding has not
+//!   handed over to the extension. The restriction applies to those items and
+//!   to the items not pulled yet.
+//! - A *sequence* is a handle of the kind `rows` (`items()`), `nodes` (every
+//!   list of nodes that a method returns: `children()`, `body()`, …) or
+//!   `staged_nodes` (every list of staged nodes that a method returns:
+//!   `lower_body()`, `restage_subtree()`, …). Its map also holds its length
+//!   under `len`. Its method `get` takes `[i]` and returns the item at the
+//!   index `i`, or `null`. Its method `pull` takes `[from, max, bytes]` and
+//!   returns the items from the index `from`: at most `max` of them, and, for
+//!   rows, no more than fit in `bytes` bytes of JSON text, the first row
+//!   whatever its size.
+//! - An argument of several nodes is a sequence of nodes, or a *joined list*:
+//!   a list whose parts are nodes and sequences of nodes, read in order.
+//!   Several staged nodes (an argument, the `emit` of a handler's result, a
+//!   slot's content) are likewise a sequence of staged nodes or a joined list
+//!   of staged nodes and sequences of staged nodes. The shapes below write
+//!   either as `[staged, …]`.
+//! - `&[u8]` is the bytes in a form of an artifact's content: a string (its
+//!   UTF-8 bytes), `{"text": text}` or `{"base64": text}`.
+//!
+//! No number may be a floating-point one, no map key may begin with `$`, and
+//! a data map may not hold the key `@handle` or `@durable`, in either
+//! direction ([`ExtError::Value`]).
 //!
 //! A table read by name answers `{"ext": <handle>}`, `{"trees": <handle>}`,
 //! `{"lowered": <handle>}` (a handle of kind `lowered_trees`) or
@@ -89,8 +125,8 @@
 //!
 //! The host services' shapes: `host` takes `[name]` and answers a handle of
 //! kind `files` (the `files` service) or `host_service` (any other);
-//! `read_text` takes `[scope, path]`, the scope `"extension"` or
-//! `"document"`, and answers a text or `null`; `call` takes `[method, args]`
+//! `read_text` takes `[path]`, a qualified path, and answers a text or
+//! `null`; `call` takes `[method, args]`
 //! and answers data.
 //!
 //! The citation providers' shapes: `parse_entry` takes `[source, origin]`
@@ -102,24 +138,28 @@
 //! and answers one item per request, `null`, `{"error": text}` or
 //! `{"entry", "identity", "warnings"}`
 //! ([`citation_results_from_value`](crate::adapter::values::citation_results_from_value)).
-//! A template module's `describe` answers `{"output", "accepts",
-//! "requires", "config"}`
+//! A template module's `describe` answers `{"accepts", "requires",
+//! "config"}`
 //! ([`template_description_from_value`](crate::adapter::values::template_description_from_value)),
 //! its `files` a list of `{"name", "extension", "media_type", "text"}` or
-//! `{"name", "file", "scope", "media_type"}`
+//! `{"name", "file", "media_type"}`, `file` a qualified path (`self:img/logo.svg`)
 //! ([`template_files_from_value`](crate::adapter::values::template_files_from_value)),
 //! and both `files` and `render` receive the data of
 //! [`template_context_to_value`](crate::adapter::values::template_context_to_value).
 //!
 //! The lowering façade's own shapes: an address is `{"tree", "node"}`
 //! (answered, never read back); a staged node is a handle of kind `staged`;
+//! in a tree of `pres_tree`, `{"build": staged}` takes one staged node or
+//! several, each placed in order, and `pres_tree` answers a sequence of
+//! staged nodes;
 //! `get_at` takes `[name, node]` and answers the items of the extension's
 //! table `name` at that node ([`ExtTableRead::items_at`](crate::api::core::data::table::ExtTableRead::items_at),
 //! no `flm-core` counterpart), or `null` when the table is absent;
 //! `pres_slots` takes its slots as `[[name, [staged, …]], …]`;
 //! `LoweringRule::new` takes `[name, element, decl, body, mark]`, the
 //! declaration as `{"requires", "reads", "reads_opt", "options", "produces",
-//! "selection_requires"}` (lists of names, each optional), the body a handle
+//! "selection_requires", "unchecked_output"}` (lists, each optional: of names,
+//! and for `unchecked_output` of `{"backend", "written", "reader"}`), the body a handle
 //! of kind `lower`, the mark `"everywhere"`, `"never"` or `{"on_backends":
 //! [...]}`; `pres_tree` takes `[lowerer, cx, tree]`, the tree as
 //! [`pres_tree_from_value`](crate::adapter::values::pres_tree_from_value) reads it.
@@ -167,7 +207,7 @@
 //! `presentation_element` takes `[name, docs]`; `backend` takes `[{"name",
 //! "native": [name, …], "lowering", "emit", "final_stage", "docs"}]`, each
 //! stage a handle of kind `library_stage` (`LoweringStage::new` on the module
-//! `stdcore/backends/lowering` answers one) or `stage`, `docs` optional
+//! `stdlib/backends/lowering` answers one) or `stage`, `docs` optional
 //! ([`backend_def_from_table`](crate::adapter::values::backend_def_from_table));
 //! `output` takes `[{"name", "capability", "table", "media_type",
 //! "extension", "docs"}]`, `docs` optional; `peer_table`, `peer_backend`, `peer_element` and
@@ -179,7 +219,7 @@
 //! or `{"Expand": h}`, `{"Referenceable": h}`, `{"Sectioning": h}` with a
 //! handle of the kind its key names
 //! ([`aspect_from_value`](crate::adapter::values::aspect_from_value));
-//! `collection_member` takes `[collection, member]`; `argument_role` takes
+//! `collection_member` takes `[collection, member]`; `element_type_text` and `argument_role` take
 //! `[name, docs]`; `peer_argument_role` takes `[name]`; `scoped_package` takes
 //! `[{"name", "elements": [declaration, …], "docs"}]`, each declaration
 //! read as `element` reads one; `late_init` and `finalizer` take a handle of
@@ -194,7 +234,7 @@
 //! a list of them and answers `[labels, malformed]`, a malformed label
 //! `{"text", "span", "position"}`; `stage_label` takes `[cx, lw, text,
 //! label | null]` and answers a staged node; `stage_label_group` takes `[cx,
-//! lw, [staged, …], empty_group]` and answers a list of staged nodes. A
+//! lw, [staged, …], empty_group]` and answers a sequence of staged nodes. A
 //! reference point a script's `Referenceable` answers is read by
 //! [`ref_point_from_value`](crate::adapter::aspects::ref_point_from_value).
 //!
@@ -205,7 +245,7 @@
 //! stage's; the handler answers `"descend"` or `{"emit": [staged, …]}`
 //! ([`restage_from_value`](crate::adapter::values::restage_from_value)). The
 //! arguments, in order: `restage_subtree` and `restage_children` take
-//! `[node]` and answer a list of staged nodes; `restage_argument` and
+//! `[node]` and answer a sequence of staged nodes; `restage_argument` and
 //! `restage_slot` take `[node, index]`, `restage_argument_named`
 //! `[node, name]`, and answer a handle of kind `restaged_argument` or
 //! `restaged_slot`; `restage_argument_with_content` and
@@ -219,11 +259,14 @@
 //!
 //! The `math` library's shapes: the parts that stage, and `write_math_run`,
 //! take `[cx, lw, x]` (the context, the lowerer, then a node, a frame, a
-//! list of frames or a list of nodes) and answer a list of staged nodes;
+//! list of frames or several nodes) and answer a sequence of staged nodes;
 //! `line_frames` takes `[reader, anchors, counters, node]`, `reader` a handle
 //! of kind `stage_cx` or `lowerer` and the two flags booleans;
 //! `normalize_line_newlines` takes `[content, after_line_end, inner]` and
-//! answers `{"text", "trailing"}`; a line is
+//! answers `{"text", "trailing"}`; `group_tex` takes `[node]` and answers a
+//! list of parts, each `{"tex": text}` or `{"hole": {"command", "node"}}` (the
+//! node a handle), and `line_tex` takes `[content, after_line_end]`, `content`
+//! several nodes, and answers `{"parts": [part, …], "trailing"}`; a line is
 //! [`equation_line_to_value`](crate::adapter::values::equation_line_to_value)'s shape and a frame
 //! [`line_frame_to_value`](crate::adapter::values::line_frame_to_value)'s.
 
@@ -406,9 +449,9 @@ pub(crate) mod extra {
     use crate::api::lang::rewrites::userdefs;
     use crate::api::lang::BuiltLang;
     use crate::api::model::aspects::PointId;
-    use crate::api::stdcore::features::math;
-    use crate::api::stdcore::features::numbering::{CounterRecord, Counters, FormatOptions, NumberSegment};
-    use crate::api::stdcore::features::refs::Anchors;
+    use crate::api::stdlib::features::math;
+    use crate::api::stdlib::features::numbering::{CounterRecord, Counters, FormatOptions, NumberSegment};
+    use crate::api::stdlib::features::refs::Anchors;
     use crate::api::techy::node::{Node, Tree};
     use crate::adapter::durable::DurableTemplateFacade;
     use crate::runtime::ExtError;
@@ -810,7 +853,7 @@ pub(crate) mod extra {
     /// function of the module.
     pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
         match (path, method) {
-            ("stdcore/features/math", "line_frames") => {
+            ("stdlib/features/math", "line_frames") => {
                 args.arity(4)?;
                 let (anchors, counters) = (args.flag(1)?, args.flag(2)?);
                 let node = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 3)?;

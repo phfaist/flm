@@ -1,0 +1,23 @@
+===== check =====
+Warning flm.refs.unresolved {"label":"thm:missing"} — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof {"kind":"theorem","label":"thm:alone","label_type":"thm","proof_kind":"proof"} — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref {"environment":"proof"} — at `*nolabel`
+===== text =====
+Error flm.refs.unresolved {"label":"thm:missing"} — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof {"kind":"theorem","label":"thm:alone","label_type":"thm","proof_kind":"proof"} — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref {"environment":"proof"} — at `*nolabel`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.refs.unresolved {"label":"thm:missing"} — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof {"kind":"theorem","label":"thm:alone","label_type":"thm","proof_kind":"proof"} — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref {"environment":"proof"} — at `*nolabel`
+===== latex-recomposed, authored =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.refs.unresolved {"label":"thm:missing"} — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof {"kind":"theorem","label":"thm:alone","label_type":"thm","proof_kind":"proof"} — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref {"environment":"proof"} — at `*nolabel`
+===== latex-recomposed, resolved =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.refs.unresolved {"label":"thm:missing"} — at `\begin{proof}[*thm:missing]\nA back-reference naming nothing.`
+Warning flm.theorems.missing-proof {"kind":"theorem","label":"thm:alone","label_type":"thm","proof_kind":"proof"} — at `\begin{theorem}\label{thm:alone}\nA theorem no proof refers b`
+Error flm.theorems.bad-relation-ref {"environment":"proof"} — at `*nolabel`

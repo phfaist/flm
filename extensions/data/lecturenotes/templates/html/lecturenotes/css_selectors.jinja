@@ -1,0 +1,23 @@
+{# The value `css_selectors`, computed from the settings `top_heading_level` (T) and
+`navigation_heading_level` (N), and brought into the page, the shipped stylesheet and the
+fragment by `{% from "css_selectors.jinja" import css_selectors %}`; this file writes
+nothing. `css_selectors.headings` holds one condition on a heading's level per group of
+headings: `top` (the level T), `major` (the level N or above it, a level of at most N),
+`navigation` (the level N) and `minor` (below the level N, a level greater than N). Each
+value begins with `[` or `:`; written directly after a selector, with no space, it narrows
+the selector, and it is a valid selector by itself. It matches the headings of the content
+and the entries of the table of contents, which both carry their level in the attribute
+`data-flm-level`. #}
+{% set level = '[data-flm-level="' %}
+{% set top = config.top_heading_level %}
+{% set navigation = config.navigation_heading_level %}
+{# The levels 0 to N, as one list of conditions separated by commas. #}
+{% set at_most_navigation = level ~ (range(navigation + 1) | join('"], ' ~ level)) ~ '"]' %}
+{% set css_selectors = {
+  "headings": {
+    "top": level ~ top ~ '"]',
+    "major": ":is(" ~ at_most_navigation ~ ")",
+    "navigation": level ~ navigation ~ '"]',
+    "minor": "[data-flm-level]:not(" ~ at_most_navigation ~ ")"
+  }
+} %}

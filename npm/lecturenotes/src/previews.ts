@@ -135,18 +135,42 @@ const HEADING = '.flm-pres-block--heading';
 const BLOCKS = '.flm-pres-par, .flm-pres-block, li, figure, figcaption, blockquote';
 /** The elements that are inline: a target of one of these is shown in its enclosing block. */
 const INLINE_TAGS = new Set(['SPAN', 'A', 'EM', 'STRONG', 'SUP']);
+/**
+ * A formula: the outermost element of a formula carries FLM's mark of a
+ * formula, the class `flm-math-formula`, whichever math processor wrote it and
+ * however (TeX for a renderer in the browser, MathML, text). A target inside a
+ * formula (an equation's line, say) is shown in its enclosing block, as an
+ * inline target is; a preview that cuts text keeps a formula whole or leaves it
+ * out whole, and a formula's text is not words.
+ */
+const FORMULA = '.flm-math-formula';
 /** How many siblings after a heading its preview shows at most. */
 export const HEADING_SIBLINGS = 3;
 /** How many entries a citation's preview lists at most. */
 export const MAX_ENTRIES = 8;
+/**
+ * How many characters of its block the preview of an inline target keeps at
+ * most before the target and after it; the text beyond is left out, cut at a
+ * word, and an ellipsis marks the cut.
+ */
+export const CONTEXT_BEFORE = 300;
+export const CONTEXT_AFTER = 200;
+/**
+ * How many characters the preview of an inline target keeps at most of the
+ * paragraph of text before its block, when no words precede the target in its
+ * block, and of the one after it, when no words follow (an equation that ends
+ * its paragraph, or stands as a paragraph of its own).
+ */
+export const NEIGHBOR_BEFORE = 160;
+export const NEIGHBOR_AFTER = 100;
 
 /**
  * The elements a preview of `target` copies, in order:
  * - a heading: the heading and up to three following siblings, until the next heading;
  * - a list entry: the entry;
- * - an inline element: the nearest enclosing block (a paragraph, a block, a
- *   list entry, a figure, a caption, a quotation), or the target itself when
- *   there is none;
+ * - an inline element, or an element inside a formula: the nearest enclosing
+ *   block (a paragraph, a block, a list entry, a figure, a caption, a
+ *   quotation), or the target itself when there is none;
  * - anything else: the target itself.
  */
 export function previewElements(target: Element): Element[] {
@@ -159,8 +183,152 @@ export function previewElements(target: Element): Element[] {
     }
     return out;
   }
-  if (target.tagName === 'LI' || !INLINE_TAGS.has(target.tagName)) return [target];
+  if (target.tagName === 'LI' || !isInline(target)) return [target];
   return [target.closest(BLOCKS) ?? target];
+}
+
+/** Whether a target is shown in its enclosing block: an inline element, or an element inside a formula. */
+function isInline(target: Element): boolean {
+  return INLINE_TAGS.has(target.tagName) || target.closest(FORMULA) !== null;
+}
+
+// ── The context around an inline target ────────────────────────────────────
+
+/** The positions of `node` inside `ancestor`: the index among its parent's child nodes at each level. */
+function pathTo(ancestor: Node, node: Node): number[] {
+  const path: number[] = [];
+  for (let n = node; n !== ancestor && n.parentNode !== null; n = n.parentNode) {
+    path.unshift(Array.prototype.indexOf.call(n.parentNode.childNodes, n));
+  }
+  return path;
+}
+
+/** The node at the positions `path` inside `root`. */
+function nodeAt(root: Node, path: readonly number[]): Node {
+  let n = root;
+  for (const i of path) n = n.childNodes[i];
+  return n;
+}
+
+/**
+ * Text cut to at most `budget` characters at a word: the end of `text` for
+ * the side `before` (the text nearest what follows it), the beginning for the
+ * side `after`.
+ */
+export function cutText(text: string, budget: number, side: 'before' | 'after'): string {
+  if (text.length <= budget) return text;
+  if (side === 'before') {
+    const start = text.length - budget;
+    const kept = text.slice(start);
+    if (/\s/.test(text[start - 1])) return kept.trimStart();
+    const space = kept.search(/\s/);
+    return space === -1 ? '' : kept.slice(space).trimStart();
+  }
+  const kept = text.slice(0, budget);
+  if (/\s/.test(text[budget])) return kept.trimEnd();
+  const space = kept.search(/\s\S*$/);
+  return space === -1 ? '' : kept.slice(0, space).trimEnd();
+}
+
+/**
+ * Keeps at most `budget` characters of the nodes of `parent` on one side of
+ * the child at `at` (before it, from the nearest, or after it: `at` may be
+ * the number of children, or -1, to keep the end or the beginning of `parent`);
+ * the nodes beyond the budget are left out. A text node is cut at a word; an
+ * element is entered, except a formula, which is kept whole or left out whole.
+ * Returns whether anything was left out.
+ */
+function keepSide(parent: Node, at: number, budget: number, side: 'before' | 'after'): boolean {
+  const nodes = Array.from(parent.childNodes);
+  const beyond = side === 'before' ? nodes.slice(0, at).reverse() : nodes.slice(at + 1);
+  let left = budget;
+  let cut = false;
+  for (const node of beyond) {
+    const length = (node.textContent ?? '').length;
+    if (cut) {
+      (node as ChildNode).remove();
+    } else if (length <= left) {
+      left -= length;
+    } else {
+      cut = true;
+      if (node.nodeType === 3) node.textContent = cutText(node.textContent ?? '', left, side);
+      else if ((node as Element).matches(FORMULA)) (node as ChildNode).remove();
+      else keepSide(node, side === 'before' ? node.childNodes.length : -1, left, side);
+    }
+  }
+  return cut;
+}
+
+/** An ellipsis marking where a preview leaves text out. */
+function cutMark(doc: Document, text: string): Element {
+  const span = doc.createElement('span');
+  span.className = 'ln-preview-cut';
+  span.textContent = text;
+  return span;
+}
+
+/** Whether a node holds words outside its formulas (not only spaces and punctuation); a formula holds none. */
+function hasWords(node: Node): boolean {
+  let copy = node;
+  if (node.nodeType === 1) {
+    if ((node as Element).matches(FORMULA)) return false;
+    copy = node.cloneNode(true);
+    (copy as Element).querySelectorAll(FORMULA).forEach((formula) => formula.remove());
+  }
+  return /[\p{L}\p{N}]/u.test(copy.textContent ?? '');
+}
+
+/** Whether `element` is a paragraph of text: a paragraph with words outside its formulas. */
+function isTextParagraph(element: Element | null): element is Element {
+  return element !== null && element.matches('.flm-pres-par') && hasWords(element);
+}
+
+/**
+ * A copy of the paragraph of text `paragraph`, cut to its end (`before`, for
+ * the paragraph before a target) or to its beginning (`after`), at most
+ * `budget` characters, with an ellipsis at the cut.
+ */
+function neighborCopy(paragraph: Element, side: 'before' | 'after', budget: number, doc: Document): Element {
+  const copy = paragraph.cloneNode(true) as Element;
+  const at = side === 'before' ? copy.childNodes.length : -1;
+  if (keepSide(copy, at, budget, side)) {
+    if (side === 'before') copy.insertBefore(cutMark(doc, '\u2026 '), copy.firstChild);
+    else copy.appendChild(cutMark(doc, ' \u2026'));
+  }
+  return copy;
+}
+
+/**
+ * Cuts the copy `block` of an inline target's block around `focus`, the part
+ * of the copy that holds the target (the block's child that holds it, a whole
+ * formula for an equation): at most `before` characters are kept before it and
+ * `after` after it, and an ellipsis (`span.ln-preview-cut`) stands at each cut.
+ */
+export function cutAround(block: Element, focus: Node, doc: Document, before = CONTEXT_BEFORE, after = CONTEXT_AFTER): void {
+  const at = Array.prototype.indexOf.call(block.childNodes, focus);
+  if (at === -1) return;
+  if (keepSide(block, at, before, 'before')) block.insertBefore(cutMark(doc, '\u2026 '), block.firstChild);
+  if (keepSide(block, Array.prototype.indexOf.call(block.childNodes, focus), after, 'after')) {
+    block.appendChild(cutMark(doc, ' \u2026'));
+  }
+}
+
+/**
+ * The paragraphs of text shown around the block of an inline target, the
+ * block's child at `at`: the end of the paragraph of text just before the
+ * block, when no words precede the target in its block, and the beginning of
+ * the one just after, when no words follow it; each when there is one.
+ */
+export function neighbors(block: Element, at: number, doc: Document): { before: Element | null; after: Element | null } {
+  const nodes = Array.from(block.childNodes);
+  const previous = block.previousElementSibling;
+  const next = block.nextElementSibling;
+  return {
+    before: !nodes.slice(0, at).some(hasWords) && isTextParagraph(previous)
+      ? neighborCopy(previous, 'before', NEIGHBOR_BEFORE, doc) : null,
+    after: !nodes.slice(at + 1).some(hasWords) && isTextParagraph(next)
+      ? neighborCopy(next, 'after', NEIGHBOR_AFTER, doc) : null,
+  };
 }
 
 /** The texts the popup writes. */
@@ -184,13 +352,18 @@ export function cleanCopy(copy: Element): void {
  * elements to show (a list entry inside a copy of its list, without the
  * list's other entries); `null` when the link points to nothing on the page.
  * A citation's preview lists the first eight entries and a line saying how many
- * more there are.
+ * more there are. An inline target's block is cut around the target
+ * (`cutAround`); on a side where no words stand beside the target in its
+ * block, the paragraph of text next to the block is shown in part too
+ * (`neighbors`).
  */
 export function buildPreview(link: Element, doc: Document): HTMLElement | null {
   const id = linkTarget(link);
   if (id === null) return null;
   let elements: Element[];
   let more = 0;
+  // For an inline target: the position, in its block, of the block's child that holds it.
+  let focus: number[] | null = null;
   if (link.getAttribute('data-flm-kind') === 'cite') {
     const entries = citationEntries(link, doc);
     elements = entries.slice(0, MAX_ENTRIES);
@@ -199,6 +372,9 @@ export function buildPreview(link: Element, doc: Document): HTMLElement | null {
     const target = doc.getElementById(id);
     if (target === null) return null;
     elements = previewElements(target);
+    if (elements.length === 1 && elements[0] !== target && elements[0].contains(target)) {
+      focus = pathTo(elements[0], target).slice(0, 1);
+    }
   }
   if (elements.length === 0) return null;
 
@@ -206,8 +382,10 @@ export function buildPreview(link: Element, doc: Document): HTMLElement | null {
   content.className = 'ln-preview-content';
   let list: Element | null = null;
   let listOf: Element | null = null;
+  const copies: Element[] = [];
   for (const element of elements) {
     const copy = element.cloneNode(true) as Element;
+    copies.push(copy);
     const parent = element.parentElement;
     if (element.tagName === 'LI' && parent !== null) {
       if (list === null || listOf !== parent) {
@@ -221,6 +399,13 @@ export function buildPreview(link: Element, doc: Document): HTMLElement | null {
       listOf = null;
       content.appendChild(copy);
     }
+  }
+  if (focus !== null) {
+    const copy = copies[0];
+    const around = neighbors(elements[0], focus[0], doc);
+    cutAround(copy, nodeAt(copy, focus), doc);
+    if (around.before !== null) copy.parentNode?.insertBefore(around.before, copy);
+    if (around.after !== null) copy.parentNode?.insertBefore(around.after, copy.nextSibling);
   }
   if (more > 0) {
     const line = doc.createElement('p');
@@ -287,29 +472,15 @@ export const CLICK_GUARD_MS = 700;
 /** How far a touch may move and still count as a long press, in pixels. */
 export const PRESS_TOLERANCE_PX = 10;
 
-/** The part of MathJax's interface the popup uses. */
-export interface MathJaxLike {
-  typesetPromise?: (elements: Element[]) => Promise<unknown>;
-  typesetClear?: (elements: Element[]) => void;
-  startup?: { promise?: Promise<unknown> };
-}
-
 /**
- * Typesets the formulas of `popup`. When MathJax has a startup promise, the
- * call is chained after it (as the library's `mathjax-config.js` does), so that
- * it never runs alongside the page's own typesetting or a previous popup's,
- * and the chain is stored back. A failure ends the chain without an error.
+ * The event the popup dispatches on its content once the content is in the
+ * page, `flm:content-copied`: FLM's convention for a copy of part of the page
+ * (the rendering guide's "A page updated in place"). A script of the page that
+ * transforms elements, such as the formula renderer's configuration, completes
+ * what the copy needs: a formula that MathJax had not typeset yet when it was
+ * copied, say. The popup knows nothing of those scripts.
  */
-export function typesetPopup(mathJax: MathJaxLike, popup: Element): Promise<void> {
-  const typeset = mathJax.typesetPromise;
-  if (typeset === undefined) return Promise.resolve();
-  const run = () => typeset.call(mathJax, [popup]);
-  const startup = mathJax.startup;
-  const work = startup?.promise !== undefined ? startup.promise.then(run) : run();
-  const chain = work.then(() => undefined, () => undefined);
-  if (startup?.promise !== undefined) startup.promise = chain;
-  return chain;
-}
+export const CONTENT_COPIED_EVENT = 'flm:content-copied';
 
 /** The part of an element `positionPopup` uses. */
 export interface Placeable {
@@ -350,6 +521,8 @@ export class Previews {
   private popup: HTMLElement | null = null;
   /** The link whose preview the popup shows. */
   private shownFor: Element | null = null;
+  /** The popup's size when it was last placed. */
+  private placed = { width: 0, height: 0 };
   private showTimer = 0;
   private pendingFor: Element | null = null;
   private hideTimer = 0;
@@ -509,8 +682,20 @@ export class Previews {
       this.popup = this.doc.createElement('div');
       this.popup.className = POPUP_CLASS;
       this.doc.body.appendChild(this.popup);
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.onResize()).observe(this.popup);
     }
     return this.popup;
+  }
+
+  /**
+   * Places the popup again when its size changed since it was placed: a
+   * script typeset a formula in it, an image loaded.
+   */
+  private onResize(): void {
+    const popup = this.popup;
+    if (popup === null || this.shownFor === null) return;
+    if (popup.offsetWidth === this.placed.width && popup.offsetHeight === this.placed.height) return;
+    this.place(this.shownFor);
   }
 
   /** Shows the preview of `link` now. */
@@ -519,20 +704,12 @@ export class Previews {
     const content = buildPreview(link, this.doc);
     if (content === null) return;
     const popup = this.getPopup();
-    const mathJax = (window as unknown as { MathJax?: MathJaxLike }).MathJax;
-    mathJax?.typesetClear?.([popup]);
     popup.replaceChildren(content);
     popup.scrollTop = 0;
     popup.classList.add('ln-preview-shown');
     this.shownFor = link;
     this.place(link);
-    const untypeset = Array.from(popup.querySelectorAll('.flm-pres-math--source'))
-      .some((formula) => formula.querySelector('mjx-container') === null);
-    if (untypeset && mathJax !== undefined) {
-      void typesetPopup(mathJax, popup).then(() => {
-        if (this.shownFor === link) this.place(link);
-      });
-    }
+    content.dispatchEvent(new CustomEvent(CONTENT_COPIED_EVENT, { bubbles: true }));
   }
 
   private place(link: Element): void {
@@ -541,6 +718,7 @@ export class Previews {
     const view = this.doc.documentElement;
     positionPopup(popup, link.getBoundingClientRect(), view.clientWidth, view.clientHeight,
       window.scrollX, window.scrollY);
+    this.placed = { width: popup.offsetWidth, height: popup.offsetHeight };
   }
 }
 

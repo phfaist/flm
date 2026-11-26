@@ -12,9 +12,9 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::citations::latex_rendered::PIECE;
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::citations::latex_rendered::PIECE;
+use flm_core::stdlib::features::citations::{
     CitationPlacement, CitationProvider, CitationsConfig, MarkForm,
 };
 
@@ -33,7 +33,7 @@ const WORKS: &[(&str, &str)] = &[
 /// [`WORKS`].
 fn registry(config: CitationsConfig) -> Arc<FlmRegistry> {
     let provider: Arc<dyn CitationProvider> = Arc::new(FromMap::of(WORKS));
-    common::citations::registry_with(StdcoreConfig::new().citations(config), vec![provider])
+    common::citations::registry_with(StdlibConfig::new().citations(config), vec![provider])
 }
 
 /// The worked example of the HTML tests, every work known.

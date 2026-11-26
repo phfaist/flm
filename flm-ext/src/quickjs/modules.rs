@@ -7,13 +7,30 @@
 //! | Kind | Module name | Example |
 //! |---|---|---|
 //! | a module of the prelude | `flm:` and its path | `flm:core/stage`, `flm:_runtime`, `flm:_entry` |
-//! | a module of the extension | `./` and its normalized path inside the extension | `./main.js`, `./src/helpers.js` |
+//! | a module of the extension | `./` and its path inside the extension ([`module_path`]), which is also the property `path` of its `import.meta` | `./main.js`, `./src/helpers.js` |
 //! | a module the host offers | its name, a bare name | `lodash`, `mathjax/core` |
 //!
 //! No name of one kind can be a name of another: a host module's name holds
 //! no `:` and does not begin with `.` or `/` ([`JsHost::with_module`]).
 //! The main module is also reached as `flm:_main`, the one name the entry
 //! module imports it by.
+//!
+//! # The path of a module of the extension
+//!
+//! A module of the extension is named by JavaScript's rule for an import's
+//! specifier: a relative specifier is resolved as a relative web address is,
+//! against the importing module's path ([`module_path`]): its names are
+//! joined to the importer's folder, as text, a `.` name and an empty name are
+//! left out, and a `..` takes off the name before it; a `..` with no name
+//! before it, which would climb above the extension's folder, is refused.
+//! `/` separates the names, and every other character, `\` included,
+//! belongs to a name: `./~/x.js` names the file `x.js` of the folder `~` of
+//! the importer's folder. Two specifiers that resolve to one path are one
+//! module, read through the extension's files by its path relative to the
+//! extension's folder. The main module's path (`extension.js.main`) is a
+//! path of the manifest, which the engine reads through the extension's
+//! files as written; the main module is named by the rule above, from the
+//! extension's folder, so that an import of it is the same module.
 //!
 //! # The module source
 //!
@@ -46,8 +63,7 @@ use rquickjs::loader::{ImportAttributes, Loader, Resolver};
 use rquickjs::module::Declared;
 use rquickjs::{Ctx, Error, Exception, Module, Persistent, Value};
 
-use crate::paths::{self, PathErrorKind};
-use crate::source::ExtensionFiles;
+use crate::source::{ExtensionFiles, FilesError, FilesErrorKind};
 
 /// The name of the prelude's helper module.
 pub(crate) const RUNTIME: &str = "flm:_runtime";
@@ -92,18 +108,84 @@ fn prelude_source(name: &str) -> Option<&'static str> {
     }
 }
 
+/// Why a path cannot name a module ([`module_path`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Unnamed {
+    /// The path begins with `/`.
+    Absolute,
+    /// A `..` of the path has no name before it to take off: it climbs above
+    /// the extension's folder (or, for a module the program offers, above
+    /// the root of the names).
+    Above,
+}
+
+/// The path that `path`, written in the module at `base` (a path that this
+/// function answered, or the empty text for the extension's folder), names,
+/// by JavaScript's rule for a relative specifier ([module
+/// documentation](self#the-path-of-a-module-of-the-extension)): `path`
+/// joined to the folder of `base` (the text before its last `/`), its `.`
+/// and empty names left out, each `..` taking off the name before it
+/// (`./src/../main.js` from the folder is `main.js`; `../lib/x.js` from
+/// `src/main.js` is `lib/x.js`).
+///
+/// # Errors
+///
+/// [`Unnamed::Absolute`] for a `path` beginning with `/`;
+/// [`Unnamed::Above`] for a `..` with no name before it.
+pub(crate) fn module_path(base: &str, path: &str) -> Result<String, Unnamed> {
+    if path.starts_with('/') {
+        return Err(Unnamed::Absolute);
+    }
+    let folder = base.rsplit_once('/').map_or("", |(folder, _)| folder);
+    let mut names: Vec<&str> = Vec::new();
+    for name in folder.split('/').chain(path.split('/')) {
+        match name {
+            "" | "." => {}
+            ".." => {
+                names.pop().ok_or(Unnamed::Above)?;
+            }
+            name => names.push(name),
+        }
+    }
+    Ok(names.join("/"))
+}
+
+/// The text of the module of the extension at `path` (a path [`module_path`]
+/// answered), read through `files`: the module's name (`./` and `path`),
+/// relative to the extension's folder.
+///
+/// # Errors
+///
+/// The [`FilesError`] of the read.
+pub(crate) fn read_module(files: &dyn ExtensionFiles, path: &str) -> Result<Option<String>, FilesError> {
+    files.read_text("", &format!("{EXTENSION_PREFIX}{path}"))
+}
+
+/// What a message says of a module's file that [`read_module`] could not
+/// read: "leads outside the extension's folder through a symbolic link",
+/// "names no file on this system: " and the reason, or "cannot be read: " and
+/// the reading's text.
+pub(crate) fn unread(error: FilesError) -> String {
+    match error.kind {
+        FilesErrorKind::Link => String::from("leads outside the extension's folder through a symbolic link"),
+        FilesErrorKind::NoSystemForm(reason) => format!("names no file on this system: {reason}"),
+        FilesErrorKind::Unreadable(detail) => format!("cannot be read: {detail}"),
+        FilesErrorKind::Absolute | FilesErrorKind::Above => format!("cannot be read: {error}"),
+    }
+}
+
 /// The state the resolver and the loader of one engine instance share.
 pub(crate) struct ModuleState {
     /// The extension's stem, for the messages.
     stem: String,
-    /// The main module's normalized path.
+    /// The main module's path ([`module_path`]).
     main: String,
     /// The host's modules.
     host: BTreeMap<String, Arc<str>>,
     /// The files mode: the extension's files, held until the binding closes
     /// the resolver and takes them back.
     files: Option<Box<dyn ExtensionFiles>>,
-    /// The extension's modules known so far: normalized path → text. In the
+    /// The extension's modules known so far: path ([`module_path`]) → text. In the
     /// files mode it starts with the main module and grows as the resolver
     /// reads; in the recorded mode it is the recorded set and never grows.
     recorded: BTreeMap<String, Arc<str>>,
@@ -177,7 +259,7 @@ impl ModuleState {
         })
     }
 
-    /// The extension's modules known: normalized path → text.
+    /// The extension's modules known: path ([`module_path`]) → text.
     pub(crate) fn recorded(&self) -> &BTreeMap<String, Arc<str>> {
         &self.recorded
     }
@@ -221,9 +303,7 @@ impl ModuleState {
         if name.starts_with("./") || name.starts_with("../") || name == "." || name == ".." {
             return self.resolve_relative(&who, base, name);
         }
-        let bytes = name.as_bytes();
-        let drive = bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':';
-        if name.starts_with('/') || name.starts_with('\\') || drive {
+        if name.starts_with('/') {
             return Err(format!(
                 "{who} imports `{name}`, which is an absolute path; a module of the extension is imported by a path \
                  beginning with `./` or `../`"
@@ -247,31 +327,19 @@ impl ModuleState {
         }
     }
 
-    /// A relative specifier: joined to the importing module's path, among
-    /// the extension's modules or the host's.
+    /// A relative specifier: joined to the importing module's path
+    /// ([`module_path`]), among the extension's modules or the host's.
     fn resolve_relative(&mut self, who: &str, base: &str, name: &str) -> Result<String, String> {
         if let Some(importer) = base.strip_prefix(EXTENSION_PREFIX) {
-            let path = match paths::join(importer, name) {
-                Ok(path) => path,
-                Err(error) if error.kind == PathErrorKind::LeavesRoot => {
-                    return Err(format!("{who} imports `{name}`, which leaves the extension's folder"));
-                }
-                Err(error) if error.kind == PathErrorKind::Backslash => {
-                    return Err(format!("{who} imports `{name}`, which holds `\\`; a path inside the extension uses `/`"));
-                }
-                Err(_) => {
-                    return Err(format!(
-                        "{who} imports `{name}`, which is an absolute path; a module of the extension is imported by \
-                         a path beginning with `./` or `../`"
-                    ));
-                }
+            let Ok(path) = module_path(importer, name) else {
+                return Err(format!("{who} imports `{name}`, which leaves the extension's folder"));
             };
             if path.is_empty() {
                 return Err(format!("{who} imports `{name}`, which names the extension's folder, not a file"));
             }
             if !self.recorded.contains_key(&path) {
                 let read = match &self.files {
-                    Some(files) => files.read_text(&path),
+                    Some(files) => read_module(files.as_ref(), &path),
                     None => Ok(None),
                 };
                 match read {
@@ -282,14 +350,14 @@ impl ModuleState {
                         return Err(format!("{who} imports `{name}`, and the extension holds no file `{path}`"));
                     }
                     Err(error) => {
-                        return Err(format!("{who} imports `{name}`, and the file `{path}` cannot be read: {error}"));
+                        return Err(format!("{who} imports `{name}`, and the file `{path}` {}", unread(error)));
                     }
                 }
             }
             return Ok(format!("{EXTENSION_PREFIX}{path}"));
         }
         let from_host = self.host.contains_key(base);
-        let joined = paths::join(base, name).ok().filter(|joined| from_host && self.host.contains_key(joined));
+        let joined = module_path(base, name).ok().filter(|joined| from_host && self.host.contains_key(joined));
         if let Some(joined) = joined {
             return Ok(joined);
         }
@@ -342,7 +410,9 @@ impl Resolver for ModuleResolver {
 
 /// The loader of an engine instance: declares the module the resolver
 /// answered, from the prelude's constant, the host's source or the recorded
-/// text.
+/// text. A module of the extension gets the property `path` of its
+/// `import.meta`: its path inside the extension ([`module_path`]), which
+/// `path(import.meta, relative)` of `flm:host` joins a relative path to.
 pub(crate) struct ModuleLoader(pub SharedState);
 
 impl Loader for ModuleLoader {
@@ -355,10 +425,12 @@ impl Loader for ModuleLoader {
         // The borrow ends before the declaration, which resolves the module's
         // own imports through the resolver.
         let source = self.0.borrow().source(name);
-        match source {
-            Some(source) => Module::declare(ctx.clone(), name, source.as_bytes()),
-            None => Err(Error::new_loading(name)),
+        let Some(source) = source else { return Err(Error::new_loading(name)) };
+        let module = Module::declare(ctx.clone(), name, source.as_bytes())?;
+        if let Some(path) = name.strip_prefix(EXTENSION_PREFIX) {
+            module.meta()?.set("path", path)?;
         }
+        Ok(module)
     }
 }
 
@@ -385,9 +457,20 @@ mod tests {
         assert_eq!(state.resolve("./src/main.js", "lib"), Ok("lib".to_string()));
         assert_eq!(state.resolve("lib/core", "./util"), Ok("lib/util".to_string()));
         assert_eq!(state.recorded().keys().collect::<Vec<_>>(), ["b.js", "src/a.js", "src/main.js"]);
-        assert!(state.resolve("./src/main.js", "../../x.js").unwrap_err().ends_with("which leaves the extension's folder"));
-        assert!(state.resolve("./src/main.js", "./c.js").unwrap_err().ends_with("holds no file `src/c.js`"));
+        assert!(state.resolve("./src/main.js", "../../x.js").is_err());
+        assert!(state.resolve("./src/main.js", "./c.js").is_err());
         state.close();
-        assert!(state.resolve("./src/main.js", "./a.js").unwrap_err().contains("calls `import(\"./a.js\")`"));
+        assert!(state.resolve("./src/main.js", "./a.js").is_err());
+    }
+
+    #[test]
+    fn a_module_path_is_resolved_as_a_relative_web_address() {
+        assert_eq!(module_path("", "./src/../main.js"), Ok("main.js".to_string()));
+        assert_eq!(module_path("", "main.js"), Ok("main.js".to_string()));
+        assert_eq!(module_path("src/main.js", "./a//b.js"), Ok("src/a/b.js".to_string()));
+        assert_eq!(module_path("src/main.js", "../lib/x.js"), Ok("lib/x.js".to_string()));
+        assert_eq!(module_path("src/main.js", "./a\\b.js"), Ok("src/a\\b.js".to_string()));
+        assert_eq!(module_path("src/main.js", "../../x.js"), Err(Unnamed::Above));
+        assert_eq!(module_path("", "/main.js"), Err(Unnamed::Absolute));
     }
 }

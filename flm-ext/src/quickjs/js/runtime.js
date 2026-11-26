@@ -21,6 +21,70 @@ export class Handle {
   toJSON() { return { "@handle": this._token }; }
 }
 
+// The number of items a traversal asks for in one pull: a pull is one call
+// into Rust, so a traversal of `n` items makes about `n / PULL_GROUP` calls.
+const PULL_GROUP = 256;
+
+// The traversal base class: the class of a handle that the extension iterates
+// once (`cx.walk()`, `node.descendants()`, `cx.trees()`) extends it. It is its
+// own iterator: `next()` hands over the items of the last pull one by one, and
+// pulls the next group (the arm `pull`, at most `PULL_GROUP` items, fewer only
+// at the end) when that one is spent. An item handed over is released from the
+// group, so the group holds no item the extension has taken. A method of the
+// extending class (a restriction, `elements` or `kinds`) consumes the
+// traversal: it sends, last, the number of items of the group not handed over
+// (`_release()`), which the host kept a copy of and restricts with the items
+// not pulled yet; this traversal is then ended.
+export class Traversal extends Handle {
+  [Symbol.iterator]() { return this; }
+  next() {
+    if (this._group === undefined || this._at === this._group.length) {
+      if (this._ended) return { done: true, value: undefined };
+      this._group = call(this, "pull", [PULL_GROUP]);
+      this._at = 0;
+      this._ended = this._group.length < PULL_GROUP;
+      if (this._group.length === 0) return { done: true, value: undefined };
+    }
+    const value = this._group[this._at];
+    this._group[this._at] = undefined;
+    this._at += 1;
+    return { done: false, value };
+  }
+  // The number of items of the group not handed over; the group is released
+  // and the traversal ended, so that iterating it yields nothing more.
+  _release() {
+    const unhanded = this._group === undefined ? 0 : this._group.length - this._at;
+    this._group = undefined;
+    this._ended = true;
+    return unhanded;
+  }
+}
+
+// The most bytes of JSON text a pull of a sequence of data (a table's rows)
+// asks for, beside at most `PULL_GROUP` items: a larger row crosses alone.
+const PULL_BYTES = 64 << 10;
+
+// The sequence base class: the class of a handle of an ordered collection with
+// a length (`ext.items()`) extends it. Its token holds the length (`len`), so
+// that `len()` and `is_empty()` make no call into Rust. Iteration pulls the
+// items in groups from an index (the arm `pull`, at most `PULL_GROUP` items
+// and `PULL_BYTES` bytes, the first item whatever its size), and can be
+// repeated; `get(i)` is a method of the extending class.
+export class Sequence extends Handle {
+  len() { return this._token.len; }
+  is_empty() { return this._token.len === 0; }
+  *[Symbol.iterator]() {
+    const len = this._token.len;
+    let from = 0;
+    while (from < len) {
+      const group = call(this, "pull", [from, PULL_GROUP, PULL_BYTES]);
+      if (group.length === 0) return;
+      from += group.length;
+      yield* group;
+    }
+  }
+}
+
 // The durable base class: the class of an object the adapter keeps beyond
 // the call that answered it (a template language) extends it and holds the
 // token `{ kind, table, index }` of the object, and nothing else. The token is
@@ -226,7 +290,7 @@ export function lend_provider(name) { return revive(native("lend_provider", name
 export function lend_template(name) { return revive(native("lend_template", name)); }
 
 // The two service slots that take a handler object, as
-// `flm:stdcore/features/citations` and `flm:stdcore/features/compose` export
+// `flm:stdlib/features/citations` and `flm:stdlib/features/compose` export
 // them (this module imports nothing).
 const PROVIDERS_SLOT = "flm.citations.providers";
 const TEMPLATES_SLOT = "flm.compose.templates";

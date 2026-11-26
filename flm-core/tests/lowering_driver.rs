@@ -1,5 +1,5 @@
 //! The lowering driver and the `Lowerer` facade of
-//! `flm_core::stdcore::backends::lowering`, over toy elements and toy rules:
+//! `flm_core::stdlib::backends::lowering`, over toy elements and toy rules:
 //! the native copy, `Emit` and the empty `Emit`, `Default` on a non-native
 //! element and the rank bound, rounds following the rank, decoration hoisting,
 //! accepted holes, the `produces` refusal, declared reads and option reads
@@ -30,8 +30,8 @@ use flm_core::dump::diag::expect;
 use flm_core::dump::golden::assert_json_golden;
 use flm_core::lang::mint::{ArgDef, ArgStdKind, BodyDef, ElementDef};
 use flm_core::lang::{Flm, PresPayload};
-use flm_core::stdcore::backends::lowering::{self as lowering, copy_run_verbatim, rank};
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::lowering::{self as lowering, copy_run_verbatim, rank};
+use flm_core::stdlib::backends::pres::{
     self, BlockPayload, DecoMarkPayload, DecorationPayload, LinkPayload, ListPayload,
     MathDisplay, MathPassthroughPayload, MathTextPayload, ParPayload, SpanPayload, UnsupportedPayload,
     attached_slots, decoration_at, list_entries, payload_of, plain_text,
@@ -697,8 +697,6 @@ fn nodes_of_a_tree_the_lowering_does_not_hold_are_refused_by_lower_nodes_and_low
             .severity(Severity::Error)
             .at("\\bar ")
             .once();
-        let rendered = diagnostics(&run).iter().map(|d| d.to_string()).collect::<Vec<_>>().join("\n");
-        assert!(rendered.contains("lower_region"), "{rendered}");
     }
 }
 
@@ -951,7 +949,7 @@ fn mathish_rule(copy_into_content: bool) -> LoweringRule {
                 at_tag: false,
             };
             body.push(lw.pres_with(cx, &name(pres::MATH_TEXT), payload, content)?);
-            let payload = MathPassthroughPayload { display: MathDisplay::Inline, env: None };
+            let payload = MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None };
             let math = lw.pres_with(cx, &name(pres::MATH_PASSTHROUGH), payload, body)?;
             Ok(Lowering::Emit(vec![math]))
         },

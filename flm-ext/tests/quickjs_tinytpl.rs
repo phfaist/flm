@@ -5,7 +5,7 @@
 //! the document's folder, and reading the partial `templates/html/head.html`
 //! from the extension's folder. Loaded through the js engine with a `files`
 //! service over memory ([`MemoryHostFiles`]), in a registry with the composer
-//! (registered as `flm-main`'s standard package registers it) and a naming of
+//! (registered as `flm-host`'s standard package registers it) and a naming of
 //! files after the job `tiny`; the template chosen and its settings given
 //! through the render option [`ComposeOptions`]. The page and the stylesheet
 //! are goldens; a module whose `render` throws and a banner that is not there
@@ -26,11 +26,13 @@ use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::features::compose::{stage_name, ComposeFeature, ComposeOptions, Template, TemplateChoice, TEMPLATES_SLOT};
-use flm_core::stdcore::features::meta::{DocMeta, MetaText};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::features::compose::{
+    stage_name, ComposeFeature, ComposeOptions, Template, TemplateChoice, TemplateFailed, TEMPLATES_SLOT,
+};
+use flm_core::stdlib::features::metadata::{DocMeta, MetaText};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::host::HostService;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use flm_ext::{ExtensionLoader, MemoryFiles};
@@ -62,7 +64,7 @@ fn manifest() -> Value {
 }
 
 /// A PNG image of one gray pixel, the banner of the document's folder (the
-/// bytes `flm-main/tests/watch.rs`'s `png(1)` writes, here as data, since
+/// bytes `flm-host/tests/watch.rs`'s `png(1)` writes, here as data, since
 /// this crate has no PNG encoder).
 const LOGO_PNG: [u8; 67] = [
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
@@ -81,7 +83,7 @@ fn golden(name: &str) -> String {
 }
 
 /// Names files as the `flm` program does for the job `tiny`
-/// (`flm-main/src/output.rs`): the page `tiny.EXT`, every other file
+/// (`flm-host/src/output.rs`): the page `tiny.EXT`, every other file
 /// `tiny-NAME.EXT`.
 struct TinyNamer;
 
@@ -124,10 +126,10 @@ fn package(service: &Arc<MemoryHostFiles>, tiny_js: &str, config: Value) -> Pack
     factory.build(&settings).expect("the package builds")
 }
 
-/// The registry of the standard package with the composer (as `flm-main`'s
+/// The registry of the standard package with the composer (as `flm-host`'s
 /// standard package adds it), `package`, and [`TinyNamer`].
 fn registry(package: PackageEntry) -> Arc<FlmRegistry> {
-    let mut standard = stdcore::package(StdcoreConfig::new());
+    let mut standard = stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new());
     standard.features.push(Arc::new(ComposeFeature::new()) as Arc<dyn FlmFeature>);
     let mut builder = RegistryBuilder::new();
     builder.use_package(standard);
@@ -150,7 +152,8 @@ fn on_worker<T: Send>(f: impl FnOnce() -> T + Send) -> T {
 /// The HTML run of [`DOCUMENT`] titled `Tiny notes`, the template `tiny`
 /// chosen with the settings `config` through the render option
 /// [`ComposeOptions`] (what `-t tiny` and the front matter's `features:
-/// { compose: { template_config: { tiny: … } } }` set).
+/// { compose: { template_config: { tiny: … } } }` set, a path with the root
+/// that the settings give it).
 fn render(registry: &Arc<FlmRegistry>, config: Value) -> Run {
     let Value::Object(config) = config else { panic!("a map") };
     let options = ComposeOptions {
@@ -173,6 +176,21 @@ fn render(registry: &Arc<FlmRegistry>, config: Value) -> Run {
     let mut run = Run::new(Arc::new(doc), plan, Externals::none()).expect("a run");
     run.execute(&RunOptions::new()).expect("the run executes");
     run
+}
+
+/// The `(template, output, detail)` of a `flm.compose.template-failed`.
+type TemplateFailure = (Option<String>, String, String);
+
+/// The identifiers of the diagnostics of `run`, and the `(template, output,
+/// detail)` of each of its `flm.compose.template-failed`.
+fn template_failures(run: &Run) -> (Vec<String>, Vec<TemplateFailure>) {
+    let failures = run
+        .diagnostics()
+        .iter()
+        .filter_map(|d| d.data().downcast_ref::<TemplateFailed>())
+        .map(|failed| (failed.template.clone(), failed.output.clone(), failed.detail.clone()))
+        .collect();
+    (common::identifiers(run), failures)
 }
 
 /// The page of a run's HTML output.
@@ -216,9 +234,9 @@ fn the_template_module_is_contributed_with_its_description() {
 fn the_page_has_its_heading_its_stylesheet_its_banner_and_the_partial() {
     let service = folder();
     let registry = tiny_registry(&service);
-    let run = on_worker(|| render(&registry, json!({ "banner": "logo.png" })));
+    let run = on_worker(|| render(&registry, json!({ "banner": "doc:logo.png" })));
     let diagnostics = common::diagnostics(&run);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(run.plan(), &diagnostics);
     let page = page(&run).expect("the page");
     assert_text_golden(golden("tinytpl.html"), &page);
     // The heading from the configuration, the partial's line, the two files
@@ -237,7 +255,7 @@ fn the_page_has_its_heading_its_stylesheet_its_banner_and_the_partial() {
     let calls = service.calls.lock().expect("the calls");
     let seen: Vec<(&str, &str, &Value)> =
         calls.iter().map(|(caller, method, args)| (caller.package.as_str(), method.as_str(), args)).collect();
-    assert_eq!(seen, [("_", "read_bytes", &json!({ "scope": "document", "path": "logo.png" }))]);
+    assert_eq!(seen, [("_", "read_bytes", &json!({ "path": "doc:logo.png" }))]);
 }
 
 #[test]
@@ -245,7 +263,7 @@ fn without_a_banner_and_a_heading_the_page_has_the_defaults() {
     let registry = registry(package(&folder(), TINY_JS, Value::Null));
     let run = on_worker(|| render(&registry, json!({})));
     let diagnostics = common::diagnostics(&run);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(run.plan(), &diagnostics);
     let page = page(&run).expect("the page");
     assert!(page.contains("<h1>Tiny</h1>\n<div"), "{page}");
     assert!(!page.contains("<img"), "{page}");
@@ -260,11 +278,12 @@ fn a_template_module_whose_render_throws_fails_the_template() {
     assert_ne!(throwing, TINY_JS);
     let registry = registry(package(&folder(), &throwing, json!({ "heading": "Notes" })));
     let run = on_worker(|| render(&registry, json!({})));
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.compose.template-failed: the compose template `tiny` for the output `html` cannot be applied: \
-          flm.ext.handler-failed: the template module `tiny` of the feature `tinytpl` of the package `_` of the \
-          extension `tinytpl` failed: no page today"]
+    let (identifiers, failures) = template_failures(&run);
+    assert_eq!(identifiers, [common::UNCHECKED_OUTPUT, "flm.compose.template-failed"]);
+    assert_eq!((failures[0].0.as_deref(), failures[0].1.as_str()), (Some("tiny"), "html"));
+    assert!(
+        failures[0].2.starts_with("flm.ext.handler-failed: ") && failures[0].2.ends_with("no page today"),
+        "{failures:?}"
     );
     assert_eq!(page(&run), None);
 }
@@ -272,12 +291,9 @@ fn a_template_module_whose_render_throws_fails_the_template() {
 #[test]
 fn a_banner_that_is_not_in_the_document_s_folder_fails_the_template() {
     let registry = tiny_registry(&folder());
-    let run = on_worker(|| render(&registry, json!({ "banner": "missing.png" })));
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.compose.template-failed: the compose template `tiny` for the output `html` cannot be applied: \
-          flm.ext.handler-failed: the template module `tiny` of the feature `tinytpl` of the package `_` of the \
-          extension `tinytpl` failed: the file `missing.png` it ships from the document's \
-          folder is not there"]
-    );
+    let run = on_worker(|| render(&registry, json!({ "banner": "doc:missing.png" })));
+    let (identifiers, failures) = template_failures(&run);
+    assert_eq!(identifiers, [common::UNCHECKED_OUTPUT, "flm.compose.template-failed"]);
+    assert_eq!((failures[0].0.as_deref(), failures[0].1.as_str()), (Some("tiny"), "html"));
+    assert!(failures[0].2.starts_with("flm.ext.handler-failed: "), "{failures:?}");
 }

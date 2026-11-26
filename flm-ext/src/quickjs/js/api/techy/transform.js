@@ -3,7 +3,7 @@
 //
 // Mirrors techy's `transform` module, reached as `flm_core::techy::transform`: restaging, techy's
 // way of editing a frozen tree.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 export { Staged } from "flm:lang/rewrites/userdefs";
 
 // Mirrors techy's `Restage`: what a rewrite stage's handler answers for one node.

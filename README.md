@@ -8,10 +8,22 @@
 
 Flexible Latex-like Markup is a markup language strongly inspired by LaTeX' syntax.
 
-You type the document *content*; then FLM renders it to your favorite format, using
-your favorite template that dictates how the document looks like.
-If you know LaTeX, you'll find the syntax familiar and intuitive—`\textbf{..}`,
-`\section{Introduction}`, `\ref{eq:fancy}`, `\cite{arXiv:1211.1037}`.
+Skip the boilerplate and type content. You type what looks like a simplified
+version of latex, without all the noise. FLM typesets your documents directly to
+outputs such as HTML, pdf. You can also directly generate self-contained latex
+code that latex will parse correctly. You control the final document's
+appearance through custom settings (you can set them in FLM's live preview
+settings editor), through custom templates, or by exporting your document to
+latex code that you can use in your favorite latex workflow.
+
+If you know LaTeX, you'll find the syntax familiar and intuitive—you type
+`\textbf{..}`, `\section{Introduction}`, `\ref{eq:fancy}`,
+`\cite{arXiv:1211.1037}`. (Yes, citations of the form `arXiv:ID` and `doi:ID`
+are automatically resolved from arXiv.org and doi.org.)
+
+FLM is a library that aims to offer great flexibility, as well as a command-line
+program. The command-line program can open a live preview in your browser,
+giving you an easy way to edit your documents interactively.
 
 FLM is built on [*techy*](https://github.com/phfaist/techy), a parsing library for
 latex-like syntax. *techy* is itself a rust rewrite of
@@ -26,6 +38,16 @@ python version is now archived and will no longer be maintained.
 **FLM is still in experimental development status.** Its API might change, and
 FLM syntax and FLM documents' front matter keys might have to be tweaked (we'll
 do our best to avoid that, though).
+
+**Security note: Process only documents that you trust.** A document can make
+`flm` read any file that you can read: the files it includes with `\input`, its
+images, and the files given in its settings, such as a bibliography. A document
+can also use extensions, including the extensions in the folder `_flmextensions`
+beside it. An extension written in JavaScript or compiled to WebAssembly runs
+code, and `flm` lets such an extension start any program on your machine. (We'll
+probably build some safeguards in, but we want to make sure they won't get in
+the user's way in their everyday use. For now, be careful. Remember, no
+warranties.)
 
 ## Getting started
 
@@ -48,7 +70,7 @@ the edges adjacent to a face, or plaquette, \(p\) of the lattice
 (\ref{figure:toric-code-operators}).
 
 \begin{figure}
-  \includegraphics{toric-code-operators}
+  \includegraphics{toric-code-operators.svg}
   \caption{Stabilizer generators and logical operators of the 2D surface
     code on a torus.  The star operators \(A_v\) and the plaquette
     operators \(B_p\) generate the stabilizer group of the toric code.
@@ -59,32 +81,40 @@ the edges adjacent to a face, or plaquette, \(p\) of the lattice
 ...
 ```
 
-Compile it ...
+Type `flm surface-code.flm` and open the link it prints in your browser. You'll
+see a live preview of the document, which updates as you update your
+`surface-code.flm` document. You can also play around with the FLM settings
+using the in-browser preview app's visual settings editor (change the template,
+loaded packages/features, change the numbering scheme for headings, figures,
+etc.).
 
 
 ## FLM syntax
 
-...
+The guide's chapter
+[FLM language syntax](https://docs.rs/flm-core/latest/flm_core/guide/language_syntax/index.html)
+describes how a document is written, and the chapter
+[std flm](https://docs.rs/flm-core/latest/flm_core/guide/std_flm/index.html) the
+constructs that every FLM document may use.
 
 ## Info mode: `flm info`
 
 `flm info` describes what a document can use: the packages, the commands each feature
 declares (how each is written and what each argument holds), the settings with their
 values in effect, the workflows and their processing steps. It prints pages of
-documentation at the terminal, or JSON with `--json`, or writes a page as an FLM document
-with `--write-flm`:
+documentation at the terminal, or JSON with `--json`:
 
 ```sh
 flm info                        # the environment at a glance
 flm info '\section'             # how \section is written, and its arguments
 flm info -d paper.flm settings/ # the settings in effect for paper.flm
 flm info --json features/refs   # one page as JSON
-flm info --write-flm refs.flm features/refs   # one page as an FLM document, for flm render
 ```
 
 The command is built on the crate `flm-info`, which a program can use to describe an FLM
-environment itself. With `--json-diagnostics`, every command but `flm dump` writes the problems it finds
-as JSON lines on standard error, for an editor or another program to read.
+environment itself. With `--json-messages`, every command but `flm dump` writes its messages (the
+problems it finds, its log lines and the progress of a build) as JSON lines on standard error, for an
+editor or another program to read.
 
 ## License
 

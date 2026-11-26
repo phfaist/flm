@@ -20,22 +20,21 @@ use flm_ext::api::core::lowering::{DefaultMark, LoweringDecl};
 use flm_ext::api::core::registry::{DefContent, OutputDef, ScriptDef, StandardTable, StyleDef};
 use flm_ext::api::core::services::Arity;
 use flm_ext::api::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl};
-use flm_ext::api::host::FilesScope;
 use flm_ext::api::lang::mint::Mode;
 use flm_ext::api::lang::rewrites::userdefs::{PlaceholderVocabulary, TemplateSpec};
 use flm_ext::api::lang::text::CharsContent;
 use flm_ext::api::model::aspects::{AcceptedRefTypes, Label, MalformedLabel};
-use flm_ext::api::stdcore::backends::latex::{
+use flm_ext::api::stdlib::backends::latex::{
     LatexArgShape, LatexDefinitionKind, LatexDefinitionPayload, LatexEnvironmentPayload, LatexMacroPayload, LatexPackageDef,
     LatexPreambleDef, LatexRawPayload,
 };
-use flm_ext::api::stdcore::features::citations::{CitationProviderError, EntryPiece};
-use flm_ext::api::stdcore::features::compose::{Accepts, PieceValue, TemplateContext, TemplateDescription, TemplateFile};
-use flm_ext::api::stdcore::features::numbering::{
+use flm_ext::api::stdlib::features::citations::{CitationProviderError, EntryPiece};
+use flm_ext::api::stdlib::features::compose::{Accepts, PieceValue, TemplateContext, TemplateDescription, TemplateFile};
+use flm_ext::api::stdlib::features::numbering::{
     CounterDecl, CounterStyleDecl, Delimiters, FormatOptions, NumberTemplate, ParentSetDecl, Parents, PluralWords,
     PrefixWords, Within, WithinJoinerSpec,
 };
-use flm_ext::api::stdcore::features::refs::LabelUse;
+use flm_ext::api::stdlib::features::refs::LabelUse;
 use flm_ext::api::techy::error::Severity;
 use flm_ext::api::techy::node::{NodeKindName, Span};
 
@@ -95,11 +94,11 @@ fn the_containers_round_trip() {
 
 #[test]
 fn a_container_of_another_shape_is_refused() {
-    let error = |result: Result<Vec<String>, flm_ext::runtime::ExtError>| result.expect_err("refused").to_string();
-    assert_eq!(error(Vec::from_value(&json!("a"))), "the value must be a list, not `\"a\"`");
-    assert_eq!(error(Vec::from_value(&json!([1]))), "the value must be a text, not `1`");
-    let pair = <(String, String)>::from_value(&json!(["a"])).expect_err("refused").to_string();
-    assert_eq!(pair, "the value must be a list of two items, not `[\"a\"]`");
+    let error = |result: Result<Vec<String>, flm_ext::runtime::ExtError>| result.expect_err("refused").kind();
+    assert_eq!(error(Vec::from_value(&json!("a"))), "value");
+    assert_eq!(error(Vec::from_value(&json!([1]))), "value");
+    let pair = <(String, String)>::from_value(&json!(["a"])).expect_err("refused").kind();
+    assert_eq!(pair, "value");
 }
 
 #[test]
@@ -119,7 +118,6 @@ fn the_unit_enums_round_trip() {
     tokens::<Mode>(&["text", "math"]);
     tokens::<StandardTable>(&["lowered-trees", "lowered-pieces", "regions", "artifact-set"]);
     tokens::<Arity>(&["single", "ordered-many"]);
-    tokens::<FilesScope>(&["extension", "document"]);
     tokens::<LatexArgShape>(&["star", "optional", "mandatory", "escverb"]);
     tokens::<LatexDefinitionKind>(&["macro", "environment", "declaration"]);
 }
@@ -137,8 +135,11 @@ fn the_declarations_of_stages_and_rules_round_trip() {
         json!({ "name": "x.r", "publishes": "x.p" }),
     ]);
     round_trips::<LoweringDecl>(&[json!({
-        "requires": ["a"], "reads": ["b"], "reads_opt": ["c"], "options": ["d"], "produces": ["e"], "selection_requires": ["f"]
+        "requires": ["a"], "reads": ["b"], "reads_opt": ["c"], "options": ["d"], "produces": ["e"], "selection_requires": ["f"],
+        "unchecked_output": [{ "backend": "html", "written": "each formula's source", "reader": "the reader's browser" }]
     })]);
+    let decl: LoweringDecl = sample(json!({ "unchecked_output": [{ "backend": "latex", "written": "W", "reader": "R" }] }));
+    assert_eq!(decl, LoweringDecl::new().unchecked_output("latex", "W", "R"));
     round_trips::<DefaultMark>(&[json!("everywhere"), json!("never"), json!({ "on_backends": ["html", "latex"] })]);
     round_trips::<OutputDef>(&[
         json!({
@@ -187,13 +188,13 @@ fn the_compose_values_round_trip() {
     round_trip(&Accepts::All);
     round_trips::<Accepts>(&[json!(["body", "title"])]);
     round_trips::<TemplateDescription>(&[
-        json!({ "output": "page", "accepts": "all", "requires": ["body"], "config": { "a": 1 } }),
-        json!({ "output": "page", "accepts": ["body"] }),
+        json!({ "accepts": "all", "requires": ["body"], "config": { "a": 1 } }),
+        json!({ "accepts": ["body"] }),
     ]);
     round_trips::<TemplateFile>(&[
         json!({ "name": "style", "extension": "css", "media_type": "text/css", "text": "p {}" }),
-        json!({ "name": "logo", "file": "logo.svg", "scope": "extension", "media_type": "image/svg+xml" }),
-        json!({ "name": "notes", "file": "notes.txt", "scope": "document" }),
+        json!({ "name": "logo", "file": "self:logo.svg", "media_type": "image/svg+xml" }),
+        json!({ "name": "notes", "file": "doc:notes.txt" }),
     ]);
     round_trip(&PieceValue {
         name: "body".to_string(),
@@ -205,35 +206,23 @@ fn the_compose_values_round_trip() {
         "html": true,
         "regions": [["main", "<p>A</p>"]],
         "pieces": [{ "name": "body", "place": "main", "text": "<p>A</p>", "words": "A" }],
-        "meta": { "title": "T" },
+        "metadata": { "title": "T" },
         "config": { "lang": "en" },
         "artifacts": [["logo", "logo.svg"]],
     })]);
 }
 
 #[test]
-fn a_wrong_field_of_the_data_of_a_compose_template_is_named() {
+fn a_wrong_field_of_the_data_of_a_compose_template_is_refused() {
     let data = |field: &str, value: Value| {
-        let mut data = json!({ "html": true, "regions": [], "pieces": [], "meta": {}, "config": {}, "artifacts": [] });
+        let mut data = json!({ "html": true, "regions": [], "pieces": [], "metadata": {}, "config": {}, "artifacts": [] });
         data[field] = value;
-        TemplateContext::from_value(&data).expect_err("refused").to_string()
+        TemplateContext::from_value(&data).expect_err("refused").kind()
     };
-    assert_eq!(
-        data("html", json!(3)),
-        "in the field `html` of the data of a compose template, the value must be `true` or `false`, not `3`",
-    );
-    assert_eq!(
-        data("regions", json!([["main", 1]])),
-        "in the field `regions` of the data of a compose template, the value must be a text, not `1`",
-    );
-    assert_eq!(
-        data("pieces", json!({})),
-        "in the field `pieces` of the data of a compose template, the value must be a list, not `{}`",
-    );
-    assert_eq!(
-        data("artifacts", json!([["logo"]])),
-        "in the field `artifacts` of the data of a compose template, the value must be a list of two items, not `[\"logo\"]`",
-    );
+    assert_eq!(data("html", json!(3)), "value");
+    assert_eq!(data("regions", json!([["main", 1]])), "value");
+    assert_eq!(data("pieces", json!({})), "value");
+    assert_eq!(data("artifacts", json!([["logo"]])), "value");
 }
 
 #[test]

@@ -5,7 +5,7 @@
 //!
 //! Settings are a feature's configuration written as data, one map per feature
 //! from key to value. A document writes the settings of `phfqit` in its front
-//! matter under `flm`, `features`, `phfqit`; the crate documentation gives an
+//! matter under `flm`, `features`, `phfqit`; the module documentation gives an
 //! example. The feature's `register` receives the final configuration, combined
 //! from every source of settings, as a JSON value.
 //!
@@ -44,10 +44,10 @@ use serde::de::{Error as _, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use crate::feature::FEATURE;
-use crate::macros::{Macro, MacroArg};
-use crate::sizing::SlotKind;
-use crate::tables::VALUES;
+use crate::phfpack::feature::FEATURE;
+use crate::phfpack::macros::{Macro, MacroArg};
+use crate::phfpack::sizing::SlotKind;
+use crate::phfpack::tables::VALUES;
 
 /// The settings of the feature `phfqit`, as written in data.
 ///
@@ -167,23 +167,20 @@ fn write_value(out: &mut Vec<u8>, value: &Value) {
     }
 }
 
-/// Returns the default entries of the named-value key `key` (`spaceKets`,
-/// `spaceOKets` or `space`) as data: the default entries that the settings
-/// declaration gives for the key, combined entry by entry.
-pub fn default_values(key: &str) -> Value {
-    let data = PhfqitData::default();
-    let entries = data
-        .value_groups()
-        .into_iter()
-        .filter(|(group, _)| *group == key)
-        .flat_map(|(_, values)| values.clone())
-        .map(|(name, value)| (name, Value::String(value)))
-        .collect();
-    Value::Object(entries)
-}
+/// The marks of each of the four keys: combined entry by entry, the default
+/// entries (the `default` of the key's node) included, and an entry written
+/// `false` removed.
+const MERGED: [&str; 2] = ["merge-object-key-values", "remove-key-when-value-is-false"];
+
+/// The mark of a text written in FLM markup.
+const MARKUP: [&str; 1] = ["markup"];
 
 /// Returns the JSON schema of the settings ([`PhfqitData`]), which the
-/// feature's settings declaration gives as the schema of its configuration.
+/// feature's settings declaration gives as the schema of its configuration,
+/// with the marks on its nodes (`x-flm-marks`). Each of the four keys carries
+/// `merge-object-key-values`, so that a document that sets one entry keeps the
+/// default entries it does not set. The templates and default values of a
+/// declared macro (`content`, `defaults`) and the named values carry `markup`.
 pub fn schema() -> Value {
     let mut schema = serde_json::to_value(schemars::schema_for!(PhfqitData)).unwrap_or_default();
     if let Value::Object(map) = &mut schema {
@@ -191,7 +188,29 @@ pub fn schema() -> Value {
         // whole front matter: no dialect of its own.
         map.remove("$schema");
     }
+    for key in ["macro_definitions", "spaceKets", "spaceOKets", "space"] {
+        mark(&mut schema, &format!("/properties/{key}"), &MERGED);
+    }
+    for key in ["spaceKets", "spaceOKets", "space"] {
+        mark(&mut schema, &format!("/properties/{key}/additionalProperties"), &MARKUP);
+    }
+    for key in ["content", "defaults"] {
+        mark(&mut schema, &format!("/$defs/MacroFields/properties/{key}"), &MARKUP);
+    }
     schema
+}
+
+/// Writes `marks` on the node of `schema` at the JSON pointer `pointer`.
+///
+/// # Panics
+///
+/// When the schema of [`PhfqitData`] holds no node at `pointer`: the pointers
+/// name the nodes of that schema.
+fn mark(schema: &mut Value, pointer: &str, marks: &[&str]) {
+    let Some(Value::Object(node)) = schema.pointer_mut(pointer) else {
+        panic!("the schema of the settings of `{FEATURE}` holds no node at `{pointer}`");
+    };
+    node.insert("x-flm-marks".to_string(), marks.iter().map(|&mark| Value::from(mark)).collect());
 }
 
 /// The feature's configuration reader

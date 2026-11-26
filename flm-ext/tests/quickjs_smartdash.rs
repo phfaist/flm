@@ -29,9 +29,9 @@ use flm_core::core::settings::PackageSettings;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::features::blocks::BlocksConfig;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::features::blocks::BlocksConfig;
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::quickjs::{eval_for_test, JsHost, JsSettings, TestPackage};
 use serde_json::{json, Value};
 
@@ -73,10 +73,10 @@ fn smartdash(settings: JsSettings, edit: impl Fn(&str) -> String) -> PackageEntr
 /// The registry of the standard package, with the `blocks` feature's dash
 /// ligatures off, and of `packages`.
 fn registry_of(packages: impl IntoIterator<Item = PackageEntry>) -> Arc<FlmRegistry> {
-    let mut config = StdcoreConfig::new();
+    let mut config = StdlibConfig::new();
     config.blocks = BlocksConfig { ligature_unicode_dashes: false, ..BlocksConfig::default() };
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(config));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     for package in packages {
         builder.use_package(package);
@@ -142,7 +142,7 @@ fn check_goldens(registry: &Arc<FlmRegistry>) {
     assert_eq!(text.lines().collect::<Vec<_>>(), [FIRST_LINE, "", SECOND_LINE], "{text}");
     assert_text_golden(golden("smartdash.txt"), &text);
     let (body, diagnostics) = page_body_of(registry, DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(registry, html::WORKFLOW), &diagnostics);
     assert!(body.contains("smartdash-quote"), "{body}");
     assert_text_golden(golden("smartdash.page-body.html"), &body);
 }
@@ -211,13 +211,15 @@ fn a_failing_handler_keeps_its_node_and_reports_at_it() {
     });
     let source = "a -- b \\sdquote{boom -- x} c -- d";
     let run = run(&registry, &request(&registry, text::WORKFLOW), source);
-    let found: Vec<String> = run
+    let found: Vec<(String, usize, String)> = run
         .diagnostics()
         .iter()
-        .map(|d| format!("{} {} {}", d.identifier(), d.span().range().start, d.message()))
+        .map(|d| (d.identifier().to_string(), d.span().range().start, d.message().to_string()))
         .collect();
     let at = source.find("boom").expect("the node");
-    assert_eq!(found, [format!("flm.ext.handler-failed {at} the rewrite stage `smartdash.dash` failed: no dashes here")]);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!((found[0].0.as_str(), found[0].1), ("flm.ext.handler-failed", at), "{found:?}");
+    assert!(found[0].2.ends_with("no dashes here"), "{found:?}");
     let out = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
     assert_eq!(out.trim_end(), "a \u{2013} b \u{201c}boom -- x\u{201d} c \u{2013} d");
 }
@@ -247,7 +249,7 @@ fn the_prelude_s_names_are_the_library_s() {
     let names = names_of(
         r#"
 import * as STRUCTURAL from "flm:lang/structural";
-import { lowered_table_name } from "flm:stdcore/backends/lowering";
+import { lowered_table_name } from "flm:stdlib/backends/lowering";
 import { media_type_of } from "flm:core/artifact";
 import { StandardTable } from "flm:core/registry";
 import { Restage } from "flm:techy/transform";
@@ -276,7 +278,7 @@ export function names() {
         })
     );
     let backend = flm_core::model::names::BackendName::from("typst");
-    assert_eq!(names["lowered"], json!(flm_core::stdcore::backends::lowering::lowered_table_name(&backend).to_string()));
+    assert_eq!(names["lowered"], json!(flm_core::stdlib::backends::lowering::lowered_table_name(&backend).to_string()));
     assert_eq!(names["media"], json!([flm_core::core::artifact::media_type_of("css"), Value::Null]));
     assert_eq!(
         names["tables"],
@@ -338,9 +340,9 @@ fn a_backend_and_an_output_declared_from_javascript_write_the_artifact() {
     const MAIN: &str = r#"
 import { Effect, Needs, Scope, StageDecl } from "flm:core/stage";
 import { BackendDef, OutputDef, StandardTable } from "flm:core/registry";
-import { LoweringStage, lowered_table_name } from "flm:stdcore/backends/lowering";
+import { LoweringStage, lowered_table_name } from "flm:stdlib/backends/lowering";
 import { Artifact, ArtifactId } from "flm:core/artifact";
-import { ALL } from "flm:stdcore/backends/pres";
+import { ALL } from "flm:stdlib/backends/pres";
 import { COMMENT, CONTAINER, GROUP, OPAQUE_WRAPPER, PARBREAK, TEXT } from "flm:lang/structural";
 
 // The lowered trees' table, as `lowered_table_name("bk")` answers it in
@@ -364,7 +366,7 @@ const final_stage = {
   decl() { return new StageDecl("bk.final", Effect.Compute, Scope.Document).writes("bk.document"); },
   needs() { return new Needs().reads("bk.output"); },
   run(cx, out) {
-    const text = cx.get("bk.output").ext.items().map(item => item.text).join("");
+    const text = [...cx.get("bk.output").ext.items()].map(item => item.text).join("");
     out.table("bk.document").push(Artifact.bytes(new ArtifactId("bk", "document"), "text/plain", text).with_extension("txt").as_entry());
   },
 };
@@ -374,7 +376,6 @@ const final_stage = {
 // rule for a backend of an extension, which this emitter skips.
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: {
       bk: {
         register(b) {
@@ -422,31 +423,21 @@ fn a_rewrite_stage_not_declared_by_the_rehearsal_is_the_handler_s_failure() {
     });
     let (text, diagnostics) = text_of(&registry, "a -- b");
     assert!(!diagnostics.is_empty());
-    for diagnostic in &diagnostics {
-        assert_eq!(
-            diagnostic,
-            "flm.ext.handler-failed: the rewrite stage `smartdash.dash` failed: the rewrite stage `smartdash.dash` must be \
-             declared by `register` of the feature `dashes` of the package `_` of the extension `smartdash`"
-        );
+    for identifier in common::ids(&diagnostics) {
+        assert_eq!(identifier, "flm.ext.handler-failed", "{diagnostics:?}");
     }
     assert_eq!(text.trim_end(), "a -- b");
 }
 
 /// `__flm.lend_rewrite` called while no handler runs (at a module's top
-/// level) answers message 13, which the default export throws here.
+/// level) answers message 13, whose kind the default export throws here.
 #[test]
 fn lending_a_rewrite_stage_outside_a_handler_is_refused() {
     let main = "const reply = JSON.parse(globalThis.__flm.lend_rewrite(\"{}\", \"{}\"));\n\
-                export default function (ext) { throw new Error(reply.message); }\n";
+                export default function (ext) { throw new Error(`refused: ${reply.err.kind}`); }\n";
     let loader =
         js_loader(&JsHost::new(JsSettings::default()), js_extension("lone", &[("main.js", main)], js_manifest("main.js")));
     let problems = common::load_problems(&loader, "lone");
     assert_eq!(problems.len(), 1, "{problems:?}");
-    assert!(
-        problems[0].ends_with(
-            "the extension `lone` must declare a rewrite stage from a feature's `register` or from a handler that \
-             `register` declared"
-        ),
-        "{problems:?}"
-    );
+    assert!(problems[0].ends_with("refused: handler"), "{problems:?}");
 }

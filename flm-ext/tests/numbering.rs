@@ -15,14 +15,14 @@ use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::names::{Name, RefKind};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::numbering::{Delimiters, NumberingOptions, PrefixWords, Within};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::numbering::{Delimiters, NumberingOptions, PrefixWords, Within};
 use flm_ext::adapter::handles::Entry;
 use flm_ext::api::core::data::table::TableValue;
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
 use flm_ext::api::model::aspects::{AcceptedRefTypes, AnchorPolicy, ContentRef, NumberSource, PointId, RefPoint, Referenceable};
-use flm_ext::api::stdcore::features::numbering::{FormatOptions, COUNTERS, COUNTERS_SLOT, PARENT_SETS_SLOT, STYLES_SLOT};
-use flm_ext::api::stdcore::features::refs;
+use flm_ext::api::stdlib::features::numbering::{FormatOptions, COUNTERS, COUNTERS_SLOT, PARENT_SETS_SLOT, STYLES_SLOT};
+use flm_ext::api::stdlib::features::refs;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
@@ -94,7 +94,7 @@ fn exercises(within: Value, style: Value, more: Vec<(&'static str, Value)>, show
         for (slot, value) in &more {
             js.call(b, "peer_slot", json!([slot, value]))?;
         }
-        let fields = js.call(&module("stdcore/features/refs"), "label_fields_arg", json!([]))?;
+        let fields = js.call(&module("stdlib/features/refs"), "label_fields_arg", json!([]))?;
         for (name, counter) in [("exbox", Some(COUNTER)), ("exnone", None), ("expart", Some(PART))] {
             let element = format!("ex.{name}");
             js.call(b, "element", json!([{ "names": [name], "syntax": { "macro": { "args": ["{", fields] } }, "element": { "name": element } }]))?;
@@ -110,7 +110,7 @@ fn exercises(within: Value, style: Value, more: Vec<(&'static str, Value)>, show
                         let segments = js.call(&counters["counters"], "format", json!([point, options]))?;
                         for segment in segments.as_array().cloned().unwrap_or_default() {
                             let staged = js.call(lw, "splice", json!([cx, segment["content"]]))?;
-                            emit.extend(staged.as_array().cloned().unwrap_or_default());
+                            emit.push(staged);
                         }
                         None
                     }
@@ -121,7 +121,7 @@ fn exercises(within: Value, style: Value, more: Vec<(&'static str, Value)>, show
                     }
                     Shows::Refused(bad) => Some(match js.call(&counters["counters"], "record", json!([bad])) {
                         Ok(value) => format!("accepted {value}"),
-                        Err(error) => error.to_string(),
+                        Err(error) => refusal(&error),
                     }),
                 };
                 if let Some(shown) = shown {
@@ -129,7 +129,7 @@ fn exercises(within: Value, style: Value, more: Vec<(&'static str, Value)>, show
                 }
                 emit.push(js.call(lw, "text", json!([cx, ": "]))?);
                 let content = js.call(lw, "lower_arg", json!([cx, node, 0]))?;
-                emit.extend(content.as_array().cloned().unwrap_or_default());
+                emit.push(content);
                 Ok(json!({ "emit": emit }))
             });
             let rule = js.call(
@@ -141,6 +141,16 @@ fn exercises(within: Value, style: Value, more: Vec<(&'static str, Value)>, show
         }
         Ok(())
     })
+}
+
+/// An error's data (`ExtError::data`) without its free text `detail`, as
+/// text.
+fn refusal(error: &ExtError) -> String {
+    let mut data = error.data();
+    if let Some(map) = data.as_object_mut() {
+        map.remove("detail");
+    }
+    data.to_string()
 }
 
 /// The style's prefix words `Exercise~`, `Exercises~`, as data.
@@ -194,17 +204,10 @@ fn record_answers_null_for_an_unnumbered_point() {
 #[test]
 fn a_point_of_another_tree_or_past_the_end_is_refused() {
     let refused = |bad: Value| text(exercises(Value::Null, words(), Vec::new(), Shows::Refused(bad)), "\\exbox{A}");
-    assert_eq!(
-        refused(json!({ "addr": { "tree": "tree#7", "node": 0 }, "index": 0 })),
-        "`record`: the address of the point must be in the tree being lowered (`tree#0`), not in `tree#7`: A"
-    );
-    let past = refused(json!({ "addr": { "tree": "tree#0", "node": 4000 }, "index": 0 }));
-    assert!(past.starts_with("`record`: the address of the point must name a node of the tree `tree#0`: it has "), "{past}");
-    assert!(past.ends_with(" nodes, not a node 4000: A"), "{past}");
-    assert_eq!(
-        refused(json!({ "addr": { "tree": "tree#0" }, "index": 0 })),
-        "`record`: a point's address must have the field `node`: A"
-    );
+    let shown = r#"{"kind":"argument","method":"record"}: A"#;
+    assert_eq!(refused(json!({ "addr": { "tree": "tree#7", "node": 0 }, "index": 0 })), shown);
+    assert_eq!(refused(json!({ "addr": { "tree": "tree#0", "node": 4000 }, "index": 0 })), shown);
+    assert_eq!(refused(json!({ "addr": { "tree": "tree#0" }, "index": 0 })), r#"{"kind":"value"}: A"#);
 }
 
 #[test]
@@ -315,7 +318,7 @@ fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
             &json!({ "reads": [COUNTERS, refs::ANCHORS] }),
             move |js, cx, out| {
                 let counters = js.call(cx, "get", json!([COUNTERS]))?;
-                let walk = js.call(cx, "walk", json!([]))?;
+                let walk = js.traverse(cx, "walk", json!([]))?;
                 // The record of the first walked node that holds one: the
                 // point of `\exbox{A}`.
                 let mut record = Value::Null;
@@ -334,7 +337,7 @@ fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
                 let bad = json!({ "addr": { "tree": "tree#99", "node": 0 }, "index": 0 });
                 seen.push(match js.call(&counters["counters"], "record", json!([bad])) {
                     Ok(value) => format!("accepted {value}"),
-                    Err(error) => error.to_string(),
+                    Err(error) => refusal(&error),
                 });
                 seen.push(anchor.to_string());
                 log.lock().expect("the log").extend(seen.clone());
@@ -361,7 +364,7 @@ fn a_stage_reads_the_counters_and_a_point_outside_the_document_is_refused() {
     assert_eq!(found.len(), 3, "{found:?}");
     assert!(found[0].contains("\"counter\":\"ex.counter\""), "{found:?}");
     assert_eq!(found[2], "\"ex-one\"");
-    assert_eq!(found[1], "`record`: the address of the point must be in a tree of the document, not in `tree#99`");
+    assert_eq!(found[1], r#"{"kind":"argument","method":"record"}"#);
 }
 
 #[test]

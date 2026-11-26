@@ -11,34 +11,34 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::floats::{self, FloatType, FloatsConfig};
-use flm_core::stdcore::features::graphics::{self, IncludeGraphicsContent, handler::HANDLER};
-use flm_core::stdcore::features::floats::FloatContentHandler;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::floats::{self, FloatType, FloatsConfig};
+use flm_core::stdlib::features::graphics::{self, IncludeGraphicsContent, handler::HANDLER};
+use flm_core::stdlib::features::floats::FloatContentHandler;
 use techy::error::Severity;
 
 use common::lowering::text as printed;
-use common::stdcore::{
-    identifiers, identifiers_but_unknown_size, package_features_but, registry_over, reports,
-    reports_but_unknown_size, run_workflow,
+use common::stdlib::{
+    UNCHECKED_OUTPUT, identifiers, identifiers_but_unknown_size, package_features_but,
+    registry_over, reports, reports_but_unknown_size, run_workflow,
 };
 
 /// The standard package under its default configuration: `figure` admitting
 /// one image, `table` admitting a table of cells or one image.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The standard package with the floats feature under `config`.
 fn with_floats(config: FloatsConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().floats(config))
+    common::stdlib::registry(StdlibConfig::new().floats(config))
 }
 
 /// The standard package under its default configuration without the
 /// graphics feature.
 fn without_graphics() -> Arc<FlmRegistry> {
-    registry_over(package_features_but(StdcoreConfig::new(), graphics::FEATURE))
+    registry_over(package_features_but(StdlibConfig::new(), graphics::FEATURE))
 }
 
 /// Runs `workflow` of `registry` over `document`.
@@ -56,13 +56,14 @@ fn text_of(run: &Run) -> String {
     printed(run).trim_end().to_string()
 }
 
-/// The message of the one diagnostic of `run` with the identifier `id`.
-fn message(run: &Run, id: &str) -> String {
+/// The float type of the first `flm.floats.content-refused` of `run`.
+fn refused_type(run: &Run) -> String {
     run.diagnostics()
         .iter()
-        .find(|d| d.identifier() == id)
-        .unwrap_or_else(|| panic!("`{id}` is reported: {}", run.diagnostics().render_all()))
-        .to_string()
+        .find_map(|d| d.data().downcast_ref::<floats::ContentRefused>())
+        .unwrap_or_else(|| panic!("`flm.floats.content-refused` is reported: {}", run.diagnostics().render_all()))
+        .float_type
+        .clone()
 }
 
 const IMAGE_FIGURE: &str =
@@ -86,7 +87,10 @@ fn one_image_in_a_figure_is_admitted_on_every_backend() {
     let registry = std();
     for workflow in [text::WORKFLOW, html::WORKFLOW, latex_recomposed::WORKFLOW] {
         let run = render_on(&registry, workflow, IMAGE_FIGURE);
-        assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{workflow}: {}", run.diagnostics().render_all());
+        // The formulas of `math-passthrough` are unchecked on the page and in
+        // the recomposed LaTeX.
+        let expected = if workflow == text::WORKFLOW { Vec::new() } else { vec![UNCHECKED_OUTPUT] };
+        assert_eq!(identifiers_but_unknown_size(&run), expected, "{workflow}: {}", run.diagnostics().render_all());
     }
     // An image in a `table` too, and the fields standing before it: the
     // table's first handler, `cells`, refuses it, and `includegraphics`
@@ -121,8 +125,13 @@ fn two_images_in_a_figure_are_refused_and_both_are_shown() {
             workflow,
             "\\begin{figure}\\includegraphics{a.png}\n\n\\includegraphics{b.png}\\caption{C}\\end{figure}",
         );
-        assert_eq!(reports_but_unknown_size(&run), [("flm.floats.content-refused".to_string(), Severity::Error)], "{workflow}");
-        assert!(message(&run, "flm.floats.content-refused").contains("a ‘figure’ must hold exactly one image"));
+        let mut expected = Vec::new();
+        if workflow != text::WORKFLOW {
+            expected.push((UNCHECKED_OUTPUT.to_string(), Severity::Warning));
+        }
+        expected.push(("flm.floats.content-refused".to_string(), Severity::Error));
+        assert_eq!(reports_but_unknown_size(&run), expected, "{workflow}");
+        assert_eq!(refused_type(&run), "figure", "{workflow}");
     }
     let run = render(&std(), "\\begin{figure}\\includegraphics{a.png}\n\n\\includegraphics{b.png}\\caption{C}\\end{figure}");
     let shown = text_of(&run);
@@ -139,7 +148,7 @@ fn text_in_a_figure_is_refused_and_shown() {
     ] {
         let run = render(&std(), document);
         assert_eq!(identifiers_but_unknown_size(&run), ["flm.floats.content-refused"], "{document}");
-        assert!(message(&run, "flm.floats.content-refused").contains("a ‘figure’ must hold exactly one image"));
+        assert_eq!(refused_type(&run), "figure", "{document}");
     }
     let run = render(&std(), "\\begin{figure}Some text \\includegraphics{a.png}\\caption{C}\\end{figure}");
     assert_eq!(text_of(&run), "Some text\n\n[image: a.png]\n\nC");
@@ -150,7 +159,7 @@ fn an_image_in_a_type_admitting_tables_of_cells_alone_is_refused_and_shown() {
     let registry = with_floats(FloatsConfig::new().float_type(FloatType::table().handlers(["cells"])));
     let run = render(&registry, "\\begin{table}\\includegraphics{t.png}\\caption{T}\\end{table}");
     assert_eq!(reports_but_unknown_size(&run), [("flm.floats.content-refused".to_string(), Severity::Error)]);
-    assert!(message(&run, "flm.floats.content-refused").contains("exactly one table of cells"));
+    assert_eq!(refused_type(&run), "table");
     assert_eq!(text_of(&run), "[image: t.png]\n\nT");
 }
 
@@ -175,7 +184,7 @@ fn without_the_graphics_feature_an_image_is_an_unknown_command_in_a_figure() {
         ]
     );
     // The figure is reported under its handlers: none of them is available.
-    assert!(message(&run, "flm.floats.content-refused").contains("the program processing this document handles no such content"));
+    assert_eq!(refused_type(&run), "figure");
     assert!(text_of(&run).ends_with("Figure\u{a0}1: A photo"), "{}", text_of(&run));
     // Outside a float, the command is unknown as it is with the feature.
     assert_eq!(identifiers(&render(&registry, "\\includegraphics{x.png}")), ["core.specs.unresolvable-command"]);
@@ -186,13 +195,16 @@ fn without_the_graphics_feature_every_float_holding_no_image_renders_on_every_ba
     let any = FloatsConfig::new()
         .float_type(FloatType::figure().handlers(["any"]))
         .float_type(FloatType::table().handlers(["any"]));
-    let registry = registry_over(package_features_but(StdcoreConfig::new().floats(any), graphics::FEATURE));
+    let registry = registry_over(package_features_but(StdlibConfig::new().floats(any), graphics::FEATURE));
     let document = "\\begin{figure}A.\\end{figure}\n\n\\begin{figure}B.\\caption{A photo}\\end{figure}\n\n\
                     \\begin{figure}\\label{figure:c}C.\\end{figure}\n\n\
                     \\begin{table}\\caption{Last}\\label{table:d}D.\\end{table}\n\n\\ref{figure:c}, \\ref{table:d}";
     for workflow in [text::WORKFLOW, html::WORKFLOW, latex_recomposed::WORKFLOW] {
         let run = render_on(&registry, workflow, document);
-        assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{workflow}: {}", run.diagnostics().render_all());
+        // The formulas of `math-passthrough` are unchecked on the page and in
+        // the recomposed LaTeX.
+        let expected = if workflow == text::WORKFLOW { Vec::new() } else { vec![UNCHECKED_OUTPUT] };
+        assert_eq!(identifiers_but_unknown_size(&run), expected, "{workflow}: {}", run.diagnostics().render_all());
     }
     assert_eq!(
         text_of(&render(&registry, document)),
@@ -202,12 +214,16 @@ fn without_the_graphics_feature_every_float_holding_no_image_renders_on_every_ba
 
 #[test]
 fn without_the_floats_feature_the_handler_is_dropped_with_a_note() {
-    let registry = registry_over(package_features_but(StdcoreConfig::new(), floats::FEATURE));
-    let messages: Vec<String> = registry.build_diagnostics().iter().map(|d| d.to_string()).collect();
-    assert!(messages.iter().any(|m| m.contains("flm.floats.content")), "{messages:?}");
+    let registry = registry_over(package_features_but(StdlibConfig::new(), floats::FEATURE));
+    let peers: Vec<&str> = registry
+        .build_diagnostics()
+        .conditions::<flm_core::core::registry::UnresolvedPeer>()
+        .map(|peer| peer.name.as_str())
+        .collect();
+    assert!(peers.contains(&"flm.floats.content"), "{peers:?}");
     // Under `global`, an image written between paragraphs is a paragraph
     // holding it, inline content, as it is with the floats feature.
-    let config = StdcoreConfig::new().graphics(graphics::GraphicsConfig::new().global(true));
+    let config = StdlibConfig::new().graphics(graphics::GraphicsConfig::new().global(true));
     let registry = registry_over(package_features_but(config, floats::FEATURE));
     let run = render(&registry, "Before.\n\n\\includegraphics{x.png}\n\nAfter.");
     assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new());

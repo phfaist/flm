@@ -9,8 +9,9 @@
 //!   trait, and its seal, for every lifetime shorter than its tree's:
 //!   `impl<'t: 's, 's> Node<'s> for NodeFacade<'t>`. A node over a tree the
 //!   façade owns (an `Arc` or an `Rc`) can then be lent into a call table of any
-//!   lifetime. The key-value façades implement `KeyVals<'s>` and
-//!   `KeyValEntry<'s>` for every `'s` likewise.
+//!   lifetime. The key-value façades hold a node of the bracket they were
+//!   read from, so they implement `KeyVals<'t>` and `KeyValEntry<'t>` for
+//!   the lifetime `'t` of the bracket's tree alone.
 //! - Every node a method answers is a new façade that owns what it points at —
 //!   the `Copy` `NodeRef` of a lent tree, a clone of the `Arc` or of the `Rc` —
 //!   never a borrow of the façade it was asked on, and it is of the same variant
@@ -27,9 +28,10 @@ use flm_core::techy::extract::KeyVals as CoreKeyVals;
 use serde_json::Value;
 
 use crate::adapter::stage::projection_value;
+use crate::api::lang::copy::WrittenPiece;
 use crate::api::lang::mint::Mode;
 use crate::api::techy::extract::{KeyValEntry, KeyVals};
-use crate::api::techy::node::{Node, NodeKindName, Span, Tree};
+use crate::api::techy::node::{Descendants, Node, NodeKindName, Span, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::{NodeCore, Sealed, Token, TreeCore};
 
@@ -203,8 +205,12 @@ impl<'t: 's, 's> Node<'s> for NodeFacade<'t> {
         self.slice(self.node_ref().children())
     }
 
-    fn descendants(&self) -> Vec<Box<dyn Node<'s> + 's>> {
-        self.node_ref().descendants().map(|node| self.one(node)).collect()
+    fn descendants(&self) -> Descendants<'s> {
+        // The ids are collected with techy's iterator, which defines the
+        // order; the traversal then owns them and a copy of this façade.
+        let ids: Vec<NodeId> = self.node_ref().descendants().map(|node| node.id()).collect();
+        let root = self.clone();
+        Descendants::new(ids.into_iter().map(move |id| -> Box<dyn Node<'s> + 's> { Box::new(root.at(id)) }))
     }
 
     fn chars(&self) -> Option<String> {
@@ -326,67 +332,109 @@ impl Tree for TreeFacade {
 /// read: the one implementation of [`KeyVals`].
 ///
 /// It owns the list behind an `Rc`, which its entries and their value nodes
-/// share. An empty run of nodes reads as the empty list, which holds no tree.
+/// share, and the bracket it was read from (a node of it, and the value of
+/// each entry as pieces of it), which its entries share too. An empty run of
+/// nodes reads as the empty list, which holds no tree.
 #[derive(Clone)]
-pub struct KeyValsFacade {
-    list: Option<Rc<CoreKeyVals<Flm>>>,
+pub struct KeyValsFacade<'t> {
+    list: Option<(Rc<CoreKeyVals<Flm>>, Rc<Bracket<'t>>)>,
 }
 
-impl KeyValsFacade {
-    /// The façade of `list`.
-    pub(crate) fn new(list: CoreKeyVals<Flm>) -> KeyValsFacade {
-        KeyValsFacade { list: Some(Rc::new(list)) }
+/// The bracket a key-value list was read from, as its entries reach it: a
+/// node of the bracket, and the value of each entry as pieces of the bracket,
+/// which [`key_value_pieces`](flm_core::lang::copy::key_value_pieces)
+/// answered when the list was read.
+struct Bracket<'t> {
+    /// A node of the bracket: the pieces' nodes are its relatives.
+    node: Box<dyn Node<'t> + 't>,
+    /// The value of each entry of the list, by position: `None` for an entry
+    /// without a value.
+    values: Vec<Option<Vec<BracketPiece>>>,
+}
+
+/// A piece of the value of an entry, as [`Bracket`] keeps it: the node by
+/// its id in the bracket's tree.
+enum BracketPiece {
+    /// A node of the bracket's tree.
+    Node(NodeId),
+    /// Characters of the document.
+    Text(String),
+}
+
+impl<'t> KeyValsFacade<'t> {
+    /// The façade of `list`, read from `content`, a run of nodes of which
+    /// `node` is one.
+    pub(crate) fn new(list: CoreKeyVals<Flm>, content: NodeSlice<'_, Flm>, node: Box<dyn Node<'t> + 't>) -> KeyValsFacade<'t> {
+        let values = list
+            .iter()
+            .map(|entry| {
+                let value = entry.value()?;
+                let pieces = flm_core::lang::copy::key_value_pieces(&content, value);
+                Some(
+                    pieces
+                        .into_iter()
+                        .map(|piece| match piece {
+                            flm_core::lang::copy::WrittenPiece::Node(node) => BracketPiece::Node(node.id()),
+                            flm_core::lang::copy::WrittenPiece::Text(text) => BracketPiece::Text(text),
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        KeyValsFacade { list: Some((Rc::new(list), Rc::new(Bracket { node, values }))) }
     }
 
     /// The empty list.
-    pub(crate) fn empty() -> KeyValsFacade {
+    pub(crate) fn empty() -> KeyValsFacade<'t> {
         KeyValsFacade { list: None }
     }
 
     /// The façade of the entry at position `index`, when there is one.
-    fn entry<'s>(&self, index: usize) -> Option<Box<dyn KeyValEntry<'s> + 's>> {
-        let list = self.list.as_ref()?;
+    fn entry(&self, index: usize) -> Option<Box<dyn KeyValEntry<'t> + 't>> {
+        let (list, bracket) = self.list.as_ref()?;
         list.keyval(index)?;
-        Some(Box::new(KeyValEntryFacade { list: Rc::clone(list), index }))
+        Some(Box::new(KeyValEntryFacade { list: Rc::clone(list), bracket: Rc::clone(bracket), index }))
     }
 }
 
-impl Sealed for KeyValsFacade {}
+impl Sealed for KeyValsFacade<'_> {}
 
-impl<'s> KeyVals<'s> for KeyValsFacade {
+impl<'t> KeyVals<'t> for KeyValsFacade<'t> {
     fn len(&self) -> usize {
-        self.list.as_ref().map_or(0, |list| list.len())
+        self.list.as_ref().map_or(0, |(list, _)| list.len())
     }
 
     fn is_empty(&self) -> bool {
-        self.list.as_ref().is_none_or(|list| list.is_empty())
+        self.list.as_ref().is_none_or(|(list, _)| list.is_empty())
     }
 
-    fn keyval(&self, i: usize) -> Option<Box<dyn KeyValEntry<'s> + 's>> {
+    fn keyval(&self, i: usize) -> Option<Box<dyn KeyValEntry<'t> + 't>> {
         self.entry(i)
     }
 
-    fn get(&self, key: &str) -> Option<Box<dyn KeyValEntry<'s> + 's>> {
+    fn get(&self, key: &str) -> Option<Box<dyn KeyValEntry<'t> + 't>> {
         // The last entry of that key, as techy's `get` answers.
-        let list = self.list.as_ref()?;
+        let (list, _) = self.list.as_ref()?;
         let index = list.iter().enumerate().filter(|(_, entry)| entry.key() == key).map(|(i, _)| i).last()?;
         self.entry(index)
     }
 
-    fn iter(&self) -> Vec<Box<dyn KeyValEntry<'s> + 's>> {
+    fn iter(&self) -> Vec<Box<dyn KeyValEntry<'t> + 't>> {
         (0..self.len()).filter_map(|i| self.entry(i)).collect()
     }
 }
 
 /// One entry of a [`KeyValsFacade`]: the one implementation of
-/// [`KeyValEntry`]. It shares the list's `Rc`, and so do its value nodes.
+/// [`KeyValEntry`]. It shares the list's `Rc`, and so do its value nodes, and
+/// the list's bracket.
 #[derive(Clone)]
-pub struct KeyValEntryFacade {
+pub struct KeyValEntryFacade<'t> {
     list: Rc<CoreKeyVals<Flm>>,
+    bracket: Rc<Bracket<'t>>,
     index: usize,
 }
 
-impl KeyValEntryFacade {
+impl KeyValEntryFacade<'_> {
     /// The value nodes `nodes` as façades sharing the list.
     fn nodes<'s>(&self, nodes: NodeSlice<'_, Flm>) -> Vec<Box<dyn Node<'s> + 's>> {
         nodes
@@ -396,21 +444,34 @@ impl KeyValEntryFacade {
     }
 }
 
-impl Sealed for KeyValEntryFacade {}
+impl Sealed for KeyValEntryFacade<'_> {}
 
-impl<'s> KeyValEntry<'s> for KeyValEntryFacade {
+impl<'t> KeyValEntry<'t> for KeyValEntryFacade<'t> {
     fn key(&self) -> String {
         self.list.keyval(self.index).map(|entry| entry.key().to_string()).unwrap_or_default()
     }
 
-    fn value(&self) -> Option<Vec<Box<dyn Node<'s> + 's>>> {
+    fn value(&self) -> Option<Vec<Box<dyn Node<'t> + 't>>> {
         let value = self.list.keyval(self.index)?.value()?;
         Some(self.nodes(value))
     }
 
-    fn value_content(&self) -> Option<Vec<Box<dyn Node<'s> + 's>>> {
+    fn value_content(&self) -> Option<Vec<Box<dyn Node<'t> + 't>>> {
         let value = self.list.keyval(self.index)?.value_content()?;
         Some(self.nodes(value))
+    }
+
+    fn value_pieces(&self) -> Option<Vec<WrittenPiece<'t>>> {
+        let pieces = self.bracket.values.get(self.index)?.as_ref()?;
+        Some(
+            pieces
+                .iter()
+                .map(|piece| match piece {
+                    BracketPiece::Node(id) => WrittenPiece::Node(self.bracket.node.relative(Token::new(), *id)),
+                    BracketPiece::Text(text) => WrittenPiece::Text(text.clone()),
+                })
+                .collect(),
+        )
     }
 }
 

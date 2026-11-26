@@ -39,8 +39,8 @@ use crate::guest::core::stage::{RewriteStage, Stage};
 use crate::guest::model::element::Aspect;
 use crate::guest::registry;
 use crate::guest::lang::{BuiltLang, FlmDiagnostics};
-use crate::guest::stdcore::features::citations::CitationProvider;
-use crate::guest::stdcore::features::compose::TemplateModule;
+use crate::guest::stdlib::features::citations::CitationProvider;
+use crate::guest::stdlib::features::compose::TemplateModule;
 use crate::runtime::ExtError;
 
 /// Mirrors [`LateInit`](crate::api::core::registry::LateInit): a hook that

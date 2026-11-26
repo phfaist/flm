@@ -6,7 +6,8 @@ use serde_json::Value;
 use crate::api::core::data::table::TableValue;
 use crate::api::core::stage::Scope;
 use crate::api::host::HostHandle;
-use crate::api::techy::node::{Node, Tree};
+use crate::api::progress::ProgressScope;
+use crate::api::techy::node::{Node, NodeKindName, Tree};
 use crate::runtime::ExtError;
 use crate::sealed::{RewriteCxCore, StageCxCore};
 
@@ -43,14 +44,17 @@ pub trait StageCx: StageCxCore {
     fn my_tree(&self) -> Option<Box<dyn Tree>>;
 
     /// Mirrors [`StageCx::trees`](flm_core::core::run::StageCx::trees): every
-    /// frozen tree of the document. What differs: a list of ids as text and
-    /// trees.
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)>;
+    /// frozen tree of the document, with its id. What differs: the ids are
+    /// text, and the iterator is a [`Trees`], a traversal across a binding.
+    fn trees(&self) -> Trees;
 
     /// Mirrors [`StageCx::walk`](flm_core::core::run::StageCx::walk): every node
     /// of every tree of the run, in document order (for a per-tree stage too).
-    /// What differs: a list, built eagerly.
-    fn walk(&self) -> Vec<WalkEntry<'_>>;
+    /// What differs: the iterator is a [`Walk`], whose items are
+    /// [`WalkEntry`]s. Across a binding, the iterator is a traversal, which
+    /// the extension can restrict to given elements ([`Walk::elements`]) or
+    /// node kinds ([`Walk::kinds`]).
+    fn walk(&self) -> Walk<'_>;
 
     /// Mirrors [`StageCx::addr`](flm_core::core::run::StageCx::addr): the
     /// address of `node`, by which computed data about the node is keyed.
@@ -155,6 +159,13 @@ pub trait StageCx: StageCxCore {
     ///
     /// The package did not declare the service ([`ExtError::Argument`]).
     fn host(&self, name: &str) -> Result<HostHandle, ExtError>;
+
+    /// Mirrors [`StageCx::progress`](flm_core::core::run::StageCx::progress):
+    /// the scope of the stage's row on the progress sheet of the build, under
+    /// which the stage declares the rows of its own work and asks whether the
+    /// build was asked to stop. The per-tree calls of one stage share it.
+    /// What differs: the scope as the façade [`ProgressScope`].
+    fn progress(&self) -> Box<dyn ProgressScope>;
 }
 
 /// Mirrors an item of [`FrozenWalk`](flm_core::core::run::FrozenWalk): a node
@@ -166,6 +177,85 @@ pub struct WalkEntry<'t> {
     pub addr: NodeAddr,
     /// The node.
     pub node: Box<dyn Node<'t> + 't>,
+}
+
+/// Mirrors [`FrozenWalk`](flm_core::core::run::FrozenWalk): an iterator over
+/// every node of every tree of the run, in document order, with its address.
+///
+/// What differs: each item is a [`WalkEntry`]. Across a binding, the
+/// iterator is a [traversal](crate::api#the-mapping-rules): one handle, whose
+/// entries the binding pulls once, in order, a bounded group at a time. A
+/// stage that looks for the nodes of a few elements restricts the traversal
+/// with [`elements`](Walk::elements) or [`kinds`](Walk::kinds) before it
+/// iterates: the other nodes then cost the extension no crossing and no
+/// memory of its engine.
+pub struct Walk<'a> {
+    entries: Box<dyn Iterator<Item = WalkEntry<'a>> + 'a>,
+}
+
+impl<'a> Walk<'a> {
+    /// The traversal of `entries`, in their order.
+    pub(crate) fn new(entries: impl Iterator<Item = WalkEntry<'a>> + 'a) -> Walk<'a> {
+        Walk { entries: Box::new(entries) }
+    }
+
+    /// Mirrors [`Iterator::filter`] on [`FrozenWalk`](flm_core::core::run::FrozenWalk):
+    /// the entries not taken yet whose node's element has one of the names
+    /// `names` (the name [`Node::element_name`] answers), in their order.
+    /// What differs: the criterion is a list of element names; a name that
+    /// no element has matches no node. Across a binding the comparison runs
+    /// on the host, and a node that does not match is not lent.
+    pub fn elements(self, names: impl IntoIterator<Item = impl Into<String>>) -> Walk<'a> {
+        let names: Vec<String> = names.into_iter().map(Into::into).collect();
+        Walk::new(self.entries.filter(move |entry| names.contains(&entry.node.element_name())))
+    }
+
+    /// Mirrors [`Iterator::filter`] on [`FrozenWalk`](flm_core::core::run::FrozenWalk):
+    /// the entries not taken yet whose node's kind ([`Node::kind`]) is one of
+    /// `kinds`, in their order. What differs: the criterion is a list of
+    /// kinds. Across a binding the comparison runs on the host, and a node
+    /// that does not match is not lent.
+    pub fn kinds(self, kinds: &[NodeKindName]) -> Walk<'a> {
+        let kinds = kinds.to_vec();
+        Walk::new(self.entries.filter(move |entry| kinds.contains(&entry.node.kind())))
+    }
+}
+
+impl<'a> Iterator for Walk<'a> {
+    type Item = WalkEntry<'a>;
+
+    fn next(&mut self) -> Option<WalkEntry<'a>> {
+        self.entries.next()
+    }
+}
+
+/// Mirrors the iterator that [`StageCx::trees`](flm_core::core::run::StageCx::trees)
+/// answers: trees, each with its id.
+///
+/// What differs: the ids as text; the iterator owns the trees, each shared
+/// with what it was read from, so that it borrows nothing. It is also what
+/// [`TreesTable::trees`](crate::api::core::stage::TreesTable::trees) and
+/// [`LoweredTrees::trees`](crate::api::stdlib::backends::lowering::LoweredTrees::trees)
+/// answer. Across a binding, the iterator is a
+/// [traversal](crate::api#the-mapping-rules): one handle, whose pairs the
+/// binding pulls once, in order, a bounded group at a time.
+pub struct Trees {
+    trees: std::vec::IntoIter<(String, Box<dyn Tree>)>,
+}
+
+impl Trees {
+    /// The traversal of `trees`, in their order.
+    pub(crate) fn new(trees: Vec<(String, Box<dyn Tree>)>) -> Trees {
+        Trees { trees: trees.into_iter() }
+    }
+}
+
+impl Iterator for Trees {
+    type Item = (String, Box<dyn Tree>);
+
+    fn next(&mut self) -> Option<(String, Box<dyn Tree>)> {
+        self.trees.next()
+    }
 }
 
 /// Mirrors [`RewriteCx`](flm_core::core::run::RewriteCx): what a rewrite

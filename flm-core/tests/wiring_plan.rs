@@ -1,6 +1,6 @@
 //! The wired rewrite features at plan build
-//! (`flm_core::stdcore::features::blocks` and
-//! `flm_core::stdcore::features::userdefs`): block structure activates the
+//! (`flm_core::stdlib::features::blocks` and
+//! `flm_core::stdlib::features::userdefs`): block structure activates the
 //! expansion decision, the marked defaults, the marker alternatives, the
 //! atomicity error, the order of the two expansion stages, and the declared
 //! configurations.
@@ -15,8 +15,8 @@ use flm_core::core::plan::{Plan, PlanError, PlanRequest};
 use flm_core::core::registry::FlmFeature;
 use flm_core::lang::rewrites::blocks::BlocksConfig;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::features::blocks::Blocks;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::features::blocks::Blocks;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 
 use common::pipeline::plan;
 use common::wiring::registry;

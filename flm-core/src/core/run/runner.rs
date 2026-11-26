@@ -69,6 +69,30 @@
 //! happens, never what is computed: the batches are fixed and the folds do not
 //! depend on timing.
 //!
+//! # Progress and cancellation
+//!
+//! A run given a [`Scope`](crate::progress::Scope) of a progress sheet
+//! ([`Run::with_progress`]) declares its rows under it: one row of kind
+//! `flm.run.rewrites`, which counts the trees the rewrite stages run over, and
+//! one row for each scheduled stage, in the plan's order, whose kind is the
+//! stage's name. A stage's row starts when the stage's first call begins and
+//! ends when its last call returns; the row of a per-tree stage counts the
+//! trees of the run. A stage receives the scope of its row
+//! ([`StageCx::progress`]) and declares the rows of its own slow work under
+//! it; a rewrite stage receives none. The row of a stage that the error gate
+//! keeps from running ends as not run; the row of a stage that panics, and
+//! every row running when the build is cancelled, ends as failed.
+//!
+//! The run asks whether the build was cancelled at the start of each step,
+//! before each call of a stage (each per-tree call, each tree of the rewrite
+//! stages), and once when the calls of a step have returned. A cancelled step
+//! produces nothing: the calls not yet begun are skipped, everything the step
+//! computed or reported is discarded, as when a stage panics, and the run is
+//! over with the outcome [`RunOutcome::Cancelled`]. The tables and the
+//! diagnostics of the steps completed before stay readable. A run that
+//! completes a step therefore produces what it would have produced without a
+//! sheet. Reporting never changes what is computed.
+//!
 //! # Worker threads
 //!
 //! The rewrite stages and every batch run on a worker thread. A worker thread is
@@ -100,11 +124,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::sync::Arc;
 
-use techy::core::node::NodeTree;
+use techy::core::node::{NodeRef, NodeTree};
 use techy::error::{Diagnostic, Diagnostics};
 use techy::source::{Source, SourceSpan};
 
-use crate::model::addr::TreeId;
+use crate::model::addr::{NodeAddr, TreeId};
 use crate::model::doc::Doc;
 use crate::model::names::{CapName, StageName};
 use crate::model::options::{BindSite, OptionError, ResolvedOptions, validate_values};
@@ -113,7 +137,7 @@ use crate::core::registry::StageKind;
 use crate::core::registry::frozen::StageIdx;
 use crate::core::run::cx::{
     IgnoredPreference, PreferredRuleNotCandidate, PreferredRuleSetAside, RewriteCx, RunView,
-    StageCx,
+    StageCx, UncheckedOutput,
 };
 use crate::core::run::externals::{Externals, Stamp};
 use crate::core::run::order::RunOrder;
@@ -124,6 +148,11 @@ use crate::core::data::store::{
 use crate::core::data::table::{TableId, TableKey};
 use crate::lang::guard;
 use crate::lang::{Flm, FlmDiagnostic, FlmDiagnostics, FlmOrigin, FlmSource};
+use crate::progress::{self, Kind, Pending, Unit};
+
+/// The kind of the run's row that counts the trees the rewrite stages run
+/// over.
+pub const REWRITES_KIND: Kind = Kind::new("flm.run.rewrites");
 
 /// How a run executes: on one thread or on several, whether the error gate may
 /// stop it, and how many diagnostics it keeps.
@@ -133,9 +162,9 @@ use crate::lang::{Flm, FlmDiagnostic, FlmDiagnostics, FlmOrigin, FlmSource};
 /// effects outside the store ([`Effect::Io`](crate::core::stage::Effect::Io);
 /// [`Plan::first_io_batch`](crate::core::plan::Plan::first_io_batch)), unless
 /// [`continue_with_errors`](RunOptions::continue_with_errors) is set. A run
-/// that the error gate stopped reports it through
-/// [`RunOutcome::halted_at_gate`] and [`Run::halted_at_gate`]. Apart from the
-/// error gate, these options do not change what is computed.
+/// that the error gate stopped ends with the outcome
+/// [`RunOutcome::HaltedAtGate`] ([`Run::outcome`]). Apart from the error gate,
+/// these options do not change what is computed.
 ///
 /// Pass the same options to every [`Run::step`]; [`Run::execute`] passes them
 /// to each step it takes.
@@ -184,16 +213,24 @@ impl RunOptions {
 pub enum Step {
     /// A step ran, and more steps remain.
     More,
-    /// The run is over: it either finished or stopped at the error gate.
+    /// The run is over: it finished, stopped at the error gate, or was
+    /// cancelled ([`Run::outcome`]).
     Done,
 }
 
-/// How a run ended, as [`Run::execute`] reports it.
+/// How a run ended, as [`Run::execute`] and [`Run::outcome`] report it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RunOutcome {
-    /// Whether the error gate stopped the run before the first stage with
-    /// effects outside the store, rather than the run finishing.
-    pub halted_at_gate: bool,
+pub enum RunOutcome {
+    /// The run executed every step of its plan.
+    Finished,
+    /// The error gate stopped the run before the first batch that holds a
+    /// stage with effects outside the store, because the run had recorded an
+    /// Error diagnostic ([`RunOptions::continue_with_errors`]).
+    HaltedAtGate,
+    /// The build was cancelled through the progress sheet that the run
+    /// reports on ([`Run::with_progress`]): the step under way produced
+    /// nothing, and the steps completed before it stay readable.
+    Cancelled,
 }
 
 /// The reason why a run could not be constructed, or could not go on.
@@ -327,7 +364,7 @@ type RewriteOuts = (Vec<Option<Arc<NodeTree<Flm>>>>, FlmDiagnostics);
 enum Phase {
     Rewrites,
     Batch(usize),
-    Done { halted: bool },
+    Done(RunOutcome),
 }
 
 /// A run is one execution of one plan over one document; it owns the frozen
@@ -337,8 +374,9 @@ enum Phase {
 /// computes, one document may be run several times, under different plans,
 /// without one run seeing another's results.
 ///
-/// Construct a run with [`Run::new`], then [`Run::execute`] it to the end or
-/// [`Run::step`] through it. Read what it computed with [`Run::table`],
+/// Construct a run with [`Run::new`], give it the scope of a progress sheet
+/// with [`Run::with_progress`] if it reports on one, then [`Run::execute`] it
+/// to the end or [`Run::step`] through it. Read what it computed with [`Run::table`],
 /// [`Run::frozen_tree`] and [`Run::diagnostics`]. The [module
 /// documentation](self) describes what happens in between; [reading
 /// results](crate::guide::embedding#reading-results) shows how an embedding
@@ -350,14 +388,14 @@ enum Phase {
 /// use std::sync::Arc;
 /// use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 /// use flm_core::core::plan::{Overrides, Plan};
-/// use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-/// use flm_core::core::run::{Externals, Run, RunOptions};
+/// use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+/// use flm_core::core::run::{Externals, Run, RunOptions, RunOutcome};
 /// use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
-/// use flm_core::stdcore::backends::text::TEXT_DOCUMENT;
-/// use flm_core::stdcore::{self, StdcoreConfig};
+/// use flm_core::stdlib::backends::text::TEXT_DOCUMENT;
+/// use flm_core::stdlib::{self, StdlibConfig};
 ///
 /// let mut builder = RegistryBuilder::new();
-/// builder.use_package(stdcore::package(StdcoreConfig::new()));
+/// builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 /// builder.use_package(flm_core::math_passthrough::package());
 /// let registry = Arc::new(builder.build(&RegistryInputs::new())?);
 ///
@@ -375,7 +413,7 @@ enum Phase {
 /// let mut run = Run::new(doc, plan, Externals::none())?;
 /// let outcome = run.execute(&RunOptions::new())?;
 ///
-/// assert!(!outcome.halted_at_gate);
+/// assert_eq!(outcome, RunOutcome::Finished);
 /// let artifacts = run.table(TEXT_DOCUMENT)?.expect("the text workflow writes it");
 /// let bytes = artifacts.entry().and_then(|a| a.as_bytes()).expect("one entry artifact");
 /// assert_eq!(String::from_utf8_lossy(bytes).trim_end(), "Hello world.");
@@ -395,6 +433,13 @@ pub struct Run {
     phase: Phase,
     plan_source: Arc<FlmSource>,
     sink_sized: bool,
+    /// The scope under which the run reports: [`progress::Scope::none`]
+    /// until [`Run::with_progress`] gives one.
+    progress: progress::Scope,
+    /// The run's row for the rewrite stages, declared and not yet started.
+    rewrites_row: Option<Pending>,
+    /// The row of each scheduled stage not yet started.
+    stage_rows: BTreeMap<StageIdx, Pending>,
 }
 
 impl Run {
@@ -494,7 +539,57 @@ impl Run {
             phase: Phase::Rewrites,
             plan_source: Arc::new(Source::new("").with_origin(FlmOrigin::none())),
             sink_sized: false,
+            progress: progress::Scope::none(),
+            rewrites_row: None,
+            stage_rows: BTreeMap::new(),
         })
+    }
+
+    /// Gives the run the scope of a progress sheet under which it reports,
+    /// and declares the run's rows under it, so that a host sees what is to
+    /// come. Call it before the first step; a run that is given no scope
+    /// reports under [`progress::Scope::none`].
+    ///
+    /// The rows, in this order:
+    ///
+    /// - one row of kind `flm.run.rewrites`, counted in items: the trees the
+    ///   rewrite stages run over. It starts when the rewrite stages begin and
+    ///   advances as each tree is done;
+    /// - one row for each scheduled stage, in the plan's order, whose kind is
+    ///   the stage's name. It starts when the stage's first call begins and
+    ///   ends when its last call returns. The row of a per-tree stage is
+    ///   counted in items, the trees of the run, and advances as each call
+    ///   returns; the row of a document-scope stage has no count.
+    ///
+    /// The row of a stage that the error gate keeps from running, or that a
+    /// cancellation keeps from starting, ends as not run. The row of a stage
+    /// that panics, and every row running when the build is cancelled, ends
+    /// as failed. A row is declared only for what the run has still to do:
+    /// given after a step, the scope receives no row for that step.
+    ///
+    /// The run reads the sheet's cancellation through this scope; the
+    /// [module documentation](self#progress-and-cancellation) lists where.
+    pub fn with_progress(mut self, scope: progress::Scope) -> Run {
+        let plan = Arc::clone(&self.plan);
+        let registry = plan.registry();
+        let first_batch = match self.phase {
+            Phase::Rewrites => 0,
+            Phase::Batch(index) => index,
+            Phase::Done(_) => plan.batches().len(),
+        };
+        let first_stage = plan.batches().get(first_batch).map_or(plan.order().len(), |r| r.start);
+        self.rewrites_row =
+            matches!(self.phase, Phase::Rewrites).then(|| scope.child(&REWRITES_KIND, None));
+        self.stage_rows = plan.order()[first_stage..]
+            .iter()
+            .filter(|idx| matches!(registry.stage(**idx).kind, StageKind::Pipeline(_)))
+            .map(|idx| {
+                let kind = Kind::shared(registry.stage(*idx).name.name().clone());
+                (*idx, scope.child(&kind, None))
+            })
+            .collect();
+        self.progress = scope;
+        self
     }
 
     /// The document being processed.
@@ -592,6 +687,22 @@ impl Run {
         self.order.trees()
     }
 
+    /// Returns every node of every tree of the run, in document order, with
+    /// its address: the order of [`StageCx::walk`](crate::core::run::StageCx::walk),
+    /// the document's walk applied to the frozen trees, a placed tree entered
+    /// at the node that places it. Empty before the rewrite stages have run.
+    ///
+    /// A host that reads the run's tables after the run, keyed by the
+    /// addresses of the frozen trees (a reference point's, for instance),
+    /// finds the nodes they name here; the trees of [`Run::doc`] are the trees
+    /// as parsed, before the rewrites.
+    pub fn walk(&self) -> impl Iterator<Item = (NodeAddr, NodeRef<'_, Flm>)> + '_ {
+        self.order.walk().iter().filter_map(|addr| {
+            let node = self.frozen.get(&addr.tree)?.get(addr.node)?;
+            Some((*addr, node))
+        })
+    }
+
     /// Returns only the diagnostics that the run produced, without the parse
     /// diagnostics.
     ///
@@ -617,15 +728,26 @@ impl Run {
         stamp_of(&self.plan, &self.options)
     }
 
-    /// Whether the run is over, whether because it finished or because the
-    /// error gate stopped it.
+    /// Whether the run is over: it finished, stopped at the error gate, or
+    /// was cancelled.
     pub fn is_done(&self) -> bool {
-        matches!(self.phase, Phase::Done { .. })
+        matches!(self.phase, Phase::Done(_))
     }
 
-    /// Whether the error gate stopped the run, rather than the run finishing.
-    pub fn halted_at_gate(&self) -> bool {
-        matches!(self.phase, Phase::Done { halted: true })
+    /// How the run ended, once it is over; `None` while steps remain.
+    pub fn outcome(&self) -> Option<RunOutcome> {
+        match self.phase {
+            Phase::Done(outcome) => Some(outcome),
+            Phase::Rewrites | Phase::Batch(_) => None,
+        }
+    }
+
+    /// Ends the run with `outcome`. The rows of the work not started end as
+    /// not run.
+    fn end(&mut self, outcome: RunOutcome) {
+        self.phase = Phase::Done(outcome);
+        self.rewrites_row = None;
+        self.stage_rows.clear();
     }
 
     /// Runs one step: the rewrite stages on the first call, then one batch of
@@ -635,7 +757,9 @@ impl Run {
     /// the run is over; calling it again after that does nothing and returns
     /// [`Step::Done`]. Before the first batch that holds a stage with effects
     /// outside the store, the error gate may end the run (see
-    /// [`RunOptions`]). The first call also sets the diagnostic limit from
+    /// [`RunOptions`]). A build cancelled through the run's progress sheet
+    /// ends the run, and the step under way produces nothing
+    /// ([progress and cancellation](self#progress-and-cancellation)). The first call also sets the diagnostic limit from
     /// [`RunOptions::max_diagnostics`]. Stepping changes only when the work
     /// happens, never what is computed.
     ///
@@ -659,33 +783,36 @@ impl Run {
             self.sink_sized = true;
         }
         match self.phase {
-            Phase::Done { .. } => Ok(Step::Done),
+            Phase::Done(_) => return Ok(Step::Done),
+            Phase::Rewrites | Phase::Batch(_) if self.progress.cancelled() => {
+                self.end(RunOutcome::Cancelled);
+                return Ok(Step::Done);
+            }
             Phase::Rewrites => {
-                self.on_worker(options, |run| run.run_rewrites(options))?;
-                self.phase = if self.plan.batches().is_empty() {
-                    Phase::Done { halted: false }
+                if !self.on_worker(options, |run| run.run_rewrites(options))? {
+                    self.end(RunOutcome::Cancelled);
+                } else if self.plan.batches().is_empty() {
+                    self.end(RunOutcome::Finished);
                 } else {
-                    Phase::Batch(0)
-                };
-                Ok(if self.is_done() { Step::Done } else { Step::More })
+                    self.phase = Phase::Batch(0);
+                }
             }
             Phase::Batch(index) => {
                 if self.plan.first_io_batch() == Some(index)
                     && !options.continue_with_errors
                     && self.diagnostics().has_errors()
                 {
-                    self.phase = Phase::Done { halted: true };
-                    return Ok(Step::Done);
-                }
-                self.on_worker(options, |run| run.run_batch(index, options))?;
-                self.phase = if index + 1 < self.plan.batches().len() {
-                    Phase::Batch(index + 1)
+                    self.end(RunOutcome::HaltedAtGate);
+                } else if !self.on_worker(options, |run| run.run_batch(index, options))? {
+                    self.end(RunOutcome::Cancelled);
+                } else if index + 1 < self.plan.batches().len() {
+                    self.phase = Phase::Batch(index + 1);
                 } else {
-                    Phase::Done { halted: false }
-                };
-                Ok(if self.is_done() { Step::Done } else { Step::More })
+                    self.end(RunOutcome::Finished);
+                }
             }
         }
+        Ok(if self.is_done() { Step::Done } else { Step::More })
     }
 
     /// Runs every remaining step, and returns how the run ended.
@@ -700,17 +827,17 @@ impl Run {
     /// call; see [`Run::step`].
     pub fn execute(&mut self, options: &RunOptions) -> Result<RunOutcome, RunError> {
         while self.step(options)? == Step::More {}
-        Ok(RunOutcome { halted_at_gate: self.halted_at_gate() })
+        Ok(self.outcome().expect("a run whose step returned `Done` is over"))
     }
 
     /// Runs `f` on a worker thread: a thread of the runner's pool on the
     /// parallel path; otherwise the current thread when it is marked as a
     /// worker thread, and a thread created for `f` when it is not.
-    fn on_worker(
+    fn on_worker<T: Send>(
         &mut self,
         options: &RunOptions,
-        f: impl FnOnce(&mut Run) -> Result<(), RunError> + Send,
-    ) -> Result<(), RunError> {
+        f: impl FnOnce(&mut Run) -> Result<T, RunError> + Send,
+    ) -> Result<T, RunError> {
         #[cfg(feature = "parallel")]
         {
             if !options.sequential {
@@ -728,9 +855,68 @@ impl Run {
     /// Runs every rewrite over every tree, publishes each rewrite's table, and
     /// records the frozen tree of each tree that came through. See the module
     /// documentation.
-    fn run_rewrites(&mut self, options: &RunOptions) -> Result<(), RunError> {
+    ///
+    /// Returns `false`, having changed nothing, when the build was cancelled.
+    fn run_rewrites(&mut self, options: &RunOptions) -> Result<bool, RunError> {
         let plan = Arc::clone(&self.plan);
         let registry = plan.registry();
+        let rewrites: Vec<StageIdx> = plan.rewrites().to_vec();
+        let doc = Arc::clone(&self.doc);
+        let content = doc.content();
+        let inputs: Vec<(TreeId, Arc<NodeTree<Flm>>, crate::model::doc::FragmentLayout)> =
+            content
+            .walk_trees()
+            .filter_map(|id| {
+                content
+                    .fragment(id)
+                    .map(|fragment| (id, Arc::clone(fragment.tree()), fragment.layout()))
+            })
+            .collect();
+        let stage_options = &self.options;
+        let progress = &self.progress;
+        let row = self
+            .rewrites_row
+            .take()
+            .unwrap_or_else(no_row)
+            .start_counted(Unit::Items, inputs.len() as u64);
+        // `None` when a tree was skipped, because the build was cancelled.
+        let results: Option<Vec<RewriteOuts>> = map_indexed(inputs.len(), options, |i| {
+            if progress.cancelled() {
+                return None;
+            }
+            let (id, tree, layout) = &inputs[i];
+            let mut local = FlmDiagnostics::new();
+            let mut outs: Vec<Option<Arc<NodeTree<Flm>>>> = Vec::with_capacity(rewrites.len());
+            let mut current = Arc::clone(tree);
+            for idx in &rewrites {
+                let entry = registry.stage(*idx);
+                let StageKind::Rewrite(stage) = &entry.kind else { continue };
+                let cx = RewriteCx::new(registry, *id, *layout, &stage_options[idx]);
+                match stage.rewrite(*id, &current, &cx, &mut local) {
+                    Ok(next) => {
+                        outs.push(Some(Arc::clone(&next)));
+                        current = next;
+                    }
+                    Err(error) => {
+                        local.push(error.diagnostic().clone());
+                        while outs.len() < rewrites.len() {
+                            outs.push(None);
+                        }
+                        break;
+                    }
+                }
+            }
+            row.advance(1);
+            Some((outs, local))
+        })
+        .into_iter()
+        .collect();
+        // On a cancelled build the row is dropped unfinished and ends as failed.
+        let (Some(results), false) = (results, progress.cancelled()) else {
+            return Ok(false);
+        };
+        row.finish();
+
         for warning in plan.warnings() {
             let span = SourceSpan::new(&self.plan_source, 0..0);
             let diagnostic = match warning {
@@ -766,47 +952,21 @@ impl Run {
                         span,
                     )
                 }
+                PlanWarning::UncheckedOutput { backend, feature, written, reader, workflow } => {
+                    Diagnostic::warning(
+                        UncheckedOutput {
+                            feature: feature.to_string(),
+                            backend: backend.to_string(),
+                            written: written.clone(),
+                            reader: reader.clone(),
+                            workflow: workflow.as_ref().map(ToString::to_string),
+                        },
+                        span,
+                    )
+                }
             };
             self.diagnostics.push(diagnostic);
         }
-        let rewrites: Vec<StageIdx> = plan.rewrites().to_vec();
-        let doc = Arc::clone(&self.doc);
-        let content = doc.content();
-        let inputs: Vec<(TreeId, Arc<NodeTree<Flm>>, crate::model::doc::FragmentLayout)> =
-            content
-            .walk_trees()
-            .filter_map(|id| {
-                content
-                    .fragment(id)
-                    .map(|fragment| (id, Arc::clone(fragment.tree()), fragment.layout()))
-            })
-            .collect();
-        let stage_options = &self.options;
-        let results: Vec<RewriteOuts> = map_indexed(inputs.len(), options, |i| {
-            let (id, tree, layout) = &inputs[i];
-            let mut local = FlmDiagnostics::new();
-            let mut outs: Vec<Option<Arc<NodeTree<Flm>>>> = Vec::with_capacity(rewrites.len());
-            let mut current = Arc::clone(tree);
-            for idx in &rewrites {
-                let entry = registry.stage(*idx);
-                let StageKind::Rewrite(stage) = &entry.kind else { continue };
-                let cx = RewriteCx::new(registry, *id, *layout, &stage_options[idx]);
-                match stage.rewrite(*id, &current, &cx, &mut local) {
-                    Ok(next) => {
-                        outs.push(Some(Arc::clone(&next)));
-                        current = next;
-                    }
-                    Err(error) => {
-                        local.push(error.diagnostic().clone());
-                        while outs.len() < rewrites.len() {
-                            outs.push(None);
-                        }
-                        break;
-                    }
-                }
-            }
-            (outs, local)
-        });
 
         let mut tables: Vec<(TableId, TreesTable)> = rewrites
             .iter()
@@ -858,16 +1018,22 @@ impl Run {
         for diagnostic in diags {
             self.diagnostics.push(diagnostic);
         }
-        Ok(())
+        Ok(true)
     }
 
     /// Runs the stages of one batch and folds their pieces into the store. See
     /// the module documentation.
-    fn run_batch(&mut self, index: usize, options: &RunOptions) -> Result<(), RunError> {
+    ///
+    /// Returns `false`, having changed nothing, when the build was cancelled.
+    fn run_batch(&mut self, index: usize, options: &RunOptions) -> Result<bool, RunError> {
         let plan = Arc::clone(&self.plan);
         let registry = plan.registry();
         let range = plan.batches()[index].clone();
         let stages: Vec<StageIdx> = plan.order()[range].to_vec();
+        let rows: Vec<(StageIdx, Pending)> = stages
+            .iter()
+            .map(|idx| (*idx, self.stage_rows.remove(idx).unwrap_or_else(no_row)))
+            .collect();
         let base = self.computed.clone();
         let alive: Vec<TreeId> = self.order.trees().to_vec();
         let view = RunView {
@@ -880,36 +1046,70 @@ impl Run {
             computed: &base,
             options: &self.options,
         };
-        let outs: Vec<Vec<StageOut<'_>>> = map_indexed(stages.len(), options, |k| {
-            let idx = stages[k];
+        let progress = &self.progress;
+        // `None` for a stage whose calls were not all made, because the build
+        // was cancelled.
+        let outs: Option<Vec<Vec<StageOut<'_>>>> = map_owned(rows, options, |(idx, row)| {
             let entry = registry.stage(idx);
-            let StageKind::Pipeline(stage) = &entry.kind else { return Vec::new() };
+            let StageKind::Pipeline(stage) = &entry.kind else { return Some(Vec::new()) };
             let stage_plan = plan.manifest(idx).expect("a scheduled stage has a manifest");
+            if progress.cancelled() {
+                return None;
+            }
             match entry.decl.scope {
-                Scope::PerTree => map_indexed(alive.len(), options, |j| {
-                    let cx = StageCx::new(
-                        &view,
-                        idx,
-                        Some(alive[j]),
-                        ComputedView::new(&entry.name, &stage_plan.reads, &base),
-                    );
-                    let mut out = StageOut::new(&entry.name, &stage_plan.writes);
-                    stage.run(&cx, &mut out);
-                    out
-                }),
+                Scope::PerTree => {
+                    let row = row.start_counted(Unit::Items, alive.len() as u64);
+                    let scope = row.scope();
+                    let outs: Option<Vec<StageOut<'_>>> = map_indexed(alive.len(), options, |j| {
+                        // The question before the first call was asked just
+                        // above, before the row started.
+                        if j > 0 && progress.cancelled() {
+                            return None;
+                        }
+                        let cx = StageCx::new(
+                            &view,
+                            idx,
+                            Some(alive[j]),
+                            ComputedView::new(&entry.name, &stage_plan.reads, &base),
+                            scope.clone(),
+                        );
+                        let mut out = StageOut::new(&entry.name, &stage_plan.writes);
+                        stage.run(&cx, &mut out);
+                        row.advance(1);
+                        Some(out)
+                    })
+                    .into_iter()
+                    .collect();
+                    // A row dropped unfinished ends as failed.
+                    if outs.is_some() && !progress.cancel_requested() {
+                        row.finish();
+                    }
+                    outs
+                }
                 Scope::Document => {
+                    let row = row.start();
                     let cx = StageCx::new(
                         &view,
                         idx,
                         None,
                         ComputedView::new(&entry.name, &stage_plan.reads, &base),
+                        row.scope(),
                     );
                     let mut out = StageOut::new(&entry.name, &stage_plan.writes);
                     stage.run(&cx, &mut out);
-                    vec![out]
+                    if !progress.cancel_requested() {
+                        row.finish();
+                    }
+                    Some(vec![out])
                 }
             }
-        });
+        })
+        .into_iter()
+        .collect();
+        // On a cancelled build, everything the batch produced is discarded.
+        let (Some(outs), false) = (outs, progress.cancelled()) else {
+            return Ok(false);
+        };
         // The whole batch is collected before anything is folded in, so a stage
         // that panics leaves the store untouched and the run unadvanced.
         for (k, outs) in outs.into_iter().enumerate() {
@@ -925,8 +1125,14 @@ impl Run {
                 &mut self.diagnostics,
             )?;
         }
-        Ok(())
+        Ok(true)
     }
+}
+
+/// A declared row with nothing behind it, for work whose row the run did not
+/// declare.
+fn no_row() -> Pending {
+    progress::Scope::none().child(&REWRITES_KIND, None)
 }
 
 impl fmt::Debug for Run {
@@ -973,6 +1179,26 @@ where
     }
     let _ = options;
     (0..n).map(&f).collect()
+}
+
+/// Applies `f` to every item of `items`, as [`map_indexed`] does to every
+/// index: in parallel when the options allow it, the results in the items'
+/// order.
+fn map_owned<I, T, F>(items: Vec<I>, options: &RunOptions, f: F) -> Vec<T>
+where
+    I: Send,
+    T: Send,
+    F: Fn(I) -> T + Sync + Send,
+{
+    #[cfg(feature = "parallel")]
+    {
+        use rayon::prelude::*;
+        if !options.sequential {
+            return items.into_par_iter().map(&f).collect();
+        }
+    }
+    let _ = options;
+    items.into_iter().map(&f).collect()
 }
 
 /// The runner's thread pool, built the first time it is needed.

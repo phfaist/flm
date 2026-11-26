@@ -13,15 +13,15 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The run of the `latex-recomposed` workflow over `document`.
@@ -29,11 +29,11 @@ fn run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
     run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
 }
 
-/// The recomposed LaTeX and the style file of `document`, whose run must
-/// report nothing.
+/// The recomposed LaTeX and the style file of `document`, whose run must report
+/// nothing but the Warnings of its plan's unchecked output.
 fn written(registry: &Arc<FlmRegistry>, document: &str) -> (String, String) {
     let run = run(registry, document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     (common::latex::output(&run), common::latex::style(&run).0)
 }
 
@@ -169,7 +169,7 @@ fn every_line_break_is_ended_so_the_next_line_is_never_its_argument() {
 fn a_configured_environment_is_written_under_its_name_and_declared_by_nobody() {
     let config = QuoteConfig::new()
         .environment("myquote", QuoteEnvironment::new([QuoteSection::Text, QuoteSection::Attributed]));
-    let registry = common::stdcore::registry(StdcoreConfig::new().quote(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().quote(config));
     let document = "\\begin{myquote}\\text{Mine.}\\attributed{Me}\\end{myquote}\n";
     let (output, style) = written(&registry, document);
     assert!(
@@ -195,15 +195,15 @@ fn every_argument_is_escaped_as_content() {
 fn the_three_errors_are_reported_here_too_and_the_content_kept() {
     let registry = std();
     let bare = run(&registry, "\\begin{quote}Bare text.\\text{a}\\end{quote}");
-    assert_eq!(identifiers(&bare), ["flm.quote.bare-content"]);
+    assert_eq!(identifiers(&bare), [UNCHECKED_OUTPUT, "flm.quote.bare-content"]);
     let output = common::latex::output(&bare);
     assert!(output.contains("\\begin{quote}Bare text.\\flmQuoteText{a}\\end{quote}"), "{output}");
 
     let nested = run(&registry, "\\begin{quote}\\lines{\\text{x}}\\end{quote}");
-    assert_eq!(identifiers(&nested), ["flm.quote.nested-section"]);
+    assert_eq!(identifiers(&nested), [UNCHECKED_OUTPUT, "flm.quote.nested-section"]);
     assert!(common::latex::output(&nested).contains("\\flmQuoteLines{x}"), "{}", common::latex::output(&nested));
 
     let mid = run(&registry, "\\begin{quote}\\lines{a \\indent b}\\end{quote}");
-    assert_eq!(identifiers(&mid), ["flm.quote.indent-mid-line"]);
+    assert_eq!(identifiers(&mid), [UNCHECKED_OUTPUT, "flm.quote.indent-mid-line"]);
     assert!(common::latex::output(&mid).contains("\\flmQuoteLines{a b}"), "{}", common::latex::output(&mid));
 }

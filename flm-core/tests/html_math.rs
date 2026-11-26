@@ -1,6 +1,6 @@
 //! Mathematics on the `html` backend: the `math` feature's rule for inline and
 //! unnamed displayed mathematics, which is this backend's alone
-//! (`flm_core::stdcore::features::math::html`), and its line-aware rule for the
+//! (`flm_core::stdlib::features::math::html`), and its line-aware rule for the
 //! display-math environments, which serves every backend — from FLM source
 //! through the whole pipeline to the HTML of a fragment.
 //!
@@ -28,21 +28,21 @@ use flm_core::dump::project::{ProjectOptions, project_tree};
 use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::model::addr::TreeId;
 use flm_core::model::names::BackendName;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::lowering::lowered_table;
-use flm_core::stdcore::features::math;
-use flm_core::stdcore::features::refs;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::backends::lowering::lowered_table;
+use flm_core::stdlib::features::math;
+use flm_core::stdlib::features::refs;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use techy::error::Severity;
 use techy::serialize::SerialValue;
 
 use common::html::{assert_golden, fragment, golden_path};
-use common::stdcore::{identifiers, registry, registry_over, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, registry, registry_over, run_workflow};
 
 /// The registry of the standard package under its default configuration.
 fn std_registry() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 /// Runs `text` under the `html` workflow of the standard package and answers
@@ -51,14 +51,11 @@ fn render(text: &str) -> Run {
     run_workflow(&std_registry(), html::WORKFLOW, &[text], &Overrides::none())
 }
 
-/// The HTML of a document with no diagnostic at all.
+/// The HTML of a document with no diagnostic but the Warnings of its plan's
+/// unchecked output.
 fn clean(text: &str) -> String {
     let run = render(text);
-    assert!(
-        run.diagnostics().iter().next().is_none(),
-        "{}",
-        run.diagnostics().render_all()
-    );
+    assert_only_unchecked_output(&run);
     fragment(&run)
 }
 
@@ -118,7 +115,7 @@ fn a_displayed_formula_inside_a_paragraph_is_a_span_like_every_other_formula() {
          paragraph, so that the first one is written as an element of its own.\n",
     );
     assert!(!html.contains("<div"), "{html}");
-    assert!(html.contains("<span class=\"flm-pres-math--passthrough\""), "{html}");
+    assert!(html.contains("<span class=\"flm-pres-math--passthrough flm-math-formula\""), "{html}");
     assert!(html.contains("data-flm-display=\"display\""), "{html}");
     // The text after the formula is still inside the paragraph's element: a
     // `<div>` here would have closed the `<p>` in the tree a browser builds.
@@ -166,7 +163,7 @@ const ENVIRONMENTS: &str = "\
 #[test]
 fn the_six_environments_are_written_back_with_their_breaks_and_tags_and_without_their_labels() {
     let run = render(ENVIRONMENTS);
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     for env in ["equation", "equation*", "align", "align*", "gather", "gather*"] {
         assert!(html.contains(&format!("data-flm-env=\"{env}\"")), "{env}: {html}");
@@ -259,16 +256,16 @@ fn a_line_whose_anchor_another_line_had_claimed_carries_no_point() {
 /// the references feature: the anchors table is not there, so the environment
 /// rule's optional read answers nothing.
 fn registry_without_refs() -> Arc<FlmRegistry> {
-    use flm_core::stdcore::backends::{html as html_backend, lowering as lowering_backend};
-    use flm_core::stdcore::features::blocks::Blocks;
-    use flm_core::stdcore::features::{index, refpoints};
-    use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+    use flm_core::stdlib::backends::{html as html_backend, lowering as lowering_backend};
+    use flm_core::stdlib::features::blocks::Blocks;
+    use flm_core::stdlib::features::{index, refpoints};
+    use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
 
     registry_over(vec![
         lowering_backend::feature(),
-        flm_core::stdcore::backends::pieces::feature(),
+        flm_core::stdlib::backends::pieces::feature(),
         html_backend::feature(),
-        flm_core::stdcore::check_feature(),
+        flm_core::stdlib::check_feature(),
         Arc::new(Blocks::default()),
         Arc::new(Userdefs::new(UserdefsConfig::new())),
         index::feature(),
@@ -287,11 +284,7 @@ fn a_registry_without_the_references_feature_stages_no_anchor_and_reports_nothin
         &["\\begin{align}\n  x &= y \\\\\n  z &= w\n\\end{align}\n"],
         &Overrides::none(),
     );
-    assert!(
-        run.diagnostics().iter().next().is_none(),
-        "{}",
-        run.diagnostics().render_all()
-    );
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(!html.contains("flm-pres-math--text"), "{html}");
     assert!(html.contains("\\begin{align}"), "{html}");
@@ -419,11 +412,7 @@ fn a_user_definition_used_deep_inside_a_formula_arrives_expanded() {
         &["Let \\(\\frac{\\half}{2}\\) hold.\n"],
         &Overrides::none(),
     );
-    assert!(
-        run.diagnostics().iter().next().is_none(),
-        "{}",
-        run.diagnostics().render_all()
-    );
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(!html.contains("\\half"), "{html}");
     assert!(html.contains("\\frac{\\frac{1}{2}}{2}"), "{html}");
@@ -463,7 +452,7 @@ fn a_tag_holding_markup_reaches_the_page_as_that_markup() {
 /// A registry whose roster holds one definition, used inside mathematics and
 /// inside a text command's argument.
 fn registry_with_definition() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
+    registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
         Definition::macro_("half", Vec::new()).math("\\frac{1}{2}"),
         Definition::macro_("roughly", Vec::new()).text("about"),
     ])))
@@ -479,11 +468,7 @@ fn a_user_definition_used_inside_mathematics_reaches_the_page_expanded() {
         &["Let \\(a = \\half\\) and \\(b = \\text{\\roughly, one half}\\).\n"],
         &Overrides::none(),
     );
-    assert!(
-        run.diagnostics().iter().next().is_none(),
-        "{}",
-        run.diagnostics().render_all()
-    );
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(!html.contains("\\half"), "{html}");
     assert!(!html.contains("\\roughly"), "{html}");

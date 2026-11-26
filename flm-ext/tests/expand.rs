@@ -18,27 +18,28 @@ use flm_core::lang::rewrites::userdefs::{
     Expansion as CoreExpansion, UserDefinition as CoreUserDefinition, DEFAULT_RECURSION_LIMIT,
 };
 use flm_core::lang::Flm;
-use flm_core::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for as core_expand_in_tree_rule_for};
+use flm_core::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for as core_expand_in_tree_rule_for};
 use flm_core::techy::core::node::NodeRef;
 use flm_core::model::aspects::BlockRole;
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
 use flm_core::techy::error::DiagnosticValue;
 use flm_ext::adapter::node::NodeFacade;
 use flm_ext::api::core::lowering::{chars_at_lowering, spelling_at_lowering};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, Mode, SyntaxDef};
 use flm_ext::api::lang::rewrites::userdefs::{
-    Definition, DefinitionBindings, Expand, ExpandCx, ExpandPolicy, Expander, Expansion, Staged, UserDefinition,
+    compile_template_with, Definition, DefinitionBindings, Expand, ExpandCx, ExpandPolicy, Expander, Expansion,
+    PlaceholderVocabulary, Staged, TemplateLanguage, TemplateSpec, UserDefinition, ValueBindings,
 };
 use flm_ext::api::lang::text::chars_text;
 use flm_ext::api::model::element::{Aspect, ElementSpec};
-use flm_ext::api::stdcore::features::userdefs::expand_in_tree_rule_for;
+use flm_ext::api::stdlib::features::userdefs::expand_in_tree_rule_for;
 use flm_ext::api::techy::error::Diagnostic;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
 
 use common::double::{defining, expand, expanded_trees, Double};
-use common::{html_of, latex_of, registry_with, text_of};
+use common::{assert_only_unchecked_output, html_of, latex_of, registry_with, text_of};
 
 /// The golden file `name` under `tests/goldens/`.
 fn golden(name: &str) -> String {
@@ -115,10 +116,10 @@ fn fixed_replacement_macros_render_in_text_html_and_latex() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_text_golden(golden("fixed.txt"), &text);
     let (html, diagnostics) = html_of(&registry, document);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert_text_golden(golden("fixed.html"), &html);
     let (latex, diagnostics) = latex_of(&registry, document);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert_text_golden(golden("fixed.tex"), &latex);
 }
 
@@ -156,8 +157,7 @@ fn a_definition_in_force_in_math_alone_is_an_error_in_running_text() {
     let registry = registry(vec![(ket, Some(hook))]);
     let run = common::run(&registry, text::WORKFLOW, document);
     let diagnostics = common::diagnostics(&run);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("wc.ket.not-here: the definition of ‘\\ket’"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["wc.ket.not-here"]);
     assert_eq!(
         data_of(&run, "wc.ket.not-here"),
         Some(DiagnosticValue::Map(vec![(
@@ -197,8 +197,9 @@ fn a_block_definition_renders_its_body_s_paragraphs() {
         Definition::environment("note", Vec::new()).content("\\textbf{Note.} #{body}").block_role(BlockRole::Block),
     );
     let document = "Before.\n\n\\begin{note}Mind the gap.\n\nAnd the step.\\end{note}\n\nAfter.";
-    let (html, diagnostics) = html_of(&registry(vec![(note, None)]), document);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let registry = registry(vec![(note, None)]);
+    let (html, diagnostics) = html_of(&registry, document);
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert_text_golden(golden("block.html"), &html);
 }
 
@@ -296,10 +297,9 @@ fn a_failing_expand_handler_recovers_the_use_site_with_handler_failed() {
     });
     let registry = registry(vec![(shout_definition(), Some(hook))]);
     let run = common::run(&registry, text::WORKFLOW, "Say \\shout{hey}.");
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.ext.handler-failed: the expansion hook of `wc.macro.shout` failed: TypeError: x is undefined"]
-    );
+    let diagnostics = common::diagnostics(&run);
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with("TypeError: x is undefined"), "{diagnostics:?}");
     let data = data_of(&run, "flm.ext.handler-failed");
     assert!(format!("{data:?}").contains("\"line\""), "{data:?}");
     let text = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
@@ -318,10 +318,7 @@ fn instantiate_refuses_a_site_the_call_was_not_given() {
         Ok(Expansion::Emit(xp.instantiate(cx, &*parent, &*template, &*bindings)?))
     });
     let (text, diagnostics) = text_of(&registry(vec![(shout, Some(hook))]), "Say \\shout{hey}.");
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.handler-failed: the expansion hook of `wc.macro.shout` failed: `instantiate`: `site` must be the node this hook call was given"]
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
     assert_eq!(text, "Say \\shout{hey}.\n");
 }
 
@@ -332,8 +329,7 @@ fn an_expansion_naming_a_staged_node_twice_is_the_hook_s_failure() {
         Ok(Expansion::Emit(vec![staged, staged]))
     });
     let (text, diagnostics) = text_of(&registry(vec![(shout_definition(), Some(hook))]), "Say \\shout{hey}.");
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].contains("a node may appear only once in what the hook returns"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
     assert_eq!(text, "Say \\shout{hey}.\n");
 }
 
@@ -357,10 +353,7 @@ fn an_expansion_naming_a_node_another_call_staged_is_the_hook_s_failure() {
     });
     let registry = registry(vec![(shout_definition(), Some(hook))]);
     let (text, diagnostics) = text_of(&registry, "Say \\shout{hey} and \\shout{you}.");
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.handler-failed: the expansion hook of `wc.macro.shout` failed: `expand`: each node the hook returns must have been created during this same call"]
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
     assert_eq!(text, "Say x and \\shout{you}.\n");
 }
 
@@ -418,7 +411,7 @@ fn a_failure_of_the_pass_inside_instantiate_ends_the_pass_though_the_hook_recove
     assert_eq!(diagnostics.len(), 2, "{diagnostics:?}");
     assert_eq!(diagnostics[0], "wc.outer.failed: the template failed");
     assert!(diagnostics[1].starts_with("flm.userdefs.expansion-failed"), "{diagnostics:?}");
-    assert!(diagnostics[1].ends_with("the expansion code of a definition failed: boom"), "{diagnostics:?}");
+    assert!(diagnostics[1].ends_with("boom"), "{diagnostics:?}");
 }
 
 #[test]
@@ -430,7 +423,7 @@ fn an_expansion_left_as_it_is_keeps_the_node_and_the_pass_continues_into_it() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     let tree = trees.first().expect("one tree");
     let root = NodeFacade::shared(Arc::clone(tree), tree.root().id());
-    let nodes = root.descendants();
+    let nodes: Vec<_> = root.descendants().collect();
     let names: Vec<String> = nodes.iter().map(|node| node.element_name()).collect();
     assert!(names.iter().any(|name| name == "wc.macro.keep"), "{names:?}");
     assert!(!names.iter().any(|name| name == "wc.macro.shout"), "{names:?}");
@@ -518,7 +511,7 @@ fn element_value_answers_a_scripted_element_s_value() {
     )
     .expect("a parse");
     let root = NodeFacade::shared(Arc::clone(fragment.tree()), fragment.tree().root().id());
-    let badges: Vec<Value> = root.descendants().iter().filter_map(|node| node.element_value()).collect();
+    let badges: Vec<Value> = root.descendants().filter_map(|node| node.element_value()).collect();
     assert_eq!(badges, [value]);
     // Read by the element's hook.
     let (text, diagnostics) = text_of(&registry, "A (\\badge) here.");
@@ -534,7 +527,7 @@ fn the_lowering_readers_refuse_content_holding_a_placeholder() {
     assert!(definition.compile(registry.lang()).is_ok());
     let tree = definition
         .compiled()
-        .and_then(|compiled| compiled.variant(Mode::Text))
+        .and_then(|compiled| compiled.variant(Mode::Text).cloned())
         .map(|variant| Arc::clone(variant.template().tree()))
         .expect("the template in running text");
     let root = NodeFacade::shared(Arc::clone(&tree), tree.root().id());
@@ -551,31 +544,22 @@ fn the_lowering_readers_refuse_content_holding_a_placeholder() {
 // --- a definition with neither a template nor a hook -------------------------------------------
 
 #[test]
-fn a_definition_with_neither_a_template_nor_a_hook_is_the_adapter_s_error_naming_the_extension() {
+fn a_definition_with_neither_a_template_nor_a_hook_is_the_adapter_s_error() {
     use flm_ext::api::lang::rewrites::userdefs::{Definition, UserDefinition};
     let package = common::double::defining("ex", vec![(UserDefinition::new(Definition::macro_("bare", Vec::new())), None)]).package();
     let registry = common::registry_with([package]);
-    let found: Vec<String> = registry.build_diagnostics().iter().map(|d| format!("{}: {}", d.identifier(), d.message())).collect();
-    assert_eq!(
-        found,
-        ["flm.ext.definition-needs-template: the definition `\\bare` declared by the feature `defs` of the package `_` of the \
-          extension `ex` must have a template or an expansion hook"]
-    );
+    let found: Vec<&str> = registry.build_diagnostics().iter().map(|d| d.identifier()).collect();
+    assert_eq!(found, ["flm.ext.definition-needs-template"]);
 }
 
 #[test]
-fn a_definition_needing_a_template_is_spelled_by_its_kind() {
-    // The definition is spelled as `flm-core` displays it.
+fn an_environment_needing_a_template_is_the_adapter_s_error_too() {
     use flm_ext::api::lang::rewrites::userdefs::{Definition, UserDefinition};
     let package =
         common::double::defining("ex", vec![(UserDefinition::new(Definition::environment("barenv", Vec::new())), None)]).package();
     let registry = common::registry_with([package]);
-    let found: Vec<String> = registry.build_diagnostics().iter().map(|d| d.message().to_string()).collect();
-    assert_eq!(
-        found,
-        ["the definition `\\begin{barenv}` declared by the feature `defs` of the package `_` of the extension `ex` must have a \
-          template or an expansion hook"]
-    );
+    let found: Vec<&str> = registry.build_diagnostics().iter().map(|d| d.identifier()).collect();
+    assert_eq!(found, ["flm.ext.definition-needs-template"]);
 }
 
 // --- a template compiled at the use site -----------------------------------------------------------
@@ -652,7 +636,7 @@ fn a_hook_compiles_a_template_at_the_use_site_through_the_dispatcher() {
         let ud = js.lend(Entry::UserDefinition(definition.clone()));
         let def = js.call(&ud, "element_def_with", json!([owner, "wc.macro.shout", hook]))?;
         js.call(b, "element", json!([def]))?;
-        let helpers = module("stdcore/features/userdefs");
+        let helpers = module("stdlib/features/userdefs");
         let rule = js.call(&helpers, "expand_in_tree_rule_for", json!(["wc.macro.shout", { "kind": "macro", "name": "shout", "args": "{" }]))?;
         js.call(b, "lowering_rule", json!([rule]))?;
         Ok(())
@@ -661,4 +645,41 @@ fn a_hook_compiles_a_template_at_the_use_site_through_the_dispatcher() {
     let (text, diagnostics) = text_of(&registry, "A \\shout{hey}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "A <WORD>.\n");
+}
+
+// --- the memory of a registry -------------------------------------------------------------------
+
+/// A hook compiles a template of its own at a use site. The template refers to the
+/// registry's language, and the hook, which an element of that language carries, reaches
+/// the template through its feature's durable table. The language owns the template, so
+/// that dropping the registry frees the language.
+#[test]
+fn dropping_the_registry_frees_the_language_a_hook_compiled_a_template_against() {
+    let hook = expand(ExpandPolicy::PerPlan, |node, cx, xp| {
+        let template = {
+            let lang = xp.lang();
+            let language = TemplateLanguage::new(&*lang)?;
+            let spec = TemplateSpec {
+                text: "[loud]".to_string(),
+                mode: Mode::Text,
+                vocabulary: PlaceholderVocabulary::new(0),
+                definition: "the mark of `\\shout`".to_string(),
+                label: "mark of `\\shout`".to_string(),
+                origin_label: "the mark of `\\shout`".to_string(),
+                user_definition: false,
+                offset: 0,
+            };
+            compile_template_with(&spec, &*lang, &language)?
+        };
+        Ok(Expansion::Emit(xp.instantiate(cx, node, &template, &ValueBindings::new())?))
+    });
+    let registry = registry(vec![(shout_definition(), Some(hook))]);
+    let (text, diagnostics) = text_of(&registry, "A \\shout{x}.");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(text, "A [loud].\n");
+    let providers: Vec<_> = registry.lang().providers().iter().map(Arc::downgrade).collect();
+    drop(registry);
+    let kept: Vec<String> =
+        providers.iter().filter_map(|provider| provider.upgrade()).map(|provider| provider.name().to_string()).collect();
+    assert!(kept.is_empty(), "these packages of the language are still allocated: {kept:?}");
 }

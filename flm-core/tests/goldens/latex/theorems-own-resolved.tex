@@ -1,5 +1,5 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.7cb10b12.sty
+% flm: style file flmrecomposed.d328c84d.sty
 \begin{theorem}\flmLabels{\label{ref1}}
 A theorem.
 \end{theorem}
@@ -16,9 +16,9 @@ Another theorem.
 
 See \flmRef{ref1}, \flmRef{ref2}, \flmRef{ref3} and \flmRef{ref4}.
 %%
-% ===== latex-recomposed:style flmrecomposed.7cb10b12.sty =====
+% ===== latex-recomposed:style flmrecomposed.d328c84d.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.7cb10b12}
+\ProvidesPackage{flmrecomposed.d328c84d}
 % --- packages ---
 % flm.latex.pkg.amsthm
 \RequirePackage{amsthm}
@@ -144,13 +144,13 @@ See \flmRef{ref1}, \flmRef{ref2}, \flmRef{ref3} and \flmRef{ref4}.
 % th@own (the theorems feature's, written from its configuration): declared unless \th@own is already defined, so a definition made earlier under that name is kept
 \ifcsname th@own\endcsname\else\newtheoremstyle{own}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % theorem (the theorems feature's, written from its configuration): declared unless \theorem is already defined, so a definition made earlier under that name is kept
-\ifcsname theorem\endcsname\else\begingroup\theoremstyle{own}\newtheorem{theorem}{Theorem}\endgroup\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={theorem=theorem}}}\fi
+\ifcsname theorem\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{own}\newtheorem{theorem}{Theorem}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={theorem=theorem}}}\fi
 % c@flmtheorem (the theorems feature's, written from its configuration): declared unless \c@flmtheorem is already defined, so a definition made earlier under that name is kept
 \ifcsname c@flmtheorem\endcsname\else\newcounter{flmtheorem}\fi
 % th@theoremlike (the theorems feature's, written from its configuration): declared unless \th@theoremlike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@theoremlike\endcsname\else\newtheoremstyle{theoremlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % lemma (the theorems feature's, written from its configuration): declared unless \lemma is already defined, so a definition made earlier under that name is kept
-\ifcsname lemma\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\endgroup\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={flmtheorem=lemma}}}\fi
+\ifcsname lemma\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={flmtheorem=lemma}}}\fi
 % proposition (the theorems feature's, written from its configuration): declared unless \proposition is already defined, so a definition made earlier under that name is kept
-\ifcsname proposition\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{proposition}[flmtheorem]{Proposition}\endgroup\zcRefTypeSetup{proposition}{Name-sg={Proposition},name-sg={proposition},Name-pl={Propositions},name-pl={propositions},Name-sg-ab={Prop.},name-sg-ab={Prop.},Name-pl-ab={Props.},name-pl-ab={Props.}}\AddToHook{env/proposition/begin}{\zcsetup{countertype={flmtheorem=proposition}}}\fi
+\ifcsname proposition\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{proposition}[flmtheorem]{Proposition}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{proposition}{Name-sg={Proposition},name-sg={proposition},Name-pl={Propositions},name-pl={propositions},Name-sg-ab={Prop.},name-sg-ab={Prop.},Name-pl-ab={Props.},name-pl-ab={Props.}}\AddToHook{env/proposition/begin}{\zcsetup{countertype={flmtheorem=proposition}}}\fi
 \endinput

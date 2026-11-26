@@ -17,15 +17,15 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::backends::html::{self, DEFINITIONS_TABLE};
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::backends::html::{self, DEFINITIONS_TABLE};
+use flm_core::stdlib::features::citations::{
     self, CitationPlacement, CitationProvider, CitationsConfig, MarkForm,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 
 use common::html::{assert_golden, page};
 use common::citations::FromMap;
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow};
 
 /// The no-break space as the page writes it, a character reference.
 const NBSP: &str = "&#xA0;";
@@ -39,7 +39,7 @@ const SPACE: &str = "<span class=\"flm-pres-span flm-citations-space\">&#xA0;</s
 /// The standard package under `config`, the test provider answering every
 /// key.
 fn registry_of(config: CitationsConfig) -> Arc<FlmRegistry> {
-    common::citations::registry(StdcoreConfig::new().citations(config))
+    common::citations::registry(StdlibConfig::new().citations(config))
 }
 
 /// The standard package, the default configuration.
@@ -56,7 +56,7 @@ fn render_on(registry: &Arc<FlmRegistry>, texts: &[&str]) -> Run {
 /// [`WORKS`] and no other.
 fn registry_of_works(config: CitationsConfig) -> Arc<FlmRegistry> {
     let provider: Arc<dyn CitationProvider> = Arc::new(FromMap::of(WORKS));
-    common::citations::registry_with(StdcoreConfig::new().citations(config), vec![provider])
+    common::citations::registry_with(StdlibConfig::new().citations(config), vec![provider])
 }
 
 /// The entries the provider of [`registry_of_works`] knows, as FLM source.
@@ -77,10 +77,11 @@ fn requires_style(run: &Run) -> bool {
         .any(|row| row.id.as_str() == citations::html::STYLE)
 }
 
-/// The page of `texts` under `registry`; the run must report nothing.
+/// The page of `texts` under `registry`; the run must report nothing but the
+/// Warnings of its plan's unchecked output.
 fn clean_page(registry: &Arc<FlmRegistry>, texts: &[&str]) -> String {
     let run = render_on(registry, texts);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     page(&run)
 }
 
@@ -149,7 +150,7 @@ space (\\cite{knuth84}). See \\ref{sec:results}. A work no provider knows \\cite
 #[test]
 fn the_worked_example_s_page_is_the_golden() {
     let run = render_on(&registry_of_works(CitationsConfig::new()), &[WORKED]);
-    assert_eq!(identifiers(&run), ["flm.citations.no-entry"], "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.citations.no-entry"], "{}", run.diagnostics().render_all());
     let page = page(&run);
     let main = main_of(&page);
     // Test 16: the mark, its delimiters outside the links.
@@ -236,7 +237,7 @@ fn in_place_a_mark_holds_the_entries_with_no_link_and_no_list_is_placed() {
             &["The bound is tight \\cite{knuth84}\\cite[Thm 4]{lamport94}. As shown in \
                \\R\\cite{shor95,gottesman97}. A work no provider knows \\cite{unknown}."],
         );
-        assert_eq!(identifiers(&run), ["flm.citations.no-entry"], "{}", run.diagnostics().render_all());
+        assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.citations.no-entry"], "{}", run.diagnostics().render_all());
         let page = page(&run);
         let main = main_of(&page);
         assert!(

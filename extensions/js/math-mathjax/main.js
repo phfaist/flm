@@ -1,10 +1,11 @@
 // The math-mathjax extension: mathematics processed by MathJax. One package,
-// `_`, with one feature, `math-mathjax`, which declares the commands and
-// environments of MathJax's TeX packages in math mode (read from MathJax when
-// the feature registers) and the two delimiters `\llangle` and `\rrangle`
-// (`definitions.js`), checks the formulas, and lowers them on the HTML,
-// text, recomposed-LaTeX and latex-rendered backends. It requires the `math`
-// feature.
+// `_`, which declares the host service `cache` and the values cache
+// `typeset.mathml` (`render.js`), with one feature, `math-mathjax`, which
+// declares the commands and environments of MathJax's TeX packages in math
+// mode (read from MathJax when the feature registers) and the two delimiters
+// `\llangle` and `\rrangle` (`definitions.js`), checks the formulas, and
+// lowers them on the HTML, text, recomposed-LaTeX and latex-rendered
+// backends. It requires the `math` feature.
 //
 // The feature's settings (its configuration):
 //
@@ -23,11 +24,11 @@
 import { MathJax } from "./vendor/mathjax.js";
 import { PACKAGES as BUNDLED } from "./vendor/bundle.js";
 import { StageDecl, Effect, Scope } from "flm:core/stage";
-import { CONTENT, ENVIRONMENT, equation_lines } from "flm:stdcore/features/math";
+import { CONTENT, ENVIRONMENT, equation_lines } from "flm:stdlib/features/math";
 import { read_commands, declare_commands, OWN } from "./definitions.js";
 import { register_rules } from "./lower.js";
 import { register_page, DEFAULT_LOADER_URL } from "./page.js";
-import { register_render } from "./render.js";
+import { register_render, CACHE_SERVICE, TYPESET_CACHE, TYPESET_DECLARATION } from "./render.js";
 
 // The modes.
 const MODES = ["mathml", "load-in-browser"];
@@ -95,16 +96,15 @@ const check = {
   run(cx, out) {
     const tree = cx.my_tree();
     if (tree === null) return;
-    for (const node of tree.root().descendants()) {
-      if (node.element_name() !== ENVIRONMENT) continue;
+    for (const node of tree.root().descendants().elements([ENVIRONMENT])) {
       equation_lines(node).forEach((line, index) => {
-        if (line.content.some(is_content)) return;
+        if ([...line.content].some(is_content)) return;
         out.diags({
           id: EMPTY_LINE,
           severity: "error",
           message: `line ${index} (counting from 0) of the \`${node.name()}\` environment must hold mathematics; `
             + "a `\\label`, `\\tag` or `\\nonumber` alone is not mathematics",
-          at: line.content[0] ?? node,
+          at: line.content.get(0) ?? node,
         });
       });
     }
@@ -113,7 +113,8 @@ const check = {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
+    host: [CACHE_SERVICE],
+    caches: { [TYPESET_CACHE]: TYPESET_DECLARATION },
     features: {
       "math-mathjax": {
         title: "Mathematics by MathJax",
@@ -169,7 +170,7 @@ export default function (ext) {
           b.stage(check);
           register_rules(b, config, commands);
           if (config.mode === "load-in-browser") register_page(b, config, commands, BUNDLED);
-          else register_render(b, MathJax, tex);
+          else register_render(b, MathJax, tex, config);
         },
       },
     },

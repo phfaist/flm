@@ -12,8 +12,8 @@ import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowe
 import { ArgDef, ElementDef, Mode, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec, Aspect } from "flm:model/element";
 import { BlockRole } from "flm:model/aspects";
-import { ANCHORS } from "flm:stdcore/features/math";
-import { BLOCK, SPAN } from "flm:stdcore/backends/pres";
+import { ANCHORS } from "flm:stdlib/features/math";
+import { BLOCK, SPAN } from "flm:stdlib/backends/pres";
 
 const BOX = "lowerjs.box";
 const RULE = "lowerjs.box.lower.default";
@@ -30,7 +30,7 @@ function inner(node, cx, lw) {
   return lw.pres_tree(cx, {
     element: SPAN,
     payload: { kinds: ["lowerjs-inner"] },
-    children: [...content.map(build => ({ build })), { text: ` (box ${row?.number ?? "?"}${anchors})` }],
+    children: [...[...content].map(build => ({ build })), { text: ` (box ${row?.number ?? "?"}${anchors})` }],
   });
 }
 
@@ -48,7 +48,6 @@ function box_rule(docs) {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: {
       boxes: {
         title: "Boxes",

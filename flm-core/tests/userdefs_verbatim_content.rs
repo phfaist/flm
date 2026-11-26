@@ -16,18 +16,18 @@ use std::sync::Arc;
 
 use flm_core::core::lowering::{DefaultMark, Lowering, LoweringDecl};
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::Run;
 use flm_core::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
-use flm_core::stdcore::package;
+use flm_core::stdlib::add_features;
 use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy};
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig};
 use techy::error::Severity;
 
 use common::latex::{assert_golden, body, style, style_if_any};
-use common::stdcore::{identifiers, reports, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, reports, run_workflow};
 
 /// The condition the verbatim feature reports for content that is not
 /// characters.
@@ -66,8 +66,8 @@ fn oblock(policy: ExpandPolicy) -> Definition {
 /// The standard package with the four definitions under `policy`.
 fn registry(policy: ExpandPolicy) -> Arc<FlmRegistry> {
     let definitions = vec![code(policy), c(policy), ocode(policy), oblock(policy)];
-    common::stdcore::registry(
-        StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
+    common::stdlib::registry(
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
     )
 }
 
@@ -79,6 +79,15 @@ fn run(registry: &Arc<FlmRegistry>, workflow: &str, document: &str) -> Run {
 fn text_of(registry: &Arc<FlmRegistry>, document: &str) -> (String, Vec<(String, Severity)>) {
     let run = run(registry, text::WORKFLOW, document);
     (common::lowering::text(&run), reports(&run))
+}
+
+/// What a page or a recomposed document reports where `reports` is the
+/// document's own: the Warning of the unchecked formulas of
+/// `math-passthrough`, then `reports`.
+fn unchecked_then(reports: &[(String, Severity)]) -> Vec<(String, Severity)> {
+    let mut found = vec![(String::from(UNCHECKED_OUTPUT), Severity::Warning)];
+    found.extend_from_slice(reports);
+    found
 }
 
 /// The HTML fragment of `document`.
@@ -113,15 +122,15 @@ fn a_verbatim_argument_into_verbatim_content_shows_its_characters_on_every_outpu
         let registry = registry(policy);
         assert_eq!(text_of(&registry, document), (String::from("See x%y.\n"), Vec::new()));
         let (html, found) = html_of(&registry, document);
-        assert_eq!(found, Vec::new());
+        assert_eq!(found, unchecked_then(&[]));
         assert!(html.contains(&format!("See {}.", html_code("x%y"))), "{html}");
         let latex = latex_of(&registry, document);
-        assert_eq!(identifiers(&latex), Vec::<String>::new(), "{}", latex.diagnostics().render_all());
+        assert_only_unchecked_output(&latex);
         // Kept or not, the use site is expanded: verbatim content is read as
         // characters, which a call's parameter does not have before the call.
         let written = body(&latex);
         assert!(
-            written.contains("See \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{x\\%y}."),
+            written.contains("See \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{x\\%y}."),
             "{written}"
         );
         assert!(style_if_any(&latex).is_none_or(|(style, _)| !style.contains("\\flmUD")));
@@ -143,11 +152,11 @@ fn a_verbatim_argument_into_text_is_text() {
         let registry = registry(policy);
         assert_eq!(text_of(&registry, document), (String::from("See see x%y.\n"), Vec::new()));
         let (html, found) = html_of(&registry, document);
-        assert_eq!(found, Vec::new());
+        assert_eq!(found, unchecked_then(&[]));
         assert!(html.contains("See see x%y."), "{html}");
         assert!(!html.contains("<code"), "{html}");
         let latex = latex_of(&registry, document);
-        assert_eq!(identifiers(&latex), Vec::<String>::new(), "{}", latex.diagnostics().render_all());
+        assert_only_unchecked_output(&latex);
         let written = body(&latex);
         match policy {
             ExpandPolicy::PerPlan => {
@@ -179,17 +188,17 @@ fn braces_are_characters_of_a_verbatim_argument_and_syntax_of_an_ordinary_one() 
         let (text, found) = text_of(&registry, "\\code{a{b}c} \\ocode{a{b}c}");
         assert_eq!((text.as_str(), found), ("a{b}c abc\n", Vec::new()));
         let (html, found) = html_of(&registry, "\\code{a{b}c} \\ocode{a{b}c}");
-        assert_eq!(found, Vec::new());
+        assert_eq!(found, unchecked_then(&[]));
         assert!(html.contains(&format!("{} {}", html_code("a{b}c"), html_code("abc"))), "{html}");
         let latex = latex_of(&registry, "\\code{a{b}c} \\ocode{a{b}c}");
-        assert_eq!(identifiers(&latex), Vec::<String>::new(), "{}", latex.diagnostics().render_all());
+        assert_only_unchecked_output(&latex);
         // Kept or not, both use sites are expanded, the verbatim content
         // being read as characters.
         let written = body(&latex);
         assert!(
             written.contains(
-                "\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{a\\{b\\}c} \
-                 \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{abc}"
+                "\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{a\\{b\\}c} \
+                 \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{abc}"
             ),
             "{written}"
         );
@@ -220,10 +229,10 @@ fn content_that_is_not_characters_is_the_verbatim_features_error_on_every_output
             let (text, found) = text_of(&registry, document);
             assert_eq!((text, &found), (format!("{shown}\n"), &error), "{document} ({policy:?})");
             let (html, found) = html_of(&registry, document);
-            assert_eq!(found, error, "{document} ({policy:?})");
+            assert_eq!(found, unchecked_then(&error), "{document} ({policy:?})");
             assert!(html.contains(&html_code(shown)), "{document} ({policy:?}): {html}");
             let latex = latex_of(&registry, document);
-            assert_eq!(reports(&latex), error, "{document} ({policy:?}): {}", latex.diagnostics().render_all());
+            assert_eq!(reports(&latex), unchecked_then(&error), "{document} ({policy:?}): {}", latex.diagnostics().render_all());
         }
     }
 }
@@ -241,17 +250,17 @@ fn the_recomposed_latex_shows_the_source_spelling_as_code() {
         let latex = latex_of(&registry(policy), document);
         assert_eq!(
             identifiers(&latex),
-            vec![String::from(NOT_CHARACTERS); 5],
+            [vec![String::from(UNCHECKED_OUTPUT)], vec![String::from(NOT_CHARACTERS); 5]].concat(),
             "{}",
             latex.diagnostics().render_all()
         );
         let written = body(&latex);
         assert!(
             written.contains(
-                "\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{\\\\emph\\{x\\}} \
-                 \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{a\\\\\\%b} \
-                 \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{\\\\textit\\{y\\}} \
-                 \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{\\\\\\(a\\^2\\\\\\)}"
+                "\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{\\\\emph\\{x\\}} \
+                 \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{a\\\\\\%b} \
+                 \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{\\\\textit\\{y\\}} \
+                 \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{\\\\\\(a\\^2\\\\\\)}"
             ),
             "{written}"
         );
@@ -274,7 +283,7 @@ fn a_verbatim_block_shows_the_source_spelling_too() {
         let (text, found) = text_of(&registry, "\\oblock{\\emph{x}}");
         assert_eq!((text.as_str(), found), ("\\emph{x}\n", error.clone()));
         let (html, found) = html_of(&registry, "\\oblock{\\emph{x}}");
-        assert_eq!(found, error);
+        assert_eq!(found, unchecked_then(&error));
         assert!(html.contains("<code>\\emph{x}</code>"), "{html}");
     }
 }
@@ -313,8 +322,9 @@ fn toy_feature() -> Arc<dyn flm_core::core::registry::FlmFeature> {
 fn toy_registry(policy: ExpandPolicy) -> Arc<FlmRegistry> {
     let otoy = Definition::macro_("otoy", vec![ArgDef::mandatory("x")]).text("\\toy{#1}").expand(policy);
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(
-        StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(vec![otoy])),
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(vec![otoy])),
     ));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(toy_feature());
@@ -332,8 +342,8 @@ fn a_verbatim_group_lowered_through_the_rules_reads_its_content_as_the_verbatim_
     let error = vec![(String::from(NOT_CHARACTERS), Severity::Error)];
     let verbatim = |content: &str| {
         format!(
-            "<code class=\"flm-pres-verbatim\" data-flm-kind=\"text\" \
-             data-flm-display=\"inline\">{content}</code>"
+            "<span class=\"flm-pres-verbatim\" data-flm-kind=\"text\" \
+             data-flm-display=\"inline\">{content}</span>"
         )
     };
     for policy in POLICIES {
@@ -342,13 +352,11 @@ fn a_verbatim_group_lowered_through_the_rules_reads_its_content_as_the_verbatim_
         let (text, found) = text_of(&registry, "\\otoy{\\emph{x}}");
         assert_eq!((text.as_str(), &found), ("\\emph{x}\n", &error), "{policy:?}");
         let (html, found) = html_of(&registry, "\\otoy{\\emph{x}}");
-        assert_eq!(found, error, "{policy:?}");
+        assert_eq!(found, unchecked_then(&error), "{policy:?}");
         assert!(html.contains(&verbatim("\\emph{x}")), "{policy:?}: {html}");
         let latex = latex_of(&registry, "\\otoy{\\emph{x}}");
-        assert_eq!(reports(&latex), error, "{policy:?}: {}", latex.diagnostics().render_all());
+        assert_eq!(reports(&latex), unchecked_then(&error), "{policy:?}: {}", latex.diagnostics().render_all());
         let written = body(&latex);
         assert!(written.contains("\\\\emph\\{x\\}"), "{policy:?}: {written}");
-        let message = latex.diagnostics().render_all();
-        assert!(message.contains("the verbatim content of \\toy must be plain characters"), "{message}");
     }
 }

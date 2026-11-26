@@ -74,7 +74,7 @@ use crate::lang::structural::StructuralElements;
 ///   (an element no document writes, which a stage builds into a
 ///   [synthesized value](crate::guide::concepts_overview#synthesized-values))
 ///   may carry data that none of its arguments holds. For example, an
-///   [xnote](crate::stdcore::features::xnotes) is a note set apart from the
+///   [xnote](crate::stdlib::features::xnotes) is a note set apart from the
 ///   running text and shown elsewhere or in place (a footnote, an endnote, a
 ///   side note); the node that the list of xnotes holds for each xnote carries
 ///   the address of that xnote. Such a payload may refer to a node of the document, which means

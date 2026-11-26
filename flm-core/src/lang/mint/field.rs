@@ -19,7 +19,7 @@
 //! A field node that reaches a backend's lowering means that a construct did not
 //! read its data, which is a fault of that construct. The only lowering rule of
 //! the field element therefore reports an error on every backend
-//! ([`FieldRule`](crate::stdcore::backends::lowering::FieldRule)).
+//! ([`FieldRule`](crate::stdlib::backends::lowering::FieldRule)).
 //!
 //! Fields are declared in two ways:
 //!

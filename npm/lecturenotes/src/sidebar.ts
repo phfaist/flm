@@ -1,4 +1,10 @@
-// flm-lecturenotes: the sidebar, the bar and the chapters.
+// flm-lecturenotes: the sidebar, the bar and the navigation.
+//
+// A *navigation unit* is a heading at the navigation level (the setting
+// `navigation_heading_level`) and what follows it, up to the next heading at
+// that level or above it. The arrows and the keys step from one unit to the
+// next, the bar shows the title of the unit being read, and the folded sidebar
+// shows the entries below a unit only for that unit.
 //
 // The pure functions at the top compute over plain lists (the levels of the
 // content's headings, their positions); the class `Navigator` applies them to
@@ -20,11 +26,11 @@ export const STORAGE_KEYS = {
 
 // ── The structure ──────────────────────────────────────────────────────────
 
-/** The indices, among the headings, of the chapters: the headings whose level is the chapter level. */
-export function chapterIndices(levels: readonly number[], chapterLevel: number): number[] {
+/** The indices, among the headings, of the units' headings: the headings at the navigation level. */
+export function unitIndices(levels: readonly number[], navigationLevel: number): number[] {
   const out: number[] = [];
   levels.forEach((level, i) => {
-    if (level === chapterLevel) out.push(i);
+    if (level === navigationLevel) out.push(i);
   });
   return out;
 }
@@ -44,40 +50,40 @@ export function currentHeadingIndex(tops: readonly number[], line: number): numb
 }
 
 /**
- * The index of the chapter heading that holds the heading `index`: the nearest
- * chapter at or before it, unless a part (a heading above the chapter level)
- * comes in between; -1 when there is none.
+ * The index of the heading of the unit that holds the heading `index`: the
+ * nearest heading at the navigation level at or before it, unless a heading
+ * above the navigation level comes in between; -1 when there is none.
  */
-export function chapterOf(levels: readonly number[], index: number, chapterLevel: number): number {
+export function unitOf(levels: readonly number[], index: number, navigationLevel: number): number {
   for (let i = index; i >= 0; i--) {
-    if (levels[i] === chapterLevel) return i;
-    if (levels[i] < chapterLevel) return -1;
+    if (levels[i] === navigationLevel) return i;
+    if (levels[i] < navigationLevel) return -1;
   }
   return -1;
 }
 
 /**
  * The headings the arrows lead to, as indices among the headings (-1 for none),
- * with `index` the current heading: the next chapter is the first that begins
- * after the current heading; the previous chapter is the one before the chapter
- * being read, or, outside a chapter, the last chapter before the current heading.
+ * with `index` the current heading: the next unit is the first that begins
+ * after the current heading; the previous unit is the one before the unit being
+ * read, or, outside a unit, the last unit before the current heading.
  */
 export function navigationTargets(
-  levels: readonly number[], index: number, chapterLevel: number,
+  levels: readonly number[], index: number, navigationLevel: number,
 ): { prev: number; next: number } {
-  const chapters = chapterIndices(levels, chapterLevel);
-  const started = chapters.filter((c) => c <= index).length;
-  const inChapter = chapterOf(levels, index, chapterLevel) !== -1;
-  const prevPosition = inChapter ? started - 2 : started - 1;
+  const units = unitIndices(levels, navigationLevel);
+  const started = units.filter((c) => c <= index).length;
+  const inUnit = unitOf(levels, index, navigationLevel) !== -1;
+  const prevPosition = inUnit ? started - 2 : started - 1;
   return {
-    prev: prevPosition >= 0 ? chapters[prevPosition] : -1,
-    next: started < chapters.length ? chapters[started] : -1,
+    prev: prevPosition >= 0 ? units[prevPosition] : -1,
+    next: started < units.length ? units[started] : -1,
   };
 }
 
 // ── The folding ────────────────────────────────────────────────────────────
 
-/** The table of contents: only the chapter being read shows its sections (`folded`), or every chapter does (`all`). */
+/** The table of contents: only the unit being read shows the entries below it (`folded`), or every unit does (`all`). */
 export type Folding = 'folded' | 'all';
 
 /** The folding a stored value gives; `folded` for anything else. */
@@ -85,7 +91,7 @@ export function parseFolding(stored: string | null): Folding {
   return stored === 'all' ? 'all' : 'folded';
 }
 
-/** The folding after a click on the triangle toggle. */
+/** The folding after a click on the unfold toggle. */
 export function toggleFolding(folding: Folding): Folding {
   return folding === 'all' ? 'folded' : 'all';
 }
@@ -135,8 +141,8 @@ export function outsideView(top: number, bottom: number, boxTop: number, boxBott
 
 /** The texts of the buttons and anchors this script writes. */
 const TEXTS = {
-  expandAll: 'Expand all sections',
-  foldToCurrent: "Show only the current chapter's sections",
+  expandAll: 'Expand all',
+  foldToCurrent: 'Collapse',
   anchor: 'Link to this heading',
 };
 
@@ -161,10 +167,10 @@ export function contentHeadings(content: HTMLElement): Heading[] {
   return headings;
 }
 
-/** The sidebar, the bar and the chapters of one page. */
+/** The sidebar, the bar and the navigation of one page. */
 export class Navigator {
   private readonly page: Page;
-  private readonly chapterLevel: number;
+  private readonly navigationLevel: number;
   private headings: Heading[] = [];
   private levels: number[] = [];
   /** The link of each heading's entry in the table of contents, by heading id. */
@@ -173,12 +179,12 @@ export class Navigator {
   private userScrolledAt = -Infinity;
   private ownScrollUntil = -Infinity;
   private ticking = false;
-  /** Called before the arrows or the keys scroll to a chapter (the reading position records itself there). */
+  /** Called before the arrows or the keys scroll to a unit (the reading position records itself there). */
   onBeforeJump: (() => void) | null = null;
 
   constructor(page: Page, options: Options) {
     this.page = page;
-    this.chapterLevel = options.chapterLevel;
+    this.navigationLevel = options.navigationLevel;
   }
 
   /** Adds the listeners and restores the stored states; called once. */
@@ -235,12 +241,7 @@ export class Navigator {
     this.entries = new Map();
     page.sidebar?.querySelectorAll<HTMLAnchorElement>('.flm-toc a[href^="#"]').forEach((link) => {
       const target = page.doc.getElementById(fragmentId(link.getAttribute('href') ?? '#'));
-      const item = link.closest('li');
-      const level = target?.getAttribute('data-flm-level');
-      if (target === null || item === null || level === null || level === undefined) return;
-      item.setAttribute('data-ln-level', level);
-      item.classList.toggle('ln-chapter', parseInt(level, 10) === this.chapterLevel);
-      this.entries.set(target.id, link);
+      if (target !== null) this.entries.set(target.id, link);
     });
 
     this.addAnchors();
@@ -280,24 +281,24 @@ export class Navigator {
   update(): void {
     const { page } = this;
     const index = this.currentIndex();
-    const chapter = index >= 0 ? chapterOf(this.levels, index, this.chapterLevel) : -1;
+    const unit = index >= 0 ? unitOf(this.levels, index, this.navigationLevel) : -1;
     const changed = index !== this.current;
     this.current = index;
     const heading = index >= 0 ? this.headings[index].element : null;
-    const chapterHeading = chapter >= 0 ? this.headings[chapter].element : null;
+    const unitHeading = unit >= 0 ? this.headings[unit].element : null;
 
     if (changed) {
       for (const link of this.entries.values()) link.removeAttribute('aria-current');
       const link = heading ? this.entries.get(heading.id) : undefined;
       link?.setAttribute('aria-current', 'true');
       page.sidebar?.querySelectorAll('li.ln-open').forEach((li) => li.classList.remove('ln-open'));
-      const chapterLink = chapterHeading ? this.entries.get(chapterHeading.id) : undefined;
-      chapterLink?.closest('li')?.classList.add('ln-open');
+      const unitLink = unitHeading ? this.entries.get(unitHeading.id) : undefined;
+      unitLink?.closest('li')?.classList.add('ln-open');
       if (link) this.follow(link);
     }
 
-    if (page.chapterText) page.chapterText.textContent = chapterHeading ? textOf(chapterHeading) : '';
-    const targets = navigationTargets(this.levels, index, this.chapterLevel);
+    if (page.unitText) page.unitText.textContent = unitHeading ? textOf(unitHeading) : '';
+    const targets = navigationTargets(this.levels, index, this.navigationLevel);
     if (page.prev) page.prev.disabled = targets.prev === -1;
     if (page.next) page.next.disabled = targets.next === -1;
   }
@@ -316,9 +317,9 @@ export class Navigator {
     sidebar.scrollTo({ top, behavior: 'smooth' });
   }
 
-  /** Scrolls to the previous or the next chapter and puts its fragment into the address. */
+  /** Scrolls to the previous or the next unit and puts its fragment into the address. */
   private go(direction: 'prev' | 'next'): void {
-    const target = navigationTargets(this.levels, this.currentIndex(), this.chapterLevel)[direction];
+    const target = navigationTargets(this.levels, this.currentIndex(), this.navigationLevel)[direction];
     if (target === -1) return;
     const element = this.headings[target].element;
     this.onBeforeJump?.();

@@ -1,5 +1,5 @@
 //! The whole pipeline through the `latex-recomposed` workflow, over a registry
-//! built from `flm_core::stdcore::package` alone: the recomposed LaTeX and style
+//! built from the standard features (`flm_core::stdlib::add_features`) alone: the recomposed LaTeX and style
 //! file of the document exercising every standard feature and of the
 //! session-06 document as goldens, the lowered projection and the tables of
 //! the former, the plan the workflow builds, and the two-backends proof — one
@@ -24,12 +24,12 @@ use flm_core::dump::golden::{assert_json_golden, assert_text_golden};
 use flm_core::dump::project::{ProjectOptions, project_tree};
 use flm_core::model::addr::TreeId;
 use flm_core::model::names::BackendName;
-use flm_core::stdcore::backends::latex_recomposed::{
+use flm_core::stdlib::backends::latex_recomposed::{
     self, BACKEND, OUTPUT_TABLE, PACKAGES_TABLE, PREAMBLE_TABLE, WORKFLOW,
 };
-use flm_core::stdcore::backends::lowering::lowered_table;
-use flm_core::stdcore::backends::text::{self, TEXT_DOCUMENT};
-use flm_core::stdcore::features::refs::{SAFE_LABELS, UnresolvedRefs};
+use flm_core::stdlib::backends::lowering::lowered_table;
+use flm_core::stdlib::backends::text::{self, TEXT_DOCUMENT};
+use flm_core::stdlib::features::refs::{SAFE_LABELS, UnresolvedRefs};
 use techy::serialize::SerialValue;
 
 use common::latex::{body, golden_text, style, output};
@@ -39,7 +39,7 @@ use common::spine::{
     FEATURES_DOCUMENT, SESSION06_DOCUMENT, golden_path, overrides, registry, tables_projection,
     text_plan,
 };
-use common::stdcore::{identifiers, plan, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, plan, run_workflow};
 use common::wiring::count_element;
 
 /// The features document recomposed by the `latex-recomposed` workflow over
@@ -95,7 +95,7 @@ fn the_workflow_plans_the_raw_tree_the_safe_labels_the_kept_definitions_and_the_
             "flm.citations.check",
             "flm.userdefs.keep",
             "flm.blocks.check-contract",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.latex-recomposed.pieces",
             "flm.latex-recomposed.lower",
             "flm.latex-recomposed.emit",
@@ -138,7 +138,7 @@ fn the_features_document_is_recomposed_as_the_golden_shows() {
     // Mathematics from its nodes, the environments rebuilt line by line.
     assert!(text.contains("\\begin{align*}\n  a &= b \\\\\n  c &= d\n\\end{align*}\n"), "{text}");
     // Verbatim through `\EscVerb` and the code environment.
-    assert!(text.contains("Inline \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{a\\{b\\}\\\\c} text"), "{text}");
+    assert!(text.contains("Inline \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{a\\{b\\}\\\\c} text"), "{text}");
     assert!(text.contains("\\begin{flmVerbatimCode}[python]\ndef f(x):\n    return {x} + 1\n\\end{flmVerbatimCode}\n"), "{text}");
     let (style, path) = style(&run);
     assert!(path.starts_with("flmrecomposed.") && path.ends_with(".sty"), "{path}");
@@ -153,7 +153,7 @@ fn the_features_document_is_recomposed_as_the_golden_shows() {
     }
     // The recomposed LaTeX validates like every render: the document's one deliberately
     // dangling reference is reported here, and changes no byte of the output.
-    assert_eq!(identifiers(&run), ["flm.refs.unresolved"]);
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.refs.unresolved"]);
     assert_text_golden(golden_path("features-recomposed.tex"), &golden_text(&run));
 }
 
@@ -168,7 +168,7 @@ fn the_session_06_document_is_recomposed_as_the_golden_shows() {
     assert!(text.contains("long\nenough to wrap somewhere. \u{25a1}\n"), "{text}");
     let (style, _) = style(&run);
     assert!(style.contains("\\newunicodechar{\u{25a1}}{"), "{style}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_text_golden(golden_path("session06-recomposed.tex"), &golden_text(&run));
 }
 
@@ -281,7 +281,7 @@ fn a_request_demanding_both_outputs_is_refused_naming_the_two_exclusive_provider
             "flm.citations.check",
             "flm.floats.check-handlers",
             "flm.input.spliced", "flm.math.content",
-            "flm.meta.read",
+            "flm.metadata.read",
             TEXT_DOCUMENT.name(),
             "flm.refs.check-labels",
             "flm.theorems.check-proofs",
@@ -294,7 +294,7 @@ fn a_request_demanding_both_outputs_is_refused_naming_the_two_exclusive_provider
             "flm.citations.check",
             "flm.floats.check-handlers",
             "flm.input.spliced", "flm.math.content",
-            "flm.meta.read",
+            "flm.metadata.read",
             latex_recomposed::DOCUMENT.name(),
             "flm.refs.check-labels",
             "flm.theorems.check-proofs",

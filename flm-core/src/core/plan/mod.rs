@@ -31,7 +31,19 @@
 //! - [`Plan::build`] builds the plan of any [`PlanRequest`].
 //!
 //! Each returns a [`PlanError`] when the plan cannot be built. A preference the plan
-//! cannot honor does not stop the build: it is kept as a [`PlanWarning`].
+//! cannot honor does not stop the build: it is kept as a [`PlanWarning`]. So is the
+//! output of a selected lowering rule that nothing checks before the program reading
+//! the output does
+//! ([`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output)),
+//! one warning per backend and feature: the formulas of
+//! [`math-passthrough`](crate::math_passthrough) on `html`, `latex-rendered` and
+//! `latex-recomposed`, for instance, and those of a feature that registers the
+//! same rules under its own names (the `math-techxt` extension's, on the two
+//! LaTeX backends). The run reports each warning before its own diagnostics,
+//! as `flm.run.ignored-preference`, `flm.run.preferred-rule-set-aside`,
+//! `flm.run.preferred-rule-not-candidate` or `flm.run.unchecked-output`. A plan
+//! holds nothing of a document, so the warnings do not depend on what the
+//! document holds.
 //!
 //! # Module map
 //!
@@ -55,11 +67,11 @@
 //!
 //! ```
 //! use flm_core::core::plan::{Overrides, Plan};
-//! use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-//! use flm_core::stdcore::{self, StdcoreConfig};
+//! use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+//! use flm_core::stdlib::{self, StdlibConfig};
 //!
 //! let mut builder = RegistryBuilder::new();
-//! builder.use_package(stdcore::package(StdcoreConfig::new()));
+//! builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 //! builder.use_package(flm_core::math_passthrough::package());
 //! let registry = builder.build(&RegistryInputs::new())?;
 //!

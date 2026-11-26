@@ -102,7 +102,7 @@
 //! is still returned; a failure that leaves no tree is a [`StructureError`]
 //! (see [`error`]).
 //!
-//! The `blocks` feature ([`crate::stdcore::features::blocks`]) places the
+//! The `blocks` feature ([`crate::stdlib::features::blocks`]) places the
 //! pass in a plan as the rewrite stage `flm.blocks.structure`, which publishes
 //! the structured trees as `flm.blocks.structured`; a plan can instead keep the
 //! trees unstructured through the alternative `flm.blocks.raw` (both refine the

@@ -142,13 +142,21 @@ fn a_cycle_among_loaded_features_fails_the_build_naming_the_chains_and_their_ori
     };
     assert_eq!(error.phase, BuildPhase::Collect);
     assert_eq!(error.errors.len(), 1, "{}", error.render());
-    assert!(matches!(&error.errors[0], BuildError::FeatureOrderCycle { cycle, chains }
-        if cycle.len() == 2 && chains.len() == 2));
+    let BuildError::FeatureOrderCycle { cycle, chains } = &error.errors[0] else {
+        panic!("a cycle: {}", error.render())
+    };
+    let cycle: Vec<&str> = cycle.iter().map(|name| name.as_str()).collect();
+    assert_eq!(cycle, ["math-mathjax", "phfqit"]);
+    let chains: Vec<(Vec<&str>, &str)> = chains
+        .iter()
+        .map(|chain| (chain.names().iter().map(|name| name.as_str()).collect(), chain.origin()))
+        .collect();
     assert_eq!(
-        error.render(),
-        "the feature order must not contain a cycle, but the chains `math-mathjax < phfqit` \
-         (package phfpack) and `phfqit < unloaded < math-mathjax` (front matter of doc.flm, line 4) \
-         order the features in the cycle `math-mathjax < phfqit < math-mathjax`"
+        chains,
+        [
+            (vec!["math-mathjax", "phfqit"], "package phfpack"),
+            (vec!["phfqit", "unloaded", "math-mathjax"], "front matter of doc.flm, line 4"),
+        ]
     );
 }
 
@@ -164,7 +172,12 @@ fn a_cycle_is_reported_with_the_other_errors_of_the_collect_phase() {
     assert_eq!(error.phase, BuildPhase::Collect);
     assert_eq!(error.errors.len(), 2, "{}", error.render());
     assert!(matches!(&error.errors[0], BuildError::FeatureOrderCycle { .. }), "{}", error.render());
-    assert_eq!(error.errors[1].to_string(), "feature `failing`: cannot register");
+    assert!(
+        matches!(&error.errors[1], BuildError::Feature { feature, detail }
+            if feature.as_str() == "failing" && detail == "cannot register"),
+        "{}",
+        error.render()
+    );
 }
 
 #[test]

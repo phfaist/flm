@@ -1,0 +1,12 @@
+===== check =====
+===== text =====
+Warning flm.xnotes.empty {"kind":"footnote"} — at `\footnote{}`
+Error flm.xnotes.bad-label-argument {"kind":"footnote","found":"\\textbf{x}"} — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Warning flm.xnotes.empty {"kind":"footnote"} — at `\footnote{}`
+Error flm.xnotes.bad-label-argument {"kind":"footnote","found":"\\textbf{x}"} — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Warning flm.xnotes.empty {"kind":"footnote"} — at `\footnote{}`
+Error flm.xnotes.bad-label-argument {"kind":"footnote","found":"\\textbf{x}"} — at `\footnote[\textbf{x}\label{fn:bad}]{The refused label's note`

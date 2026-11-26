@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 
 use flm_core::core::registry::PackageEntry;
 use flm_core::dump::json::to_json;
-use flm_core::stdcore::backends::{html, pres};
+use flm_core::stdlib::backends::{html, latex_recomposed, pres};
 use flm_ext::adapter::payloads::{elements, payload_from_value};
-use flm_ext::api::stdcore::backends::latex;
+use flm_ext::api::stdlib::backends::latex;
 use flm_ext::api::core::lowering::{
     pres_tree, DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule, NodeRegion, PresTree,
 };
@@ -27,7 +27,7 @@ use serde_json::{json, Map, Value};
 
 use common::double::{stage, Double};
 use common::json_double::{module, JsonDouble};
-use common::{html_of, latex_of, registry_with, run, text_of, try_registry_with};
+use common::{assert_only_unchecked_output, html_of, latex_of, registry_with, run, text_of, try_registry_with};
 
 /// A rule's body as a closure.
 type BodyFn = dyn Fn(&dyn Node<'_>, &mut dyn LowerCx, &mut dyn Lowerer) -> Result<Lowering, ExtError> + Send + Sync;
@@ -82,12 +82,12 @@ fn boxing() -> Arc<dyn Lower> {
                 PresTree::Node {
                     element: pres::SPAN.to_string(),
                     payload: span("lw.inner"),
-                    children: content.into_iter().map(PresTree::Build).collect(),
+                    children: vec![PresTree::Build(content)],
                 },
                 PresTree::Text(" (boxed)".to_string()),
             ],
         };
-        Ok(Lowering::Emit(vec![pres_tree(lw, cx, &tree)?]))
+        Ok(Lowering::Emit(pres_tree(lw, cx, &tree)?))
     })
 }
 
@@ -107,20 +107,35 @@ fn a_rule_with_a_rust_body_lowers_on_each_backend() {
     assert_eq!(text, "Before inside it (boxed) after.\n");
 
     let (page, diagnostics) = html_of(&registry, source);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains("inside <em"), "{page}");
     assert!(page.contains(" (boxed)</span>"), "{page}");
 
     let (latex, diagnostics) = latex_of(&registry, source);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("Before inside \\emph{it} (boxed) after."), "{latex}");
+}
+
+#[test]
+fn an_unchecked_output_a_rule_declares_is_kept_by_the_plan_of_that_backend_alone() {
+    let decl = produces_spans().unchecked_output(html::BACKEND, "each box's content", "the reader's browser");
+    let registry = registry_with([boxes(decl, DefaultMark::Everywhere, boxing())]);
+    assert_eq!(
+        common::unchecked_outputs_of(&registry, html::WORKFLOW, "lw.box.lower.default"),
+        [(html::BACKEND.to_string(), "each box's content".to_string(), "the reader's browser".to_string())],
+    );
+    assert_eq!(common::unchecked_outputs_of(&registry, latex_recomposed::WORKFLOW, "lw.box.lower.default"), []);
+    // The run reports it once, with the plan's other warnings of its kind.
+    let (_, diagnostics) = html_of(&registry, "\\lwbox{x} and \\lwbox{y}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
+    assert_eq!(diagnostics.iter().filter(|line| line.contains("each box's content")).count(), 1, "{diagnostics:?}");
 }
 
 #[test]
 fn a_tree_staged_in_one_call_splices_a_build_identifier_and_a_text_leaf() {
     let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, boxing())]);
     let (page, diagnostics) = html_of(&registry, "\\lwbox{x}");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     // The outer span holds the inner span (the argument's lowered nodes,
     // spliced by their build identifiers), then the text leaf.
     let outer = page.find("lw.box").or_else(|| page.find("lw-box")).expect("the outer span");
@@ -142,7 +157,7 @@ fn a_never_mark_is_accepted_and_the_rule_is_the_only_candidate() {
 fn a_rule_marked_for_one_backend_lowers_there() {
     let registry = registry_with([boxes(produces_spans(), DefaultMark::OnBackends(vec![html::BACKEND.into()]), boxing())]);
     let (page, diagnostics) = html_of(&registry, "\\lwbox{x}");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains(" (boxed)"), "{page}");
 }
 
@@ -151,10 +166,8 @@ fn a_failing_body_is_an_error_at_the_node_and_the_rest_lowers() {
     let failing = body(|_, _, _| Err(ExtError::Value { detail: "no box today".to_string() }));
     let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, failing)]);
     let (text, diagnostics) = text_of(&registry, "Before \\lwbox{x} after.");
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.handler-failed: the lowering rule `lw.box.lower.default` failed: no box today"],
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with("no box today"), "{diagnostics:?}");
     // The node is the unsupported stand-in; the rest of the tree lowers.
     assert_eq!(text, "Before [unsupported: lw.box] after.\n");
 }
@@ -170,11 +183,10 @@ fn a_node_the_call_did_not_stage_or_placed_twice_is_the_body_s_failure() {
         Ok(Lowering::Emit(vec![first]))
     });
     let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, twice)]);
-    let (_, diagnostics) = text_of(&registry, "\\lwbox{x}");
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.handler-failed: the lowering rule `lw.box.lower.default` failed: `pres`: a node may be placed only once"],
-    );
+    let ran = run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "\\lwbox{x}");
+    assert_eq!(common::identifiers(&ran), ["flm.ext.handler-failed"]);
+    let data = common::data_json(&ran, "flm.ext.handler-failed");
+    assert_eq!((&data[0]["kind"], &data[0]["method"]), (&json!("argument"), &json!("pres")), "{data:?}");
 }
 
 #[test]
@@ -183,10 +195,10 @@ fn nodes_that_are_not_consecutive_siblings_are_refused_by_lower_nodes() {
     let refusals = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&refusals);
     let lowering = body(move |node, cx, lw| {
-        let child = || node.descendants().into_iter().next().expect("the box holds its argument");
+        let child = || node.descendants().next().expect("the box holds its argument");
         let itself = || child().parent().expect("the node");
         for nodes in [vec![itself(), itself()], vec![itself(), child()]] {
-            let refused = lw.lower_nodes(cx, &nodes).map(|_| ()).map_err(|error| error.to_string());
+            let refused = lw.lower_nodes(cx, &nodes).map(|_| ()).map_err(|error| (error.kind(), error.data()["method"].clone()));
             seen.lock().expect("the lock").push(refused);
         }
         Ok(Lowering::Emit(vec![lw.text(cx, "box")?]))
@@ -194,7 +206,7 @@ fn nodes_that_are_not_consecutive_siblings_are_refused_by_lower_nodes() {
     let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, lowering)]);
     let (_, diagnostics) = text_of(&registry, "\\lwbox{x}");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    let refusal = Err("`lower_nodes`: the nodes must be consecutive siblings in one tree".to_string());
+    let refusal = Err(("argument", json!("lower_nodes")));
     assert_eq!(*refusals.lock().expect("the lock"), [refusal.clone(), refusal]);
 }
 
@@ -208,9 +220,7 @@ fn a_core_refusal_while_staging_ends_the_call_with_the_core_error() {
     });
     let registry = registry_with([boxes(produces_spans(), DefaultMark::Everywhere, refused)]);
     let (_, diagnostics) = text_of(&registry, "\\lwbox{x}");
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.lowering.rule-failed: "), "{diagnostics:?}");
-    assert!(diagnostics[0].contains("flm.pres.par"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.lowering.rule-failed"]);
 }
 
 #[test]
@@ -222,12 +232,10 @@ fn a_rule_named_outside_the_extension_is_refused() {
         })
         .package();
     let error = try_registry_with([package]).expect_err("the rule's name is outside the extension");
-    assert!(
-        error.to_string().contains(
-            "the rule `other.lower` declared by the package `_` of the extension `lw` must begin with `lw.`"
-        ),
-        "{error}"
-    );
+    let found = common::feature_errors(&error);
+    assert_eq!(found.len(), 1, "{error}");
+    assert_eq!(found[0].0, "boxes");
+    assert!(found[0].1.starts_with("flm.ext.name-outside-extension: "), "{error}");
 }
 
 // --- the façade's methods ------------------------------------------------------------------------
@@ -254,7 +262,7 @@ fn every_method_of_the_lowerer_answers() {
         note(log, format!("addr_of {}", lw.addr_of(node)? == addr));
         note(log, format!("placement {:?}", lw.placement()));
         let rows = match lw.get("lw.rows")? {
-            Some(flm_ext::api::core::data::table::TableValue::Ext(table)) => Value::Array(table.items()),
+            Some(flm_ext::api::core::data::table::TableValue::Ext(table)) => Value::Array(table.items().iter().collect()),
             _ => Value::Null,
         };
         note(log, format!("get {rows}"));
@@ -400,27 +408,12 @@ fn a_payload_from_data_reads_back_for_every_element_of_the_table() {
 }
 
 #[test]
-fn an_element_outside_the_table_is_refused_with_the_table_s_names() {
-    let error = payload_from_value("pres", "lw.mine", &json!({})).expect_err("not in the table").to_string();
-    assert!(
-        error.starts_with(
-            "`pres`: the element `lw.mine` must be one of the presentation elements whose payload can be given as \
-             data: `flm.pres.par`, `flm.pres.block`, "
-        ),
-        "{error}"
-    );
-    assert!(
-        error.ends_with(
-            "`flm.pres.subtree`, `flm.pres.html.tag`, `flm.pres.latex.macro`, `flm.pres.latex.environment`, \
-             `flm.pres.latex.raw`, `flm.pres.latex.definition`, or a presentation element a package declared with a \
-             data payload that this rule declares it produces"
-        ),
-        "{error}"
-    );
+fn an_element_outside_the_table_is_refused() {
+    let error = payload_from_value("pres", "lw.mine", &json!({})).expect_err("not in the table");
+    assert!(matches!(&error, ExtError::Argument { method, .. } if method == "pres"), "{error:?}");
     let markup = payload_from_value("pres", html::construct::TAG, &json!({ "tag": "b", "markup": "<i>x</i>" }))
-        .expect_err("the markup body is not offered")
-        .to_string();
-    assert_eq!(markup, "`pres`: the payload of `flm.pres.html.tag` must not hold `markup`");
+        .expect_err("the markup body is not offered");
+    assert!(matches!(&markup, ExtError::Argument { method, .. } if method == "pres"), "{markup:?}");
 }
 
 #[test]
@@ -433,15 +426,15 @@ fn a_tag_with_children_is_staged_from_data_on_html() {
             children: vec![PresTree::Node {
                 element: html::construct::TAG.to_string(),
                 payload: json!({ "tag": "mtext" }),
-                children: content.into_iter().map(PresTree::Build).collect(),
+                children: vec![PresTree::Build(content)],
             }],
         };
-        Ok(Lowering::Emit(vec![pres_tree(lw, cx, &tree)?]))
+        Ok(Lowering::Emit(pres_tree(lw, cx, &tree)?))
     });
     let decl = LoweringDecl::new().produces(html::construct::TAG);
     let registry = registry_with([boxes(decl, DefaultMark::OnBackends(vec![html::BACKEND.into()]), tagging)]);
     let (page, diagnostics) = html_of(&registry, "\\lwbox{x}");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains("<mrow class=\"lw\"><mtext>x</mtext></mrow>"), "{page}");
 }
 
@@ -467,14 +460,17 @@ fn a_rule_built_and_lowered_through_the_dispatcher() {
                 "element": "flm.pres.span",
                 "payload": { "role": "lw.box" },
                 "children": [
-                    { "element": "flm.pres.span", "children": content.as_array().expect("a list").iter().map(|id| json!({ "build": id })).collect::<Vec<_>>() },
+                    { "element": "flm.pres.span", "children": [{ "build": content }] },
                     { "text": format!(" on {}", backend.as_str().unwrap_or("?")) },
                 ],
             });
             let root = js.call(&module("core/lowering"), "pres_tree", json!([lw, cx, tree]))?;
             Ok(json!({ "emit": [root] }))
         });
-        let decl = json!({ "produces": ["flm.pres.span"] });
+        let decl = json!({
+            "produces": ["flm.pres.span"],
+            "unchecked_output": [{ "backend": "latex-recomposed", "written": "each box's content", "reader": "LaTeX" }],
+        });
         let rule = js.call(&module("core/lowering"), "LoweringRule::new", json!(["lw.box.lower.default", "lw.box", decl, lower, "everywhere"]))?;
         let rule = js.call(&rule, "docs", json!(["Boxes, through the dispatcher."]))?;
         js.call(b, "lowering_rule", json!([rule]))?;
@@ -485,8 +481,13 @@ fn a_rule_built_and_lowered_through_the_dispatcher() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "A x on text.\n");
     let (latex, diagnostics) = latex_of(&registry, "A \\lwbox{x}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("A x on latex-recomposed."), "{latex}");
+    // The declaration's unchecked output, read from data.
+    assert_eq!(
+        common::unchecked_outputs_of(&registry, latex_recomposed::WORKFLOW, "lw.box.lower.default"),
+        [("latex-recomposed".to_string(), "each box's content".to_string(), "LaTeX".to_string())],
+    );
 }
 
 #[test]
@@ -512,7 +513,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             &json!({}),
             |js, cx, out| {
                 let piece = js.call(out, "table", json!(["lw.rows"]))?;
-                let walk = js.call(cx, "walk", json!([]))?;
+                let walk = js.traverse(cx, "walk", json!([]))?;
                 for entry in walk.as_array().expect("a list") {
                     let name = js.call(&entry["node"], "element_name", json!([]))?;
                     let n = if name == json!("lw.box") { 1 } else { 0 };
@@ -552,10 +553,10 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             // The reads, the option, `default`, `lower_body`, `splice`
             // through the dispatcher.
             let rows = js.call(lw, "get", json!(["lw.rows"]))?;
-            answers.push(js.call(&rows["ext"], "items", json!([]))?);
+            answers.push(js.sequence(&rows["ext"], "items", json!([]))?);
             answers.push(js.call(lw, "get_at", json!(["lw.rows", node]))?);
             answers.push(js.call(lw, "option", json!(["lw.style"]))?);
-            let first = content.as_array().and_then(|nodes| nodes.first()).cloned().expect("a content node");
+            let first = js.call(&content, "get", json!([0]))?;
             let defaulted = js.call(lw, "default", json!([cx, first]))?;
             spans.push(js.call(lw, "pres", json!([cx, "flm.pres.span", {}, defaulted]))?);
             let body = js.call(lw, "lower_body", json!([cx, node]))?;
@@ -566,7 +567,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
             spans.push(js.call(lw, "pres", json!([cx, "flm.pres.span", {}, copy]))?);
             js.call(lw, "require", json!(["lw.style-def"]))?;
             js.call(lw, "diagnose", json!([{ "id": "lw.seen", "severity": "note", "message": "seen" }]))?;
-            let refused = js.call(lw, "pres", json!([cx, "lw.mine", {}, []])).map_err(|error| error.to_string());
+            let refused = js.call(lw, "pres", json!([cx, "lw.mine", {}, []])).map_err(|error| error.data());
             answers.push(json!(refused));
             seen.lock().expect("the log").push(Value::Array(answers).to_string());
             Ok(json!({ "emit": spans }))
@@ -589,7 +590,7 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
     options.insert("lw.style".to_string(), json!({ "bind": "document", "schema": { "type": "object", "properties": {} } }));
     let double = double.settings("boxes", SettingsReport { options, ..SettingsReport::default() });
     let registry = registry_with([double.package()]);
-    let ran = run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "\\begin{lwbox}{a}b\\end{lwbox}");
+    let ran = run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "\\begin{lwbox}{a}b\\end{lwbox}");
     assert!(common::identifiers(&ran).contains(&"lw.seen".to_string()), "{:?}", common::diagnostics(&ran));
     let log = log.lock().expect("the log").clone();
     assert_eq!(log.len(), 1, "{log:?}");
@@ -607,10 +608,10 @@ fn the_dispatcher_offers_the_lowerer_s_methods() {
     assert_eq!(rows.iter().filter(|row| row["n"] == json!(1)).count(), 1, "{rows:?}");
     assert_eq!(answers[9], json!([{ "addr": answers[4], "n": 1 }]));
     assert_eq!(answers[10], json!({}));
-    let refused = answers[11]["Err"].as_str().expect("refused");
-    assert!(refused.starts_with("`pres`: the element `lw.mine` must be one of"), "{refused}");
+    let refused = &answers[11]["Err"];
+    assert_eq!((&refused["kind"], &refused["method"]), (&json!("argument"), &json!("pres")), "{refused}");
     let text = ran
-        .table(flm_core::stdcore::backends::text::TEXT_OUTPUT)
+        .table(flm_core::stdlib::backends::text::TEXT_OUTPUT)
         .expect("declared")
         .map(|out| out.text.clone())
         .unwrap_or_default();
@@ -648,9 +649,8 @@ fn noting(log: &Log) -> PackageEntry {
                 // An element declared with a data payload that the rule does not
                 // produce, and an element nobody declared.
                 for element in ["lw.pres.other", "lw.pres.never"] {
-                    let refused = lw.pres(cx, element, &json!({}), Vec::new()).map_err(|error| error.to_string());
-                    if let Err(refused) = refused {
-                        note(&staging, refused);
+                    if let Err(error) = lw.pres(cx, element, &json!({}), Vec::new()) {
+                        note(&staging, format!("{element} refused: {} {}", error.kind(), error.data()["method"]));
                     }
                 }
                 let staged = lw.pres(cx, "lw.pres.note", &json!({ "kind": "tip", "level": 2 }), content)?;
@@ -681,7 +681,6 @@ fn noting(log: &Log) -> PackageEntry {
                     let root = tree.root();
                     let spans: Vec<Value> = root
                         .descendants()
-                        .iter()
                         .filter(|node| node.element_name() == pres::SPAN)
                         .map(|node| node.payload().ok().flatten().unwrap_or(Value::Null))
                         .collect();
@@ -706,7 +705,7 @@ fn noting(log: &Log) -> PackageEntry {
 
 #[test]
 fn an_element_declared_with_a_data_payload_is_staged_from_data_and_read_back() {
-    use flm_core::stdcore::backends::text;
+    use flm_core::stdlib::backends::text;
     let log: Log = Arc::default();
     let registry = registry_with([noting(&log)]);
     let ran = run_demanding(&registry, &[text::TEXT_OUTPUT.name(), "lw.seen"], "A \\lwnote{x}.");
@@ -714,22 +713,80 @@ fn an_element_declared_with_a_data_payload_is_staged_from_data_and_read_back() {
     let out = ran.table(text::TEXT_OUTPUT).expect("declared").map(|out| out.text.clone()).unwrap_or_default();
     assert_eq!(out, "A [tip] x.\n");
     let log = log.lock().expect("the log").clone();
-    let refusal = |element: &str| {
-        format!(
-            "`pres`: the element `{element}` must be one of the presentation elements whose payload can be given as \
-             data: {}, or a presentation element a package declared with a data payload that this rule declares it \
-             produces",
-            flm_ext::adapter::payloads::elements().map(|name| format!("`{name}`")).collect::<Vec<_>>().join(", ")
-        )
-    };
     assert_eq!(
         log,
         [
-            refusal("lw.pres.other"),
-            refusal("lw.pres.never"),
+            r#"lw.pres.other refused: argument "pres""#.to_string(),
+            r#"lw.pres.never refused: argument "pres""#.to_string(),
             r#"lw.pres.note {"kind":"tip","level":2}"#.to_string(),
             r#"tree#0 flm.container rounds Some(2) requires Some([]) same true spans [{"role":"lw.note"}]"#.to_string(),
             "unknown true None".to_string(),
+        ]
+    );
+}
+
+/// The package `lw` whose feature `positions` declares a stage reading the
+/// text output's position marks and, for each, the lowered node at the
+/// mark's address ([`LoweredTrees::node_at`](flm_ext::api::stdlib::backends::lowering::LoweredTrees::node_at)),
+/// into the table `lw.positions`. Each line logged is the slice the mark
+/// covers, then the node's element, its payload and the characters it holds;
+/// then whether each of a few addresses of no node answers `None`.
+fn positions(log: &Log) -> PackageEntry {
+    let log = Arc::clone(log);
+    Double::new("lw")
+        .feature("positions", move |b| {
+            b.table("lw.positions", "The nodes at the text output's position marks.")?;
+            let seeing = Arc::clone(&log);
+            let decl = StageDecl::new("lw.positions", Effect::Compute, Scope::Document).writes("lw.positions");
+            let needs = Needs::new().reads("flm.lowered.text").reads("flm.output.text");
+            b.stage(stage(decl, needs, move |cx, _| {
+                let Some(TableValue::Lowered(lowered)) = cx.get("flm.lowered.text")? else {
+                    note(&seeing, "not the lowered trees".to_string());
+                    return Ok(());
+                };
+                let Some(TableValue::Projection(output)) = cx.get("flm.output.text")? else {
+                    note(&seeing, "not the text output's projection".to_string());
+                    return Ok(());
+                };
+                let text = output["text"].as_str().unwrap_or_default();
+                for mark in output["marks"].as_array().into_iter().flatten() {
+                    let start = mark["bytes"][0].as_u64().unwrap_or_default() as usize;
+                    let end = mark["bytes"][1].as_u64().unwrap_or_default() as usize;
+                    let addr = mark["addr"].as_str().unwrap_or_default();
+                    let node = lowered.node_at(addr);
+                    let seen = node.map(|node| {
+                        let printed: String = node.descendants().filter_map(|node| node.chars()).collect();
+                        let payload = node.payload().ok().flatten().unwrap_or(Value::Null);
+                        format!("{} {payload} {printed:?}", node.element_name())
+                    });
+                    note(&seeing, format!("{:?} {}", &text[start..end], seen.unwrap_or_else(|| "none".to_string())));
+                }
+                for addr in ["tree#0/9999", "tree#9/0", "tree#0/05", "tree#0", "nothing"] {
+                    note(&seeing, format!("{addr} {}", lowered.node_at(addr).is_none()));
+                }
+                Ok(())
+            }))
+        })
+        .package()
+}
+
+#[test]
+fn the_node_at_a_position_mark_s_address_is_the_node_that_printed_the_slice() {
+    use flm_core::stdlib::backends::text;
+    let log: Log = Arc::default();
+    let registry = registry_with([positions(&log)]);
+    let ran = run_demanding(&registry, &[text::TEXT_OUTPUT.name(), "lw.positions"], "Some \\textbf{bold} text.");
+    assert!(common::diagnostics(&ran).is_empty(), "{:?}", common::diagnostics(&ran));
+    let log = log.lock().expect("the log").clone();
+    assert_eq!(
+        log,
+        [
+            r#""bold" flm.pres.span {"style":"bold"} "bold""#,
+            "tree#0/9999 true",
+            "tree#9/0 true",
+            "tree#0/05 true",
+            "tree#0 true",
+            "nothing true",
         ]
     );
 }
@@ -756,7 +813,7 @@ fn run_demanding(registry: &Arc<flm_core::core::registry::FlmRegistry>, demands:
 
 /// The style file the recomposed LaTeX backend writes for `source`.
 fn style_of(registry: &Arc<flm_core::core::registry::FlmRegistry>, source: &str) -> String {
-    use flm_core::stdcore::backends::latex_recomposed;
+    use flm_core::stdlib::backends::latex_recomposed;
     let run = run(registry, latex_recomposed::WORKFLOW, source);
     run.table(latex_recomposed::DOCUMENT)
         .expect("declared")
@@ -786,7 +843,7 @@ fn the_latex_constructs_are_staged_from_data_and_written() {
     let decl = LoweringDecl::new().produces(latex::ENVIRONMENT).produces(latex::RAW).produces(latex::MACRO).produces(latex::DEFINITION);
     let registry = registry_with([boxes(decl, DefaultMark::OnBackends(vec![latex::RECOMPOSED_BACKEND.into()]), writing)]);
     let (document, diagnostics) = latex_of(&registry, "\\lwbox{x}");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(document.contains("\\begin{lwenv}[x]x\\end{lwenv}"), "{document}");
     assert!(document.contains("\\lwRaw{}"), "{document}");
     assert!(document.contains("\\lwmark{a}"), "{document}");
@@ -816,7 +873,7 @@ fn workflow_preferences_override_native_handling_and_replace_the_whole_map() {
     assert_eq!(workflow.lowering.len(), 1);
     assert_eq!(workflow.outputs.iter().map(|name| name.as_str()).collect::<Vec<_>>(), ["html"]);
     let (html, diagnostics) = html_of(&registry, "\\verbcode[python]|original|");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(html.contains("replacement") && !html.contains("original"), "{html}");
     let (text, diagnostics) = text_of(&registry, "\\verbcode[python]|original|");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");

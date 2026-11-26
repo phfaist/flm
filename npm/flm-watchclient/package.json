@@ -1,0 +1,23 @@
+{
+  "name": "flm-watchclient",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The watch client of FLM: the page script that keeps a page shown by `flm watch` in step with its document, and the tools page that shows that page beside the preview's tools, built into the files that the program embeds",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs test"
+  },
+  "devDependencies": {
+    "@preact/signals": "2.11.4",
+    "ansi_up": "6.0.6",
+    "esbuild": "0.28.2",
+    "highlight.js": "11.11.1",
+    "lucide-static": "1.73.0",
+    "morphdom": "2.7.8",
+    "pdfjs-dist": "6.5.438",
+    "preact": "11.2.0",
+    "typescript": "7.0.2"
+  }
+}

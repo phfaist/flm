@@ -1,9 +1,15 @@
 //! The mirror of the `math` library and of the mathematics writer
-//! (`api::stdcore::features::math`, `userdefs::write_math_run`): each function
+//! (`api::stdlib::features::math`, `userdefs::write_math_run`): each function
 //! called through the façade from a Rust stage and a Rust rule, and through
 //! the dispatcher, over the standard package (which holds `math` and
 //! `math-passthrough`) and a hand-made package; each result compared with what
-//! the library answers.
+//! the library answers. The writer of a formula's TeX (`group_tex`,
+//! `line_tex`) is compared part by part, each hole by its command and its
+//! node's source and place. The formula rules of `math-passthrough`, built
+//! by `api::math_passthrough` under an extension's names and registered by it
+//! in a registry without `math-passthrough`, write both LaTeX outputs as
+//! `math-passthrough` does, under a plan warning that names the extension's
+//! feature.
 
 mod common;
 
@@ -16,11 +22,11 @@ use flm_core::lang::{parse_fragment, Flm, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::addr::NodeAddr;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::element::{element_of, element_value};
-use flm_core::stdcore::backends::latex::construct::{DEFINITION, MACRO, RAW};
-use flm_core::stdcore::backends::{latex_recomposed, pres};
-use flm_core::stdcore::features::math::{frame as core_frame, lines as core_lines, MathEnvironment};
-use flm_core::stdcore::features::numbering::COUNTERS;
-use flm_core::stdcore::features::refs::ANCHORS;
+use flm_core::stdlib::backends::latex::construct::{DEFINITION, MACRO, RAW};
+use flm_core::stdlib::backends::{html, latex_recomposed, pres};
+use flm_core::stdlib::features::math::{frame as core_frame, lines as core_lines, tex as core_tex, MathEnvironment};
+use flm_core::stdlib::features::numbering::COUNTERS;
+use flm_core::stdlib::features::refs::ANCHORS;
 use flm_core::techy::core::node::NodeRef;
 use flm_ext::adapter::node::NodeFacade;
 use flm_ext::adapter::table::ExtTable;
@@ -28,15 +34,15 @@ use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowerin
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_ext::api::lang::mint::{ElementDef, SyntaxDef};
 use flm_ext::api::model::element::ElementSpec;
-use flm_ext::api::stdcore::features::math::{self, FrameReader, LineFrame, LineShows};
-use flm_ext::api::stdcore::features::userdefs::write_math_run;
+use flm_ext::api::stdlib::features::math::{self, FrameReader, LineFrame, LineShows};
+use flm_ext::api::stdlib::features::userdefs::write_math_run;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
 
 use common::double::{stage, Double};
 use common::json_double::{module, JsonDouble};
-use common::{html_of, latex_of, registry_with};
+use common::{assert_only_unchecked_output, html_of, latex_of, registry_with};
 
 /// A display-math environment with a labeled numbered line, a line break with
 /// its spacing, a tagged line and an unnumbered one; a starred environment; an
@@ -304,7 +310,7 @@ fn again() -> flm_core::core::registry::PackageEntry {
 fn the_latex_parts_from_a_rule_write_what_the_library_writes() {
     let registry = registry_with([again()]);
     let (latex, diagnostics) = latex_of(&registry, &format!("{DOCUMENT}\n\n\\mtframes"));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     // The passthrough rules write each formula through the same parts; the
     // rule writes them again, byte for byte.
     let start = latex.find("\\begin{align}").expect("the environment");
@@ -319,7 +325,7 @@ fn the_latex_parts_from_a_rule_write_what_the_library_writes() {
 fn stage_tag_content_from_a_rule_stages_the_number_and_the_tag() {
     let registry = registry_with([again()]);
     let (page, diagnostics) = html_of(&registry, &format!("{DOCUMENT}\n\n\\mtframes"));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     let shown: Vec<&str> = page.split("mt-line").skip(1).map(|part| &part[part.find('>').expect("a tag") + 1..]).collect();
     assert_eq!(shown.len(), 3, "{page}");
     assert!(shown[0].starts_with("[eq-") && shown[0].contains("(1)</"), "{page}");
@@ -345,7 +351,7 @@ fn the_dispatcher_offers_every_function_of_the_math_module_and_the_writer() {
             js.call(b, "peer_element", json!([element, "a construct"]))?;
         }
         let lower = js.lend_lower(|js, node, cx, lw| {
-            let math = module("stdcore/features/math");
+            let math = module("stdlib/features/math");
             let names = js.call(&math, "names", json!([]))?;
             assert_eq!(names["ENVIRONMENT"], json!("flm.math.environment"));
             assert_eq!(names["TEXT_COMMANDS"].as_array().map(Vec::len), Some(12));
@@ -359,7 +365,7 @@ fn the_dispatcher_offers_every_function_of_the_math_module_and_the_writer() {
                 }
                 root = parent;
             }
-            let all = js.call(&root, "descendants", json!([]))?;
+            let all = js.traverse(&root, "descendants", json!([]))?;
             let (mut env, mut group) = (Value::Null, Value::Null);
             for candidate in all.as_array().expect("a list") {
                 let name = js.call(candidate, "element_name", json!([]))?;
@@ -381,16 +387,16 @@ fn the_dispatcher_offers_every_function_of_the_math_module_and_the_writer() {
             assert_eq!(js.call(&math, "number_text", json!([frames[0]]))?, json!(""));
             assert_eq!(js.call(&math, "number_text", json!([frames[2]]))?, Value::Null);
             let mut out = Vec::new();
-            let mut extend = |ids: Value| out.extend(ids.as_array().expect("a list").iter().cloned());
+            let mut extend = |ids: Value| out.push(ids);
             extend(js.call(&math, "environment_opening", json!([cx, lw, env]))?);
             for frame in frames.as_array().expect("a list") {
-                extend(js.call(&module("stdcore/features/userdefs"), "write_math_run", json!([cx, lw, frame["line"]["content"]]))?);
+                extend(js.call(&module("stdlib/features/userdefs"), "write_math_run", json!([cx, lw, frame["line"]["content"]]))?);
                 extend(js.call(&math, "line_closing", json!([cx, lw, frame]))?);
             }
             extend(js.call(&math, "environment_closing", json!([cx, lw, env]))?);
             extend(js.call(&math, "group_opening", json!([cx, lw, group]))?);
             let content = js.call(&group, "children", json!([]))?;
-            extend(js.call(&module("stdcore/features/userdefs"), "write_math_run", json!([cx, lw, content]))?);
+            extend(js.call(&module("stdlib/features/userdefs"), "write_math_run", json!([cx, lw, content]))?);
             extend(js.call(&math, "group_closing", json!([cx, lw, group]))?);
             // A frame's tag, staged through the dispatcher.
             extend(js.call(&math, "stage_tag_content", json!([cx, lw, frames[1]]))?);
@@ -411,7 +417,7 @@ fn the_dispatcher_offers_every_function_of_the_math_module_and_the_writer() {
     });
     let registry = registry_with([double.package()]);
     let (latex, diagnostics) = latex_of(&registry, &format!("{DOCUMENT}\n\n\\mtframes"));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     let start = latex.find("\\begin{align}").expect("the environment");
     let end = latex[start..].find("\\end{align}").expect("its end") + start + "\\end{align}".len();
     assert_eq!(latex.matches(&latex[start..end]).count(), 2, "{latex}");
@@ -434,7 +440,7 @@ fn the_dispatcher_stages_a_numbered_frame_s_number() {
             js.call(b, "peer_table", json!([table, "a peer"]))?;
         }
         let lower = js.lend_lower(|js, node, cx, lw| {
-            let math = module("stdcore/features/math");
+            let math = module("stdlib/features/math");
             let mut root = js.call(node, "parent", json!([]))?;
             loop {
                 let parent = js.call(&root, "parent", json!([]))?;
@@ -443,7 +449,7 @@ fn the_dispatcher_stages_a_numbered_frame_s_number() {
                 }
                 root = parent;
             }
-            let all = js.call(&root, "descendants", json!([]))?;
+            let all = js.traverse(&root, "descendants", json!([]))?;
             let mut env = Value::Null;
             for candidate in all.as_array().expect("a list") {
                 if env.is_null() && js.call(candidate, "element_name", json!([]))? == json!("flm.math.environment") {
@@ -461,7 +467,7 @@ fn the_dispatcher_stages_a_numbered_frame_s_number() {
                 let tree = json!({
                     "element": "flm.pres.span",
                     "payload": { "role": "mt.line" },
-                    "children": ids.as_array().expect("a list").iter().map(|id| json!({ "build": id })).collect::<Vec<_>>(),
+                    "children": [{ "build": ids }],
                 });
                 roots.push(js.call(&module("core/lowering"), "pres_tree", json!([lw, cx, tree]))?);
             }
@@ -474,7 +480,7 @@ fn the_dispatcher_stages_a_numbered_frame_s_number() {
     });
     let registry = registry_with([double.package()]);
     let (page, diagnostics) = html_of(&registry, &format!("{DOCUMENT}\n\n\\mtframes"));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     let shown: Vec<&str> = page.split("mt-line").skip(1).map(|part| &part[part.find('>').expect("a tag") + 1..]).collect();
     assert_eq!(shown.len(), 3, "{page}");
     assert!(shown[0].starts_with("(1)</span>"), "{page}");
@@ -502,7 +508,7 @@ fn a_line_record_carries_its_span() {
     )
     .expect("the text parses");
     let root = NodeFacade::shared(Arc::clone(fragment.tree()), fragment.tree().root().id());
-    let env = root.descendants().into_iter().find(|node| node.element_name() == "flm.math.environment").expect("the environment");
+    let env = root.descendants().find(|node| node.element_name() == "flm.math.environment").expect("the environment");
     let mut table = CallTable::new(8200);
     let records: Vec<Value> = math::equation_lines(&*env).into_iter().map(|line| equation_line_to_value(&mut table, line)).collect();
     let slice = |record: &Value| -> Option<String> {
@@ -529,7 +535,384 @@ fn a_line_record_carries_its_span() {
     )
     .expect("the text parses");
     let root = NodeFacade::shared(Arc::clone(fragment.tree()), fragment.tree().root().id());
-    let env = root.descendants().into_iter().find(|node| node.element_name() == "flm.math.environment").expect("the environment");
+    let env = root.descendants().find(|node| node.element_name() == "flm.math.environment").expect("the environment");
     let records: Vec<Value> = math::equation_lines(&*env).into_iter().map(|line| equation_line_to_value(&mut table, line)).collect();
     assert_eq!(records.iter().map(|record| record["span"].clone()).collect::<Vec<_>>(), [Value::Null]);
+}
+
+// --- the TeX of a formula, with holes --------------------------------------------------------------
+
+/// Formulas holding text commands, at the top, inside a group and inside an
+/// `\ensuremath`, a comment, and an environment of three lines, one labeled,
+/// one tagged, whose line ends the newline rule reduces.
+const FORMULAS: &str = "Let \\(x + \\text{if } y\\) and \\(\\alpha%%c\nb\\), \\[{\\mbox{all} z}\\], \
+                        \\(\\ensuremath{\\textit{e}}f\\).\n\n\
+                        \\begin{align}\n  a \\textbf{b} \\label{eq:a}\n  \\\\\n  c \\tag{T}\n  \\\\ d\n\\end{align}";
+
+/// A part's summary: `{"tex": text}`, or `{"hole": {"command", "source",
+/// "start"}}` with the source of the hole's node and where it starts.
+type PartSummary = Value;
+
+fn hole_summary(command: &str, source: &str, start: usize) -> PartSummary {
+    json!({ "hole": { "command": command, "source": source, "start": start } })
+}
+
+fn mirror_parts(parts: &[math::TexPart<'_>]) -> Vec<PartSummary> {
+    parts
+        .iter()
+        .map(|part| match part {
+            math::TexPart::Tex(text) => json!({ "tex": text }),
+            math::TexPart::Hole(hole) => {
+                assert_eq!(hole.node.element_name(), math::TEXT);
+                hole_summary(&hole.command, &hole.node.span_content(), hole.node.span().start)
+            }
+        })
+        .collect()
+}
+
+fn core_parts(parts: &[core_tex::TexPart<'_>]) -> Vec<PartSummary> {
+    parts
+        .iter()
+        .map(|part| match part {
+            core_tex::TexPart::Tex(text) => json!({ "tex": text }),
+            core_tex::TexPart::Hole(hole) => hole_summary(&hole.command, hole.node.span_content(), hole.node.span().range().start),
+        })
+        .collect()
+}
+
+/// What the library writes for the formulas of `run`, in tree order: per math
+/// group `{"group": parts}`, per environment `{"lines": [{"parts", "trailing"}, …]}`.
+fn library_tex(run: &Run) -> Vec<Value> {
+    let mut items = Vec::new();
+    for (_, tree) in run.frozen_trees() {
+        for node in tree.root().descendants() {
+            if element_of(&node).name.as_str() == math::MATH {
+                items.push(json!({ "group": core_parts(&core_tex::group_tex(&node)) }));
+            } else if element_of(&node).name.as_str() == math::ENVIRONMENT {
+                let mut lines = Vec::new();
+                let mut after_line_end = false;
+                for line in core_lines::equation_lines(&node) {
+                    let tex = core_tex::line_tex(&line, after_line_end);
+                    after_line_end = tex.ends_line();
+                    lines.push(json!({ "parts": core_parts(&tex.parts), "trailing": tex.trailing }));
+                }
+                items.push(json!({ "lines": lines }));
+            }
+        }
+    }
+    items
+}
+
+#[test]
+fn the_writer_answers_what_the_library_answers() {
+    let registry = registry_with([]);
+    let run = common::run(&registry, "text", FORMULAS);
+    let mut items = Vec::new();
+    for (_, tree) in run.frozen_trees() {
+        for node in tree.root().descendants() {
+            let mirror = NodeFacade::shared(Arc::clone(tree), node.id());
+            if mirror.element_name() == math::MATH {
+                items.push(json!({ "group": mirror_parts(&math::group_tex(&mirror)) }));
+            } else if mirror.element_name() == math::ENVIRONMENT {
+                let mut lines = Vec::new();
+                let mut after_line_end = false;
+                for line in math::equation_lines(&mirror) {
+                    let tex = math::line_tex(&line.content, after_line_end);
+                    after_line_end = tex.ends_line();
+                    lines.push(json!({ "parts": mirror_parts(&tex.parts), "trailing": tex.trailing }));
+                }
+                items.push(json!({ "lines": lines }));
+            }
+        }
+    }
+    assert_eq!(items, library_tex(&run));
+    // The holes at the top, inside a group and inside `\ensuremath`; the
+    // comment written as a space; the environment's three lines.
+    let start = |needle: &str| FORMULAS.find(needle).expect("in the formulas");
+    assert_eq!(items[0], json!({ "group": [{ "tex": "x + " }, hole_summary("text", "\\text{if }", start("\\text")), { "tex": " y" }] }));
+    assert_eq!(items[1], json!({ "group": [{ "tex": "\\alpha b" }] }));
+    assert_eq!(items[2], json!({ "group": [{ "tex": "{" }, hole_summary("mbox", "\\mbox{all}", start("\\mbox")), { "tex": " z}" }] }));
+    assert_eq!(items[3], json!({ "group": [hole_summary("textit", "\\textit{e}", start("\\textit")), { "tex": "f" }] }));
+    assert_eq!(items[4]["lines"].as_array().map(Vec::len), Some(3), "{}", items[4]);
+    assert_eq!(items[4]["lines"][0]["parts"][1], hole_summary("textbf", "\\textbf{b}", start("\\textbf")));
+}
+
+/// The summary of the parts `parts` a dispatcher call answered: each TeX part
+/// as it is, each hole's node read back through its handle.
+fn dispatched_parts(js: &mut common::json_double::Js<'_, '_>, parts: &Value) -> Result<Value, ExtError> {
+    let mut out = Vec::new();
+    for part in parts.as_array().expect("a list") {
+        if part.get("tex").is_some() {
+            out.push(part.clone());
+            continue;
+        }
+        let hole = &part["hole"];
+        assert_eq!(js.call(&hole["node"], "element_name", json!([]))?, json!(math::TEXT));
+        let source = js.call(&hole["node"], "span_content", json!([]))?;
+        let span = js.call(&hole["node"], "span", json!([]))?;
+        let start = span["start"].as_u64().expect("a start") as usize;
+        out.push(hole_summary(hole["command"].as_str().expect("a command"), source.as_str().expect("a text"), start));
+    }
+    Ok(Value::Array(out))
+}
+
+#[test]
+fn the_dispatcher_offers_the_writer_its_parts_as_data_and_its_holes_as_nodes() {
+    let seen: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let log = Arc::clone(&seen);
+    let double = JsonDouble::new("mt").feature("tex", move |js, b| {
+        js.call(
+            b,
+            "element",
+            json!([{ "owner": "tex", "names": ["mttex"], "syntax": { "macro": { "args": [] } }, "element": { "name": "mt.tex" } }]),
+        )?;
+        let log = Arc::clone(&log);
+        let lower = js.lend_lower(move |js, node, _cx, _lw| {
+            let math = module("stdlib/features/math");
+            let mut root = js.call(node, "parent", json!([]))?;
+            loop {
+                let parent = js.call(&root, "parent", json!([]))?;
+                if parent.is_null() {
+                    break;
+                }
+                root = parent;
+            }
+            let mut items = Vec::new();
+            for candidate in js.traverse(&root, "descendants", json!([]))?.as_array().expect("a list") {
+                let name = js.call(candidate, "element_name", json!([]))?;
+                if name == json!(math::MATH) {
+                    let parts = js.call(&math, "group_tex", json!([candidate]))?;
+                    items.push(json!({ "group": dispatched_parts(js, &parts)? }));
+                } else if name == json!(math::ENVIRONMENT) {
+                    let mut lines = Vec::new();
+                    let mut after_line_end = false;
+                    let equation_lines = js.call(&math, "equation_lines", json!([candidate]))?;
+                    for line in equation_lines.as_array().expect("a list") {
+                        let tex = js.call(&math, "line_tex", json!([line["content"], after_line_end]))?;
+                        let trailing = tex["trailing"].as_str().expect("a text").to_string();
+                        after_line_end = !trailing.is_empty();
+                        lines.push(json!({ "parts": dispatched_parts(js, &tex["parts"])?, "trailing": trailing }));
+                    }
+                    items.push(json!({ "lines": lines }));
+                }
+            }
+            log.lock().expect("the log").extend(items);
+            Ok(json!({ "emit": [] }))
+        });
+        let rule = js.call(&module("core/lowering"), "LoweringRule::new", json!(["mt.tex.lower", "mt.tex", {}, lower, "everywhere"]))?;
+        js.call(b, "lowering_rule", json!([rule]))?;
+        Ok(())
+    });
+    let registry = registry_with([double.package()]);
+    let run = common::run(&registry, "text", &format!("{FORMULAS}\n\n\\mttex"));
+    assert_only_unchecked_output(&common::workflow_plan(&registry, "text"), &common::diagnostics(&run));
+    let seen = seen.lock().expect("the log");
+    assert_eq!(*seen, library_tex(&run));
+    assert_eq!(seen.len(), 5);
+}
+
+// --- the library's formula rules, registered by reference --------------------------------------
+
+/// The formula rules of `math-passthrough` registered by an extension under
+/// names of its own (`api::math_passthrough`), in a registry without
+/// `math-passthrough`, through the façade and through the dispatcher.
+mod by_reference {
+    use std::sync::Arc;
+
+    use flm_core::core::artifact::ArtifactSet;
+    use flm_core::core::data::table::TableName;
+    use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
+    use flm_core::math_passthrough::{latex as core_latex, ENVIRONMENT_RULE, MATH_RULE};
+    use flm_core::stdlib::backends::latex::construct::{DEFINITION, MACRO, RAW};
+    use flm_core::stdlib::backends::{latex_recomposed, latex_rendered};
+    use flm_core::stdlib::{self, StdlibConfig};
+    use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
+    use flm_ext::api::core::registry::FeatureBuilder;
+    use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
+    use flm_ext::api::lang::mint::{ElementDef, Mode, SyntaxDef};
+    use flm_ext::api::math_passthrough::{self, latex};
+    use flm_ext::api::model::element::ElementSpec;
+    use flm_ext::api::stdlib::features::math::{ANCHORS, COUNTERS};
+    use flm_ext::api::techy::node::Node;
+    use flm_ext::ExtError;
+    use serde_json::{json, Value};
+
+    use super::common::double::{stage, Double};
+    use super::common::json_double::{module, JsonDouble};
+    use super::common::{self, registry_with};
+
+    /// A math group, an environment with a label and a tag, a text command
+    /// inside a formula, and a reference to the labeled line, over the
+    /// commands the stand-in processor declares.
+    const DOCUMENT: &str = "Let \\(\\alpha + \\text{if } x\\) and \\[\\beta\\] hold.\n\n\
+                            \\begin{align}\n  a \\alpha \\label{eq:a} \\\\\n  b \\text{ for all } \\beta \\tag{T}\n\
+                            \\end{align}\n\nSee \\eqref{eq:a}.";
+
+    /// The element of the stand-in processor's commands.
+    const COMMAND: &str = "mt.command";
+
+    /// The names the extension registers the four rules under.
+    const RULES: [&str; 4] = ["mt.math.lower", "mt.math.environment.lower", "mt.math.lower.latex", "mt.math.environment.lower.latex"];
+
+    /// The safe-labels table, which the recomposition rule of the
+    /// environments reads.
+    const SAFE_LABELS: &str = "flm.labels.safe";
+
+    /// The registry holding the standard package and `package`, without
+    /// `math-passthrough`.
+    fn without_passthrough(package: PackageEntry) -> Arc<FlmRegistry> {
+        let mut builder = RegistryBuilder::new();
+        builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
+        builder.use_package(package);
+        builder.build(&RegistryInputs::new()).expect("the registry builds")
+    }
+
+    /// The text of every artifact the run of `workflow` over [`DOCUMENT`]
+    /// writes into `table`, asserting that the run reported nothing but the
+    /// Warnings of its plan's unchecked output.
+    fn written(registry: &Arc<FlmRegistry>, workflow: &str, table: TableName<ArtifactSet>) -> Vec<(String, String)> {
+        let run = common::run(registry, workflow, DOCUMENT);
+        common::assert_only_unchecked_output(&common::workflow_plan(registry, workflow), &common::diagnostics(&run));
+        let set = run.table(table).expect("declared").expect("written");
+        set.iter()
+            .map(|artifact| (artifact.id.to_string(), String::from_utf8_lossy(artifact.as_bytes().expect("bytes")).into_owned()))
+            .collect()
+    }
+
+    /// Asserts that the LaTeX outputs of [`DOCUMENT`] under `registry` are
+    /// those under `math-passthrough`, and that each output's plan warning
+    /// names the extension's feature with the texts `math-passthrough`
+    /// declares.
+    fn assert_as_passthrough(registry: &Arc<FlmRegistry>) {
+        let library = registry_with([]);
+        for (workflow, table, ours, theirs) in [
+            (latex_rendered::WORKFLOW, latex_rendered::DOCUMENT, RULES[0], MATH_RULE),
+            (latex_recomposed::WORKFLOW, latex_recomposed::DOCUMENT, RULES[2], core_latex::MATH_LATEX_RULE),
+        ] {
+            let written_here = written(registry, workflow, table);
+            assert_eq!(written_here, written(&library, workflow, table), "{workflow}");
+            let entry = &written_here.iter().find(|(_, text)| text.contains("hold.")).expect("the entry").1;
+            for part in ["\\alpha", "\\beta", "for all", "(T)"] {
+                assert!(entry.contains(part), "{workflow}: {part} in {entry}");
+            }
+            let warnings = common::unchecked_outputs_of(registry, workflow, ours);
+            assert_eq!(warnings.len(), 1, "{workflow}: {warnings:?}");
+            assert_eq!(warnings, common::unchecked_outputs_of(&library, workflow, theirs), "{workflow}");
+            let owner = registry.rules().iter().find(|entry| entry.rule.name.as_str() == ours).expect("registered").owner.clone();
+            assert_eq!(owner.as_str(), "standin");
+            let plan = common::workflow_plan(registry, workflow);
+            assert!(plan.warnings().iter().all(|warning| !warning.to_string().contains("math-passthrough")), "{workflow}");
+        }
+        // The rules are the library's, under the extension's names.
+        let entry = |name: &str| registry.rules().iter().find(|entry| entry.rule.name.as_str() == name).expect("registered").rule.clone();
+        let library_entry = |name: &str| library.rules().iter().find(|entry| entry.rule.name.as_str() == name).expect("registered").rule.clone();
+        for (ours, theirs) in RULES.iter().zip([MATH_RULE, ENVIRONMENT_RULE, core_latex::MATH_LATEX_RULE, core_latex::ENVIRONMENT_LATEX_RULE]) {
+            let (ours, theirs) = (entry(ours), library_entry(theirs));
+            assert_eq!((&ours.element, &ours.docs, &ours.default), (&theirs.element, &theirs.docs, &theirs.default));
+            assert_eq!(format!("{:?}", ours.decl), format!("{:?}", theirs.decl));
+        }
+    }
+
+    /// The rule of the stand-in processor's commands: the node's source. The
+    /// rules of the formulas write a formula whole, so a plan selects it
+    /// without calling it.
+    struct Source;
+
+    impl Lower for Source {
+        fn lower<'c>(&self, node: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
+            Ok(Lowering::Emit(vec![lw.text(cx, &node.span_content())?]))
+        }
+    }
+
+    /// The peer declarations the four rules' documentation lists.
+    fn peers(b: &mut dyn FeatureBuilder) -> Result<(), ExtError> {
+        b.peer_table(ANCHORS, "the anchors")?;
+        b.peer_table(COUNTERS, "the counters")?;
+        b.peer_table(SAFE_LABELS, "the safe labels")?;
+        b.peer_backend(latex_recomposed::BACKEND, "the recomposed LaTeX")?;
+        for element in [MACRO, RAW, DEFINITION] {
+            b.peer_element(element, "a LaTeX construct")?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn the_rules_through_the_facade_write_what_math_passthrough_writes() {
+        let package = Double::new("mt")
+            .feature("standin", |b| {
+                let owner = b.feature();
+                let syntax = SyntaxDef::Macro { args: Vec::new() };
+                b.element(ElementDef::new(&owner, ["alpha", "beta"], syntax, ElementSpec::new(COMMAND)).modes([Mode::Math]))?;
+                b.lowering_rule(LoweringRule::new("mt.command.lower", COMMAND, LoweringDecl::new(), Arc::new(Source), DefaultMark::Everywhere))?;
+                b.capability("mt.checked", "The stand-in's check of the mathematics.", None)?;
+                b.collection_member("flm.validated", "mt.checked")?;
+                b.stage(stage(StageDecl::new("mt.check", Effect::Check, Scope::PerTree).provides("mt.checked"), Needs::new(), |_, _| Ok(())))?;
+                peers(b)?;
+                b.lowering_rule(math_passthrough::math_rule_named(RULES[0], DefaultMark::Everywhere))?;
+                b.lowering_rule(math_passthrough::environment_rule_named(RULES[1], DefaultMark::Everywhere))?;
+                b.lowering_rule(latex::math_rule_named(RULES[2]))?;
+                b.lowering_rule(latex::environment_rule_named(RULES[3]))
+            })
+            .package();
+        assert_as_passthrough(&without_passthrough(package));
+    }
+
+    #[test]
+    fn the_rules_through_the_dispatcher_write_what_math_passthrough_writes() {
+        let package = JsonDouble::new("mt")
+            .feature("standin", |js, b| {
+                js.call(
+                    b,
+                    "element",
+                    json!([{
+                        "owner": "standin",
+                        "names": ["alpha", "beta"],
+                        "syntax": { "macro": { "args": [] } },
+                        "element": { "name": COMMAND },
+                        "modes": ["math"],
+                    }]),
+                )?;
+                let lower = js.lend_lower(|js, node, cx, _lw| {
+                    let source = js.call(node, "span_content", json!([]))?;
+                    let text = js.call(_lw, "text", json!([cx, source]))?;
+                    Ok(json!({ "emit": [text] }))
+                });
+                let rule = js.call(&module("core/lowering"), "LoweringRule::new", json!([format!("{COMMAND}.lower"), COMMAND, {}, lower, "everywhere"]))?;
+                js.call(b, "lowering_rule", json!([rule]))?;
+                js.call(b, "capability", json!(["mt.checked", "The stand-in's check of the mathematics.", null]))?;
+                js.call(b, "collection_member", json!(["flm.validated", "mt.checked"]))?;
+                let check = js.lend_stage(
+                    &json!({ "name": "mt.check", "effect": "check", "scope": "per-tree", "provides": ["mt.checked"] }),
+                    &json!({}),
+                    |_, _, _| Ok(()),
+                )?;
+                js.call(b, "stage", json!([check]))?;
+                for (method, name) in [
+                    ("peer_table", ANCHORS),
+                    ("peer_table", COUNTERS),
+                    ("peer_table", SAFE_LABELS),
+                    ("peer_backend", latex_recomposed::BACKEND),
+                    ("peer_element", MACRO),
+                    ("peer_element", RAW),
+                    ("peer_element", DEFINITION),
+                ] {
+                    js.call(b, method, json!([name, "a peer"]))?;
+                }
+                let passthrough = module("math_passthrough");
+                let latex = module("math_passthrough/latex");
+                let rules: [Value; 4] = [
+                    js.call(&passthrough, "math_rule_named", json!([RULES[0], "everywhere"]))?,
+                    js.call(&passthrough, "environment_rule_named", json!([RULES[1], "everywhere"]))?,
+                    js.call(&latex, "math_rule_named", json!([RULES[2]]))?,
+                    js.call(&latex, "environment_rule_named", json!([RULES[3]]))?,
+                ];
+                for rule in rules {
+                    assert_eq!(rule["@handle"]["kind"], json!("lowering_rule"));
+                    js.call(b, "lowering_rule", json!([rule]))?;
+                }
+                Ok(())
+            })
+            .package();
+        assert_as_passthrough(&without_passthrough(package));
+    }
 }

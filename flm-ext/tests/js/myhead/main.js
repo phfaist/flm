@@ -8,11 +8,11 @@ import { ElementSpec, Aspect } from "flm:model/element";
 import { BlockRole, RefPoint, NumberSource, AnchorPolicy, ContentRef, AcceptedRefTypes } from "flm:model/aspects";
 import { TemplateLanguage, TemplateSpec, ValueBindings, compile_template_with, instantiate }
   from "flm:lang/rewrites/userdefs";
-import * as refs from "flm:stdcore/features/refs";
+import * as refs from "flm:stdlib/features/refs";
 import { COUNTERS, COUNTERS_SLOT, STYLES_SLOT, CounterDecl, CounterStyleDecl, FormatOptions }
-  from "flm:stdcore/features/numbering";
-import * as latex from "flm:stdcore/backends/latex";
-import { BLOCK_HEADING, SPAN } from "flm:stdcore/backends/pres";
+  from "flm:stdlib/features/numbering";
+import * as latex from "flm:stdlib/backends/latex";
+import { BLOCK_HEADING, SPAN } from "flm:stdlib/backends/pres";
 
 const HEADING = "myhead.heading";
 const COUNTER = "myhead.heading";
@@ -43,7 +43,6 @@ function title_template(lang, format) {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: { myhead: { title: "My heading", settings: SETTINGS, register } },
   });
 }

@@ -44,6 +44,8 @@
 //!   text (`\verbcode{…}`, verbatim environments).
 //! - [`build`] — [`build_language`], which assembles all of the above into a
 //!   [`BuiltLang`].
+//! - [`owned`] — [`LangOwned`], the cell through which an element reads a
+//!   value built against its own language, such as a compiled template.
 //! - [`parse`] — [`parse_fragment`] and the ways a parse can fail
 //!   ([`FragmentError`]).
 //! - [`input`] — the command `\input`: what the library asks of the embedding
@@ -93,6 +95,7 @@ pub mod guard;
 pub mod input;
 pub mod mint;
 pub mod origin;
+pub mod owned;
 pub mod parse;
 pub mod rewrites;
 pub mod rules;
@@ -111,6 +114,7 @@ pub use flm::{Flm, FlmCallableType, FlmGroupType, FlmNodeExts};
 pub use guard::{GuardPolicy, NestingTooDeep};
 pub use input::{IncludedFile, IncludedFileProblem, InputError, InputHeading, InputResolver};
 pub use origin::{FlmDiagnostic, FlmDiagnostics, FlmOrigin, FlmSource, FlmSpan};
+pub use owned::LangOwned;
 pub use parse::{parse_fragment, parse_fragment_with_state, FragmentError, ParseOptions};
 pub use rules::FlmParsing;
 pub use structural::StructuralElements;

@@ -609,6 +609,16 @@ impl Services {
         self.services_by_precedence_named::<S>(name).next()
     }
 
+    /// Returns the value of the service slot named `name` that takes
+    /// precedence, as [`Services::service_named`] does, as the shared pointer
+    /// it was contributed as.
+    ///
+    /// Use it to keep that value beyond the borrow of the services, as
+    /// [`Services::shared_named`] does for every value of a slot.
+    pub fn shared_service_named<S: ?Sized + Any + Send + Sync>(&self, name: &str) -> Option<&Arc<S>> {
+        self.ranked.get(name).into_iter().flatten().find_map(|value| value.downcast_ref::<Arc<S>>())
+    }
+
     /// Returns every value of the service slot named `name`, read as `S`, in
     /// their assembled order: the values contributed with `contribute_first`
     /// or `contribute_first_to` come first, then the others, each group in the

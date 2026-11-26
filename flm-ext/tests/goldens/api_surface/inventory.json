@@ -88,10 +88,10 @@
         "methods": [
           {
             "name": "items",
-            "doc": "The items the table's writers pushed, in traversal order.",
+            "doc": "No flm-core counterpart: the items the table's writers pushed, in the order they were pushed, as the sequence [`Rows`], which shares them with the table.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<Value>"
+            "output": "Rows"
           },
           {
             "name": "items_at",
@@ -109,6 +109,47 @@
         "derives": [],
         "variants": ["Ext { 0: Box<dyn ExtTableRead> }", "Trees { 0: Box<dyn TreesTable> }", "Lowered { 0: Box<dyn LoweredTrees> }", "Projection { 0: Value }", "Counters { 0: Box<dyn Counters> }", "Anchors { 0: Box<dyn Anchors> }"],
         "methods": []
+      },
+      {
+        "name": "Rows",
+        "class": "opaque_type",
+        "doc": "No flm-core counterpart: the rows of an extension's own table, in the order its writers pushed them, as [`ExtTableRead::items`] answers them.",
+        "derives": ["Debug", "Clone"],
+        "fields": ["rows: Arc<Vec<Value>>"],
+        "methods": [
+          {
+            "name": "len",
+            "doc": "The number of rows.",
+            "receiver": "&self",
+            "params": [],
+            "output": "usize",
+            "first": "other"
+          },
+          {
+            "name": "is_empty",
+            "doc": "Whether the table has no row.",
+            "receiver": "&self",
+            "params": [],
+            "output": "bool",
+            "first": "other"
+          },
+          {
+            "name": "get",
+            "doc": "The row at the index `i`, copied, or `None` past the last row.",
+            "receiver": "&self",
+            "params": ["i: usize"],
+            "output": "Option<Value>",
+            "first": "other"
+          },
+          {
+            "name": "iter",
+            "doc": "The rows, in order, each copied.",
+            "receiver": "&self",
+            "params": [],
+            "output": "std::iter::Cloned<std::slice::Iter<Value>>",
+            "first": "other"
+          }
+        ]
       }
     ]
   },
@@ -177,7 +218,7 @@
         "class": "data_class",
         "doc": "Mirrors [`LoweringDecl`](flm_core::core::lowering::LoweringDecl): what a lowering rule declares about itself.",
         "derives": ["Debug", "Clone", "Default", "PartialEq", "Eq"],
-        "fields": ["pub requires: Vec<String>", "pub reads: Vec<String>", "pub reads_opt: Vec<String>", "pub options: Vec<String>", "pub produces: Vec<String>", "pub selection_requires: Vec<String>"],
+        "fields": ["pub requires: Vec<String>", "pub reads: Vec<String>", "pub reads_opt: Vec<String>", "pub options: Vec<String>", "pub produces: Vec<String>", "pub selection_requires: Vec<String>", "pub unchecked_output: Vec<UncheckedOutputDecl>"],
         "methods": [
           {
             "name": "new",
@@ -233,8 +274,24 @@
             "params": ["id: impl Into<String>"],
             "output": "LoweringDecl",
             "first": "push selection_requires"
+          },
+          {
+            "name": "unchecked_output",
+            "doc": "Mirrors [`LoweringDecl::unchecked_output`](flm_core::core::lowering::LoweringDecl::unchecked_output): adds the backend `backend`, on which what the rule writes is checked by nothing that reads the output after FLM, with what is written (`written`) and what reads it (`reader`), each a noun phrase that completes the plan's warning.",
+            "receiver": "mut self",
+            "params": ["backend: impl Into<String>", "written: impl Into<String>", "reader: impl Into<String>"],
+            "output": "LoweringDecl",
+            "first": "push unchecked_output { backend, written, reader }"
           }
         ]
+      },
+      {
+        "name": "UncheckedOutputDecl",
+        "class": "data_type",
+        "doc": "Mirrors [`UncheckedOutputDecl`](flm_core::core::lowering::UncheckedOutputDecl): one backend on which a lowering rule writes output that nothing checks before the program reading that output does ([`LoweringDecl::unchecked_output`]).",
+        "derives": ["Debug", "Clone", "PartialEq", "Eq"],
+        "fields": ["pub backend: String", "pub written: String", "pub reader: String"],
+        "methods": []
       },
       {
         "name": "LoweringRule",
@@ -480,15 +537,15 @@
         "class": "data_type",
         "doc": "A tree of presentation nodes written as data, for [`pres_tree`]: no `flm-core` counterpart.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq"],
-        "variants": ["Node { element: String, payload: Value, children: Vec<PresTree> }", "Build { 0: Staged }", "Text { 0: String }"],
+        "variants": ["Node { element: String, payload: Value, children: Vec<PresTree> }", "Build { 0: Vec<Staged> }", "Text { 0: String }"],
         "methods": []
       },
       {
         "name": "pres_tree",
         "class": "function",
-        "doc": "No `flm-core` counterpart: stages the tree `tree` in one call, through [`Lowerer::pres`] and [`Lowerer::text`], children first, and answers the staged root.",
+        "doc": "No `flm-core` counterpart: stages the tree `tree` in one call, through [`Lowerer::pres`] and [`Lowerer::text`], children first, and returns the tree's staged nodes: the one node staged for a [`PresTree::Node`] or a [`PresTree::Text`], and the staged nodes of a [`PresTree::Build`] as they are.",
         "params": ["lw: &mut dyn Lowerer", "cx: &mut dyn LowerCx", "tree: &PresTree"],
-        "output": "Result<Staged, ExtError>"
+        "output": "Result<Vec<Staged>, ExtError>"
       }
     ]
   },
@@ -593,6 +650,13 @@
             "doc": "Mirrors [`FeatureBuilder::element`](flm_core::core::registry::FeatureBuilder::element): declares an element and the syntax that produces it.",
             "receiver": "&mut self",
             "params": ["def: ElementDef"],
+            "output": "Result<(), ExtError>"
+          },
+          {
+            "name": "element_type_text",
+            "doc": "Mirrors [`FeatureBuilder::element_type_text`](flm_core::core::registry::FeatureBuilder::element_type_text): gives the element type `name`, which this feature declares, its documentation text: what the nodes of that type mean, whatever their element value.",
+            "receiver": "&mut self",
+            "params": ["name: &str", "docs: &str"],
             "output": "Result<(), ExtError>"
           },
           {
@@ -909,17 +973,17 @@
           },
           {
             "name": "trees",
-            "doc": "Mirrors [`StageCx::trees`](flm_core::core::run::StageCx::trees): every frozen tree of the document.",
+            "doc": "Mirrors [`StageCx::trees`](flm_core::core::run::StageCx::trees): every frozen tree of the document, with its id.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Tree>)>"
+            "output": "Trees"
           },
           {
             "name": "walk",
             "doc": "Mirrors [`StageCx::walk`](flm_core::core::run::StageCx::walk): every node of every tree of the run, in document order (for a per-tree stage too).",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<WalkEntry>"
+            "output": "Walk"
           },
           {
             "name": "addr_of",
@@ -969,6 +1033,13 @@
             "receiver": "&self",
             "params": ["name: &str"],
             "output": "Result<HostHandle, ExtError>"
+          },
+          {
+            "name": "progress",
+            "doc": "Mirrors [`StageCx::progress`](flm_core::core::run::StageCx::progress): the scope of the stage's row on the progress sheet of the build, under which the stage declares the rows of its own work and asks whether the build was asked to stop.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn ProgressScope>"
           }
         ]
       },
@@ -978,6 +1049,39 @@
         "doc": "Mirrors an item of [`FrozenWalk`](flm_core::core::run::FrozenWalk): a node and its address.",
         "derives": [],
         "fields": ["pub addr: NodeAddr", "pub node: Box<dyn Node>"],
+        "methods": []
+      },
+      {
+        "name": "Walk",
+        "class": "opaque_type",
+        "doc": "Mirrors [`FrozenWalk`](flm_core::core::run::FrozenWalk): an iterator over every node of every tree of the run, in document order, with its address.",
+        "derives": [],
+        "fields": ["entries: Box<dyn Iterator<Item = WalkEntry>>"],
+        "methods": [
+          {
+            "name": "elements",
+            "doc": "Mirrors [`Iterator::filter`] on [`FrozenWalk`](flm_core::core::run::FrozenWalk): the entries not taken yet whose node's element has one of the names `names` (the name [`Node::element_name`] answers), in their order.",
+            "receiver": "self",
+            "params": ["names: impl IntoIterator<Item = impl Into<String>>"],
+            "output": "Walk",
+            "first": "other"
+          },
+          {
+            "name": "kinds",
+            "doc": "Mirrors [`Iterator::filter`] on [`FrozenWalk`](flm_core::core::run::FrozenWalk): the entries not taken yet whose node's kind ([`Node::kind`]) is one of `kinds`, in their order.",
+            "receiver": "self",
+            "params": ["kinds: &[NodeKindName]"],
+            "output": "Walk",
+            "first": "other"
+          }
+        ]
+      },
+      {
+        "name": "Trees",
+        "class": "opaque_type",
+        "doc": "Mirrors the iterator that [`StageCx::trees`](flm_core::core::run::StageCx::trees) answers: trees, each with its id.",
+        "derives": [],
+        "fields": ["trees: std::vec::IntoIter<(String, Box<dyn Tree>)>"],
         "methods": []
       },
       {
@@ -1273,7 +1377,7 @@
             "doc": "The table's trees, by id, in id order.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Tree>)>"
+            "output": "Trees"
           },
           {
             "name": "tree",
@@ -1289,7 +1393,7 @@
   {
     "module": "host",
     "file": "src/api/host.rs",
-    "doc": "No `flm-core` counterpart: the host services a handler reaches, lent by [`StageCx::host`](crate::api::core::run::StageCx::host), [`ProviderCx::host`](crate::api::stdcore::features::citations::ProviderCx::host) and [`TemplateCx::host`](crate::api::stdcore::features::compose::TemplateCx::host) as a handle valid for the call — the `files` service as [`Files`], any other as a [`HostService`].",
+    "doc": "No `flm-core` counterpart: the host services a handler reaches, lent by [`StageCx::host`](crate::api::core::run::StageCx::host), [`ProviderCx::host`](crate::api::stdlib::features::citations::ProviderCx::host) and [`TemplateCx::host`](crate::api::stdlib::features::compose::TemplateCx::host) as a handle valid for the call — the `files` service as [`Files`], any other as a [`HostService`].",
     "items": [
       {
         "name": "HostService",
@@ -1314,14 +1418,6 @@
         ]
       },
       {
-        "name": "FilesScope",
-        "class": "data_type",
-        "doc": "No `flm-core` counterpart: one of the two roots of the `files` service.",
-        "derives": ["Debug", "Clone", "Copy", "PartialEq", "Eq", "Hash"],
-        "variants": ["Extension", "Document"],
-        "methods": []
-      },
-      {
         "name": "Files",
         "class": "sealed_trait",
         "doc": "No `flm-core` counterpart: the `files` host service, as a handler reads through it ([`crate::host::files`] states the protocol).",
@@ -1329,12 +1425,19 @@
         "methods": [
           {
             "name": "read_text",
-            "doc": "The text of the file at `path` in the root `scope`, or `None` (`null` to a script) when nothing is there.",
+            "doc": "The text of the file at `path`, or `None` (`null` to a script) when nothing is there.",
             "receiver": "&self",
-            "params": ["scope: FilesScope", "path: &str"],
+            "params": ["path: &str"],
             "output": "Result<Option<String>, ExtError>"
           }
         ]
+      },
+      {
+        "name": "path",
+        "class": "function",
+        "doc": "No `flm-core` counterpart: the qualified path of the file at `relative` beside a module of an extension, under the root `self`: `relative` joined to the folder of `module`, the module's path inside the extension (in JavaScript, the module's `import.meta`): `path(import.meta, \"./style.css\")` in `templates/html/letter.js` is `self:templates/html/style.css`.",
+        "params": ["module: &str", "relative: &str"],
+        "output": "Result<String, ExtError>"
       },
       {
         "name": "HostHandle",
@@ -1349,7 +1452,7 @@
   {
     "module": "lang",
     "file": "src/api/lang/mod.rs",
-    "doc": "Mirrors [`flm_core::lang`]: declarations, the text readers, the rewrites, the names of the structural elements, and the built language and its diagnostics, which a late-initialization hook is lent.",
+    "doc": "Mirrors [`flm_core::lang`]: declarations, the text readers, the value of a key-value entry as pieces of the document, the rewrites, the names of the structural elements, and the built language and its diagnostics, which a late-initialization hook is lent.",
     "items": [
       {
         "name": "BuiltLang",
@@ -1372,6 +1475,21 @@
             "output": "Result<(), ExtError>"
           }
         ]
+      }
+    ]
+  },
+  {
+    "module": "lang/copy",
+    "file": "src/api/lang/copy.rs",
+    "doc": "Mirrors [`flm_core::lang::copy`]: the value of a key-value entry as pieces of the document it was read from.",
+    "items": [
+      {
+        "name": "WrittenPiece",
+        "class": "data_type",
+        "doc": "Mirrors [`WrittenPiece`](flm_core::lang::copy::WrittenPiece): one piece of the value of a key-value entry, as the author wrote it in a bracket: a node of the document, or characters split off a text node that also holds the key (`Custom` in `tag=Custom`), which are not a node of their own.",
+        "derives": [],
+        "variants": ["Node { 0: Box<dyn Node> }", "Text { 0: String }"],
+        "methods": []
       }
     ]
   },
@@ -2082,6 +2200,66 @@
     ]
   },
   {
+    "module": "math_passthrough",
+    "file": "src/api/math_passthrough.rs",
+    "doc": "Mirrors [`flm_core::math_passthrough`]: the formula rules of the `math-passthrough` feature that write a formula as LaTeX, which another feature that processes mathematics registers under rule names of its own (the rules of the `latex-recomposed` backend are in [`latex`]).",
+    "items": [
+      {
+        "name": "DefaultMark",
+        "class": "api_reexport",
+        "doc": "",
+        "path": "crate::api::core::lowering::DefaultMark"
+      },
+      {
+        "name": "LoweringRule",
+        "class": "api_reexport",
+        "doc": "",
+        "path": "crate::api::core::lowering::LoweringRule"
+      },
+      {
+        "name": "math_rule_named",
+        "class": "function",
+        "doc": "Mirrors [`math_rule_named`](flm_core::math_passthrough::math_rule_named): the library's rule of `flm.math` that stages `flm.pres.math-passthrough`, under the rule name `name` and the default mark `mark`.",
+        "params": ["name: &str", "mark: DefaultMark"],
+        "output": "LoweringRule"
+      },
+      {
+        "name": "environment_rule_named",
+        "class": "function",
+        "doc": "Mirrors [`environment_rule_named`](flm_core::math_passthrough::environment_rule_named): the library's rule of `flm.math.environment` that stages `flm.pres.math-passthrough`, under the rule name `name` and the default mark `mark`.",
+        "params": ["name: &str", "mark: DefaultMark"],
+        "output": "LoweringRule"
+      }
+    ]
+  },
+  {
+    "module": "math_passthrough/latex",
+    "file": "src/api/math_passthrough/latex.rs",
+    "doc": "Mirrors [`flm_core::math_passthrough::latex`]: the formula rules of the `math-passthrough` feature for the `latex-recomposed` backend, which another feature that processes mathematics registers under rule names of its own.",
+    "items": [
+      {
+        "name": "LoweringRule",
+        "class": "api_reexport",
+        "doc": "",
+        "path": "crate::api::core::lowering::LoweringRule"
+      },
+      {
+        "name": "math_rule_named",
+        "class": "function",
+        "doc": "Mirrors [`math_rule_named`](flm_core::math_passthrough::latex::math_rule_named): the library's rule of `flm.math` for the `latex-recomposed` backend, under the rule name `name`.",
+        "params": ["name: &str"],
+        "output": "LoweringRule"
+      },
+      {
+        "name": "environment_rule_named",
+        "class": "function",
+        "doc": "Mirrors [`environment_rule_named`](flm_core::math_passthrough::latex::environment_rule_named): the library's rule of `flm.math.environment` for the `latex-recomposed` backend, under the rule name `name`.",
+        "params": ["name: &str"],
+        "output": "LoweringRule"
+      }
+    ]
+  },
+  {
     "module": "model/aspects",
     "file": "src/api/model/aspects.rs",
     "doc": "Mirrors [`flm_core::model::aspects`]: the block role an element plays, and the aspects an extension's handler answers ([`Referenceable`], [`Sectioning`]) with the data they answer.",
@@ -2289,398 +2467,513 @@
     ]
   },
   {
-    "module": "stdcore/backends/html",
-    "file": "src/api/stdcore/backends/html.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::html::construct`]: the HTML backend's construct, which a rule's body on the `html` backend stages as any presentation element, and declares with [`LoweringDecl::produces`](crate::api::core::lowering::LoweringDecl::produces).",
+    "module": "progress",
+    "file": "src/api/progress.rs",
+    "doc": "Mirrors [`flm_core::progress`]: the handles through which a handler reports its work on the progress sheet of a build and asks whether the build was asked to stop.",
+    "items": [
+      {
+        "name": "Unit",
+        "class": "core_reexport",
+        "doc": "",
+        "path": "flm_core::progress::Unit"
+      },
+      {
+        "name": "ProgressScope",
+        "class": "sealed_trait",
+        "doc": "Mirrors [`Scope`](flm_core::progress::Scope): lent to the code that works under a running row, to declare rows under it and to ask whether the build was asked to stop.",
+        "supertraits": ["ScopeCore"],
+        "methods": [
+          {
+            "name": "child",
+            "doc": "Mirrors [`Scope::child`](flm_core::progress::Scope::child): declares a row of the kind named `kind`, of title `title`, labeled `label`, under this scope's row, and returns it, not started.",
+            "receiver": "&self",
+            "params": ["kind: &str", "title: Option<String>", "label: Option<String>"],
+            "output": "Box<dyn Pending>"
+          },
+          {
+            "name": "cancelled",
+            "doc": "Mirrors [`Scope::cancelled`](flm_core::progress::Scope::cancelled): whether the build was asked to stop.",
+            "receiver": "&self",
+            "params": [],
+            "output": "bool"
+          }
+        ]
+      },
+      {
+        "name": "Pending",
+        "class": "sealed_trait",
+        "doc": "Mirrors [`Pending`](flm_core::progress::Pending): a declared row, not started.",
+        "supertraits": ["Sealed"],
+        "methods": [
+          {
+            "name": "start",
+            "doc": "Mirrors [`Pending::start`](flm_core::progress::Pending::start): starts the row, with nothing to count.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn Task>"
+          },
+          {
+            "name": "start_counted",
+            "doc": "Mirrors [`Pending::start_counted`](flm_core::progress::Pending::start_counted): starts the row with a count of `total` units of `unit`.",
+            "receiver": "&self",
+            "params": ["unit: Unit", "total: u64"],
+            "output": "Box<dyn Counted>"
+          }
+        ]
+      },
+      {
+        "name": "Task",
+        "class": "sealed_trait",
+        "doc": "Mirrors [`Task`](flm_core::progress::Task): a running row with nothing to count.",
+        "supertraits": ["Sealed"],
+        "methods": [
+          {
+            "name": "scope",
+            "doc": "Mirrors [`Task::scope`](flm_core::progress::Task::scope): the scope of the row, for the work under it.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn ProgressScope>"
+          },
+          {
+            "name": "finish",
+            "doc": "Mirrors [`Task::finish`](flm_core::progress::Task::finish): ends the row as finished.",
+            "receiver": "&self",
+            "params": [],
+            "output": "()"
+          }
+        ]
+      },
+      {
+        "name": "Counted",
+        "class": "sealed_trait",
+        "doc": "Mirrors [`Counted`](flm_core::progress::Counted): a running row with a count.",
+        "supertraits": ["Sealed"],
+        "methods": [
+          {
+            "name": "advance",
+            "doc": "Mirrors [`Counted::advance`](flm_core::progress::Counted::advance): adds `n` to the number done, which never goes past the total.",
+            "receiver": "&self",
+            "params": ["n: u64"],
+            "output": "()"
+          },
+          {
+            "name": "scope",
+            "doc": "Mirrors [`Counted::scope`](flm_core::progress::Counted::scope): the scope of the row, for the work under it.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn ProgressScope>"
+          },
+          {
+            "name": "finish",
+            "doc": "Mirrors [`Counted::finish`](flm_core::progress::Counted::finish): ends the row as finished.",
+            "receiver": "&self",
+            "params": [],
+            "output": "()"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "module": "stdlib/backends/html",
+    "file": "src/api/stdlib/backends/html.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::html::construct`]: the HTML backend's construct, which a rule's body on the `html` backend stages as any presentation element, and declares with [`LoweringDecl::produces`](crate::api::core::lowering::LoweringDecl::produces).",
     "items": [
       {
         "name": "TAG",
         "class": "constant",
-        "doc": "Mirrors [`TAG`](flm_core::stdcore::backends::html::construct::TAG): `flm.pres.html.tag`, the HTML construct, an element with a tag name, attributes and children.",
+        "doc": "Mirrors [`TAG`](flm_core::stdlib::backends::html::construct::TAG): `flm.pres.html.tag`, the HTML construct, an element with a tag name, attributes and children.",
         "type": "&str"
       }
     ]
   },
   {
-    "module": "stdcore/backends/latex",
-    "file": "src/api/stdcore/backends/latex.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::latex`]: the LaTeX family's construct elements, which a rule on the recomposed LaTeX backend stages, their payloads, and the two service slots of the style file ([`preamble`], [`packages`]).",
+    "module": "stdlib/backends/latex",
+    "file": "src/api/stdlib/backends/latex.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::latex`]: the LaTeX family's construct elements, which a rule on the recomposed LaTeX backend stages, their payloads, and the two service slots of the style file ([`preamble`], [`packages`]).",
     "items": [
       {
         "name": "MACRO",
         "class": "constant",
-        "doc": "Mirrors [`MACRO`](flm_core::stdcore::backends::latex::construct::MACRO): the macro call construct, `flm.pres.latex.macro`.",
+        "doc": "Mirrors [`MACRO`](flm_core::stdlib::backends::latex::construct::MACRO): the macro call construct, `flm.pres.latex.macro`.",
         "type": "&str"
       },
       {
         "name": "ENVIRONMENT",
         "class": "constant",
-        "doc": "Mirrors [`ENVIRONMENT`](flm_core::stdcore::backends::latex::construct::ENVIRONMENT): the environment construct, `flm.pres.latex.environment`.",
+        "doc": "Mirrors [`ENVIRONMENT`](flm_core::stdlib::backends::latex::construct::ENVIRONMENT): the environment construct, `flm.pres.latex.environment`.",
         "type": "&str"
       },
       {
         "name": "RAW",
         "class": "constant",
-        "doc": "Mirrors [`RAW`](flm_core::stdcore::backends::latex::construct::RAW): the construct of raw LaTeX text written byte for byte, `flm.pres.latex.raw`.",
+        "doc": "Mirrors [`RAW`](flm_core::stdlib::backends::latex::construct::RAW): the construct of raw LaTeX text written byte for byte, `flm.pres.latex.raw`.",
         "type": "&str"
       },
       {
         "name": "DEFINITION",
         "class": "constant",
-        "doc": "Mirrors [`DEFINITION`](flm_core::stdcore::backends::latex::construct::DEFINITION): the construct of a definition written into the style file, `flm.pres.latex.definition`.",
+        "doc": "Mirrors [`DEFINITION`](flm_core::stdlib::backends::latex::construct::DEFINITION): the construct of a definition written into the style file, `flm.pres.latex.definition`.",
         "type": "&str"
       },
       {
         "name": "ALL",
         "class": "constant",
-        "doc": "Mirrors [`ALL`](flm_core::stdcore::backends::latex::construct::ALL): the four construct elements, in registration order.",
+        "doc": "Mirrors [`ALL`](flm_core::stdlib::backends::latex::construct::ALL): the four construct elements, in registration order.",
         "type": "[&str; 4]"
       },
       {
         "name": "ARG_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`ARG_SLOT`](flm_core::stdcore::backends::latex::construct::ARG_SLOT): the name of every argument's content slot on a macro or an environment, `arg`, repeated once per argument.",
+        "doc": "Mirrors [`ARG_SLOT`](flm_core::stdlib::backends::latex::construct::ARG_SLOT): the name of every argument's content slot on a macro or an environment, `arg`, repeated once per argument.",
         "type": "&str"
       },
       {
         "name": "BEGIN_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`BEGIN_SLOT`](flm_core::stdcore::backends::latex::construct::BEGIN_SLOT): the content slot of an environment definition's begin code, `begin`.",
+        "doc": "Mirrors [`BEGIN_SLOT`](flm_core::stdlib::backends::latex::construct::BEGIN_SLOT): the content slot of an environment definition's begin code, `begin`.",
         "type": "&str"
       },
       {
         "name": "END_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`END_SLOT`](flm_core::stdcore::backends::latex::construct::END_SLOT): the content slot of an environment definition's end code, `end`.",
+        "doc": "Mirrors [`END_SLOT`](flm_core::stdlib::backends::latex::construct::END_SLOT): the content slot of an environment definition's end code, `end`.",
         "type": "&str"
       },
       {
         "name": "RECOMPOSED_BACKEND",
         "class": "constant",
-        "doc": "Mirrors [`BACKEND`](flm_core::stdcore::backends::latex_recomposed::BACKEND): the name of the recomposed LaTeX backend, `latex-recomposed`.",
+        "doc": "Mirrors [`BACKEND`](flm_core::stdlib::backends::latex_recomposed::BACKEND): the name of the recomposed LaTeX backend, `latex-recomposed`.",
         "type": "&str"
       },
       {
         "name": "LatexArgShape",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexArgShape"
+        "path": "flm_core::stdlib::backends::latex::LatexArgShape"
       },
       {
         "name": "LatexDefinitionKind",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexDefinitionKind"
+        "path": "flm_core::stdlib::backends::latex::LatexDefinitionKind"
       },
       {
         "name": "LatexDefinitionPayload",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexDefinitionPayload"
+        "path": "flm_core::stdlib::backends::latex::LatexDefinitionPayload"
       },
       {
         "name": "LatexEnvironmentPayload",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexEnvironmentPayload"
+        "path": "flm_core::stdlib::backends::latex::LatexEnvironmentPayload"
       },
       {
         "name": "LatexMacroPayload",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexMacroPayload"
+        "path": "flm_core::stdlib::backends::latex::LatexMacroPayload"
       },
       {
         "name": "LatexRawPayload",
         "class": "core_reexport",
         "doc": "Mirrors the payloads of the LaTeX family's constructs ([`LatexMacroPayload`], [`LatexEnvironmentPayload`], [`LatexRawPayload`], [`LatexDefinitionPayload`]), the shape of an argument ([`LatexArgShape`]) and the kind of a definition ([`LatexDefinitionKind`]).",
-        "path": "flm_core::stdcore::backends::latex::LatexRawPayload"
+        "path": "flm_core::stdlib::backends::latex::LatexRawPayload"
       },
       {
         "name": "LatexPreambleDef",
         "class": "api_reexport",
         "doc": "Mirrors the definition piece the family's slot `flm.latex.preamble` takes ([`LatexPreambleDef`]), re-exported from [`preamble`] beside the payloads.",
-        "path": "crate::api::stdcore::backends::latex::preamble::LatexPreambleDef"
+        "path": "crate::api::stdlib::backends::latex::preamble::LatexPreambleDef"
       },
       {
         "name": "LatexPackageDef",
         "class": "api_reexport",
         "doc": "Mirrors the package request the family's slot `flm.latex.packages` takes ([`LatexPackageDef`]), re-exported from [`packages`] beside the payloads.",
-        "path": "crate::api::stdcore::backends::latex::packages::LatexPackageDef"
+        "path": "crate::api::stdlib::backends::latex::packages::LatexPackageDef"
       }
     ]
   },
   {
-    "module": "stdcore/backends/latex/packages",
-    "file": "src/api/stdcore/backends/latex/packages.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::latex::packages`]: the service slot of the style file's package requests, the identifiers of the family's standard packages, and the request a feature contributes.",
+    "module": "stdlib/backends/latex/packages",
+    "file": "src/api/stdlib/backends/latex/packages.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::latex::packages`]: the service slot of the style file's package requests, the identifiers of the family's standard packages, and the request a feature contributes.",
     "items": [
       {
         "name": "SLOT",
         "class": "constant",
-        "doc": "Mirrors [`SLOT`](flm_core::stdcore::backends::latex::packages::SLOT): the service slot of the package requests, `flm.latex.packages`, which takes a [`LatexPackageDef`].",
+        "doc": "Mirrors [`SLOT`](flm_core::stdlib::backends::latex::packages::SLOT): the service slot of the package requests, `flm.latex.packages`, which takes a [`LatexPackageDef`].",
         "type": "&str"
       },
       {
         "name": "ID_PREFIX",
         "class": "constant",
-        "doc": "Mirrors [`ID_PREFIX`](flm_core::stdcore::backends::latex::packages::ID_PREFIX): the prefix of a package's identifier, `flm.latex.pkg.`.",
+        "doc": "Mirrors [`ID_PREFIX`](flm_core::stdlib::backends::latex::packages::ID_PREFIX): the prefix of a package's identifier, `flm.latex.pkg.`.",
         "type": "&str"
       },
       {
         "name": "package_id",
         "class": "function",
-        "doc": "Mirrors [`package_id`](flm_core::stdcore::backends::latex::packages::package_id): the identifier of the package `name`, [`ID_PREFIX`] followed by `name`.",
+        "doc": "Mirrors [`package_id`](flm_core::stdlib::backends::latex::packages::package_id): the identifier of the package `name`, [`ID_PREFIX`] followed by `name`.",
         "params": ["name: &str"],
         "output": "String"
       },
       {
         "name": "AMSMATH",
         "class": "constant",
-        "doc": "Mirrors [`AMSMATH`](flm_core::stdcore::backends::latex::packages::AMSMATH): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`AMSMATH`](flm_core::stdlib::backends::latex::packages::AMSMATH): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "ZREF_CLEVER",
         "class": "constant",
-        "doc": "Mirrors [`ZREF_CLEVER`](flm_core::stdcore::backends::latex::packages::ZREF_CLEVER): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`ZREF_CLEVER`](flm_core::stdlib::backends::latex::packages::ZREF_CLEVER): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "TEXTCASE",
         "class": "constant",
-        "doc": "Mirrors [`TEXTCASE`](flm_core::stdcore::backends::latex::packages::TEXTCASE): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`TEXTCASE`](flm_core::stdlib::backends::latex::packages::TEXTCASE): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "HYPERREF",
         "class": "constant",
-        "doc": "Mirrors [`HYPERREF`](flm_core::stdcore::backends::latex::packages::HYPERREF): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`HYPERREF`](flm_core::stdlib::backends::latex::packages::HYPERREF): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "FVEXTRA",
         "class": "constant",
-        "doc": "Mirrors [`FVEXTRA`](flm_core::stdcore::backends::latex::packages::FVEXTRA): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`FVEXTRA`](flm_core::stdlib::backends::latex::packages::FVEXTRA): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "NEWUNICODECHAR",
         "class": "constant",
-        "doc": "Mirrors [`NEWUNICODECHAR`](flm_core::stdcore::backends::latex::packages::NEWUNICODECHAR): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`NEWUNICODECHAR`](flm_core::stdlib::backends::latex::packages::NEWUNICODECHAR): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "ENUMITEM",
         "class": "constant",
-        "doc": "Mirrors [`ENUMITEM`](flm_core::stdcore::backends::latex::packages::ENUMITEM): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`ENUMITEM`](flm_core::stdlib::backends::latex::packages::ENUMITEM): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "AMSTHM",
         "class": "constant",
-        "doc": "Mirrors [`AMSTHM`](flm_core::stdcore::backends::latex::packages::AMSTHM): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`AMSTHM`](flm_core::stdlib::backends::latex::packages::AMSTHM): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "PHFTHM",
         "class": "constant",
-        "doc": "Mirrors [`PHFTHM`](flm_core::stdcore::backends::latex::packages::PHFTHM): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`PHFTHM`](flm_core::stdlib::backends::latex::packages::PHFTHM): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "PHFCC",
         "class": "constant",
-        "doc": "Mirrors [`PHFCC`](flm_core::stdcore::backends::latex::packages::PHFCC): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`PHFCC`](flm_core::stdlib::backends::latex::packages::PHFCC): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "GRAPHICX",
         "class": "constant",
-        "doc": "Mirrors [`GRAPHICX`](flm_core::stdcore::backends::latex::packages::GRAPHICX): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`GRAPHICX`](flm_core::stdlib::backends::latex::packages::GRAPHICX): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "ADJUSTBOX",
         "class": "constant",
-        "doc": "Mirrors [`ADJUSTBOX`](flm_core::stdcore::backends::latex::packages::ADJUSTBOX): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`ADJUSTBOX`](flm_core::stdlib::backends::latex::packages::ADJUSTBOX): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "CAPTION",
         "class": "constant",
-        "doc": "Mirrors [`CAPTION`](flm_core::stdcore::backends::latex::packages::CAPTION): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`CAPTION`](flm_core::stdlib::backends::latex::packages::CAPTION): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "TABULARRAY",
         "class": "constant",
-        "doc": "Mirrors [`TABULARRAY`](flm_core::stdcore::backends::latex::packages::TABULARRAY): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`TABULARRAY`](flm_core::stdlib::backends::latex::packages::TABULARRAY): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "XCOLOR",
         "class": "constant",
-        "doc": "Mirrors [`XCOLOR`](flm_core::stdcore::backends::latex::packages::XCOLOR): the identifier of one of the family's standard packages.",
+        "doc": "Mirrors [`XCOLOR`](flm_core::stdlib::backends::latex::packages::XCOLOR): the identifier of one of the family's standard packages.",
         "type": "&str"
       },
       {
         "name": "LatexPackageDef",
         "class": "core_reexport",
         "doc": "Mirrors `flm-core`'s [`LatexPackageDef`]: a package request.",
-        "path": "flm_core::stdcore::backends::latex::packages::LatexPackageDef"
+        "path": "flm_core::stdlib::backends::latex::packages::LatexPackageDef"
       }
     ]
   },
   {
-    "module": "stdcore/backends/latex/preamble",
-    "file": "src/api/stdcore/backends/latex/preamble.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::latex::preamble`]: the service slot of the style file's definition pieces, the identifiers of the family's own pieces, and the piece a feature contributes.",
+    "module": "stdlib/backends/latex/preamble",
+    "file": "src/api/stdlib/backends/latex/preamble.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::latex::preamble`]: the service slot of the style file's definition pieces, the identifiers of the family's own pieces, and the piece a feature contributes.",
     "items": [
       {
         "name": "SLOT",
         "class": "constant",
-        "doc": "Mirrors [`SLOT`](flm_core::stdcore::backends::latex::preamble::SLOT): the service slot of the definition pieces, `flm.latex.preamble`, which takes a [`LatexPreambleDef`].",
+        "doc": "Mirrors [`SLOT`](flm_core::stdlib::backends::latex::preamble::SLOT): the service slot of the definition pieces, `flm.latex.preamble`, which takes a [`LatexPreambleDef`].",
         "type": "&str"
       },
       {
         "name": "ID_PREFIX",
         "class": "constant",
-        "doc": "Mirrors [`ID_PREFIX`](flm_core::stdcore::backends::latex::preamble::ID_PREFIX): the prefix of a piece's identifier, `flm.latex.def.`.",
+        "doc": "Mirrors [`ID_PREFIX`](flm_core::stdlib::backends::latex::preamble::ID_PREFIX): the prefix of a piece's identifier, `flm.latex.def.`.",
         "type": "&str"
       },
       {
         "name": "piece_id",
         "class": "function",
-        "doc": "Mirrors [`piece_id`](flm_core::stdcore::backends::latex::preamble::piece_id): the identifier of the piece `name`, [`ID_PREFIX`] followed by `name`.",
+        "doc": "Mirrors [`piece_id`](flm_core::stdlib::backends::latex::preamble::piece_id): the identifier of the piece `name`, [`ID_PREFIX`] followed by `name`.",
         "params": ["name: &str"],
         "output": "String"
       },
       {
         "name": "REFS",
         "class": "constant",
-        "doc": "Mirrors [`REFS`](flm_core::stdcore::backends::latex::preamble::REFS): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`REFS`](flm_core::stdlib::backends::latex::preamble::REFS): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "HYPERREF",
         "class": "constant",
-        "doc": "Mirrors [`HYPERREF`](flm_core::stdcore::backends::latex::preamble::HYPERREF): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`HYPERREF`](flm_core::stdlib::backends::latex::preamble::HYPERREF): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "LABEL_DISPLAY_TEXT",
         "class": "constant",
-        "doc": "Mirrors [`LABEL_DISPLAY_TEXT`](flm_core::stdcore::backends::latex::preamble::LABEL_DISPLAY_TEXT): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`LABEL_DISPLAY_TEXT`](flm_core::stdlib::backends::latex::preamble::LABEL_DISPLAY_TEXT): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "ZREF_CLEVER_TYPE",
         "class": "constant",
-        "doc": "Mirrors [`ZREF_CLEVER_TYPE`](flm_core::stdcore::backends::latex::preamble::ZREF_CLEVER_TYPE): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`ZREF_CLEVER_TYPE`](flm_core::stdlib::backends::latex::preamble::ZREF_CLEVER_TYPE): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "LABELS",
         "class": "constant",
-        "doc": "Mirrors [`LABELS`](flm_core::stdcore::backends::latex::preamble::LABELS): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`LABELS`](flm_core::stdlib::backends::latex::preamble::LABELS): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "HEADING",
         "class": "constant",
-        "doc": "Mirrors [`HEADING`](flm_core::stdcore::backends::latex::preamble::HEADING): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`HEADING`](flm_core::stdlib::backends::latex::preamble::HEADING): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "VERBATIM",
         "class": "constant",
-        "doc": "Mirrors [`VERBATIM`](flm_core::stdcore::backends::latex::preamble::VERBATIM): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`VERBATIM`](flm_core::stdlib::backends::latex::preamble::VERBATIM): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "MATH_ENVIRONMENT",
         "class": "constant",
-        "doc": "Mirrors [`MATH_ENVIRONMENT`](flm_core::stdcore::backends::latex::preamble::MATH_ENVIRONMENT): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`MATH_ENVIRONMENT`](flm_core::stdlib::backends::latex::preamble::MATH_ENVIRONMENT): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "IF_BLANK",
         "class": "constant",
-        "doc": "Mirrors [`IF_BLANK`](flm_core::stdcore::backends::latex::preamble::IF_BLANK): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`IF_BLANK`](flm_core::stdlib::backends::latex::preamble::IF_BLANK): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "USER_ARGS",
         "class": "constant",
-        "doc": "Mirrors [`USER_ARGS`](flm_core::stdcore::backends::latex::preamble::USER_ARGS): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`USER_ARGS`](flm_core::stdlib::backends::latex::preamble::USER_ARGS): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "TAB_WIDTH",
         "class": "constant",
-        "doc": "Mirrors [`TAB_WIDTH`](flm_core::stdcore::backends::latex::preamble::TAB_WIDTH): the identifier of one of the family's own pieces.",
+        "doc": "Mirrors [`TAB_WIDTH`](flm_core::stdlib::backends::latex::preamble::TAB_WIDTH): the identifier of one of the family's own pieces.",
         "type": "&str"
       },
       {
         "name": "LatexPreambleDef",
         "class": "core_reexport",
         "doc": "Mirrors `flm-core`'s [`LatexPreambleDef`]: a definition piece of the style file.",
-        "path": "flm_core::stdcore::backends::latex::preamble::LatexPreambleDef"
+        "path": "flm_core::stdlib::backends::latex::preamble::LatexPreambleDef"
       }
     ]
   },
   {
-    "module": "stdcore/backends/lowering",
-    "file": "src/api/stdcore/backends/lowering.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::lowering`]: the library's lowering stage, which a backend declares as its own ([`BackendDef`](crate::api::core::registry::BackendDef)), the name of the table it writes, and what it writes, read by the backend's emit stage.",
+    "module": "stdlib/backends/lowering",
+    "file": "src/api/stdlib/backends/lowering.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::lowering`]: the library's lowering stage, which a backend declares as its own ([`BackendDef`](crate::api::core::registry::BackendDef)), the name of the table it writes, and what it writes, read by the backend's emit stage; and the blank test and the trimmed staging of the content a rule cuts out of a longer run itself.",
     "items": [
       {
         "name": "LoweredTrees",
         "class": "sealed_trait",
-        "doc": "Mirrors [`LoweredTrees`](flm_core::stdcore::backends::lowering::LoweredTrees): the lowered trees of one backend, the table `flm.lowered.<backend>`, each with the fields of its [`LoweredTree`](flm_core::stdcore::backends::lowering::LoweredTree).",
+        "doc": "Mirrors [`LoweredTrees`](flm_core::stdlib::backends::lowering::LoweredTrees): the lowered trees of one backend, the table `flm.lowered.<backend>`, each with the fields of its [`LoweredTree`](flm_core::stdlib::backends::lowering::LoweredTree).",
         "supertraits": ["Sealed"],
         "methods": [
           {
             "name": "trees",
-            "doc": "Mirrors the field [`LoweredTrees::trees`](flm_core::stdcore::backends::lowering::LoweredTrees::trees): every lowered tree, by the id of the document tree it was lowered from, in id order.",
+            "doc": "Mirrors the field [`LoweredTrees::trees`](flm_core::stdlib::backends::lowering::LoweredTrees::trees): every lowered tree, by the id of the document tree it was lowered from, in id order.",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<(String, Box<dyn Tree>)>"
+            "output": "Trees"
           },
           {
             "name": "tree",
-            "doc": "Mirrors [`LoweredTrees::get`](flm_core::stdcore::backends::lowering::LoweredTrees::get) and the field [`LoweredTree::tree`](flm_core::stdcore::backends::lowering::LoweredTree::tree): the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).",
+            "doc": "Mirrors [`LoweredTrees::get`](flm_core::stdlib::backends::lowering::LoweredTrees::get) and the field [`LoweredTree::tree`](flm_core::stdlib::backends::lowering::LoweredTree::tree): the lowered form of the document tree `id`, or `None` when the backend has none for it (or `id` names no tree).",
             "receiver": "&self",
             "params": ["id: &str"],
             "output": "Option<Box<dyn Tree>>"
           },
           {
             "name": "requires",
-            "doc": "Mirrors the field [`LoweredTree::requires`](flm_core::stdcore::backends::lowering::LoweredTree::requires) of the lowered form of the document tree `id`: the identifiers of the definitions its output needs, in order.",
+            "doc": "Mirrors the field [`LoweredTree::requires`](flm_core::stdlib::backends::lowering::LoweredTree::requires) of the lowered form of the document tree `id`: the identifiers of the definitions its output needs, in order.",
             "receiver": "&self",
             "params": ["id: &str"],
             "output": "Option<Vec<String>>"
           },
           {
             "name": "rounds",
-            "doc": "Mirrors the field [`LoweredTree::rounds`](flm_core::stdcore::backends::lowering::LoweredTree::rounds) of the lowered form of the document tree `id`: how many rounds of lowering ran over it, at least one.",
+            "doc": "Mirrors the field [`LoweredTree::rounds`](flm_core::stdlib::backends::lowering::LoweredTree::rounds) of the lowered form of the document tree `id`: how many rounds of lowering ran over it, at least one.",
             "receiver": "&self",
             "params": ["id: &str"],
             "output": "Option<u32>"
+          },
+          {
+            "name": "node_at",
+            "doc": "Mirrors [`LoweredAddr::resolve`](flm_core::stdlib::backends::lowering::LoweredAddr::resolve): the node at the address `addr` of a lowered tree, looked up in these trees.",
+            "receiver": "&self",
+            "params": ["addr: &str"],
+            "output": "Option<Box<dyn Node>>"
           }
         ]
       },
       {
         "name": "LoweringStage",
         "class": "opaque_type",
-        "doc": "Mirrors [`LoweringStage`](flm_core::stdcore::backends::lowering::LoweringStage): the library's lowering stage for one backend, `flm.<backend>.lower`, a stage computing per tree that lowers every frozen tree with the rules the plan selected for the backend and writes the table `flm.lowered.<backend>` ([`lowered_table_name`]).",
+        "doc": "Mirrors [`LoweringStage`](flm_core::stdlib::backends::lowering::LoweringStage): the library's lowering stage for one backend, `flm.<backend>.lower`, a stage computing per tree that lowers every frozen tree with the rules the plan selected for the backend and writes the table `flm.lowered.<backend>` ([`lowered_table_name`]).",
         "derives": [],
         "fields": [],
         "methods": [
           {
             "name": "new",
-            "doc": "Mirrors [`LoweringStage::new`](flm_core::stdcore::backends::lowering::LoweringStage::new): the lowering stage for the backend `backend`.",
+            "doc": "Mirrors [`LoweringStage::new`](flm_core::stdlib::backends::lowering::LoweringStage::new): the lowering stage for the backend `backend`.",
             "params": ["backend: &str"],
             "output": "LibraryStage",
             "first": "other"
@@ -2690,16 +2983,30 @@
       {
         "name": "lowered_table_name",
         "class": "function",
-        "doc": "Mirrors [`lowered_table_name`](flm_core::stdcore::backends::lowering::lowered_table_name): the name of the table of the backend `backend`'s lowered trees, `flm.lowered.<backend>`.",
+        "doc": "Mirrors [`lowered_table_name`](flm_core::stdlib::backends::lowering::lowered_table_name): the name of the table of the backend `backend`'s lowered trees, `flm.lowered.<backend>`.",
         "params": ["backend: &str"],
         "output": "String"
+      },
+      {
+        "name": "is_blank",
+        "class": "function",
+        "doc": "Mirrors [`is_blank`](flm_core::stdlib::backends::lowering::is_blank): whether `node` is blank, a node that is whitespace, such as `~` and `\\ `, or text made of whitespace alone (the space, the tab, the carriage return and the line feed); the one blank test of every reader of FLM content.",
+        "params": ["node: &dyn Node"],
+        "output": "bool"
+      },
+      {
+        "name": "stage_trimmed",
+        "class": "function",
+        "doc": "Mirrors [`stage_trimmed`](flm_core::stdlib::backends::lowering::stage_trimmed): stages `content`, inline content that the rule cuts out of a longer run itself, without the whitespace at its edges: the blank nodes ([`is_blank`]) and the comments before its first content and after its last are left out, and the text at either edge is staged without its leading or its trailing whitespace.",
+        "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "content: &[Box<dyn Node>]"],
+        "output": "Result<Vec<Staged>, ExtError>"
       }
     ]
   },
   {
-    "module": "stdcore/backends/pres",
-    "file": "src/api/stdcore/backends/pres.rs",
-    "doc": "Mirrors [`flm_core::stdcore::backends::pres::names`]: the names of the standard presentation elements and of their content slots, which a rule's body stages with [`Lowerer::pres`](crate::api::core::lowering::Lowerer::pres), [`Lowerer::pres_slots`](crate::api::core::lowering::Lowerer::pres_slots) or [`pres_tree`](crate::api::core::lowering::pres_tree), and declares with [`LoweringDecl::produces`](crate::api::core::lowering::LoweringDecl::produces).",
+    "module": "stdlib/backends/pres",
+    "file": "src/api/stdlib/backends/pres.rs",
+    "doc": "Mirrors [`flm_core::stdlib::backends::pres::names`]: the names of the standard presentation elements and of their content slots, which a rule's body stages with [`Lowerer::pres`](crate::api::core::lowering::Lowerer::pres), [`Lowerer::pres_slots`](crate::api::core::lowering::Lowerer::pres_slots) or [`pres_tree`](crate::api::core::lowering::pres_tree), and declares with [`LoweringDecl::produces`](crate::api::core::lowering::LoweringDecl::produces).",
     "items": [
       {
         "name": "PAR",
@@ -2836,7 +3143,7 @@
       {
         "name": "ALL",
         "class": "constant",
-        "doc": "Mirrors [`ALL`](names::ALL): every presentation element above, in the order the standard package declares them.",
+        "doc": "Mirrors [`ALL`](names::ALL): every presentation element above, in registration order.",
         "type": "[&str; 22]"
       },
       {
@@ -2866,32 +3173,32 @@
     ]
   },
   {
-    "module": "stdcore/features/citations",
-    "file": "src/api/stdcore/features/citations.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::citations`]: the citation provider as an extension writes one, contributed to [`PROVIDERS_SLOT`], and the context the retrieve stage lends it ([`ProviderCx`]).",
+    "module": "stdlib/features/citations",
+    "file": "src/api/stdlib/features/citations.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::citations`]: the citation provider as an extension writes one, contributed to [`PROVIDERS_SLOT`], and the context the retrieve stage lends it ([`ProviderCx`]).",
     "items": [
       {
         "name": "CitationProviderError",
         "class": "core_reexport",
         "doc": "",
-        "path": "flm_core::stdcore::features::citations::CitationProviderError"
+        "path": "flm_core::stdlib::features::citations::CitationProviderError"
       },
       {
         "name": "CitationRequest",
         "class": "core_reexport",
         "doc": "",
-        "path": "flm_core::stdcore::features::citations::CitationRequest"
+        "path": "flm_core::stdlib::features::citations::CitationRequest"
       },
       {
         "name": "PROVIDERS_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`PROVIDERS_SLOT`](flm_core::stdcore::features::citations::PROVIDERS_SLOT): the service slot of the citation providers, `flm.citations.providers`.",
+        "doc": "Mirrors [`PROVIDERS_SLOT`](flm_core::stdlib::features::citations::PROVIDERS_SLOT): the service slot of the citation providers, `flm.citations.providers`.",
         "type": "&str"
       },
       {
         "name": "CitationProvider",
         "class": "extension_trait",
-        "doc": "Mirrors [`CitationProvider`](flm_core::stdcore::features::citations::CitationProvider): a source of bibliography entries, asked about the cited keys of a document.",
+        "doc": "Mirrors [`CitationProvider`](flm_core::stdlib::features::citations::CitationProvider): a source of bibliography entries, asked about the cited keys of a document.",
         "supertraits": ["Send", "Sync"],
         "methods": [
           {
@@ -2903,14 +3210,14 @@
           },
           {
             "name": "answer",
-            "doc": "Mirrors [`CitationProvider::answer`](flm_core::stdcore::features::citations::CitationProvider::answer): the answer for the work cited as `request.key`: `Ok(Some(answer))`, `Ok(None)` for a key this provider does not serve, or an error for a key it claims and could not answer.",
+            "doc": "Mirrors [`CitationProvider::answer`](flm_core::stdlib::features::citations::CitationProvider::answer): the answer for the work cited as `request.key`: `Ok(Some(answer))`, `Ok(None)` for a key this provider does not serve, or an error for a key it claims and could not answer.",
             "receiver": "&self",
             "params": ["request: &CitationRequest", "cx: &dyn ProviderCx"],
             "output": "Result<CitationResult, ExtError>"
           },
           {
             "name": "answer_all",
-            "doc": "Mirrors [`CitationProvider::answer_all`](flm_core::stdcore::features::citations::CitationProvider::answer_all): the answers for `requests`, one per request, in the same order.",
+            "doc": "Mirrors [`CitationProvider::answer_all`](flm_core::stdlib::features::citations::CitationProvider::answer_all): the answers for `requests`, one per request, in the same order.",
             "receiver": "&self",
             "params": ["requests: &[CitationRequest]", "cx: &dyn ProviderCx"],
             "output": "Result<Vec<CitationResult>, ExtError>",
@@ -2921,27 +3228,27 @@
       {
         "name": "CitationEntry",
         "class": "sealed_trait",
-        "doc": "Mirrors [`CitationEntry`](flm_core::stdcore::features::citations::CitationEntry): the entry of one cited work.",
+        "doc": "Mirrors [`CitationEntry`](flm_core::stdlib::features::citations::CitationEntry): the entry of one cited work.",
         "supertraits": ["CitationEntryCore"],
         "methods": []
       },
       {
         "name": "CitationAnswer",
         "class": "data_type",
-        "doc": "Mirrors [`CitationAnswer`](flm_core::stdcore::features::citations::CitationAnswer): a provider's answer for a key it knows.",
+        "doc": "Mirrors [`CitationAnswer`](flm_core::stdlib::features::citations::CitationAnswer): a provider's answer for a key it knows.",
         "derives": [],
         "fields": ["pub entry: Box<dyn CitationEntry>", "pub identity: Option<String>", "pub warnings: Vec<String>"],
         "methods": [
           {
             "name": "new",
-            "doc": "Mirrors [`CitationAnswer::new`](flm_core::stdcore::features::citations::CitationAnswer::new): the answer that shows `entry`, with no identity and no warning.",
+            "doc": "Mirrors [`CitationAnswer::new`](flm_core::stdlib::features::citations::CitationAnswer::new): the answer that shows `entry`, with no identity and no warning.",
             "params": ["entry: Box<dyn CitationEntry>"],
             "output": "CitationAnswer",
             "first": "other"
           },
           {
             "name": "with_identity",
-            "doc": "Mirrors [`CitationAnswer::with_identity`](flm_core::stdcore::features::citations::CitationAnswer::with_identity): sets the work's identity to `identity`.",
+            "doc": "Mirrors [`CitationAnswer::with_identity`](flm_core::stdlib::features::citations::CitationAnswer::with_identity): sets the work's identity to `identity`.",
             "receiver": "mut self",
             "params": ["identity: impl Into<String>"],
             "output": "CitationAnswer",
@@ -2949,7 +3256,7 @@
           },
           {
             "name": "with_warning",
-            "doc": "Mirrors [`CitationAnswer::with_warning`](flm_core::stdcore::features::citations::CitationAnswer::with_warning): adds the warning `text`.",
+            "doc": "Mirrors [`CitationAnswer::with_warning`](flm_core::stdlib::features::citations::CitationAnswer::with_warning): adds the warning `text`.",
             "receiver": "mut self",
             "params": ["text: impl Into<String>"],
             "output": "CitationAnswer",
@@ -2960,7 +3267,7 @@
       {
         "name": "EntryPiece",
         "class": "data_type",
-        "doc": "Mirrors [`EntryPiece`](flm_core::stdcore::features::citations::EntryPiece): one part of the content of a citation entry that [`ProviderCx::build_entry`] builds.",
+        "doc": "Mirrors [`EntryPiece`](flm_core::stdlib::features::citations::EntryPiece): one part of the content of a citation entry that [`ProviderCx::build_entry`] builds.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq", "serde::Serialize", "serde::Deserialize"],
         "variants": ["Text { 0: String }", "Source { 0: String }", "Emphasized { 0: Vec<EntryPiece> }", "Strong { 0: Vec<EntryPiece> }", "Link { address: String, content: Vec<EntryPiece> }"],
         "methods": []
@@ -2968,19 +3275,19 @@
       {
         "name": "ProviderCx",
         "class": "sealed_trait",
-        "doc": "Mirrors [`ProviderCx`](flm_core::stdcore::features::citations::ProviderCx): the context the retrieve stage lends a provider for one call.",
+        "doc": "Mirrors [`ProviderCx`](flm_core::stdlib::features::citations::ProviderCx): the context the retrieve stage lends a provider for one call.",
         "supertraits": ["Sealed"],
         "methods": [
           {
             "name": "parse_entry",
-            "doc": "Mirrors [`ProviderCx::parse_entry`](flm_core::stdcore::features::citations::ProviderCx::parse_entry): the citation entry whose content is `source`, FLM parsed as inline content under the registry's language.",
+            "doc": "Mirrors [`ProviderCx::parse_entry`](flm_core::stdlib::features::citations::ProviderCx::parse_entry): the citation entry whose content is `source`, FLM parsed as inline content under the registry's language.",
             "receiver": "&self",
             "params": ["source: &str", "origin: &str"],
             "output": "Result<Box<dyn CitationEntry>, ExtError>"
           },
           {
             "name": "build_entry",
-            "doc": "Mirrors [`ProviderCx::build_entry`](flm_core::stdcore::features::citations::ProviderCx::build_entry): the citation entry made of `pieces`, in order.",
+            "doc": "Mirrors [`ProviderCx::build_entry`](flm_core::stdlib::features::citations::ProviderCx::build_entry): the citation entry made of `pieces`, in order.",
             "receiver": "&self",
             "params": ["pieces: &[EntryPiece]"],
             "output": "Result<Box<dyn CitationEntry>, ExtError>"
@@ -2991,44 +3298,51 @@
             "receiver": "&self",
             "params": ["name: &str"],
             "output": "Result<HostHandle, ExtError>"
+          },
+          {
+            "name": "progress",
+            "doc": "Mirrors [`ProviderCx::progress`](flm_core::stdlib::features::citations::ProviderCx::progress): the scope that the retrieve stage received, under which the provider declares the rows of its slow work (a fetch) and asks whether the build was asked to stop.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Box<dyn ProgressScope>"
           }
         ]
       }
     ]
   },
   {
-    "module": "stdcore/features/compose",
-    "file": "src/api/stdcore/features/compose.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::compose`]: a compose template written as a module ([`TemplateModule`]), which describes itself, chooses the files it ships when it is applied, and renders the page.",
+    "module": "stdlib/features/compose",
+    "file": "src/api/stdlib/features/compose.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::compose`]: a compose template written as a module ([`TemplateModule`]), which describes itself, chooses the files it ships when it is applied, and renders the page.",
     "items": [
       {
         "name": "Accepts",
         "class": "core_reexport",
         "doc": "",
-        "path": "flm_core::stdcore::features::compose::Accepts"
+        "path": "flm_core::stdlib::features::compose::Accepts"
       },
       {
         "name": "PieceValue",
         "class": "core_reexport",
         "doc": "",
-        "path": "flm_core::stdcore::features::compose::PieceValue"
+        "path": "flm_core::stdlib::features::compose::PieceValue"
       },
       {
         "name": "TemplateContext",
         "class": "core_reexport",
         "doc": "",
-        "path": "flm_core::stdcore::features::compose::TemplateContext"
+        "path": "flm_core::stdlib::features::compose::TemplateContext"
       },
       {
         "name": "TEMPLATES_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`TEMPLATES_SLOT`](flm_core::stdcore::features::compose::TEMPLATES_SLOT): the service slot of the compose templates, `flm.compose.templates`.",
+        "doc": "Mirrors [`TEMPLATES_SLOT`](flm_core::stdlib::features::compose::TEMPLATES_SLOT): the service slot of the compose templates, `flm.compose.templates`.",
         "type": "&str"
       },
       {
         "name": "ENGINES_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`ENGINES_SLOT`](flm_core::stdcore::features::compose::ENGINES_SLOT): the service slot of the template engines, `flm.compose.engines`.",
+        "doc": "Mirrors [`ENGINES_SLOT`](flm_core::stdlib::features::compose::ENGINES_SLOT): the service slot of the template engines, `flm.compose.engines`.",
         "type": "&str"
       },
       {
@@ -3053,7 +3367,7 @@
           },
           {
             "name": "files",
-            "doc": "No `flm-core` counterpart (the composer asks it through [`TemplateEngine::artifacts`](flm_core::stdcore::features::compose::TemplateEngine::artifacts)): the files the template ships when it is applied to `data`, which the composer names and writes beside the page and whose paths it gives to [`render`](TemplateModule::render) in `data.artifacts`.",
+            "doc": "No `flm-core` counterpart (the composer asks it through [`TemplateEngine::artifacts`](flm_core::stdlib::features::compose::TemplateEngine::artifacts)): the files the template ships when it is applied to `data`, which the composer names and writes beside the page and whose paths it gives to [`render`](TemplateModule::render) in `data.artifacts`.",
             "receiver": "&self",
             "params": ["data: &TemplateContext", "cx: &dyn TemplateCx"],
             "output": "Result<Vec<TemplateFile>, ExtError>",
@@ -3061,7 +3375,7 @@
           },
           {
             "name": "render",
-            "doc": "No `flm-core` counterpart (the composer asks it through [`TemplateEngine::render`](flm_core::stdcore::features::compose::TemplateEngine::render)): the page, from `data`.",
+            "doc": "No `flm-core` counterpart (the composer asks it through [`TemplateEngine::render`](flm_core::stdlib::features::compose::TemplateEngine::render)): the page, from `data`.",
             "receiver": "&self",
             "params": ["data: &TemplateContext", "cx: &dyn TemplateCx"],
             "output": "Result<String, ExtError>"
@@ -3071,17 +3385,17 @@
       {
         "name": "TemplateDescription",
         "class": "data_type",
-        "doc": "Mirrors the fields of [`Template`](flm_core::stdcore::features::compose::Template) a template module gives: what [`TemplateModule::describe`] answers.",
+        "doc": "Mirrors the fields of [`Template`](flm_core::stdlib::features::compose::Template) a template module gives: what [`TemplateModule::describe`] answers.",
         "derives": ["Debug", "Clone", "PartialEq"],
-        "fields": ["pub output: String", "pub accepts: Accepts", "pub requires: Vec<String>", "pub config: Map<String, Value>"],
+        "fields": ["pub accepts: Accepts", "pub requires: Vec<String>", "pub config: Map<String, Value>"],
         "methods": []
       },
       {
         "name": "TemplateFile",
         "class": "data_type",
-        "doc": "Mirrors [`TemplateArtifact::File`](flm_core::stdcore::features::compose::TemplateArtifact::File): one file a template module ships, what [`TemplateModule::files`] answers.",
+        "doc": "Mirrors [`TemplateArtifact::File`](flm_core::stdlib::features::compose::TemplateArtifact::File): one file a template module ships, what [`TemplateModule::files`] answers.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq"],
-        "variants": ["Content { name: String, extension: String, media_type: String, text: String }", "File { name: String, path: String, scope: FilesScope, media_type: Option<String> }"],
+        "variants": ["Content { name: String, extension: String, media_type: String, text: String }", "File { name: String, path: String, media_type: Option<String> }"],
         "methods": []
       },
       {
@@ -3102,9 +3416,9 @@
     ]
   },
   {
-    "module": "stdcore/features/math",
-    "file": "src/api/stdcore/features/math.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::math`]: the names of the `math` feature and the library a processing feature builds its stages and rules with ([`frame`](flm_core::stdcore::features::math::frame), [`latex`](flm_core::stdcore::features::math::latex), [`equation_lines`](flm_core::stdcore::features::math::lines::equation_lines)).",
+    "module": "stdlib/features/math",
+    "file": "src/api/stdlib/features/math.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::math`]: the names of the `math` feature and the library a processing feature builds its stages and rules with ([`frame`](flm_core::stdlib::features::math::frame), [`latex`](flm_core::stdlib::features::math::latex), [`equation_lines`](flm_core::stdlib::features::math::lines::equation_lines), [`tex`](flm_core::stdlib::features::math::tex)).",
     "items": [
       {
         "name": "MATH",
@@ -3115,97 +3429,110 @@
       {
         "name": "ENVIRONMENT",
         "class": "constant",
-        "doc": "Mirrors [`ENVIRONMENT`](flm_core::stdcore::features::math::ENVIRONMENT): the element of the display-math environments, `flm.math.environment`.",
+        "doc": "Mirrors [`ENVIRONMENT`](flm_core::stdlib::features::math::ENVIRONMENT): the element of the display-math environments, `flm.math.environment`.",
         "type": "&str"
       },
       {
         "name": "ENVIRONMENTS",
         "class": "constant",
-        "doc": "Mirrors [`ENVIRONMENTS`](flm_core::stdcore::features::math::ENVIRONMENTS): the display-math environments the feature declares, as `(name, numbered)`.",
+        "doc": "Mirrors [`ENVIRONMENTS`](flm_core::stdlib::features::math::ENVIRONMENTS): the display-math environments the feature declares, as `(name, numbered)`.",
         "type": "[(&str, bool); 6]"
       },
       {
         "name": "CONTENT",
         "class": "constant",
-        "doc": "Mirrors [`CONTENT`](flm_core::stdcore::features::math::CONTENT): the capability `flm.math.content`, which a processing feature's check stage provides.",
+        "doc": "Mirrors [`CONTENT`](flm_core::stdlib::features::math::CONTENT): the capability `flm.math.content`, which a processing feature's check stage provides.",
         "type": "&str"
       },
       {
         "name": "RENDERED",
         "class": "constant",
-        "doc": "Mirrors [`RENDERED`](flm_core::stdcore::features::math::RENDERED): the capability `flm.math.rendered`, which a table of rendered formulas refines ([`FeatureBuilder::table_refining`](crate::api::core::registry::FeatureBuilder::table_refining)).",
+        "doc": "Mirrors [`RENDERED`](flm_core::stdlib::features::math::RENDERED): the capability `flm.math.rendered`, which a table of rendered formulas refines ([`FeatureBuilder::table_refining`](crate::api::core::registry::FeatureBuilder::table_refining)).",
         "type": "&str"
       },
       {
         "name": "KIND",
         "class": "constant",
-        "doc": "Mirrors [`KIND`](flm_core::stdcore::features::math::KIND): the kind of the reference points of the equation lines, `equation`.",
+        "doc": "Mirrors [`KIND`](flm_core::stdlib::features::math::KIND): the kind of the reference points of the equation lines, `equation`.",
         "type": "&str"
       },
       {
         "name": "COUNTER",
         "class": "constant",
-        "doc": "Mirrors [`COUNTER`](flm_core::stdcore::features::math::COUNTER): the counter of the equation lines, `flm.math.equation`.",
+        "doc": "Mirrors [`COUNTER`](flm_core::stdlib::features::math::COUNTER): the counter of the equation lines, `flm.math.equation`.",
         "type": "&str"
       },
       {
         "name": "ANCHORS",
         "class": "api_reexport",
-        "doc": "Mirrors [`ANCHORS`](flm_core::stdcore::features::refs::ANCHORS): the name of the references feature's anchors table, `flm.anchors`, which [`line_frames`] reads when asked; the constant of [`refs`](crate::api::stdcore::features::refs), re-exported.",
-        "path": "crate::api::stdcore::features::refs::ANCHORS"
+        "doc": "Mirrors [`ANCHORS`](flm_core::stdlib::features::refs::ANCHORS): the name of the references feature's anchors table, `flm.anchors`, which [`line_frames`] reads when asked; the constant of [`refs`](crate::api::stdlib::features::refs), re-exported.",
+        "path": "crate::api::stdlib::features::refs::ANCHORS"
       },
       {
         "name": "COUNTERS",
         "class": "api_reexport",
-        "doc": "Mirrors [`COUNTERS`](flm_core::stdcore::features::numbering::COUNTERS): the name of the numbering feature's counter table, `flm.counters`, which [`line_frames`] reads when asked; the constant of [`numbering`](crate::api::stdcore::features::numbering), re-exported.",
-        "path": "crate::api::stdcore::features::numbering::COUNTERS"
+        "doc": "Mirrors [`COUNTERS`](flm_core::stdlib::features::numbering::COUNTERS): the name of the numbering feature's counter table, `flm.counters`, which [`line_frames`] reads when asked; the constant of [`numbering`](crate::api::stdlib::features::numbering), re-exported.",
+        "path": "crate::api::stdlib::features::numbering::COUNTERS"
       },
       {
         "name": "LINES_PACKAGE",
         "class": "constant",
-        "doc": "Mirrors [`PACKAGE`](flm_core::stdcore::features::math::lines::PACKAGE): the scoped package of the commands of an environment's body, `flm.math.lines`.",
+        "doc": "Mirrors [`PACKAGE`](flm_core::stdlib::features::math::lines::PACKAGE): the scoped package of the commands of an environment's body, `flm.math.lines`.",
         "type": "&str"
       },
       {
         "name": "LINEBREAK_COMMAND",
         "class": "constant",
-        "doc": "Mirrors [`LINEBREAK_COMMAND`](flm_core::stdcore::features::math::lines::LINEBREAK_COMMAND): the command that ends an equation line, `\\\\`, by its name.",
+        "doc": "Mirrors [`LINEBREAK_COMMAND`](flm_core::stdlib::features::math::lines::LINEBREAK_COMMAND): the command that ends an equation line, `\\\\`, by its name.",
         "type": "&str"
       },
       {
         "name": "TAG_COMMAND",
         "class": "constant",
-        "doc": "Mirrors [`TAG_COMMAND`](flm_core::stdcore::features::math::lines::TAG_COMMAND): the command that tags an equation line, `tag`.",
+        "doc": "Mirrors [`TAG_COMMAND`](flm_core::stdlib::features::math::lines::TAG_COMMAND): the command that tags an equation line, `tag`.",
         "type": "&str"
       },
       {
         "name": "NONUMBER_COMMAND",
         "class": "constant",
-        "doc": "Mirrors [`NONUMBER_COMMAND`](flm_core::stdcore::features::math::lines::NONUMBER_COMMAND): the command that leaves an equation line unnumbered, `nonumber`.",
+        "doc": "Mirrors [`NONUMBER_COMMAND`](flm_core::stdlib::features::math::lines::NONUMBER_COMMAND): the command that leaves an equation line unnumbered, `nonumber`.",
         "type": "&str"
       },
       {
         "name": "TEXT",
         "class": "constant",
-        "doc": "Mirrors [`TEXT`](flm_core::stdcore::features::math::text::TEXT): the element of the text commands of mathematics, `flm.math.text`.",
+        "doc": "Mirrors [`TEXT`](flm_core::stdlib::features::math::text::TEXT): the element of the text commands of mathematics, `flm.math.text`.",
         "type": "&str"
       },
       {
         "name": "TEXT_COMMANDS",
         "class": "constant",
-        "doc": "Mirrors [`COMMANDS`](flm_core::stdcore::features::math::text::COMMANDS): the twelve text commands of mathematics (`text`, `textrm`, …), whose argument is read in text mode.",
+        "doc": "Mirrors [`COMMANDS`](flm_core::stdlib::features::math::text::COMMANDS): the twelve text commands of mathematics (`text`, `textrm`, …), whose argument is read in text mode.",
         "type": "[&str; 12]"
       },
       {
         "name": "ENSUREMATH",
         "class": "constant",
-        "doc": "Mirrors [`ENSUREMATH`](flm_core::stdcore::features::math::ensuremath::ENSUREMATH): the element of `\\ensuremath`, `flm.math.ensuremath`.",
+        "doc": "Mirrors [`ENSUREMATH`](flm_core::stdlib::features::math::ensuremath::ENSUREMATH): the element of `\\ensuremath`, `flm.math.ensuremath`.",
         "type": "&str"
+      },
+      {
+        "name": "FORMULA_ROLE",
+        "class": "constant",
+        "doc": "Mirrors [`FORMULA_ROLE`](flm_core::stdlib::features::math::html::FORMULA_ROLE): the role of a formula's outermost element, `flm.math.formula`, whose class `flm-math-formula` marks a formula in an HTML page.",
+        "type": "&str"
+      },
+      {
+        "name": "formula_attributes",
+        "class": "function",
+        "doc": "Mirrors [`formula_attributes`](flm_core::stdlib::features::math::html::formula_attributes): the attributes that mark the outermost element of a formula written as HTML tags: `class`, holding `classes` followed by `flm-math-formula`; `data-flm-display`; and `data-flm-env` when `env` names the display-math environment.",
+        "params": ["classes: &str", "displayed: bool", "env: Option<String>"],
+        "output": "Vec<(String, String)>"
       },
       {
         "name": "Tag",
         "class": "data_type",
-        "doc": "Mirrors [`Tag`](flm_core::stdcore::features::math::lines::Tag): the `\\tag` of an equation line.",
+        "doc": "Mirrors [`Tag`](flm_core::stdlib::features::math::lines::Tag): the `\\tag` of an equation line.",
         "derives": [],
         "fields": ["pub starred: bool", "pub content: Vec<Box<dyn Node>>"],
         "methods": []
@@ -3213,7 +3540,7 @@
       {
         "name": "LineBreak",
         "class": "data_type",
-        "doc": "Mirrors [`LineBreak`](flm_core::stdcore::features::math::lines::LineBreak): the `\\\\` that ends an equation line.",
+        "doc": "Mirrors [`LineBreak`](flm_core::stdlib::features::math::lines::LineBreak): the `\\\\` that ends an equation line.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq"],
         "fields": ["pub spacing: Option<String>", "pub span: Span"],
         "methods": []
@@ -3221,7 +3548,7 @@
       {
         "name": "EquationLine",
         "class": "data_type",
-        "doc": "Mirrors [`EquationLine`](flm_core::stdcore::features::math::lines::EquationLine): one equation line of a display-math environment, with the fields of `flm-core` by their names.",
+        "doc": "Mirrors [`EquationLine`](flm_core::stdlib::features::math::lines::EquationLine): one equation line of a display-math environment, with the fields of `flm-core` by their names.",
         "derives": [],
         "fields": ["pub content: Vec<Box<dyn Node>>", "pub labels: Vec<LabelUse>", "pub tag: Option<Tag>", "pub nonumber: bool", "pub linebreak: Option<LineBreak>"],
         "methods": []
@@ -3229,28 +3556,28 @@
       {
         "name": "equation_lines",
         "class": "function",
-        "doc": "Mirrors [`equation_lines`](flm_core::stdcore::features::math::lines::equation_lines): the equation lines of the display-math environment `node`, in order (none for another node).",
+        "doc": "Mirrors [`equation_lines`](flm_core::stdlib::features::math::lines::equation_lines): the equation lines of the display-math environment `node`, in order (none for another node).",
         "params": ["node: &dyn Node"],
         "output": "Vec<EquationLine>"
       },
       {
         "name": "formula_display",
         "class": "function",
-        "doc": "Mirrors [`formula_display`](flm_core::stdcore::features::math::frame::formula_display): whether the math group `node` is displayed (`\\[…\\]`); `false` for `\\(…\\)` and for a node that is not a math group.",
+        "doc": "Mirrors [`formula_display`](flm_core::stdlib::features::math::frame::formula_display): whether the math group `node` is displayed (`\\[…\\]`); `false` for `\\(…\\)` and for a node that is not a math group.",
         "params": ["node: &dyn Node"],
         "output": "bool"
       },
       {
         "name": "environment_numbered",
         "class": "function",
-        "doc": "No single `flm-core` counterpart: whether the lines of the display-math environment `node` can be numbered, read from its element value ([`MathEnvironment`](flm_core::stdcore::features::math::MathEnvironment)): an unstarred environment in a registry that numbers equations (`numbered` and `numbered_equations`), as [`line_frames`](flm_core::stdcore::features::math::frame::line_frames) reads it.",
+        "doc": "No single `flm-core` counterpart: whether the lines of the display-math environment `node` can be numbered, read from its element value ([`MathEnvironment`](flm_core::stdlib::features::math::MathEnvironment)): an unstarred environment in a registry that numbers equations (`numbered` and `numbered_equations`), as [`line_frames`](flm_core::stdlib::features::math::frame::line_frames) reads it.",
         "params": ["node: &dyn Node"],
         "output": "bool"
       },
       {
         "name": "LineFrame",
         "class": "data_type",
-        "doc": "Mirrors [`LineFrame`](flm_core::stdcore::features::math::frame::LineFrame): the frame of one equation line.",
+        "doc": "Mirrors [`LineFrame`](flm_core::stdlib::features::math::frame::LineFrame): the frame of one equation line.",
         "derives": [],
         "fields": ["pub environment: Box<dyn Node>", "pub index: usize", "pub line: EquationLine", "pub anchor: Option<String>", "pub shows: LineShows"],
         "methods": []
@@ -3258,7 +3585,7 @@
       {
         "name": "LineShows",
         "class": "data_type",
-        "doc": "Mirrors [`LineShows`](flm_core::stdcore::features::math::frame::LineShows): what an equation line shows at its tag's place.",
+        "doc": "Mirrors [`LineShows`](flm_core::stdlib::features::math::frame::LineShows): what an equation line shows at its tag's place.",
         "derives": [],
         "variants": ["Nothing", "Number { segments: Vec<Box<dyn Tree>>, text: String }", "Tag { starred: bool, content: Vec<Box<dyn Node>> }"],
         "methods": []
@@ -3274,42 +3601,42 @@
       {
         "name": "line_frames",
         "class": "function",
-        "doc": "Mirrors [`line_frames`](flm_core::stdcore::features::math::frame::line_frames): the frame of each equation line of the display-math environment `node`, in order.",
+        "doc": "Mirrors [`line_frames`](flm_core::stdlib::features::math::frame::line_frames): the frame of each equation line of the display-math environment `node`, in order.",
         "params": ["reader: FrameReader", "anchors: bool", "counters: bool", "node: &dyn Node"],
         "output": "Result<Vec<LineFrame>, ExtError>"
       },
       {
         "name": "number_text",
         "class": "function",
-        "doc": "Mirrors [`number_text`](flm_core::stdcore::features::math::frame::number_text): the number a line shows, as plain characters; `None` where the line shows nothing or a tag.",
+        "doc": "Mirrors [`number_text`](flm_core::stdlib::features::math::frame::number_text): the number a line shows, as plain characters; `None` where the line shows nothing or a tag.",
         "params": ["frame: &LineFrame"],
         "output": "Option<String>"
       },
       {
         "name": "stage_tag_content",
         "class": "function",
-        "doc": "Mirrors [`stage_tag_content`](flm_core::stdcore::features::math::frame::stage_tag_content): stages what an equation line shows at its tag's place (the number's segments spliced; the tag lowered, between `(` and `)` when unstarred; nothing) and answers the nodes to emit.",
+        "doc": "Mirrors [`stage_tag_content`](flm_core::stdlib::features::math::frame::stage_tag_content): stages what an equation line shows at its tag's place (the number's segments spliced; the tag lowered, between `(` and `)` when unstarred; nothing) and answers the nodes to emit.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "frame: &LineFrame"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "environment_opening",
         "class": "function",
-        "doc": "Mirrors [`environment_opening`](flm_core::stdcore::features::math::latex::environment_opening): the opening part of a display-math environment in the recomposed LaTeX.",
+        "doc": "Mirrors [`environment_opening`](flm_core::stdlib::features::math::latex::environment_opening): the opening part of a display-math environment in the recomposed LaTeX.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "node: &dyn Node"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "line_closing",
         "class": "function",
-        "doc": "Mirrors [`line_closing`](flm_core::stdcore::features::math::latex::line_closing): the closing part of an equation line in the recomposed LaTeX.",
+        "doc": "Mirrors [`line_closing`](flm_core::stdlib::features::math::latex::line_closing): the closing part of an equation line in the recomposed LaTeX.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "frame: &LineFrame"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "stage_lines",
         "class": "function",
-        "doc": "Mirrors [`stage_lines`](flm_core::stdcore::features::math::latex::stage_lines): stages the equation lines of a display-math environment in the recomposed LaTeX as they were written: for each line, its content written by the mathematics writer of the `userdefs` feature under the newline rule, its closing part ([`line_closing`]), and the run of whitespace the rule took off the content's end.",
+        "doc": "Mirrors [`stage_lines`](flm_core::stdlib::features::math::latex::stage_lines): stages the equation lines of a display-math environment in the recomposed LaTeX as they were written: for each line, its content written by the mathematics writer of the `userdefs` feature under the newline rule, its closing part ([`line_closing`]), and the run of whitespace the rule took off the content's end.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "frames: &[LineFrame]"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
@@ -3317,149 +3644,196 @@
         "name": "NormalizedLine",
         "class": "core_reexport",
         "doc": "Mirrors `flm-core`'s [`NormalizedLine`]: one text part of a line's content after the newline rule, what [`normalize_line_newlines`] answers.",
-        "path": "flm_core::stdcore::features::math::latex::NormalizedLine"
+        "path": "flm_core::stdlib::features::math::latex::NormalizedLine"
       },
       {
         "name": "normalize_line_newlines",
         "class": "function",
-        "doc": "Mirrors [`normalize_line_newlines`](flm_core::stdcore::features::math::latex::normalize_line_newlines): applies the newline rule to one text part of a line's content: every run of spaces, tabs and newlines that holds a newline becomes one newline and the indentation after it; the run that begins `content` is dropped when `after_line_end` (what was written just before the part ends a line); the run that ends it is answered apart as the trailing run, to be written after the line's closing part, unless `inner` (the part is not the last of the line's content).",
+        "doc": "Mirrors [`normalize_line_newlines`](flm_core::stdlib::features::math::latex::normalize_line_newlines): applies the newline rule to one text part of a line's content: every run of spaces, tabs and newlines that holds a newline becomes one newline and the indentation after it; the run that begins `content` is dropped when `after_line_end` (what was written just before the part ends a line); the run that ends it is answered apart as the trailing run, to be written after the line's closing part, unless `inner` (the part is not the last of the line's content).",
         "params": ["content: &str", "after_line_end: bool", "inner: bool"],
         "output": "NormalizedLine"
       },
       {
         "name": "environment_closing",
         "class": "function",
-        "doc": "Mirrors [`environment_closing`](flm_core::stdcore::features::math::latex::environment_closing): the closing part of a display-math environment in the recomposed LaTeX.",
+        "doc": "Mirrors [`environment_closing`](flm_core::stdlib::features::math::latex::environment_closing): the closing part of a display-math environment in the recomposed LaTeX.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "node: &dyn Node"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "group_opening",
         "class": "function",
-        "doc": "Mirrors [`group_opening`](flm_core::stdcore::features::math::latex::group_opening): the opening part of a math group in the recomposed LaTeX.",
+        "doc": "Mirrors [`group_opening`](flm_core::stdlib::features::math::latex::group_opening): the opening part of a math group in the recomposed LaTeX.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "node: &dyn Node"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "group_closing",
         "class": "function",
-        "doc": "Mirrors [`group_closing`](flm_core::stdcore::features::math::latex::group_closing): the closing part of a math group in the recomposed LaTeX.",
+        "doc": "Mirrors [`group_closing`](flm_core::stdlib::features::math::latex::group_closing): the closing part of a math group in the recomposed LaTeX.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "node: &dyn Node"],
         "output": "Result<Vec<Staged>, ExtError>"
+      },
+      {
+        "name": "TexPart",
+        "class": "data_type",
+        "doc": "Mirrors [`TexPart`](flm_core::stdlib::features::math::tex::TexPart): one part of a formula's TeX, in order: TeX text, or a hole for a text command; two TeX parts never stand side by side.",
+        "derives": [],
+        "variants": ["Tex { 0: String }", "Hole { 0: TextHole }"],
+        "methods": []
+      },
+      {
+        "name": "TextHole",
+        "class": "data_type",
+        "doc": "Mirrors [`TextHole`](flm_core::stdlib::features::math::tex::TextHole): a text command inside a formula (`\\text{…}`, `\\textbf{…}`, `\\mbox{…}`), which the TeX leaves as a hole: the caller lowers its argument itself and decides how the hole is written.",
+        "derives": [],
+        "fields": ["pub command: String", "pub node: Box<dyn Node>"],
+        "methods": []
+      },
+      {
+        "name": "LineTex",
+        "class": "data_type",
+        "doc": "Mirrors [`LineTex`](flm_core::stdlib::features::math::tex::LineTex): the TeX of one equation line's content, what [`line_tex`] answers.",
+        "derives": [],
+        "fields": ["pub parts: Vec<TexPart>", "pub trailing: String"],
+        "methods": [
+          {
+            "name": "ends_line",
+            "doc": "Mirrors [`LineTex::ends_line`](flm_core::stdlib::features::math::tex::LineTex::ends_line): whether this line, once its trailing run is written, ends a line of the output (the trailing run is not empty): the `after_line_end` argument of [`line_tex`] for the next line of the environment.",
+            "receiver": "&self",
+            "params": [],
+            "output": "bool",
+            "first": "other"
+          }
+        ]
+      },
+      {
+        "name": "group_tex",
+        "class": "function",
+        "doc": "Mirrors [`group_tex`](flm_core::stdlib::features::math::tex::group_tex): the TeX of the math group `node` (a node of [`MATH`]): its content, without its delimiters, each text command a hole, at any depth.",
+        "params": ["node: &dyn Node"],
+        "output": "Vec<TexPart>"
+      },
+      {
+        "name": "line_tex",
+        "class": "function",
+        "doc": "Mirrors [`line_tex`](flm_core::stdlib::features::math::tex::line_tex): the TeX of an equation line's content `content`, each text command a hole, each TeX part under the newline rule ([`normalize_line_newlines`]), and the run of whitespace that ended the content.",
+        "params": ["content: &[Box<dyn Node>]", "after_line_end: bool"],
+        "output": "LineTex"
       }
     ]
   },
   {
-    "module": "stdcore/features/numbering",
-    "file": "src/api/stdcore/features/numbering.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::numbering`]: the names of the numbering feature, the declarations a feature contributes to it as data, and the [`Counters`] façade over the table of the points' numbers.",
+    "module": "stdlib/features/numbering",
+    "file": "src/api/stdlib/features/numbering.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::numbering`]: the names of the numbering feature, the declarations a feature contributes to it as data, and the [`Counters`] façade over the table of the points' numbers.",
     "items": [
       {
         "name": "COUNTERS",
         "class": "constant",
-        "doc": "Mirrors [`COUNTERS`](flm_core::stdcore::features::numbering::COUNTERS): the numbering feature's table of the points' numbers, `flm.counters`, read through the [`Counters`] façade.",
+        "doc": "Mirrors [`COUNTERS`](flm_core::stdlib::features::numbering::COUNTERS): the numbering feature's table of the points' numbers, `flm.counters`, read through the [`Counters`] façade.",
         "type": "&str"
       },
       {
         "name": "COUNTERS_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`COUNTERS_SLOT`](flm_core::stdcore::features::numbering::COUNTERS_SLOT): the service slot of the counters, `flm.numbering.counters`, which takes a [`CounterDecl`].",
+        "doc": "Mirrors [`COUNTERS_SLOT`](flm_core::stdlib::features::numbering::COUNTERS_SLOT): the service slot of the counters, `flm.numbering.counters`, which takes a [`CounterDecl`].",
         "type": "&str"
       },
       {
         "name": "STYLES_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`STYLES_SLOT`](flm_core::stdcore::features::numbering::STYLES_SLOT): the service slot of the counter styles, `flm.numbering.styles`, which takes a [`CounterStyleDecl`].",
+        "doc": "Mirrors [`STYLES_SLOT`](flm_core::stdlib::features::numbering::STYLES_SLOT): the service slot of the counter styles, `flm.numbering.styles`, which takes a [`CounterStyleDecl`].",
         "type": "&str"
       },
       {
         "name": "WITHIN_JOINERS_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`WITHIN_JOINERS_SLOT`](flm_core::stdcore::features::numbering::WITHIN_JOINERS_SLOT): the service slot of the registered within-joiners, `flm.numbering.within-joiners`.",
+        "doc": "Mirrors [`WITHIN_JOINERS_SLOT`](flm_core::stdlib::features::numbering::WITHIN_JOINERS_SLOT): the service slot of the registered within-joiners, `flm.numbering.within-joiners`.",
         "type": "&str"
       },
       {
         "name": "NUMBER_WRITERS_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`NUMBER_WRITERS_SLOT`](flm_core::stdcore::features::numbering::NUMBER_WRITERS_SLOT): the service slot of the number writers, `flm.numbering.number-writers`.",
+        "doc": "Mirrors [`NUMBER_WRITERS_SLOT`](flm_core::stdlib::features::numbering::NUMBER_WRITERS_SLOT): the service slot of the number writers, `flm.numbering.number-writers`.",
         "type": "&str"
       },
       {
         "name": "PARENT_SETS_SLOT",
         "class": "constant",
-        "doc": "Mirrors [`PARENT_SETS_SLOT`](flm_core::stdcore::features::numbering::PARENT_SETS_SLOT): the service slot of the parent sets, `flm.numbering.parent-sets`, which takes a [`ParentSetDecl`].",
+        "doc": "Mirrors [`PARENT_SETS_SLOT`](flm_core::stdlib::features::numbering::PARENT_SETS_SLOT): the service slot of the parent sets, `flm.numbering.parent-sets`, which takes a [`ParentSetDecl`].",
         "type": "&str"
       },
       {
         "name": "CounterDecl",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::CounterDecl"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::CounterDecl"
       },
       {
         "name": "CounterStyleDecl",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::CounterStyleDecl"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::CounterStyleDecl"
       },
       {
         "name": "Delimiters",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::Delimiters"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::Delimiters"
       },
       {
         "name": "FormatOptions",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::FormatOptions"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::FormatOptions"
       },
       {
         "name": "NumberTemplate",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::NumberTemplate"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::NumberTemplate"
       },
       {
         "name": "ParentSetDecl",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::ParentSetDecl"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::ParentSetDecl"
       },
       {
         "name": "Parents",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::Parents"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::Parents"
       },
       {
         "name": "PluralWords",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::PluralWords"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::PluralWords"
       },
       {
         "name": "PrefixWords",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::PrefixWords"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::PrefixWords"
       },
       {
         "name": "Within",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::Within"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::Within"
       },
       {
         "name": "WithinJoinerSpec",
         "class": "core_reexport",
-        "doc": "Mirrors the declarations of [`flm_core::stdcore::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
-        "path": "flm_core::stdcore::features::numbering::WithinJoinerSpec"
+        "doc": "Mirrors the declarations of [`flm_core::stdlib::features::numbering`]: [`CounterDecl`], [`CounterStyleDecl`], [`ParentSetDecl`], the place of a counter ([`Within`], [`Parents`], [`WithinJoinerSpec`]), the words and delimiters of a style ([`PrefixWords`], [`PluralWords`], [`Delimiters`]), its number template ([`NumberTemplate`]) and the options of a number's formatting ([`FormatOptions`]).",
+        "path": "flm_core::stdlib::features::numbering::WithinJoinerSpec"
       },
       {
         "name": "CounterRecord",
         "class": "data_type",
-        "doc": "Mirrors [`CounterRecord`](flm_core::stdcore::features::numbering::CounterRecord): what the table holds for a numbered point.",
+        "doc": "Mirrors [`CounterRecord`](flm_core::stdlib::features::numbering::CounterRecord): what the table holds for a numbered point.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq"],
         "fields": ["pub counter: String", "pub value: Vec<i64>", "pub style: String", "pub instance: Option<NodeAddr>"],
         "methods": []
@@ -3467,7 +3841,7 @@
       {
         "name": "NumberSegment",
         "class": "data_type",
-        "doc": "Mirrors [`NumberSegment`](flm_core::stdcore::features::numbering::NumberSegment): one stretch of a number, its content and the reference point it links to.",
+        "doc": "Mirrors [`NumberSegment`](flm_core::stdlib::features::numbering::NumberSegment): one stretch of a number, its content and the reference point it links to.",
         "derives": [],
         "fields": ["pub content: Box<dyn Tree>", "pub link: Option<PointId>"],
         "methods": []
@@ -3475,19 +3849,19 @@
       {
         "name": "Counters",
         "class": "sealed_trait",
-        "doc": "Mirrors [`Counters`](flm_core::stdcore::features::numbering::Counters): the table of the points' numbers, as a stage's context or a rule's lowerer answers it for [`COUNTERS`] ([`TableValue::Counters`](crate::api::core::data::table::TableValue::Counters)).",
+        "doc": "Mirrors [`Counters`](flm_core::stdlib::features::numbering::Counters): the table of the points' numbers, as a stage's context or a rule's lowerer answers it for [`COUNTERS`] ([`TableValue::Counters`](crate::api::core::data::table::TableValue::Counters)).",
         "supertraits": ["Sealed", "PointsCore"],
         "methods": [
           {
             "name": "record",
-            "doc": "Mirrors [`Counters::record`](flm_core::stdcore::features::numbering::Counters::record): what the table holds for `point`, or `None` for a point the table holds no number for (an unnumbered point).",
+            "doc": "Mirrors [`Counters::record`](flm_core::stdlib::features::numbering::Counters::record): what the table holds for `point`, or `None` for a point the table holds no number for (an unnumbered point).",
             "receiver": "&self",
             "params": ["point: PointId"],
             "output": "Option<CounterRecord>"
           },
           {
             "name": "format",
-            "doc": "Mirrors [`Counters::format`](flm_core::stdcore::features::numbering::Counters::format): the number of `point` in the counter style its record holds, as its segments, or `None` for a point the table holds no number for.",
+            "doc": "Mirrors [`Counters::format`](flm_core::stdlib::features::numbering::Counters::format): the number of `point` in the counter style its record holds, as its segments, or `None` for a point the table holds no number for.",
             "receiver": "&self",
             "params": ["point: PointId", "options: &FormatOptions"],
             "output": "Result<Option<Vec<NumberSegment>>, ExtError>"
@@ -3497,81 +3871,81 @@
     ]
   },
   {
-    "module": "stdcore/features/refs",
-    "file": "src/api/stdcore/features/refs.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::refs`]: the names of the references feature and the parts a referenceable construct of an extension declares and lowers its labels with.",
+    "module": "stdlib/features/refs",
+    "file": "src/api/stdlib/features/refs.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::refs`]: the names of the references feature and the parts a referenceable construct of an extension declares and lowers its labels with.",
     "items": [
       {
         "name": "ANCHORS",
         "class": "constant",
-        "doc": "Mirrors [`ANCHORS`](flm_core::stdcore::features::refs::ANCHORS): the table of the anchors of the reference points, `flm.anchors`.",
+        "doc": "Mirrors [`ANCHORS`](flm_core::stdlib::features::refs::ANCHORS): the table of the anchors of the reference points, `flm.anchors`.",
         "type": "&str"
       },
       {
         "name": "SAFE_LABELS",
         "class": "constant",
-        "doc": "Mirrors [`SAFE_LABELS`](flm_core::stdcore::features::refs::SAFE_LABELS): the table of the labels' spellings safe to write in LaTeX, `flm.labels.safe`, which [`stage_label`] reads.",
+        "doc": "Mirrors [`SAFE_LABELS`](flm_core::stdlib::features::refs::SAFE_LABELS): the table of the labels' spellings safe to write in LaTeX, `flm.labels.safe`, which [`stage_label`] reads.",
         "type": "&str"
       },
       {
         "name": "LABELS",
         "class": "constant",
-        "doc": "Mirrors [`LABELS`](flm_core::stdcore::features::refs::LABELS): the table of the labels of the document's reference points, `flm.labels`.",
+        "doc": "Mirrors [`LABELS`](flm_core::stdlib::features::refs::LABELS): the table of the labels of the document's reference points, `flm.labels`.",
         "type": "&str"
       },
       {
         "name": "REF_RESOLUTIONS",
         "class": "constant",
-        "doc": "Mirrors [`REF_RESOLUTIONS`](flm_core::stdcore::features::refs::REF_RESOLUTIONS): the table of the resolved references, `flm.refs.resolutions`.",
+        "doc": "Mirrors [`REF_RESOLUTIONS`](flm_core::stdlib::features::refs::REF_RESOLUTIONS): the table of the resolved references, `flm.refs.resolutions`.",
         "type": "&str"
       },
       {
         "name": "FIELDS_ARG",
         "class": "constant",
-        "doc": "Mirrors [`FIELDS_ARG`](flm_core::stdcore::features::refs::FIELDS_ARG): the name of the argument [`label_fields_arg`] declares, `fields`.",
+        "doc": "Mirrors [`FIELDS_ARG`](flm_core::stdlib::features::refs::FIELDS_ARG): the name of the argument [`label_fields_arg`] declares, `fields`.",
         "type": "&str"
       },
       {
         "name": "LABEL_FIELD",
         "class": "constant",
-        "doc": "Mirrors [`LABEL_FIELD`](flm_core::stdcore::features::refs::LABEL_FIELD): the name of the `\\label` field, `label`.",
+        "doc": "Mirrors [`LABEL_FIELD`](flm_core::stdlib::features::refs::LABEL_FIELD): the name of the `\\label` field, `label`.",
         "type": "&str"
       },
       {
         "name": "TARGET_ARG",
         "class": "constant",
-        "doc": "Mirrors [`TARGET_ARG`](flm_core::stdcore::features::refs::TARGET_ARG): the name of the argument of `\\ref` that holds its targets, `target`.",
+        "doc": "Mirrors [`TARGET_ARG`](flm_core::stdlib::features::refs::TARGET_ARG): the name of the argument of `\\ref` that holds its targets, `target`.",
         "type": "&str"
       },
       {
         "name": "LABEL_PACKAGE",
         "class": "constant",
-        "doc": "Mirrors [`LABEL_PACKAGE`](flm_core::stdcore::features::refs::LABEL_PACKAGE): the scoped package of the `\\label` field, `flm.refs.label`.",
+        "doc": "Mirrors [`LABEL_PACKAGE`](flm_core::stdlib::features::refs::LABEL_PACKAGE): the scoped package of the `\\label` field, `flm.refs.label`.",
         "type": "&str"
       },
       {
         "name": "TARGET_ARG_ROLE",
         "class": "constant",
-        "doc": "Mirrors [`TARGET_ARG_ROLE`](flm_core::stdcore::features::refs::TARGET_ARG_ROLE): the argument role of a label that a reference points to, `flm.refs.target`, which the references feature declares.",
+        "doc": "Mirrors [`TARGET_ARG_ROLE`](flm_core::stdlib::features::refs::TARGET_ARG_ROLE): the argument role of a label that a reference points to, `flm.refs.target`, which the references feature declares.",
         "type": "&str"
       },
       {
         "name": "DEFINED_LABEL_ARG_ROLE",
         "class": "constant",
-        "doc": "Mirrors [`DEFINED_LABEL_ARG_ROLE`](flm_core::stdcore::features::refs::DEFINED_LABEL_ARG_ROLE): the argument role of a label that a `\\label` attaches to a construct, `flm.refs.defined-label`, which the references feature declares and the argument of the `\\label` field has.",
+        "doc": "Mirrors [`DEFINED_LABEL_ARG_ROLE`](flm_core::stdlib::features::refs::DEFINED_LABEL_ARG_ROLE): the argument role of a label that a `\\label` attaches to a construct, `flm.refs.defined-label`, which the references feature declares and the argument of the `\\label` field has.",
         "type": "&str"
       },
       {
         "name": "label_fields_arg",
         "class": "function",
-        "doc": "Mirrors [`label_fields_arg`](flm_core::stdcore::features::refs::label_fields_arg): the argument that reads the `\\label{…}` fields written after a construct, named [`FIELDS_ARG`], to place last in the construct's argument list.",
+        "doc": "Mirrors [`label_fields_arg`](flm_core::stdlib::features::refs::label_fields_arg): the argument that reads the `\\label{…}` fields written after a construct, named [`FIELDS_ARG`], to place last in the construct's argument list.",
         "params": [],
         "output": "ArgDef"
       },
       {
         "name": "LabelUse",
         "class": "data_type",
-        "doc": "Mirrors [`LabelUse`](flm_core::stdcore::features::refs::LabelUse): one `\\label{…}` written on a construct.",
+        "doc": "Mirrors [`LabelUse`](flm_core::stdlib::features::refs::LabelUse): one `\\label{…}` written on a construct.",
         "derives": ["Debug", "Clone", "PartialEq", "Eq"],
         "fields": ["pub text: String", "pub span: Span", "pub label: Option<Label>"],
         "methods": []
@@ -3579,40 +3953,40 @@
       {
         "name": "label_uses",
         "class": "function",
-        "doc": "Mirrors [`label_uses`](flm_core::stdcore::features::refs::label_uses): the labels written in the [`FIELDS_ARG`] argument of `node`, in order; none when the node has no such argument.",
+        "doc": "Mirrors [`label_uses`](flm_core::stdlib::features::refs::label_uses): the labels written in the [`FIELDS_ARG`] argument of `node`, in order; none when the node has no such argument.",
         "params": ["node: &dyn Node"],
         "output": "Vec<LabelUse>"
       },
       {
         "name": "point_labels",
         "class": "function",
-        "doc": "Mirrors [`point_labels`](flm_core::stdcore::features::refs::point_labels): the labels of a reference point from the labels written on its construct: the parsed ones, in order, and the texts that do not parse, each with its span and its position among `uses`.",
+        "doc": "Mirrors [`point_labels`](flm_core::stdlib::features::refs::point_labels): the labels of a reference point from the labels written on its construct: the parsed ones, in order, and the texts that do not parse, each with its span and its position among `uses`.",
         "params": ["uses: &[LabelUse]"],
         "output": "(Vec<Label>, Vec<MalformedLabel>)"
       },
       {
         "name": "stage_label",
         "class": "function",
-        "doc": "Mirrors [`stage_label`](flm_core::stdcore::features::refs::stage_label): stages the `\\label{…}` of one label use on the recomposed LaTeX backend, its spelling the one the table [`SAFE_LABELS`] holds for it.",
+        "doc": "Mirrors [`stage_label`](flm_core::stdlib::features::refs::stage_label): stages the `\\label{…}` of one label use on the recomposed LaTeX backend, its spelling the one the table [`SAFE_LABELS`] holds for it.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "text: &str", "label: Option<Label>"],
         "output": "Result<Staged, ExtError>"
       },
       {
         "name": "stage_label_group",
         "class": "function",
-        "doc": "Mirrors [`stage_label_group`](flm_core::stdcore::features::refs::stage_label_group): the nodes to emit for the labels `labels` of a construct on the recomposed LaTeX backend: the labels themselves, or, when the document's options ask for the label hooks, the labels inside the group that the hooks read (with `empty_group`, a group even when there is no label).",
+        "doc": "Mirrors [`stage_label_group`](flm_core::stdlib::features::refs::stage_label_group): the nodes to emit for the labels `labels` of a construct on the recomposed LaTeX backend: the labels themselves, or, when the document's options ask for the label hooks, the labels inside the group that the hooks read (with `empty_group`, a group even when there is no label).",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "labels: Vec<Staged>", "empty_group: bool"],
         "output": "Result<Vec<Staged>, ExtError>"
       },
       {
         "name": "Anchors",
         "class": "sealed_trait",
-        "doc": "Mirrors [`Anchors`](flm_core::stdcore::features::refs::Anchors): the table of the reference points' anchors, as a stage's context or a rule's lowerer answers it for [`ANCHORS`] ([`TableValue::Anchors`](crate::api::core::data::table::TableValue::Anchors)).",
+        "doc": "Mirrors [`Anchors`](flm_core::stdlib::features::refs::Anchors): the table of the reference points' anchors, as a stage's context or a rule's lowerer answers it for [`ANCHORS`] ([`TableValue::Anchors`](crate::api::core::data::table::TableValue::Anchors)).",
         "supertraits": ["Sealed", "PointsCore"],
         "methods": [
           {
             "name": "id",
-            "doc": "Mirrors [`Anchors::id`](flm_core::stdcore::features::refs::Anchors::id): the anchor of `point`, or `None` both for a point the stage never saw and for one that received no anchor.",
+            "doc": "Mirrors [`Anchors::id`](flm_core::stdlib::features::refs::Anchors::id): the anchor of `point`, or `None` both for a point the stage never saw and for one that received no anchor.",
             "receiver": "&self",
             "params": ["point: PointId"],
             "output": "Option<String>"
@@ -3622,9 +3996,9 @@
     ]
   },
   {
-    "module": "stdcore/features/userdefs",
-    "file": "src/api/stdcore/features/userdefs.rs",
-    "doc": "Mirrors [`flm_core::stdcore::features::userdefs`]: the helpers of the user-definitions feature an extension declares definitions with.",
+    "module": "stdlib/features/userdefs",
+    "file": "src/api/stdlib/features/userdefs.rs",
+    "doc": "Mirrors [`flm_core::stdlib::features::userdefs`]: the helpers of the user-definitions feature an extension declares definitions with.",
     "items": [
       {
         "name": "LoweringRule",
@@ -3635,21 +4009,21 @@
       {
         "name": "element_name_under",
         "class": "function",
-        "doc": "Mirrors [`element_name_under`](flm_core::stdcore::features::userdefs::element_name_under): the element name of `definition` under the prefix `prefix`.",
+        "doc": "Mirrors [`element_name_under`](flm_core::stdlib::features::userdefs::element_name_under): the element name of `definition` under the prefix `prefix`.",
         "params": ["prefix: &str", "definition: &Definition"],
         "output": "String"
       },
       {
         "name": "expand_in_tree_rule_for",
         "class": "function",
-        "doc": "Mirrors [`expand_in_tree_rule_for`](flm_core::stdcore::features::userdefs::expand_in_tree_rule_for): the lowering rule that has the element `element` of `definition` expanded in the tree before lowering.",
+        "doc": "Mirrors [`expand_in_tree_rule_for`](flm_core::stdlib::features::userdefs::expand_in_tree_rule_for): the lowering rule that has the element `element` of `definition` expanded in the tree before lowering.",
         "params": ["element: &str", "definition: &Definition"],
         "output": "LoweringRule"
       },
       {
         "name": "write_math_run",
         "class": "function",
-        "doc": "Mirrors [`write_math_run`](flm_core::stdcore::features::userdefs::kept::write_math_run): writes a run of nodes in mathematics mode for the recomposed LaTeX, the mathematics writer of the `userdefs` feature (the source byte for byte, a use of a user definition written as its call or its expansion, a text command and a comment lowered through the rules), the content writer of a processing feature's rules on that backend.",
+        "doc": "Mirrors [`write_math_run`](flm_core::stdlib::features::userdefs::kept::write_math_run): writes a run of nodes in mathematics mode for the recomposed LaTeX, the mathematics writer of the `userdefs` feature (the source byte for byte, a use of a user definition written as its call or its expansion, a text command and a comment lowered through the rules), the content writer of a processing feature's rules on that backend.",
         "params": ["cx: &mut dyn LowerCx", "lw: &mut dyn Lowerer", "nodes: &[Box<dyn Node>]"],
         "output": "Result<Vec<Staged>, ExtError>"
       }
@@ -3802,6 +4176,13 @@
             "receiver": "&self",
             "params": [],
             "output": "Option<Vec<Box<dyn Node>>>"
+          },
+          {
+            "name": "value_pieces",
+            "doc": "Mirrors [`key_value_pieces`](flm_core::lang::copy::key_value_pieces) of [`flm_core::lang::copy`], called with the bracket the list was read from and this entry's value: the value as pieces of the document, whitespace at either end dropped.",
+            "receiver": "&self",
+            "params": [],
+            "output": "Option<Vec<WrittenPiece>>"
           }
         ]
       }
@@ -3907,7 +4288,7 @@
             "doc": "Mirrors [`NodeRef::descendants`](flm_core::techy::core::node::NodeRef::descendants).",
             "receiver": "&self",
             "params": [],
-            "output": "Vec<Box<dyn Node>>"
+            "output": "Descendants"
           },
           {
             "name": "chars",
@@ -4002,7 +4383,7 @@
           },
           {
             "name": "payload",
-            "doc": "Mirrors the field [`FlmNodeExt::payload`](flm_core::lang::FlmNodeExt::payload) through [`project_payload`](flm_core::dump::project::project_payload): the payload of a presentation node, as its projection in JSON form (the shapes the [presentation elements' module](crate::api::stdcore::backends::pres) lists, or the value a rule staged for an element declared with a data payload).",
+            "doc": "Mirrors the field [`FlmNodeExt::payload`](flm_core::lang::FlmNodeExt::payload) through [`project_payload`](flm_core::dump::project::project_payload): the payload of a presentation node, as its projection in JSON form (the shapes the [presentation elements' module](crate::api::stdlib::backends::pres) lists, or the value a rule staged for an element declared with a data payload).",
             "receiver": "&self",
             "params": [],
             "output": "Result<Option<Value>, ExtError>"
@@ -4027,6 +4408,31 @@
             "receiver": "&self",
             "params": ["i: usize"],
             "output": "Option<Vec<Box<dyn Node>>>"
+          }
+        ]
+      },
+      {
+        "name": "Descendants",
+        "class": "opaque_type",
+        "doc": "Mirrors techy's [`Descendants`](flm_core::techy::core::node::Descendants): an iterator over the descendants of a node, in document order, the node itself excluded.",
+        "derives": [],
+        "fields": ["nodes: Box<dyn Iterator<Item = Box<dyn Node>>>"],
+        "methods": [
+          {
+            "name": "elements",
+            "doc": "Mirrors [`Iterator::filter`] on techy's [`Descendants`](flm_core::techy::core::node::Descendants): the nodes not taken yet whose element has one of the names `names` (the name [`Node::element_name`] answers), in their order; the descendants of a node that does not match are still visited.",
+            "receiver": "self",
+            "params": ["names: impl IntoIterator<Item = impl Into<String>>"],
+            "output": "Descendants",
+            "first": "other"
+          },
+          {
+            "name": "kinds",
+            "doc": "Mirrors [`Iterator::filter`] on techy's [`Descendants`](flm_core::techy::core::node::Descendants): the nodes not taken yet whose kind ([`Node::kind`]) is one of `kinds`, in their order.",
+            "receiver": "self",
+            "params": ["kinds: &[NodeKindName]"],
+            "output": "Descendants",
+            "first": "other"
           }
         ]
       },

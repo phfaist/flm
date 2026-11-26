@@ -1,6 +1,6 @@
 //! Settings given as data: each standard feature's declaration of its
 //! settings, the reading of every key, the problems a reading finds, the
-//! schema, the package factory of `stdcore` and the package catalog.
+//! schema, a package factory of the standard features and the package catalog.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -10,52 +10,55 @@ use flm_core::core::registry::{
     RegistryInputs, ResolveError,
 };
 use flm_core::core::settings::{
-    FeatureSettings, PackageSettings, SettingsDecl, SettingsErrorKind,
+    FeatureSettings, Mark, PackageSettings, SettingsDecl, SettingsErrorKind,
 };
 use flm_core::lang::mint::{arg_def_from_code, ArgDef, ArgLayout};
 use flm_core::lang::rewrites::blocks::BlocksConfig;
 use flm_core::model::names::Name;
 use flm_core::model::options::{Bind, OptionKey, Options};
-use flm_core::stdcore::backends::html::{DefinitionOverride, HtmlRenderOptions};
-use flm_core::stdcore::backends::latex::{ExtraPreamble, LatexPackageDef, UnicodeMode};
-use flm_core::stdcore::backends::latex_recomposed::{LatexRecomposedRenderOptions, StyleFile};
-use flm_core::stdcore::backends::pieces::PiecesRenderOptions;
-use flm_core::stdcore::backends::text::TextRenderOptions;
-use flm_core::stdcore::features::annotations::{
+use flm_core::stdlib::backends::html::{DefinitionOverride, HtmlRenderOptions};
+use flm_core::stdlib::backends::latex::{ExtraPreamble, LatexPackageDef, UnicodeMode};
+use flm_core::stdlib::backends::latex_recomposed::{LatexRecomposedRenderOptions, StyleFile};
+use flm_core::stdlib::backends::pieces::PiecesRenderOptions;
+use flm_core::stdlib::backends::text::{HeadingRules, TableFrame, TextRenderOptions};
+use flm_core::stdlib::features::annotations::{
     AnnotationsConfig, AnnotationsRenderOptions, Annotator,
 };
-use flm_core::stdcore::features::cells::CellsConfig;
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::features::cells::CellsConfig;
+use flm_core::stdlib::features::citations::{
     CitationPlacement, CitationsConfig, MarkForm, STYLE_NAME, default_style,
 };
-use flm_core::stdcore::features::defterm::DeftermConfig;
-use flm_core::stdcore::features::floats::{FloatType, FloatsConfig};
-use flm_core::stdcore::features::graphics::GraphicsConfig;
-use flm_core::stdcore::features::headings::latex::HeadingsLatexOptions;
-use flm_core::stdcore::features::headings::{
+use flm_core::stdlib::features::defterm::DeftermConfig;
+use flm_core::stdlib::features::floats::{FloatType, FloatsConfig};
+use flm_core::stdlib::features::graphics::GraphicsConfig;
+use flm_core::stdlib::features::headings::latex::HeadingsLatexOptions;
+use flm_core::stdlib::features::headings::{
     HeadingCommand, HeadingDecl, HeadingNumbering, HeadingsConfig,
 };
-use flm_core::stdcore::features::lists::{ListKind, ListsConfig};
-use flm_core::stdcore::features::math::{MathConfig, MathRecomposeOptions};
-use flm_core::stdcore::features::numbering::{
+use flm_core::stdlib::features::lists::{ListKind, ListsConfig};
+use flm_core::stdlib::features::math::{MathConfig, MathRecomposeOptions};
+use flm_core::stdlib::features::numbering::{
     CounterOptions, CounterStyleDecl, Delimiters, JoinDecl, NumberTemplate, NumberingConfig,
     NumberingOptions, PrefixWords, WithinJoinerSpec,
 };
-use flm_core::stdcore::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
-use flm_core::stdcore::features::refs::{
+use flm_core::stdlib::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
+use flm_core::stdlib::features::refs::{
     RefsConfig, RefsRecomposeOptions, RefsRenderOptions, SafeLabelMode, UnresolvedRefs,
 };
-use flm_core::stdcore::features::theorems::{TheoremClass, TheoremKind, TheoremsConfig};
+use flm_core::stdlib::features::theorems::{TheoremClass, TheoremKind, TheoremsConfig};
 use flm_core::model::aspects::BlockRole;
-use flm_core::stdcore::features::userdefs::{Definition, ExpandPolicy, UserdefsConfig};
-use flm_core::stdcore::features::xnotes::{XnoteKind, XnotesConfig};
+use flm_core::stdlib::features::userdefs::{Definition, ExpandPolicy, UserdefsConfig};
+use flm_core::stdlib::features::xnotes::{XnoteKind, XnotesConfig};
 use flm_core::untechxt::preamble::EngineSet;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 use serde_json::{Value, json};
 
-/// The factory of the standard package.
+/// The factory of a package `std` that holds the standard features.
 fn factory() -> PackageFactory {
-    stdcore::factory().expect("the standard package builds from empty settings")
+    PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+    .expect("the standard features build from empty settings")
 }
 
 /// The declaration of the standard feature `feature`.
@@ -342,7 +345,7 @@ fn xnotes_reads_every_key() {
     );
     let mut endnote = XnoteKind::numbered("endnote", PrefixWords::new("endnote", "endnotes"));
     endnote.commands = vec!["endnote".into()];
-    endnote.placement = flm_core::stdcore::features::xnotes::XnotePlacement::InPlace;
+    endnote.placement = flm_core::stdlib::features::xnotes::XnotePlacement::InPlace;
     assert_eq!(read, XnotesConfig { kinds: vec![endnote] });
 }
 
@@ -409,7 +412,7 @@ fn floats_reads_every_key() {
         json!({ "types": { "diagram": { "handlers": ["includegraphics"], "numbering": "unnumbered" } } }),
     );
     let mut diagram = FloatType::new("diagram", ["includegraphics"]);
-    diagram.numbering = flm_core::stdcore::features::floats::FloatNumbering::Unnumbered;
+    diagram.numbering = flm_core::stdlib::features::floats::FloatNumbering::Unnumbered;
     assert_eq!(read, FloatsConfig { types: vec![diagram] });
 }
 
@@ -422,7 +425,7 @@ fn a_value_with_a_text_name_is_written_as_that_name() {
         );
         assert_eq!(read.style_file, style_file);
     }
-    use flm_core::stdcore::features::floats::FloatNumbering;
+    use flm_core::stdlib::features::floats::FloatNumbering;
     for numbering in [FloatNumbering::Numbered, FloatNumbering::Unnumbered, FloatNumbering::AutoNumbered] {
         let data = json!({ "types": { "chart": { "handlers": [], "numbering": numbering.as_str() } } });
         assert_eq!(config::<FloatsConfig>("floats", data).types[0].numbering, numbering);
@@ -555,6 +558,7 @@ fn the_backends_read_every_key() {
         json!({
             "width": 60, "tab_width": 4, "run_in_stop": ":", "link_addresses": false,
             "link_addresses_when_shown": true, "root_heading_level": 2,
+            "table_frame": "box", "heading_rules": "unicode",
         }),
     );
     let built = TextRenderOptions {
@@ -564,6 +568,8 @@ fn the_backends_read_every_key() {
         link_addresses: false,
         link_addresses_when_shown: true,
         root_heading_level: 2,
+        table_frame: TableFrame::Box,
+        heading_rules: HeadingRules::Unicode,
     };
     assert_eq!(read, built);
 
@@ -666,7 +672,7 @@ fn empty_data_reads_as_every_default() {
 #[test]
 fn each_feature_states_its_own_declaration_and_the_registry_declares_its_types() {
     // A declaration names the feature that states it, and declares keys.
-    for feature in stdcore::package(StdcoreConfig::new()).features {
+    for feature in stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()).features {
         if let Some(decl) = feature.settings() {
             assert_eq!(decl.feature(), &feature.info().name);
             assert!(decl.keys().next().is_some(), "{}", feature.info().name);
@@ -687,7 +693,7 @@ fn each_feature_states_its_own_declaration_and_the_registry_declares_its_types()
     // The registry build declares the option types of the declaration, with
     // their bindings, although no feature's registration names them.
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder.build(&RegistryInputs::new()).expect("the registry builds");
     let declared = |key: OptionKey| registry.option_decl(&key).map(|decl| (decl.owner.to_string(), decl.bind));
@@ -720,7 +726,9 @@ fn each_collection_of_named_things_is_marked() {
         let decl = decl(feature);
         assert!(decl.key(key).is_some(), "{feature}.{key}");
         assert!(
-            decl.mark_at(key).is_some_and(|mark| mark.merge_entries),
+            decl.mark_at(key).is_some_and(|mark| {
+                mark.marks == [Mark::MergeObjectKeyValues, Mark::RemoveKeyWhenValueIsFalse]
+            }),
             "{feature}.{key} is merged entry by entry"
         );
     }
@@ -728,7 +736,7 @@ fn each_collection_of_named_things_is_marked() {
         .features()
         .iter()
         .filter_map(|feature| feature.settings.as_ref())
-        .map(|decl| decl.marks().iter().filter(|mark| mark.merge_entries).count())
+        .map(|decl| decl.marks().iter().filter(|mark| mark.has(Mark::MergeObjectKeyValues)).count())
         .sum();
     assert_eq!(merged, marked.len());
 }
@@ -738,7 +746,7 @@ fn each_collection_of_named_things_is_marked() {
 fn default_entries(feature: &str) -> Value {
     let decl = decl(feature);
     let mut data = serde_json::Map::new();
-    for mark in decl.marks().iter().filter(|mark| mark.merge_entries) {
+    for mark in decl.marks().iter().filter(|mark| mark.has(Mark::MergeObjectKeyValues)) {
         let entries = decl.default_entries(&mark.path).expect("marked");
         data.insert(mark.path.clone(), Value::Object(entries.clone()));
     }
@@ -762,27 +770,19 @@ fn the_default_entries_of_each_marked_key_read_as_the_feature_s_default() {
 }
 
 #[test]
-#[should_panic(expected = "marks `kinds.words` as merged entry by entry, and only a setting itself can be marked so, not a path below one")]
-fn a_path_below_a_key_cannot_be_merged_entry_by_entry() {
+#[should_panic]
+fn a_mark_on_a_path_that_reaches_no_node_of_the_schema_is_a_fault_of_the_declaration() {
     let _ = SettingsDecl::new("xnotes")
         .config::<XnotesConfig>("The notes.")
         .merge_entries("kinds.words", || Ok(Value::Object(serde_json::Map::new())));
 }
 
 #[test]
-#[should_panic(expected = "the default entries of `xnotes.kinds` cannot be written as data: no data")]
+#[should_panic]
 fn default_entries_that_cannot_be_written_are_a_fault_of_the_declaration() {
     let _ = SettingsDecl::new("xnotes")
         .config::<XnotesConfig>("The notes.")
         .merge_entries("kinds", || Err(String::from("no data")));
-}
-
-#[test]
-#[should_panic(expected = "marks `kinds.*` as merged entry by entry, and only a setting itself can be marked so, not a path below one")]
-fn every_entry_of_a_key_cannot_be_merged_entry_by_entry() {
-    let _ = SettingsDecl::new("xnotes")
-        .config::<XnotesConfig>("The notes.")
-        .merge_entries("kinds.*", || Ok(Value::Object(serde_json::Map::new())));
 }
 
 // ---- test 2: problems are named by the key's path -------------------------
@@ -930,43 +930,74 @@ mod schema {
         }
     }
 
-    /// Whether the path `segments` names a place in `schema`: a property, `*`
-    /// for the values of a map or the items of a list, or the one key of a
-    /// variant written as a map.
-    fn names_a_place(root: &Value, schema: &Value, segments: &[&str]) -> bool {
-        let schema = match schema.get("$ref").and_then(Value::as_str) {
-            Some(reference) => &root["$defs"][reference.trim_start_matches("#/$defs/")],
-            None => schema,
+    /// The marks written on each node of `schema` at the path `segments` below
+    /// `node`: a property, `*` for the values of a map or the items of a list,
+    /// the alternatives of a node and the definition its `$ref` names at the
+    /// node's path.
+    fn marks_at(root: &Value, node: &Value, segments: &[&str], found: &mut Vec<Value>) {
+        let Some((first, rest)) = segments.split_first() else {
+            found.push(node.get("x-flm-marks").cloned().unwrap_or(Value::Null));
+            return;
         };
-        let Some((first, rest)) = segments.split_first() else { return true };
-        let branches = ["anyOf", "oneOf"]
-            .iter()
-            .filter_map(|keyword| schema.get(*keyword).and_then(Value::as_array))
-            .flatten()
-            .any(|branch| names_a_place(root, branch, segments));
-        let below = if *first == "*" {
-            [schema.get("additionalProperties"), schema.get("items")]
-                .into_iter()
-                .flatten()
-                .any(|inner| inner.is_object() && names_a_place(root, inner, rest))
-        } else {
-            schema.get("properties").and_then(|properties| properties.get(*first)).is_some_and(|inner| {
-                names_a_place(root, inner, rest)
-            })
-        };
-        branches || below
+        if let Some(reference) = node.get("$ref").and_then(Value::as_str) {
+            marks_at(root, &root["$defs"][reference.trim_start_matches("#/$defs/")], segments, found);
+        }
+        for keyword in ["anyOf", "oneOf", "allOf"] {
+            for branch in node.get(keyword).and_then(Value::as_array).into_iter().flatten() {
+                marks_at(root, branch, segments, found);
+            }
+        }
+        if *first == "*" {
+            for inner in [node.get("additionalProperties"), node.get("items")].into_iter().flatten() {
+                marks_at(root, inner, rest, found);
+            }
+        } else if let Some(inner) = node.get("properties").and_then(|properties| properties.get(*first)) {
+            marks_at(root, inner, rest, found);
+        }
     }
 
     #[test]
-    fn every_mark_names_a_key_of_the_schema() {
+    fn every_mark_reaches_a_node_of_the_schema_and_is_printed_on_it() {
+        let mut marks = 0;
         for feature in factory().features() {
             let Some(decl) = &feature.settings else { continue };
             let schema = decl.json_schema();
+            assert!(schema.get("x-flm-marks").is_none(), "{}", feature.name);
             for mark in decl.marks() {
+                marks += 1;
                 let segments: Vec<&str> = mark.path.split('.').collect();
-                assert!(names_a_place(&schema, &schema, &segments), "{}.{}", feature.name, mark.path);
+                let mut found = Vec::new();
+                marks_at(&schema, &schema, &segments, &mut found);
+                let names: Vec<&str> = mark.marks.iter().map(|mark| mark.name()).collect();
+                assert!(!found.is_empty(), "{}.{}", feature.name, mark.path);
+                assert!(found.iter().all(|written| *written == json!(names)), "{}.{}: {found:?}", feature.name, mark.path);
             }
         }
+        assert!(marks > 50, "{marks}");
+    }
+
+    #[test]
+    fn a_mark_on_a_place_that_shares_a_definition_with_an_unmarked_place_is_printed_on_the_marked_place_alone() {
+        #[derive(Debug, Clone, Default, Hash, serde::Deserialize, schemars::JsonSchema)]
+        #[serde(default, deny_unknown_fields)]
+        struct Entry {
+            /// The entry's text.
+            text: String,
+        }
+        #[derive(Debug, Clone, Default, Hash, serde::Deserialize, schemars::JsonSchema)]
+        #[serde(default, deny_unknown_fields)]
+        struct Pair {
+            /// The first entry.
+            first: Entry,
+            /// The second entry.
+            second: Entry,
+        }
+        let decl = SettingsDecl::new("pair").options::<Pair>(Bind::Render, "A pair.").markup("first.text");
+        let schema = decl.json_schema();
+        let first = &schema["properties"]["first"];
+        assert_eq!(first["properties"]["text"]["x-flm-marks"], json!(["markup"]), "{first}");
+        assert_eq!(schema["properties"]["second"]["$ref"], json!("#/$defs/Entry"));
+        assert!(!schema["$defs"].to_string().contains("x-flm-marks"), "{}", schema["$defs"]);
     }
 
     /// Every description of `schema`, the data under `default` left out.
@@ -1052,24 +1083,24 @@ mod schema {
     // The schema holds the documentation texts the declarations give.
     #[cfg(feature = "docs")]
     #[test]
-    fn the_schema_of_stdcore_is_a_golden() {
+    fn the_schema_of_stdlib_is_a_golden() {
         let text = serde_json::to_string_pretty(&Value::Object(schemas())).unwrap() + "\n";
         flm_core::dump::golden::assert_text_golden(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/tests/goldens/stdcore/settings-schema.json"),
+            concat!(env!("CARGO_MANIFEST_DIR"), "/tests/goldens/stdlib/settings-schema.json"),
             &text,
         );
     }
 }
 
-// ---- test 4: the factory of stdcore ----------------------------------------
+// ---- test 4: a factory of the standard features ----------------------------------------
 
 #[test]
 fn the_factory_states_its_name_its_features_in_order_and_no_package_used() {
     let factory = factory();
-    assert_eq!(factory.name(), stdcore::PACKAGE);
+    assert_eq!(factory.name(), "std");
     assert!(factory.used().is_empty());
     let names: Vec<String> = factory.features().iter().map(|feature| feature.name.to_string()).collect();
-    let package: Vec<String> = stdcore::package(StdcoreConfig::new())
+    let package: Vec<String> = stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new())
         .features
         .iter()
         .map(|feature| feature.info().name.to_string())
@@ -1086,7 +1117,7 @@ fn digest(entry: PackageEntry) -> u64 {
 #[test]
 fn built_from_empty_settings_the_factory_gives_the_package() {
     let from_factory = factory().build(&PackageSettings::new()).unwrap();
-    assert_eq!(digest(from_factory), digest(stdcore::package(StdcoreConfig::new())));
+    assert_eq!(digest(from_factory), digest(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new())));
 
     // Settings read from empty data are the defaults too.
     let factory = factory();
@@ -1098,7 +1129,7 @@ fn built_from_empty_settings_the_factory_gives_the_package() {
     }
     assert_eq!(
         digest(factory.build(&settings).unwrap()),
-        digest(stdcore::package(StdcoreConfig::new()))
+        digest(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()))
     );
 }
 
@@ -1107,7 +1138,8 @@ fn a_configuration_read_from_data_reaches_the_package() {
     let factory = factory();
     let mut settings = PackageSettings::new();
     settings.insert(read("math", json!({ "numbered_equations": false })));
-    let expected = stdcore::package(StdcoreConfig::new().math(MathConfig { numbered_equations: false }));
+    let config = StdlibConfig::new().math(MathConfig { numbered_equations: false });
+    let expected = stdlib::add_features(PackageEntry::new("std"), config);
     assert_eq!(digest(factory.build(&settings).unwrap()), digest(expected));
 }
 
@@ -1117,7 +1149,8 @@ fn a_feature_switched_off_is_absent() {
     settings.switch_off("annotations");
     let entry = factory().build(&settings).unwrap();
     assert!(entry.features.iter().all(|feature| feature.info().name != "annotations"));
-    assert_eq!(entry.features.len(), stdcore::package(StdcoreConfig::new()).features.len() - 1);
+    let all = stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new());
+    assert_eq!(entry.features.len(), all.features.len() - 1);
 }
 
 // ---- test 5: the catalog ---------------------------------------------------
@@ -1150,7 +1183,7 @@ fn the_catalog_answers_a_name_it_holds_and_asks_its_resolvers_in_order() {
     catalog.add_resolver(first.clone());
     catalog.add_resolver(second.clone());
 
-    assert_eq!(catalog.resolve("stdcore").unwrap().unwrap().name(), "stdcore");
+    assert_eq!(catalog.resolve("std").unwrap().unwrap().name(), "std");
     assert!(first.asked.lock().unwrap().is_empty(), "a compiled package asks no resolver");
 
     assert_eq!(catalog.resolve("two").unwrap().unwrap().name(), "two");
@@ -1161,7 +1194,7 @@ fn the_catalog_answers_a_name_it_holds_and_asks_its_resolvers_in_order() {
     assert_eq!(*second.asked.lock().unwrap(), ["two"], "the first answer stops the search");
 
     assert!(catalog.resolve("three").unwrap().is_none());
-    assert_eq!(catalog.compiled_names().map(|name| name.as_str()).collect::<Vec<_>>(), ["stdcore"]);
+    assert_eq!(catalog.compiled_names().map(|name| name.as_str()).collect::<Vec<_>>(), ["std"]);
 }
 
 #[test]

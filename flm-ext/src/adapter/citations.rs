@@ -26,7 +26,7 @@
 use std::sync::Arc;
 
 use flm_core::lang::{FlmOrigin, FlmSource};
-use flm_core::stdcore::features::citations::{
+use flm_core::stdlib::features::citations::{
     CitationAnswer as CoreCitationAnswer, CitationEntry as CoreCitationEntry,
     CitationProvider as CoreCitationProvider, CitationProviderError, CitationRequest,
     CitationResult as CoreCitationResult, EntryPiece as CoreEntryPiece, ProviderCx as CoreProviderCx,
@@ -36,8 +36,10 @@ use serde_json::Value;
 use crate::adapter::diag::HANDLER_FAILED;
 use crate::adapter::names::Owner;
 use crate::adapter::services::DeclaredServices;
+use crate::adapter::progress::ScopeFacade;
 use crate::api::host::HostHandle;
-use crate::api::stdcore::features::citations::{
+use crate::api::progress::ProgressScope;
+use crate::api::stdlib::features::citations::{
     CitationAnswer, CitationEntry, CitationProvider, CitationResult, EntryPiece, ProviderCx,
 };
 use crate::runtime::ExtError;
@@ -163,7 +165,11 @@ impl ProviderCx for ProviderCxFacade<'_, '_> {
     }
 
     fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-        self.services.handle(name)
+        self.services.handle(name, self.cx.progress())
+    }
+
+    fn progress(&self) -> Box<dyn ProgressScope> {
+        ScopeFacade::boxed(self.cx.progress().clone())
     }
 }
 

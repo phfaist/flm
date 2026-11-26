@@ -13,7 +13,7 @@
 // not read.
 import { BodyDef, BodyLayout, ElementDef, Mode, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec } from "flm:model/element";
-import { TEXT_COMMANDS } from "flm:stdcore/features/math";
+import { TEXT_COMMANDS } from "flm:stdlib/features/math";
 
 // The element of every macro of MathJax's that the extension declares.
 export const MACRO = "math-mathjax.macro";
@@ -153,10 +153,10 @@ export function declare_commands(b, commands) {
   const owner = b.feature();
   for (const [name, pkg] of commands.macros) {
     const docs = pkg === OWN.name
-      ? `\`\\${name}\`: a delimiter the math-mathjax extension defines, beyond MathJax's packages`
+      ? "A delimiter that the math-mathjax extension defines, beyond MathJax's packages."
       : pkg === PREAMBLE
-        ? `\`\\${name}\`: a command that the \`preamble\` of the feature \`math-mathjax\` defines`
-        : `\`\\${name}\`: a command of MathJax's \`${pkg}\` package`;
+        ? "A command that the `preamble` of the feature `math-mathjax` defines."
+        : `A command of MathJax's \`${pkg}\` package.`;
     b.element(new ElementDef(
       owner, [name], SyntaxDef.Macro([]),
       new ElementSpec(MACRO).with_value({ package: pkg }).docs(docs),
@@ -165,8 +165,8 @@ export function declare_commands(b, commands) {
   const body = new BodyDef().layout(BodyLayout.Inline).mode(Mode.Math);
   for (const [name, pkg] of commands.environments) {
     const docs = pkg === PREAMBLE
-      ? `\`\\begin{${name}}\`: an environment that the \`preamble\` of the feature \`math-mathjax\` defines`
-      : `\`\\begin{${name}}\`: an environment of MathJax's \`${pkg}\` package`;
+      ? "An environment that the `preamble` of the feature `math-mathjax` defines."
+      : `An environment of MathJax's \`${pkg}\` package.`;
     b.element(new ElementDef(
       owner, [name], SyntaxDef.Environment([], body),
       new ElementSpec(ENVIRONMENT).with_value({ package: pkg }).docs(docs),

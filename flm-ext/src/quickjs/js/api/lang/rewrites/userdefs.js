@@ -8,7 +8,7 @@
 // that made it (one table per feature and registry), and stale under another registry. A handler
 // need not keep the token: a second `compile_template_with` with an equal specification answers the
 // same token without compiling again.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 import { BlockRole } from "flm:model/aspects";
 import { Durable } from "flm:_runtime";
 
@@ -243,3 +243,12 @@ export class ExtraValues {
 // Mirrors `instantiate`: instantiates `template` under `bindings` as a new tree, attributed to the
 // span of `site`.
 export function instantiate(site, template, bindings) { return call(MODULE, "instantiate", [site, template, bindings]); }
+
+// A sequence of staged nodes: several staged nodes in order, which a method returns as one object,
+// with `len()`, `is_empty()`, `get(i)` and iteration, which can be repeated. A function that takes
+// several staged nodes takes a sequence, or an array of staged nodes and sequences, joined in
+// order.
+export class StagedNodes extends Sequence {
+  get(i) { return call(this, "get", [i]); }
+}
+register_class("staged_nodes", StagedNodes);

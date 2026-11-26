@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+{% if "lang" in regions %}
+<html lang="{{ regions.lang }}">
+{% else %}
+<html>
+{% endif %}
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ regions.title }}</title>
+{% if regions.styles %}
+{{ regions.styles }}
+{% endif %}
+    <style>
+      /* The header and the table of contents are inside the element
+         .flm-content, so they take the width, the side padding and the room
+         for the margin-note column that flm.html.style.page gives the text:
+         the line under the header is exactly as wide as the text, and on a
+         narrow screen the header keeps the same space from the edge as the
+         text. */
+      @layer flm {
+        /* The text is 16px whatever the browser's text size, and the space on
+           each side of the content is narrower than flm.html.style.page's;
+           the space above and below the content keeps that stylesheet's
+           value. */
+        :root {
+          --flm-page-size: 16px;
+          --flm-page-padding: .75rem;
+          --flm-page-padding-vertical: 1.5rem;
+        }
+        /* The header holding the title, the authors and the date, with a line
+           under it. */
+        .flm-content > header {
+          margin-bottom: 2em;
+          padding-bottom: 1em;
+          border-bottom: 1px solid currentColor;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="flm-content" id="flm-content">
+{% for name, piece in pieces|items if piece.place == "before-content" and name != "flm.toc" %}
+{% if loop.first %}
+    <header>
+{% endif %}
+{{ piece.text }}
+{% if loop.last %}
+    </header>
+{% endif %}
+{% endfor %}
+{% if "flm.toc" in pieces %}
+{{ pieces["flm.toc"].text }}
+{% endif %}
+{{ regions.content }}
+{% for name, piece in pieces|items if piece.place == "after-content" %}
+{{ piece.text }}
+{% endfor %}
+    </main>
+{% if regions.scripts %}
+{{ regions.scripts }}
+{% endif %}
+  </body>
+</html>

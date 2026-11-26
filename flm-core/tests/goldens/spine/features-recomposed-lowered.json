@@ -596,7 +596,7 @@
           "elem": "flm.pres.latex.raw",
           "body": [],
           "payload": {
-            "text": "formatcom=\\flmFmtVRB{verbtext}"
+            "text": "fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}"
           }
         }
       ],
@@ -625,7 +625,7 @@
           "elem": "flm.pres.latex.raw",
           "body": [],
           "payload": {
-            "text": "formatcom=\\flmFmtVRB{verbcode}"
+            "text": "fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}"
           }
         }
       ],
@@ -654,7 +654,7 @@
           "elem": "flm.pres.latex.raw",
           "body": [],
           "payload": {
-            "text": "formatcom=\\flmFmtVRB{verba}"
+            "text": "fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verba}"
           }
         }
       ],
@@ -683,7 +683,7 @@
           "elem": "flm.pres.latex.raw",
           "body": [],
           "payload": {
-            "text": "formatcom=\\flmFmtVRB{verbtext}"
+            "text": "fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}"
           }
         }
       ],

@@ -17,7 +17,8 @@
       }
     ],
     "payload": {
-      "display": "inline"
+      "display": "inline",
+      "role": "flm.math.formula"
     }
   },
   {
@@ -31,7 +32,8 @@
       }
     ],
     "payload": {
-      "display": "display"
+      "display": "display",
+      "role": "flm.math.formula"
     }
   }
 ]

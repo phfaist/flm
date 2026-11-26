@@ -1,7 +1,7 @@
 //! One entity of a namespace, with every declaration of its name ([`Environment::entity`]).
 
 use flm_core::core::registry::ElementKind;
-use flm_core::stdcore::backends::pieces::declared_pieces;
+use flm_core::stdlib::backends::pieces::declared_pieces;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -16,7 +16,9 @@ impl Environment {
     /// holds no entity of that name.
     ///
     /// Most names are declared once. An element type that two features register has one
-    /// declaration per feature, each with its own values. Each declaration holds its owner,
+    /// declaration per feature, each with its own values; the type's documentation text is
+    /// held by the declaration of the feature that gave it, and by no other (a value's text
+    /// is never taken for the type's). Each declaration holds its owner,
     /// its documentation text, the declaration as `flm-core` serializes it where it has a
     /// serialized form, and what the namespace adds: an element type's values with the
     /// commands written for each, a collection's members, the element type a lowering rule
@@ -52,16 +54,16 @@ impl Environment {
                         continue;
                     }
                     let owner = entry.owner.to_string();
-                    let value = ElementValueView {
-                        number: entry.idx.0,
-                        docs: entry.element.docs.clone(),
-                        summary: summary_of(&entry.element.docs).to_string(),
-                        commands: self.commands_for(&entry.element),
-                    };
+                    let value = self.element_value_view(entry.idx.0, &entry.element);
                     match out.iter_mut().find(|(known, _)| *known == owner) {
                         Some((_, view)) => view.values.push(value),
                         None => {
-                            let mut view = declaration(Some(&owner), &entry.element.docs);
+                            // The declaration of the feature that gave the type's text holds it.
+                            let docs = match registry.element_type_text(name) {
+                                Some(text) if text.owner == *owner => text.docs.as_str(),
+                                _ => "",
+                            };
+                            let mut view = declaration(Some(&owner), docs);
                             view.values.push(value);
                             out.push((owner, view));
                         }
@@ -282,7 +284,8 @@ pub struct EntityDeclarationView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
     /// Its documentation text; for a settings key, its description from the settings'
-    /// JSON Schema.
+    /// JSON Schema; for an element type, the type's text when this declaration's feature gave
+    /// it, and empty otherwise.
     #[serde(skip_serializing_if = "is_empty")]
     pub docs: String,
     /// The first paragraph of [`docs`](EntityDeclarationView::docs).

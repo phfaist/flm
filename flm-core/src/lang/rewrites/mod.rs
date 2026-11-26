@@ -30,9 +30,9 @@
 //!
 //! A feature places each pass in a plan as a [rewrite
 //! stage](crate::core::stage::RewriteStage): the `input` feature
-//! ([`crate::stdcore::features::input`]), the `userdefs` feature
-//! ([`crate::stdcore::features::userdefs`]) and the `blocks` feature
-//! ([`crate::stdcore::features::blocks`]). The stage declares where the pass
+//! ([`crate::stdlib::features::input`]), the `userdefs` feature
+//! ([`crate::stdlib::features::userdefs`]) and the `blocks` feature
+//! ([`crate::stdlib::features::blocks`]). The stage declares where the pass
 //! runs in the plan; the pass does the work.
 
 pub mod blocks;

@@ -1,8 +1,8 @@
 //! The prelude's stubs reached from a script (that every export of every
 //! module is reachable is `tests/quickjs_exports.rs`'s): the classes and
 //! functions of `flm:model/aspects`,
-//! `flm:stdcore/features/refs`, `flm:stdcore/features/numbering`,
-//! `flm:stdcore/backends/latex` (its namespaces `latex.preamble` and `latex.packages`),
+//! `flm:stdlib/features/refs`, `flm:stdlib/features/numbering`,
+//! `flm:stdlib/backends/latex` (its namespaces `latex.preamble` and `latex.packages`),
 //! `flm:core/registry`, `flm:model/element`, `flm:lang/mint` and
 //! `flm:lang/rewrites/userdefs`, one smoke call per method forwarding to
 //! its arm: an
@@ -20,6 +20,7 @@ mod common;
 
 use flm_core::core::registry::PackageResolver;
 use flm_core::core::settings::PackageSettings;
+use flm_core::stdlib::backends::latex_recomposed;
 use flm_ext::quickjs::{JsHost, JsSettings};
 
 /// The extension's main module.
@@ -29,13 +30,13 @@ import { ArgDef, BodyDef, ElementDef, Mode, ScopedPackageDef, SyntaxDef } from "
 import { Definition, UserDefinition } from "flm:lang/rewrites/userdefs";
 import { ElementSpec, Aspect } from "flm:model/element";
 import { BlockRole, RefPoint, NumberSource, AnchorPolicy, ContentRef, AcceptedRefTypes } from "flm:model/aspects";
-import * as refs from "flm:stdcore/features/refs";
+import * as refs from "flm:stdlib/features/refs";
 import {
   COUNTERS, COUNTERS_SLOT, STYLES_SLOT, PARENT_SETS_SLOT, CounterDecl, CounterStyleDecl, ParentSetDecl, Within,
   PrefixWords, PluralWords, Delimiters, NumberTemplate, FormatOptions,
-} from "flm:stdcore/features/numbering";
-import * as latex from "flm:stdcore/backends/latex";
-import { BODY_SLOT } from "flm:stdcore/backends/pres";
+} from "flm:stdlib/features/numbering";
+import * as latex from "flm:stdlib/backends/latex";
+import { BODY_SLOT } from "flm:stdlib/backends/pres";
 import { StageDecl, Effect, Scope } from "flm:core/stage";
 
 const BOX = "sm.box";
@@ -156,7 +157,7 @@ fn every_new_stub_forwards_to_its_arm() {
         "Alpha h [sm.box 1 sm.box; 1 segment; smbox-one] and Beta [sm.box 2 sm.box; 1 segment; sm--Beta]. See Box (1). in"
     );
     let (latex, diagnostics) = common::latex_of(&registry, DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(
         latex.contains("\\smx{}\\begin{smenv}\\textbf{Alpha h}\\flmLabels{\\label{ref1}}\\end{smenv} and \\smx{}\\begin{smenv}\\textbf{Beta}\\end{smenv}. See \\flmRef{ref1}."),
         "{latex}"
@@ -166,8 +167,7 @@ fn every_new_stub_forwards_to_its_arm() {
 #[test]
 fn a_command_of_the_scoped_package_outside_its_scope_is_unknown() {
     let (_, diagnostics) = common::text_of(&registry(), "Outside: \\smhint{x}.");
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].contains("smhint"), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["core.specs.unresolvable-command"], "{diagnostics:?}");
 }
 
 /// The main module of the extension `rl`: its feature declares the argument

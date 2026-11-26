@@ -543,9 +543,9 @@ impl<'a> ComputedView<'a> {
     /// [`Scope::Document`](crate::core::stage::Scope::Document), run once for
     /// the whole document) writes. The `refs` feature does so:
     /// its resolve stage reads
-    /// [`REF_TARGETS`](crate::stdcore::features::refs::REF_TARGETS), written
+    /// [`REF_TARGETS`](crate::stdlib::features::refs::REF_TARGETS), written
     /// once for the document, rather than the reference points of
-    /// [`REFPOINTS`](crate::stdcore::features::refpoints::REFPOINTS), written
+    /// [`REFPOINTS`](crate::stdlib::features::refpoints::REFPOINTS), written
     /// per tree.
     ///
     /// This rule is the reading side of the rule that

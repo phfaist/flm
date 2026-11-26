@@ -60,7 +60,7 @@ pub use workflows::{
 /// one, and the package factories the registry was built from.
 ///
 /// Make one with [`Environment::new`] from the parts a program holds, or, under the cargo
-/// feature `flm-main`, from a document the host prepared (`Environment::of_prepared`). Its
+/// feature `flm-host`, from a document the host prepared (`Environment::of_prepared`). Its
 /// methods answer the views of the [module documentation](self). An environment is
 /// immutable; each method computes its view anew from the registry.
 ///
@@ -70,7 +70,7 @@ pub struct Environment {
     registry: Arc<FlmRegistry>,
     plan: Option<Arc<Plan>>,
     factories: Vec<PackageFactory>,
-    #[cfg(feature = "flm-main")]
+    #[cfg(feature = "flm-host")]
     pub(crate) host: Option<crate::host::HostInfo>,
 }
 
@@ -88,7 +88,7 @@ impl Environment {
             registry,
             plan,
             factories,
-            #[cfg(feature = "flm-main")]
+            #[cfg(feature = "flm-host")]
             host: None,
         }
     }
@@ -122,7 +122,7 @@ impl Environment {
                     .filter(|feature| self.registry.feature(&feature.name).is_none())
                     .map(|feature| feature.name.to_string())
                     .collect(),
-                #[cfg(feature = "flm-main")]
+                #[cfg(feature = "flm-host")]
                 origin: self.host.as_ref().map(|host| host.origin_of(factory.name())),
             })
             .collect()
@@ -168,19 +168,36 @@ impl Environment {
             if entry.owner != *feature || entry.kind != ElementKind::Source {
                 continue;
             }
-            let value = ElementValueView {
-                number: entry.idx.0,
-                docs: entry.element.docs.clone(),
-                summary: summary_of(&entry.element.docs).to_string(),
-                commands: self.commands_for(&entry.element),
-            };
+            let value = self.element_value_view(entry.idx.0, &entry.element);
             let name = entry.element.name.to_string();
             match types.iter_mut().find(|known| known.name == name) {
                 Some(known) => known.values.push(value),
-                None => types.push(ElementTypeView { name, values: vec![value] }),
+                None => {
+                    let docs = self.element_type_docs(&name).to_string();
+                    let summary = summary_of(&docs).to_string();
+                    types.push(ElementTypeView { name, docs, summary, values: vec![value] });
+                }
             }
         }
         types
+    }
+
+    /// The documentation text of the element type `name`, whichever feature gave it
+    /// ([`FlmRegistry::element_type_text`]); empty when the type has no text. Every view
+    /// that lists the type holds this text, and none holds the text of one of its values.
+    pub(super) fn element_type_docs(&self, name: &str) -> &str {
+        self.registry.element_type_text(name).map_or("", |text| text.docs.as_str())
+    }
+
+    /// The view of the element value `element`, whose number in the registry is `number`.
+    pub(super) fn element_value_view(&self, number: u32, element: &Arc<ElementSpec>) -> ElementValueView {
+        ElementValueView {
+            number,
+            docs: element.docs.clone(),
+            summary: summary_of(&element.docs).to_string(),
+            commands: self.commands_for(element),
+            aspects: commands::aspect_names(element),
+        }
     }
 
     /// The commands written for the element value `element`: every declaration whose
@@ -320,13 +337,13 @@ pub struct PackageView {
     /// The names of its features, in order.
     pub features: Vec<String>,
     /// The names of those of its features that the registry does not hold, in order: the
-    /// features that a settings source switched off (by writing `false` for the feature),
+    /// features that a settings source switched off (by writing `enabled: false`, or `false`, for the feature),
     /// or that the registry was built without.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub not_in_registry: Vec<String>,
     /// Where the package comes from; present when the environment was made from a prepared
-    /// document (cargo feature `flm-main`).
-    #[cfg(feature = "flm-main")]
+    /// document (cargo feature `flm-host`).
+    #[cfg(feature = "flm-host")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<crate::host::PackageOrigin>,
 }
@@ -381,6 +398,14 @@ pub struct DeclaredView {
 pub struct ElementTypeView {
     /// The element type's name.
     pub name: String,
+    /// The element type's documentation text, whichever feature gave it: what the nodes
+    /// of the type mean, for all its values. Empty when the type has no text; a value's
+    /// text is never taken for the type's.
+    #[serde(skip_serializing_if = "is_empty")]
+    pub docs: String,
+    /// The first paragraph of [`docs`](ElementTypeView::docs).
+    #[serde(skip_serializing_if = "is_empty")]
+    pub summary: String,
     /// Its values that the feature registers, in numbering order.
     pub values: Vec<ElementValueView>,
 }
@@ -403,6 +428,9 @@ pub struct ElementValueView {
     /// the author writes), a value that a stage creates, or a value that only declares its
     /// element type and that no node carries.
     pub commands: Vec<CommandRef>,
+    /// The aspects attached to the value, named as [`ElementView::aspects`] names them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub aspects: Vec<String>,
 }
 
 /// A reference to one command: its kind, the name it is written under, the feature that

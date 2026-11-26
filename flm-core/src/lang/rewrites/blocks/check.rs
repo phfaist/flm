@@ -17,7 +17,7 @@
 //! A violation is a fault in the program (the parser, a rewrite pass, or an
 //! element's aspect), not in the document. The check stage
 //! `flm.blocks.check-contract` of the `blocks` feature
-//! ([`crate::stdcore::features::blocks::check`]) runs the parse part over every
+//! ([`crate::stdlib::features::blocks::check`]) runs the parse part over every
 //! frozen tree, and the block-structure part over every tree the plan
 //! structured, and records the violations; a test can call the functions
 //! directly.

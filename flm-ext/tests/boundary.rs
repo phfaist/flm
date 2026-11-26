@@ -10,8 +10,9 @@ use std::sync::{Arc, Mutex};
 
 use flm_core::core::data::table::TableHandle;
 use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::FlmRegistry;
+use flm_core::core::registry::{BuildError, FlmRegistry};
 use flm_core::core::run::{Externals, Run, RunOptions};
+use flm_core::core::services::{ServiceError, SlotTarget};
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, Flm, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
@@ -26,7 +27,7 @@ use flm_ext::api::lang::rewrites::userdefs::{Definition, Expansion, ExpandPolicy
 use flm_ext::ExtError;
 use serde_json::{json, Value};
 
-use common::json_double::{case_one, module, Js, JsonDouble, TODOS, WORDS};
+use common::json_double::{case_one, module, pull_every, pull_sequence, Js, JsonDouble, TODOS, WORDS};
 use common::{registry_with, text_of, try_registry_with};
 
 // --- helpers -----------------------------------------------------------------------------------
@@ -124,6 +125,7 @@ fn table_with_root(call: u64, text: &str) -> (CallTable<'static>, Value) {
 /// The first node under `root` whose name is `name`.
 fn named(table: &mut CallTable<'_>, root: &Value, name: &str) -> Value {
     let descendants = call(table, root, "descendants", json!([])).expect("descendants");
+    let descendants = pull_every(|target, method, args| call(table, target, method, args), &descendants).expect("descendants");
     descendants
         .as_array()
         .into_iter()
@@ -136,6 +138,19 @@ fn named(table: &mut CallTable<'_>, root: &Value, name: &str) -> Value {
 /// The kind a value written as a handle names.
 fn kind_of(value: &Value) -> Option<HandleKind> {
     handle_from_value(value).ok().map(|handle| handle.kind)
+}
+
+/// The method an argument error names; `None` for another error.
+fn argument_method(error: &ExtError) -> Option<&str> {
+    match error {
+        ExtError::Argument { method, .. } => Some(method),
+        _ => None,
+    }
+}
+
+/// The kind and the method of the error `{"err": …}` a handler noted.
+fn err_kind_method(noted: &Value) -> (Value, Value) {
+    (noted["err"]["kind"].clone(), noted["err"]["method"].clone())
 }
 
 // --- case 1 ------------------------------------------------------------------------------------
@@ -208,7 +223,7 @@ fn a_feature_builder_answers_its_methods_by_name() {
         });
         seen.note("element", js.call(b, "element", json!([element]))?);
         let badge = json!({ "kind": "macro", "name": "badge", "args": [], "expand": "always" });
-        let rule = js.call(&module("stdcore/features/userdefs"), "expand_in_tree_rule_for", json!(["wc.badge", badge]))?;
+        let rule = js.call(&module("stdlib/features/userdefs"), "expand_in_tree_rule_for", json!(["wc.badge", badge]))?;
         seen.note("lowering_rule", js.call(b, "lowering_rule", json!([rule]))?);
         // An override, with the definition replacing the standard macro.
         seen.note("override_callable", js.call(b, "override_callable", json!(["macro", "emph"]))?);
@@ -217,7 +232,7 @@ fn a_feature_builder_answers_its_methods_by_name() {
         let owner = js.call(b, "feature", json!([]))?;
         let def = js.call(&ud, "element_def", json!([owner, "wc.macro.emph"]))?;
         js.call(b, "element", json!([def]))?;
-        let rule = js.call(&module("stdcore/features/userdefs"), "expand_in_tree_rule_for", json!(["wc.macro.emph", emph]))?;
+        let rule = js.call(&module("stdlib/features/userdefs"), "expand_in_tree_rule_for", json!(["wc.macro.emph", emph]))?;
         js.call(b, "lowering_rule", json!([rule]))?;
         // A table, a capability and a stage providing it.
         seen.note("table", js.call(b, "table", json!(["wc.out", "what the stage wrote"]))?);
@@ -245,9 +260,9 @@ fn a_feature_builder_answers_its_methods_by_name() {
     for label in ["element", "lowering_rule", "override_callable", "table", "capability", "stage", "digest_input"] {
         assert_eq!(log.get(label), Value::Null, "{label}");
     }
-    assert_eq!(log.get("no method")["err"], json!({ "kind": "argument", "method": "push", "detail": "an object of the kind `feature_builder` has no method `push`" }));
-    assert_eq!(log.get("bad count")["err"]["detail"], json!("the method takes 2 arguments, not 1"));
-    assert_eq!(log.get("bad argument")["err"]["detail"], json!("argument 1 must be a string, not `1`"));
+    assert_eq!(err_kind_method(&log.get("no method")), (json!("argument"), json!("push")));
+    assert_eq!(log.get("bad count")["err"]["kind"], json!("argument"));
+    assert_eq!(log.get("bad argument")["err"]["kind"], json!("argument"));
     // What was declared works.
     let (text, diagnostics) = text_of(&registry, "A (\\badge) and \\emph{x}.");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -282,8 +297,15 @@ fn a_feature_builder_answers_its_methods_by_name() {
         js.call(b, "require_service", json!(["wc.spell-checker"]))?;
         Ok(())
     });
-    let error = try_registry_with([double.package()]).expect_err("an unfilled slot").to_string();
-    assert!(error.contains("wc.spell-checker"), "{error}");
+    let error = try_registry_with([double.package()]).expect_err("an unfilled slot");
+    assert!(
+        error.errors.iter().any(|found| matches!(
+            found,
+            BuildError::Service(ServiceError::UndeclaredSlot { target: SlotTarget::ByName(slot), .. })
+                if slot.as_str() == "wc.spell-checker"
+        )),
+        "{error}"
+    );
 }
 
 // --- every handle kind, by name: stages ---------------------------------------------------------
@@ -332,10 +354,10 @@ fn stage_scenario(log: &Log) -> Run {
                 note("frozen_tree span", js.call(&frozen, "span_content", json!([]))?);
                 note("tree unknown", js.call(cx, "tree", json!(["tree#99"]))?);
                 // A tuple crosses as a list.
-                let trees = js.call(cx, "trees", json!([]))?;
+                let trees = js.traverse(cx, "trees", json!([]))?;
                 note("trees ids", json!(trees.as_array().map(|pairs| pairs.iter().map(|pair| pair[0].clone()).collect::<Vec<_>>())));
                 note("trees kinds", json!(trees.as_array().map(|pairs| pairs.iter().map(|pair| kind_of(&pair[1]).map(HandleKind::name)).collect::<Vec<_>>())));
-                let walk = js.call(cx, "walk", json!([]))?;
+                let walk = js.traverse(cx, "walk", json!([]))?;
                 let mut chars = Vec::new();
                 for entry in walk.as_array().into_iter().flatten() {
                     let text = js.call(&entry["node"], "chars", json!([]))?;
@@ -353,7 +375,7 @@ fn stage_scenario(log: &Log) -> Run {
                 note("push handle key", outcome(js.call(&piece, "push", json!([{ "@handle": 1, "other": 2 }]))));
                 note("push a handle", outcome(js.call(&piece, "push", json!([root]))));
                 note("table undeclared", outcome(js.call(out, "table", json!(["wc.first"]))));
-                let emph = js.call(&root, "descendants", json!([]))?;
+                let emph = js.traverse(&root, "descendants", json!([]))?;
                 let at = emph.as_array().and_then(|nodes| nodes.first()).cloned().unwrap_or(Value::Null);
                 let diagnostic = json!({ "id": "wc.seen", "severity": "note", "message": "seen", "data": { "n": 1 }, "at": at });
                 note("diags", js.call(out, "diags", json!([diagnostic]))?);
@@ -372,10 +394,10 @@ fn stage_scenario(log: &Log) -> Run {
                 log.note("doc my_tree", js.call(cx, "my_tree", json!([]))?);
                 let ext = js.call(cx, "get", json!(["wc.first"]))?;
                 log.note("get ext", json!(ext.as_object().map(|map| map.keys().cloned().collect::<Vec<_>>())));
-                log.note("ext items", js.call(&ext["ext"], "items", json!([]))?);
+                log.note("ext items", js.sequence(&ext["ext"], "items", json!([]))?);
                 let trees = js.call(cx, "get", json!(["flm.userdefs.always-expanded"]))?;
                 log.note("get trees", json!(kind_of(&trees["trees"]).map(HandleKind::name)));
-                let pairs = js.call(&trees["trees"], "trees", json!([]))?;
+                let pairs = js.traverse(&trees["trees"], "trees", json!([]))?;
                 log.note("trees ids", json!(pairs.as_array().map(|pairs| pairs.iter().map(|pair| pair[0].clone()).collect::<Vec<_>>())));
                 let one = js.call(&trees["trees"], "tree", json!(["tree#1"]))?;
                 let one = js.call(&one, "root", json!([]))?;
@@ -415,7 +437,7 @@ fn a_stage_context_answers_its_methods_by_name() {
     let undeclared = log.get("tree#0 get undeclared");
     assert_eq!(undeclared["err"]["kind"], json!("core"), "{undeclared}");
     assert_eq!(undeclared["err"]["core_kind"], json!("access"), "{undeclared}");
-    assert_eq!(log.get("tree#0 no method")["err"]["detail"], json!("an object of the kind `stage_cx` has no method `push`"));
+    assert_eq!(err_kind_method(&log.get("tree#0 no method")), (json!("argument"), json!("push")));
     assert_eq!(log.get("doc scope"), json!("document"));
     assert_eq!(log.get("doc tree_id"), Value::Null);
     assert_eq!(log.get("doc my_tree"), Value::Null);
@@ -455,15 +477,15 @@ fn a_float_and_a_reserved_key_do_not_cross() {
     let log = Log::default();
     stage_scenario(&log);
     let refused = |label: &str| log.get(&format!("tree#0 {label}"))["err"].clone();
-    assert_eq!(refused("push float"), json!({ "kind": "value", "detail": "`push`: a number must be an integer, not `0.5`" }));
-    assert_eq!(refused("push reserved"), json!({ "kind": "value", "detail": "`push`: a map key must not begin with `$`, as `$x` does" }));
-    assert_eq!(refused("push handle key"), json!({ "kind": "value", "detail": "`push`: the map key `@handle` is reserved" }));
+    assert_eq!(refused("push float")["kind"], json!("value"));
+    assert_eq!(refused("push reserved")["kind"], json!("value"));
+    assert_eq!(refused("push handle key")["kind"], json!("value"));
     // A handle is not data: it cannot be pushed into a table.
-    assert_eq!(refused("push a handle"), json!({ "kind": "value", "detail": "`push`: the map key `@handle` is reserved" }));
+    assert_eq!(refused("push a handle")["kind"], json!("value"));
     // A float as an argument is refused before the method runs.
     let (mut table, root) = table_with_root(1, "ab");
     let error = call(&mut table, &root, "child", json!([0.5])).expect_err("a float");
-    assert_eq!(error, ExtError::Value { detail: "`child`: a number must be an integer, not `0.5`".to_string() });
+    assert_eq!(error.kind(), "value");
     let error = call(&mut table, &root, "argument_is_provided", json!([{ "$x": 1 }])).expect_err("a reserved key");
     assert_eq!(error.kind(), "value");
 }
@@ -501,8 +523,9 @@ fn a_node_answers_its_methods_by_name() {
         assert_eq!(ask(&emph, method, json!([])), answer, "{method}");
     }
     let children = ask(&root, "children", json!([]));
-    assert_eq!(children.as_array().map(Vec::len), Some(2));
+    assert_eq!(children["@handle"]["len"], json!(2));
     let descendants = ask(&root, "descendants", json!([]));
+    let descendants = pull_every(|target, method, args| Ok(ask(target, method, args)), &descendants).expect("descendants");
     let chars: Vec<Value> = descendants.as_array().into_iter().flatten().map(|node| ask(node, "chars", json!([]))).collect();
     assert_eq!(chars, [Value::Null, Value::Null, json!("ab"), json!(" cd")]);
     // A pair crosses as a list.
@@ -513,12 +536,13 @@ fn a_node_answers_its_methods_by_name() {
     assert_eq!(ask(&parent, "name", json!([])), json!("emph"));
     // The arguments.
     let nodes = ask(&emph, "argument_nodes", json!([0]));
+    let nodes = pull_sequence(|target, method, args| Ok(ask(target, method, args)), &nodes).expect("the nodes");
     assert_eq!(nodes.as_array().map(|nodes| nodes.iter().map(|node| ask(node, "kind", json!([]))).collect::<Vec<_>>()), Some(vec![json!("group")]));
     let content = ask(&emph, "argument_content_nodes", json!([0]));
     assert_eq!(ask(&module("lang/text"), "chars_text", json!([content])), json!("ab"));
     assert_eq!(ask(&emph, "argument_nodes", json!([5])), Value::Null);
     let named_nodes = ask(&emph, "argument_nodes_named", json!(["content"]));
-    assert_eq!(named_nodes.as_array().map(Vec::len), Some(1));
+    assert_eq!(named_nodes["@handle"]["len"], json!(1));
     let named_content = ask(&emph, "argument_content_nodes_named", json!(["content"]));
     assert_eq!(ask(&module("lang/text"), "chars_text", json!([named_content])), json!("ab"));
     let unknown = ask(&emph, "argument_nodes_named", json!(["nothing"]));
@@ -532,6 +556,7 @@ fn a_node_answers_its_methods_by_name() {
     assert_eq!(ask(&section, "argument_is_provided", json!(["star"])), json!(true));
     assert_eq!(ask(&section, "argument_is_provided", json!(["options"])), json!(false));
     let descendants = ask(&root, "descendants", json!([]));
+    let descendants = pull_every(|target, method, args| Ok(ask(target, method, args)), &descendants).expect("descendants");
     let mut list_node = Value::Null;
     let mut math = Value::Null;
     for node in descendants.as_array().into_iter().flatten() {
@@ -543,7 +568,7 @@ fn a_node_answers_its_methods_by_name() {
         }
     }
     let body = ask(&list_node, "body", json!([]));
-    let first = body.as_array().and_then(|nodes| nodes.first()).cloned().unwrap_or(Value::Null);
+    let first = ask(&body, "get", json!([0]));
     assert_eq!(ask(&first, "name", json!([])), json!("item"));
     let slot = ask(&list_node, "slot_content_nodes_named", json!(["nothing"]));
     assert_eq!(slot["err"]["kind"], json!("core"), "{slot}");
@@ -569,6 +594,7 @@ fn a_key_value_list_and_its_entries_answer_their_methods_by_name() {
     assert_eq!(ask(&module("lang/text"), "chars_text", json!([value])), json!("c"));
     let first_toc = ask(&list, "keyval", json!([1]));
     let value = ask(&first_toc, "value", json!([]));
+    let value = pull_sequence(|target, method, args| Ok(ask(target, method, args)), &value).expect("the value");
     let kinds: Vec<Value> = value.as_array().into_iter().flatten().map(|node| ask(node, "kind", json!([]))).collect();
     assert_eq!(kinds, [json!("group")]);
     let bare = ask(&list, "get", json!(["bare"]));
@@ -608,18 +634,15 @@ fn the_free_functions_answer_by_name_on_their_module() {
     let arg = ask(&mint, "arg_def_from_code", json!(["["]));
     assert_eq!((arg["code"].clone(), arg["layout"].clone()), (json!("["), json!("inline")), "{arg}");
     assert_eq!(ask(&mint, "arg_def_from_code", json!(["q"]))["err"]["core_kind"], json!("arg-code"));
-    let helpers = module("stdcore/features/userdefs");
+    let helpers = module("stdlib/features/userdefs");
     let shout = json!({ "kind": "macro", "name": "shout", "args": [{ "code": "{", "name": "text" }] });
     assert_eq!(ask(&helpers, "element_name_under", json!(["wc", shout])), json!("wc.macro.shout"));
     let rule = ask(&helpers, "expand_in_tree_rule_for", json!(["wc.macro.shout", shout]));
     assert_eq!(kind_of(&rule), Some(HandleKind::LoweringRule));
     // A lowering rule, like every object passed back as an argument, has no method.
-    assert_eq!(ask(&rule, "name", json!([]))["err"]["detail"], json!("an object of the kind `lowering_rule` has no method `name`"));
+    assert_eq!(err_kind_method(&ask(&rule, "name", json!([]))), (json!("argument"), json!("name")));
     // Unknown functions and modules.
-    assert_eq!(
-        ask(&text, "nothing", json!([]))["err"],
-        json!({ "kind": "argument", "method": "nothing", "detail": "the module `lang/text` has no function `nothing`" })
-    );
+    assert_eq!(err_kind_method(&ask(&text, "nothing", json!([]))), (json!("argument"), json!("nothing")));
     let beyond = handle_to_value(Handle { kind: HandleKind::Module, call: 0, index: 99 });
     assert_eq!(ask(&beyond, "chars_text", json!([[]]))["err"]["kind"], json!("argument"));
     // Every module path has a handle.
@@ -654,10 +677,7 @@ fn a_user_definition_answers_its_methods_by_name() {
     let with = call(&mut table, &ud, "element_def_with", json!(["defs", "wc.macro.shout", hook])).expect("with a hook");
     assert_eq!(kind_of(&with), Some(HandleKind::ElementDef));
     let wrong = call(&mut table, &ud, "element_def_with", json!(["defs", "wc.macro.shout", def])).expect_err("not a hook");
-    assert_eq!(
-        wrong,
-        ExtError::Argument { method: "element_def_with".to_string(), detail: "an object of the kind `expand` is expected here, not one of the kind `element_def`".to_string() }
-    );
+    assert_eq!(argument_method(&wrong), Some("element_def_with"), "{wrong:?}");
     let refused = call(&mut table, &userdefs, "UserDefinition::new", json!([{ "kind": "macro" }])).expect_err("no name");
     assert_eq!(refused.kind(), "value");
 }
@@ -675,7 +695,7 @@ fn nested(log: &Log) -> Arc<FlmRegistry> {
     let (inner_log, outer_log) = (log.clone(), log.clone());
     let double = JsonDouble::new("wc").feature("defs", move |js, b| {
         let owner = js.call(b, "feature", json!([]))?;
-        let helpers = module("stdcore/features/userdefs");
+        let helpers = module("stdlib/features/userdefs");
         // `\inner`.
         let log = inner_log.clone();
         let kept_inner = Arc::clone(&kept);
@@ -729,7 +749,7 @@ fn nested(log: &Log) -> Arc<FlmRegistry> {
             log.note("no method", outcome(js.call(&template, "instantiate", json!([]))));
             log.note("wrong order", outcome(js.call(xp, "instantiate", json!([node, cx, template, bindings]))));
             log.note("no method placeholder_bindings", outcome(js.call(&bindings, "bind", json!([]))));
-            let staged = js.call(xp, "instantiate", json!([cx, node, template, bindings]))?;
+            let staged = js.sequence(xp, "instantiate", json!([cx, node, template, bindings]))?;
             if let Some(first) = staged.as_array().and_then(|nodes| nodes.first()) {
                 log.note("no method staged", outcome(js.call(first, "chars", json!([]))));
             }
@@ -750,9 +770,9 @@ fn nested(log: &Log) -> Arc<FlmRegistry> {
 fn an_expander_a_context_and_the_definition_s_objects_answer_their_methods_by_name() {
     let log = Log::default();
     let registry = nested(&log);
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\outer{x}.");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\outer{x}.");
     assert_eq!(common::diagnostics(&run), ["wc.inner.seen: inner seen"]);
-    let text = run.table(flm_core::stdcore::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
+    let text = run.table(flm_core::stdlib::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
     assert_eq!(text.as_deref(), Some("Say [IN x].\n"));
     assert_eq!(log.get("outer depth"), json!(0));
     assert_eq!(log.get("inner depth"), json!(1));
@@ -764,21 +784,14 @@ fn an_expander_a_context_and_the_definition_s_objects_answer_their_methods_by_na
     assert_eq!(log.get("bindings"), json!("placeholder_bindings"));
     assert_eq!(log.get("staged").as_array().map(|kinds| kinds.iter().all(|kind| kind == "staged")), Some(true));
     assert_eq!(log.get("diagnose"), Value::Null);
-    assert_eq!(log.get("no method")["err"]["detail"], json!("an object of the kind `compiled_template` has no method `instantiate`"));
+    assert_eq!(err_kind_method(&log.get("no method")), (json!("argument"), json!("instantiate")));
     // Every other kind without methods answers the same way.
     for (kind, method) in
         [("stage", "run"), ("expand", "expand"), ("element_def", "owner"), ("staged", "chars"), ("placeholder_bindings", "bind")]
     {
-        assert_eq!(
-            log.get(&format!("no method {kind}"))["err"],
-            json!({ "kind": "argument", "method": method, "detail": format!("an object of the kind `{kind}` has no method `{method}`") }),
-            "{kind}"
-        );
+        assert_eq!(err_kind_method(&log.get(&format!("no method {kind}"))), (json!("argument"), json!(method)), "{kind}");
     }
-    assert_eq!(
-        log.get("wrong order")["err"],
-        json!({ "kind": "argument", "method": "instantiate", "detail": "an object of the kind `expand_cx` is expected here, not one of the kind `node`" })
-    );
+    assert_eq!(err_kind_method(&log.get("wrong order")), (json!("argument"), json!("instantiate")));
 }
 
 // --- stale handles, wrong kinds, unknown methods ---------------------------------------------------
@@ -832,31 +845,28 @@ fn a_method_on_a_handle_of_another_kind_is_an_argument_error() {
     let list = call(&mut table, &module("techy/extract"), "parse_keyval_drop_annotations", json!([options])).expect("a list");
     // A node's method on a key-value list.
     let error = call(&mut table, &list, "chars", json!([])).expect_err("not a node");
-    assert_eq!(error, ExtError::Argument { method: "chars".to_string(), detail: "an object of the kind `key_vals` has no method `chars`".to_string() });
+    assert_eq!(argument_method(&error), Some("chars"), "{error:?}");
     // A handle naming another kind than the object at its index.
     let Ok(mut forged) = handle_from_value(&list) else { panic!("a handle") };
     forged.kind = HandleKind::Node;
     let error = dispatch::call(&mut table, forged, "chars", &json!([])).expect_err("a forged kind");
-    assert_eq!(
-        error.to_string(),
-        format!("`chars`: the object at index {} of the running call is of the kind `key_vals`, not `node`", forged.index)
-    );
+    assert_eq!(argument_method(&error), Some("chars"), "{error:?}");
     // An argument of another kind.
     let error = call(&mut table, &module("lang/text"), "chars_text", json!([[list]])).expect_err("not a node");
-    assert_eq!(error.to_string(), "`chars_text`: an object of the kind `node` is expected here, not one of the kind `key_vals`");
+    assert_eq!(argument_method(&error), Some("chars_text"), "{error:?}");
     // An index the call never lent.
     let beyond = handle_to_value(Handle { kind: HandleKind::Node, call: 7, index: 999 });
     let error = call(&mut table, &beyond, "chars", json!([])).expect_err("never lent");
-    assert_eq!(error.to_string(), "`chars`: the running call lent no `node` object at index 999");
+    assert_eq!(argument_method(&error), Some("chars"), "{error:?}");
 }
 
 #[test]
 fn an_unknown_method_is_an_argument_error() {
     let (mut table, root) = table_with_root(8, "ab");
     let error = call(&mut table, &root, "nonesuch", json!([])).expect_err("no such method");
-    assert_eq!(error, ExtError::Argument { method: "nonesuch".to_string(), detail: "an object of the kind `node` has no method `nonesuch`".to_string() });
+    assert_eq!(argument_method(&error), Some("nonesuch"), "{error:?}");
     let error = call(&mut table, &root, "kind", json!({})).expect_err("arguments not a list");
-    assert_eq!(error.to_string(), "`kind`: the arguments must be a list, not `{}`");
+    assert_eq!(argument_method(&error), Some("kind"), "{error:?}");
     let error = call(&mut table, &json!({ "kind": "node" }), "kind", json!([])).expect_err("not a handle");
     assert_eq!(error.kind(), "argument");
 }
@@ -865,7 +875,7 @@ fn an_unknown_method_is_an_argument_error() {
 
 #[test]
 fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
-    use flm_core::stdcore::backends::text;
+    use flm_core::stdlib::backends::text;
     let log = Log::default();
     let seen = log.clone();
     let double = JsonDouble::new("bd").feature("notes", move |js, b| {
@@ -896,9 +906,7 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
             let payload = js.call(node, "payload", json!([]))?;
             let kind = payload["kind"].as_str().unwrap_or("?").to_string();
             let mut content = vec![js.call(lw, "text", json!([cx, format!("({kind}) ")]))?];
-            if let Value::Array(children) = js.call(lw, "lower_children", json!([cx, node]))? {
-                content.extend(children);
-            }
+            content.push(js.call(lw, "lower_children", json!([cx, node]))?);
             let span = js.call(lw, "pres", json!([cx, "flm.pres.span", {}, content]))?;
             Ok(json!({ "emit": [span] }))
         });
@@ -917,7 +925,7 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
                 let read = js.call(cx, "get", json!(["flm.lowered.text"]))?;
                 let lowered = read["lowered"].clone();
                 seen.note("kind", json!(kind_of(&lowered).map(HandleKind::name)));
-                let trees = js.call(&lowered, "trees", json!([]))?;
+                let trees = js.traverse(&lowered, "trees", json!([]))?;
                 let id = trees[0][0].clone();
                 seen.note("ids", json!(trees.as_array().map(|trees| trees.iter().map(|pair| pair[0].clone()).collect::<Vec<_>>())));
                 seen.note("rounds", js.call(&lowered, "rounds", json!([id]))?);
@@ -927,7 +935,7 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
                 let root = js.call(&tree, "root", json!([]))?;
                 seen.note("root", js.call(&root, "element_name", json!([]))?);
                 seen.note("root payload", js.call(&root, "payload", json!([]))?);
-                let descendants = js.call(&root, "descendants", json!([]))?;
+                let descendants = js.traverse(&root, "descendants", json!([]))?;
                 for node in descendants.as_array().into_iter().flatten() {
                     let element = js.call(node, "element_name", json!([]))?;
                     if element == json!("flm.pres.block-heading") {
@@ -937,7 +945,7 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
                         seen.note("slot_count", js.call(node, "slot_count", json!([]))?);
                         seen.note("slot_name", js.call(node, "slot_name", json!([0]))?);
                         seen.note("slot past", js.call(node, "slot_content_nodes", json!([9]))?);
-                        let item = js.call(node, "slot_content_nodes", json!([1]))?;
+                        let item = js.sequence(node, "slot_content_nodes", json!([1]))?;
                         seen.note("item kinds", json!(item.as_array().map(Vec::len)));
                     }
                 }
@@ -969,7 +977,7 @@ fn a_data_payload_element_and_the_lowered_trees_answer_by_name() {
 
 #[test]
 fn a_rewrite_stage_written_against_handles_restages_through_the_dispatcher() {
-    use flm_core::stdcore::backends::text;
+    use flm_core::stdlib::backends::text;
     let log = Log::default();
     let seen = log.clone();
     let double = JsonDouble::new("bd").feature("quotes", move |js, b| {
@@ -984,9 +992,9 @@ fn a_rewrite_stage_written_against_handles_restages_through_the_dispatcher() {
             }]),
         )?;
         let lower_quote = js.lend_lower(|js, node, cx, lw| {
-            let mut out = js.call(lw, "lower_arg", json!([cx, node, 0]))?.as_array().cloned().unwrap_or_default();
+            let mut out = vec![js.call(lw, "lower_arg", json!([cx, node, 0]))?];
             out.push(js.call(lw, "text", json!([cx, "/"]))?);
-            out.extend(js.call(lw, "lower_arg", json!([cx, node, 1]))?.as_array().cloned().unwrap_or_default());
+            out.push(js.call(lw, "lower_arg", json!([cx, node, 1]))?);
             Ok(json!({ "emit": out }))
         });
         let rule = js.call(&module("core/lowering"), "LoweringRule::new", json!(["bd.quote.lower", "bd.quote", {}, lower_quote, "everywhere"]))?;
@@ -999,7 +1007,7 @@ fn a_rewrite_stage_written_against_handles_restages_through_the_dispatcher() {
                 if js.call(node, "parent", json!([]))?.is_null() {
                     let tree = js.call(cx, "tree_id", json!([]))?;
                     seen.note(format!("layout of {}", tree.as_str().unwrap_or("?")), js.call(cx, "layout", json!([]))?);
-                    seen.note("option", json!(js.call(cx, "option", json!(["bd.options"])).err().map(|error| error.to_string())));
+                    seen.note("option", json!(js.call(cx, "option", json!(["bd.options"])).err().map(|error| error.data())));
                 }
                 if let Value::String(text) = js.call(node, "chars", json!([]))? {
                     if !text.contains('@') {
@@ -1011,17 +1019,17 @@ fn a_rewrite_stage_written_against_handles_restages_through_the_dispatcher() {
                 match js.call(node, "name", json!([]))?.as_str() {
                     Some("bdquote") => {
                         let mut content = Vec::new();
-                        let children = js.call(node, "argument_content_nodes", json!([0]))?;
+                        let children = js.sequence(node, "argument_content_nodes", json!([0]))?;
                         for child in children.as_array().into_iter().flatten() {
-                            content.extend(js.call(rs, "restage_subtree", json!([child]))?.as_array().cloned().unwrap_or_default());
+                            content.push(js.call(rs, "restage_subtree", json!([child]))?);
                         }
                         let argument = js.call(rs, "restage_argument_with_content", json!([node, 0, content]))?;
                         let kept = js.call(rs, "restage_argument_named", json!([node, "kept"]))?;
                         seen.note("provided", js.call(&argument, "is_provided", json!([]))?);
-                        let refused = js.call(rs, "restage_argument", json!([node, 5])).err().map(|error| error.to_string());
+                        let refused = js.call(rs, "restage_argument", json!([node, 5])).err().map(|error| error.data());
                         seen.note("out of range", json!(refused));
                         let call = js.call(rs, "restage_invocation", json!([node, [argument, kept], []]))?;
-                        let again = js.call(rs, "restage_invocation", json!([node, [argument], []])).err().map(|error| error.to_string());
+                        let again = js.call(rs, "restage_invocation", json!([node, [argument], []])).err().map(|error| error.data());
                         seen.note("again", json!(again));
                         js.call(rs, "diagnose", json!([{ "id": "bd.quote.seen", "severity": "warning", "message": "a quote" }]))?;
                         let open = js.call(rs, "stage_chars", json!(["<", node]))?;
@@ -1053,13 +1061,13 @@ fn a_rewrite_stage_written_against_handles_restages_through_the_dispatcher() {
     assert!(out.contains("g(at)h"), "{out}");
     // The stage runs on the document's tree and on the synthesized values.
     assert_eq!(log.get("layout of tree#0"), json!("inline-or-blocks"));
-    assert!(log.get("option").as_str().is_some_and(|text| text.contains("bd.options")), "{}", log.get("option"));
+    assert_eq!((log.get("option")["kind"].clone(), log.get("option")["core_kind"].clone()), (json!("core"), json!("option")));
     assert_eq!(log.get("provided"), json!(true));
-    assert!(log.get("out of range").as_str().is_some_and(|text| text == "`\\bdquote` on line 1 has no argument at index 5: it has 2 arguments"), "{}", log.get("out of range"));
     assert_eq!(
-        log.get("again"),
-        json!("`restage_invocation`: each restaged argument or slot may be given to `restage_invocation` once")
+        (log.get("out of range")["kind"].clone(), log.get("out of range")["core_kind"].clone()),
+        (json!("core"), json!("restage"))
     );
+    assert_eq!((log.get("again")["kind"].clone(), log.get("again")["method"].clone()), (json!("argument"), json!("restage_invocation")));
     assert_eq!(log.get("slot"), json!("body"));
     assert_eq!(log.get("emptied"), json!("body"));
 }

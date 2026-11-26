@@ -4,7 +4,7 @@
 //!
 //! - `load_two_extensions` loads both extensions: each one's `define` and `packages` run
 //!   through the guest client;
-//! - `build_registry` builds a registry of the package `stdcore` and both extensions'
+//! - `build_registry` builds a registry of the standard features and both extensions'
 //!   packages: each feature's `register` runs, and its request (the declaration of a table)
 //!   is answered in the same process.
 //!
@@ -14,23 +14,24 @@
 
 use std::sync::Arc;
 
-use flm_core::core::registry::{PackageResolver, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, PackageResolver, RegistryBuilder, RegistryInputs};
 use flm_core::core::settings::PackageSettings;
-use flm_core::stdcore::{self, StdcoreConfig};
-use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_core::stdlib::{self, StdlibConfig};
+use flm_ext::guest::NamedExtension;
+use flm_ext::native::NativeEngine;
 use flm_ext::{ExtensionLoader, MemoryFiles, MemorySource};
 use serde_json::json;
 
-/// The manifest of an extension compiled into the program.
-const MANIFEST: &str = "extension:\n  engine: native\n";
+/// The table of code of the extensions compiled into the program.
+static EXTENSIONS: &[NamedExtension] = &[
+    NamedExtension { stem: "one", compiled: &one::FLM_EXTENSION },
+    NamedExtension { stem: "two", compiled: &two::FLM_EXTENSION },
+];
 
 /// A loader that finds the extensions `one` and `two` and runs them through the engine
 /// `native`.
 fn loader() -> ExtensionLoader {
-    let engine = NativeEngine::new([
-        NativeExtension { stem: "one", manifest: MANIFEST, compiled: &one::FLM_EXTENSION },
-        NativeExtension { stem: "two", manifest: MANIFEST, compiled: &two::FLM_EXTENSION },
-    ]);
+    let engine = NativeEngine::new(EXTENSIONS.iter().copied());
     let manifest = json!({ "extension": { "engine": "native" } });
     let source = MemorySource::new()
         .with("one", "compiled-in:one", manifest.clone(), MemoryFiles::new())
@@ -46,7 +47,7 @@ pub extern "C" fn load_two_extensions() -> u32 {
     ["one", "two"].into_iter().filter(|stem| matches!(loader.resolve(stem), Ok(Some(_)))).count() as u32
 }
 
-/// Builds a registry of the package `stdcore` and the packages of the extensions `one` and
+/// Builds a registry of the standard features and the packages of the extensions `one` and
 /// `two`; answers how many of their tables `one.notes` and `two.notes` the registry holds
 /// (2), or 0 when an extension does not load or the registry does not build.
 ///
@@ -57,7 +58,7 @@ pub extern "C" fn build_registry() -> u32 {
     flm_core::lang::guard::mark_worker_thread();
     let loader = loader();
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     for stem in ["one", "two"] {
         let Ok(Some(factory)) = loader.resolve(stem) else { return 0 };
         let Ok(package) = factory.build(&PackageSettings::new()) else { return 0 };

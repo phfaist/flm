@@ -12,8 +12,8 @@ use crate::api::lang::{BuiltLang, FlmDiagnostics};
 use crate::api::model::element::Aspect;
 use crate::api::core::lowering::LoweringRule;
 use crate::api::core::services::Arity;
-use crate::api::stdcore::features::citations::CitationProvider;
-use crate::api::stdcore::features::compose::TemplateModule;
+use crate::api::stdlib::features::citations::CitationProvider;
+use crate::api::stdlib::features::compose::TemplateModule;
 use crate::runtime::ExtError;
 use crate::sealed::{DurableOwner, Sealed};
 
@@ -73,7 +73,7 @@ pub use flm_core::core::registry::OutputDef;
 ///
 /// What differs: each stage is a [`BackendStage`], a stage of the library
 /// ([`LibraryStage`], the lowering stage
-/// [`LoweringStage::new`](crate::api::stdcore::backends::lowering::LoweringStage::new)
+/// [`LoweringStage::new`](crate::api::stdlib::backends::lowering::LoweringStage::new)
 /// answers) or an extension's own [`Stage`], where `flm-core` takes three
 /// `Arc<dyn Stage>`; the names are `String`s.
 ///
@@ -143,7 +143,7 @@ impl fmt::Debug for BackendDef {
 #[derive(Clone)]
 pub enum BackendStage {
     /// A stage of the library, such as the lowering stage
-    /// [`LoweringStage::new`](crate::api::stdcore::backends::lowering::LoweringStage::new)
+    /// [`LoweringStage::new`](crate::api::stdlib::backends::lowering::LoweringStage::new)
     /// answers; registered as it is.
     Library(LibraryStage),
     /// An extension's own stage, as [`FeatureBuilder::stage`] takes it: its
@@ -165,7 +165,7 @@ impl fmt::Debug for BackendStage {
 /// No flm-core counterpart: a stage of the library, held as the
 /// `Arc<dyn Stage>` of `flm-core` that a [`BackendDef`] takes. Opaque: only
 /// the extension API's constructors make one
-/// ([`LoweringStage::new`](crate::api::stdcore::backends::lowering::LoweringStage::new)).
+/// ([`LoweringStage::new`](crate::api::stdlib::backends::lowering::LoweringStage::new)).
 #[derive(Clone)]
 pub struct LibraryStage(pub(crate) Arc<dyn flm_core::core::stage::Stage>);
 
@@ -184,13 +184,13 @@ impl fmt::Debug for LibraryStage {
 /// hyphen (`"lowered-trees"`, `"artifact-set"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StandardTable {
-    /// [`LoweredTrees`](flm_core::stdcore::backends::lowering::LoweredTrees):
+    /// [`LoweredTrees`](flm_core::stdlib::backends::lowering::LoweredTrees):
     /// a backend's lowered trees, which the library's lowering stage writes and
     /// the backend's emit stage reads
     /// ([`TableValue::Lowered`](crate::api::core::data::table::TableValue::Lowered)).
     /// A scripted stage cannot write it.
     LoweredTrees,
-    /// [`LoweredPieces`](flm_core::stdcore::backends::pieces::stage::LoweredPieces):
+    /// [`LoweredPieces`](flm_core::stdlib::backends::pieces::stage::LoweredPieces):
     /// the lowered pieces a library stage places. A scripted stage cannot
     /// write it, and reads it as its projection.
     LoweredPieces,
@@ -238,6 +238,21 @@ pub trait FeatureBuilder: Sealed + DurableOwner {
     /// refuses the declaration ([`ExtError::Core`]).
     fn element(&mut self, def: ElementDef) -> Result<(), ExtError>;
 
+    /// Mirrors [`FeatureBuilder::element_type_text`](flm_core::core::registry::FeatureBuilder::element_type_text):
+    /// gives the element type `name`, which this feature declares, its
+    /// documentation text: what the nodes of that type mean, whatever their
+    /// element value. What differs: the name must begin with the extension's
+    /// stem and a dot, as an element's.
+    ///
+    /// # Errors
+    ///
+    /// The name does not begin with the extension's stem and a dot
+    /// ([`ExtError::NameOutsideExtension`]), or the builder refuses the text
+    /// ([`ExtError::Core`]). When the registry is built, a text for an element
+    /// type this feature does not declare, and a second text for one element
+    /// type, are build errors.
+    fn element_type_text(&mut self, name: &str, docs: &str) -> Result<(), ExtError>;
+
     /// Mirrors [`FeatureBuilder::fallback`](flm_core::core::registry::FeatureBuilder::fallback):
     /// declares the element an unknown macro or environment becomes. What
     /// differs: it takes the extension API's [`FallbackDef`], whose owner is
@@ -279,7 +294,7 @@ pub trait FeatureBuilder: Sealed + DurableOwner {
     /// reads the table by. The name rule is [`table`](FeatureBuilder::table)'s,
     /// with one more accepted form: `flm.lowered.<backend>`, the table the
     /// library's lowering stage writes for a backend
-    /// ([`lowered_table_name`](crate::api::stdcore::backends::lowering::lowered_table_name)),
+    /// ([`lowered_table_name`](crate::api::stdlib::backends::lowering::lowered_table_name)),
     /// where `<backend>` is a backend name the package may declare (the
     /// extension's stem, or the stem and a dot, as
     /// [`backend`](FeatureBuilder::backend)'s rule).
@@ -377,7 +392,7 @@ pub trait FeatureBuilder: Sealed + DurableOwner {
     /// and an emit stage reads the value back from the lowered node
     /// ([`Node::payload`](crate::api::techy::node::Node::payload)). A Rust
     /// rule reads it with
-    /// [`payload_of`](flm_core::stdcore::backends::pres::payload_of) as the
+    /// [`payload_of`](flm_core::stdlib::backends::pres::payload_of) as the
     /// adapter's `DataPayload`.
     ///
     /// # Errors
@@ -532,7 +547,7 @@ pub trait FeatureBuilder: Sealed + DurableOwner {
     /// Mirrors [`FeatureBuilder::lowering_rule`](flm_core::core::registry::FeatureBuilder::lowering_rule):
     /// declares a lowering rule. What differs: the rule is the extension API's
     /// [`LoweringRule`], built with [`LoweringRule::new`] or made by a helper
-    /// ([`expand_in_tree_rule_for`](crate::api::stdcore::features::userdefs::expand_in_tree_rule_for));
+    /// ([`expand_in_tree_rule_for`](crate::api::stdlib::features::userdefs::expand_in_tree_rule_for));
     /// its name must begin with the extension's stem and a dot. A rule built
     /// with [`LoweringRule::new`] is handed to `flm-core` in the build's second
     /// round, when every feature has declared its tables, so that each table
@@ -589,8 +604,8 @@ pub trait FeatureBuilder: Sealed + DurableOwner {
     /// requires? }`) and `flm.latex.packages` (a package definition `{ id,
     /// package, options, docs }`); the forms of the fields are those of the
     /// data types of
-    /// [`numbering`](crate::api::stdcore::features::numbering) and
-    /// [`latex`](crate::api::stdcore::backends::latex). The value's own name
+    /// [`numbering`](crate::api::stdlib::features::numbering) and
+    /// [`latex`](crate::api::stdlib::backends::latex). The value's own name
     /// (`name`, or `id` for a package definition) must begin with the
     /// extension's stem and a dot. Data given to any other slot is
     /// contributed as it is. Like `flm-core`'s, the method is refused in the

@@ -14,9 +14,12 @@ use crate::sealed::{NodeCore, Token, TreeCore};
 /// language: a node of a tree, and its relatives.
 ///
 /// What differs: a façade over a node of any tree the adapter holds (lent for
-/// one call, or shared through an `Arc`); slices and iterators of nodes are
-/// lists; owned text where `NodeRef` lends it; the node's kind as the closed
-/// enum [`NodeKindName`]; three readings beyond `NodeRef`'s own —
+/// one call, or shared through an `Arc`); a slice of nodes is a list, which
+/// crosses a binding as a sequence of nodes (see the
+/// [mapping rules](crate::api#the-mapping-rules)); the iterator of the
+/// descendants is a [`Descendants`]; owned text where `NodeRef` lends it; the
+/// node's kind as the closed enum [`NodeKindName`]; three readings beyond
+/// `NodeRef`'s own —
 /// [`element_name`](Node::element_name), [`element_value`](Node::element_value)
 /// and [`mode`](Node::mode) — and one composite,
 /// [`argument_is_provided`](Node::argument_is_provided).
@@ -74,12 +77,16 @@ pub trait Node<'t>: NodeCore<'t> {
     fn child(&self, i: usize) -> Option<Box<dyn Node<'t> + 't>>;
 
     /// Mirrors [`NodeRef::children`](flm_core::techy::core::node::NodeRef::children).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     fn children(&self) -> Vec<Box<dyn Node<'t> + 't>>;
 
     /// Mirrors [`NodeRef::descendants`](flm_core::techy::core::node::NodeRef::descendants).
-    /// What differs: a list, in document order.
-    fn descendants(&self) -> Vec<Box<dyn Node<'t> + 't>>;
+    /// What differs: a [`Descendants`], which owns what it reads, so that it
+    /// does not borrow the node it was called on. Across a binding, the
+    /// iterator is a traversal, which the extension can restrict to given
+    /// elements ([`Descendants::elements`]) or node kinds
+    /// ([`Descendants::kinds`]).
+    fn descendants(&self) -> Descendants<'t>;
 
     /// Mirrors [`NodeRef::chars`](flm_core::techy::core::node::NodeRef::chars).
     /// What differs: owned text.
@@ -94,15 +101,15 @@ pub trait Node<'t>: NodeCore<'t> {
     fn group_delimiters(&self) -> Option<(String, String)>;
 
     /// Mirrors [`NodeRef::argument_nodes`](flm_core::techy::core::node::NodeRef::argument_nodes).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     fn argument_nodes(&self, i: usize) -> Option<Vec<Box<dyn Node<'t> + 't>>>;
 
     /// Mirrors [`NodeRef::argument_content_nodes`](flm_core::techy::core::node::NodeRef::argument_content_nodes).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     fn argument_content_nodes(&self, i: usize) -> Option<Vec<Box<dyn Node<'t> + 't>>>;
 
     /// Mirrors [`NodeRef::argument_nodes_named`](flm_core::techy::core::node::NodeRef::argument_nodes_named).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     ///
     /// # Errors
     ///
@@ -110,7 +117,7 @@ pub trait Node<'t>: NodeCore<'t> {
     fn argument_nodes_named(&self, name: &str) -> Result<Option<Vec<Box<dyn Node<'t> + 't>>>, ExtError>;
 
     /// Mirrors [`NodeRef::argument_content_nodes_named`](flm_core::techy::core::node::NodeRef::argument_content_nodes_named).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     ///
     /// # Errors
     ///
@@ -128,12 +135,13 @@ pub trait Node<'t>: NodeCore<'t> {
     fn argument_is_provided(&self, name: &str) -> Result<bool, ExtError>;
 
     /// Mirrors [`NodeRef::body`](flm_core::techy::core::node::NodeRef::body).
-    /// What differs: a list.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
     fn body(&self) -> Option<Vec<Box<dyn Node<'t> + 't>>>;
 
     /// Mirrors [`NodeRef::slot_content_nodes_named`](flm_core::techy::core::node::NodeRef::slot_content_nodes_named).
-    /// What differs: a list. As in techy, a slot that exists always has
-    /// content nodes, possibly none: there is no "absent slot" answer.
+    /// What differs: a list, which crosses a binding as a sequence of nodes.
+    /// As in techy, a slot that exists always has content nodes, possibly
+    /// none: there is no "absent slot" answer.
     ///
     /// # Errors
     ///
@@ -157,7 +165,7 @@ pub trait Node<'t>: NodeCore<'t> {
     /// Mirrors the field [`FlmNodeExt::payload`](flm_core::lang::FlmNodeExt::payload)
     /// through [`project_payload`](flm_core::dump::project::project_payload):
     /// the payload of a presentation node, as its projection in JSON form
-    /// (the shapes the [presentation elements' module](crate::api::stdcore::backends::pres)
+    /// (the shapes the [presentation elements' module](crate::api::stdlib::backends::pres)
     /// lists, or the value a rule staged for an element declared with a data
     /// payload). `None` for a node without a payload. What differs: data, not
     /// the payload's type.
@@ -183,7 +191,8 @@ pub trait Node<'t>: NodeCore<'t> {
 
     /// Mirrors [`NodeRef::slot_content_nodes`](flm_core::techy::core::node::NodeRef::slot_content_nodes):
     /// the content of the slot at index `i`, or `None` for an index past the
-    /// last. What differs: a list.
+    /// last. What differs: a list, which crosses a binding as a sequence of
+    /// nodes.
     fn slot_content_nodes(&self, i: usize) -> Option<Vec<Box<dyn Node<'t> + 't>>>;
 }
 
@@ -241,7 +250,7 @@ impl<'t, N: Node<'t> + ?Sized> Node<'t> for &N {
     fn children(&self) -> Vec<Box<dyn Node<'t> + 't>> {
         (**self).children()
     }
-    fn descendants(&self) -> Vec<Box<dyn Node<'t> + 't>> {
+    fn descendants(&self) -> Descendants<'t> {
         (**self).descendants()
     }
     fn chars(&self) -> Option<String> {
@@ -294,6 +303,63 @@ impl<'t, N: Node<'t> + ?Sized> Node<'t> for &N {
     }
     fn slot_content_nodes(&self, i: usize) -> Option<Vec<Box<dyn Node<'t> + 't>>> {
         (**self).slot_content_nodes(i)
+    }
+}
+
+/// Mirrors techy's [`Descendants`](flm_core::techy::core::node::Descendants):
+/// an iterator over the descendants of a node, in document order, the node
+/// itself excluded.
+///
+/// What differs: each item is a node façade; the iterator owns the façade of
+/// its root node and the ids of the descendants, which
+/// [`Node::descendants`] collects once with techy's iterator, so it borrows
+/// neither the node it was called on nor the tree beyond `'t`. Across a
+/// binding, the iterator is a [traversal](crate::api#the-mapping-rules): one
+/// handle, whose nodes the binding pulls once, in order, a bounded group at
+/// a time. A stage that looks for the nodes of a few elements or kinds
+/// restricts the traversal with [`elements`](Descendants::elements) or
+/// [`kinds`](Descendants::kinds) before it iterates: the other nodes then
+/// cost the extension no crossing and no memory of its engine.
+pub struct Descendants<'t> {
+    nodes: Box<dyn Iterator<Item = Box<dyn Node<'t> + 't>> + 't>,
+}
+
+impl<'t> Descendants<'t> {
+    /// The traversal of `nodes`, in their order.
+    pub(crate) fn new(nodes: impl Iterator<Item = Box<dyn Node<'t> + 't>> + 't) -> Descendants<'t> {
+        Descendants { nodes: Box::new(nodes) }
+    }
+
+    /// Mirrors [`Iterator::filter`] on techy's
+    /// [`Descendants`](flm_core::techy::core::node::Descendants): the nodes not
+    /// taken yet whose element has one of the names `names` (the name
+    /// [`Node::element_name`] answers), in their order; the descendants of a
+    /// node that does not match are still visited. What differs: the
+    /// criterion is a list of element names; a name that no element has
+    /// matches no node. Across a binding the comparison runs on the host, and
+    /// a node that does not match is not lent.
+    pub fn elements(self, names: impl IntoIterator<Item = impl Into<String>>) -> Descendants<'t> {
+        let names: Vec<String> = names.into_iter().map(Into::into).collect();
+        Descendants::new(self.nodes.filter(move |node| names.contains(&node.element_name())))
+    }
+
+    /// Mirrors [`Iterator::filter`] on techy's
+    /// [`Descendants`](flm_core::techy::core::node::Descendants): the nodes not
+    /// taken yet whose kind ([`Node::kind`]) is one of `kinds`, in their
+    /// order. What differs: the criterion is a list of kinds. Across a
+    /// binding the comparison runs on the host, and a node that does not
+    /// match is not lent.
+    pub fn kinds(self, kinds: &[NodeKindName]) -> Descendants<'t> {
+        let kinds = kinds.to_vec();
+        Descendants::new(self.nodes.filter(move |node| kinds.contains(&node.kind())))
+    }
+}
+
+impl<'t> Iterator for Descendants<'t> {
+    type Item = Box<dyn Node<'t> + 't>;
+
+    fn next(&mut self) -> Option<Box<dyn Node<'t> + 't>> {
+        self.nodes.next()
     }
 }
 

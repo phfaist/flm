@@ -6,17 +6,34 @@ edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+# The tests are left out of the published package: the folder `tests`, with its golden
+# files, is about half of the package's size. Packaging then drops the test targets from
+# the published manifest, with one warning for each.
+exclude = ["/tests"]
+
+# docs.rs, which builds the API documentation of the published crate, ignores
+# `.cargo/config.toml`. These settings make it turn on every feature of the crate, so
+# that its pages show the items of each feature and their links resolve, and add the
+# sidebar customization that `cargo docs` adds locally (the path resolves from the
+# package root, where `docs` links to the workspace's `docs/` folder).
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--html-in-header", "docs/rustdoc-header.html"]
 
 [lints]
 workspace = true
 
 # Dependency policy:
-# - techy: a version requirement on crates.io; 0.1.4 is flm's techy floor,
-#   the first release whose embellishment and marker parsers match their markers
-#   against the raw characters of the source (a marker spelled with a specials
-#   trigger, a group delimiter or a command escape still matches, behind the
-#   standard argument kinds `ArgStdKind::Embellishments` and `ArgStdKind::Marker`),
-#   and Cargo.lock records the version a build uses. Its
+# - techy: a version requirement on crates.io, 0.2.0 (Cargo takes 0.2 as
+#   incompatible with 0.1). flm relies on the embellishment and marker parsers
+#   matching their markers against the raw characters of the source (a marker
+#   spelled with a specials trigger, a group delimiter or a command escape still
+#   matches, behind the standard argument kinds `ArgStdKind::Embellishments` and
+#   `ArgStdKind::Marker`), which techy does since 0.1.4. Cargo.lock records the
+#   version a build uses. Its
 #   `serde` feature is on: `flm dump` renders techy's `SerialValue` through
 #   serde_json. flm-core re-exports the crate as `flm_core::techy`, so an
 #   embedder reaches the very version flm-core builds against instead of
@@ -67,7 +84,7 @@ workspace = true
 #   `graphics` feature's strategy `data-uri` (`data:<type>;base64,<content>`);
 #   no dependency of its own, floor Rust 1.48.
 # - flm-core performs no input or output of its own (files, network and
-#   processes live in flm-main and in service implementations), but it is NOT
+#   processes live in flm-host and in service implementations), but it is NOT
 #   no_std: std collections and threads are fine.
 # - html5ever / markup5ever_rcdom: dev-dependencies, used by two test suites.
 #   `tests/html_validity.rs` parses every HTML golden the way a browser parses
@@ -80,7 +97,7 @@ workspace = true
 #   there: html5ever 0.39 declares a minimum supported Rust version of 1.71,
 #   and markup5ever_rcdom declares none at all.
 [dependencies]
-techy = { version = "0.1.4", features = ["serde"] }
+techy = { version = "0.2.0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 # JSON rendering of projections, goldens and wire segments: the `dump` module's
 # JSON helpers and the golden-file helper are public API (there is no
@@ -108,7 +125,7 @@ base64 = "0.22"
 html5ever = "0.39"
 markup5ever_rcdom = "0.39"
 # The keyword `pattern` of the schemas of settings, checked by the validator the tests of
-# the settings share with `flm-main` and `flm-cli` (`tests/support/json_schema.rs`).
+# the settings share with `flm-host` and `flm` (`tests/support/json_schema.rs`).
 regex = "1"
 
 [features]

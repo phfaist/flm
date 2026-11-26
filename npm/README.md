@@ -4,25 +4,32 @@ This folder holds the development tooling of the FLM repository that runs under 
 
 - the builds of the files that two of the repository's extensions carry ready-made (the
   stylesheet and script of the lecture-notes page, the MathJax bundle);
+- the build of the watch client of the live preview (`flm watch`): the script and the
+  stylesheet of the document's page, and the tools page, which the crate `flm-host`
+  includes;
 - the TypeScript check of `flm-ext/flm.d.ts`, the declarations of the interface that FLM
   gives extensions written in JavaScript.
 
 Nothing in this folder is needed to build or install the `flm` program. The files the
-builds write are committed in the extensions' folders, and `cargo build` and `cargo
-install` read them as they are. Node is needed only to change the sources of those files,
-or to run the checks described below.
+builds write are committed in the extensions' folders and in the crate `flm-host`, and
+`cargo build` and `cargo install` read them as they are. Node is needed only to change
+the sources of those files, or to run the checks described below.
 
-The folder is one npm *workspace*: `package.json` lists three *members*, one per
-subfolder (`lecturenotes`, `math-mathjax`, `flm-ext`), and npm installs the development
-dependencies of all three together.
+The folder is one npm *workspace*: `package.json` lists four *members*, one per
+subfolder (`lecturenotes`, `math-mathjax`, `flm-ext`, `flm-watchclient`), and npm installs
+the development dependencies of all four together.
 
 Contents of this file:
 
 - [Installing the tools](#installing-the-tools)
 - [Building and testing](#building-and-testing)
-- [`lecturenotes`: the lecture-notes page's stylesheet and script](#lecturenotes-the-lecture-notes-pages-stylesheet-and-script)
+- [`lecturenotes`: the lecture-notes page's stylesheet and
+  script](#lecturenotes-the-lecture-notes-pages-stylesheet-and-script)
 - [`math-mathjax`: the MathJax bundle](#math-mathjax-the-mathjax-bundle)
-- [`flm-ext`: the TypeScript check of the extension interface's declarations](#flm-ext-the-typescript-check-of-the-extension-interfaces-declarations)
+- [`flm-ext`: the TypeScript check of the extension interface's
+  declarations](#flm-ext-the-typescript-check-of-the-extension-interfaces-declarations)
+- [`flm-watchclient`: the watch client of the live
+  preview](#flm-watchclient-the-watch-client-of-the-live-preview)
 
 ## Installing the tools
 
@@ -36,26 +43,30 @@ npm install
 npm installs every member's development dependencies into one folder,
 `npm/node_modules/`, as one lock file, `npm/package-lock.json`, records them. Each
 dependency has one pinned version, shared by the members that use it: `esbuild` 0.28.2,
-`typescript` 7.0.2 and `@mathjax/src` 4.1.3. The lock file is committed; git ignores
-`npm/node_modules/` and each member's `target/` folder (where a member stages its outputs
-and compiles its tests).
+`typescript` 7.0.2, `@mathjax/src` 4.1.3, `morphdom` 2.7.8, `preact` 11.2.0,
+`@preact/signals` 2.11.4, `lucide-static` 1.73.0 and `pdfjs-dist` 6.5.438. The lock file
+is committed; git ignores `npm/node_modules/` and each member's `target/` folder (where a
+member stages its outputs and compiles its tests).
 
 ## Building and testing
 
 In `npm/`:
 
 ```text
-npm run build                       # every member that has a build: lecturenotes, math-mathjax
-npm run build -w lecturenotes       # one member, given by its folder
-npm test                            # every member that has tests: lecturenotes, flm-ext
-npm test -w flm-ext                 # one member: the TypeScript check
+npm run build                   # every member that has a build
+npm run build -w lecturenotes   # one member, given by its folder
+npm test                        # every member that has tests
+npm test -w flm-ext             # one member: the TypeScript check
 ```
 
-A member's script also runs from inside its folder: `node build.mjs` in `lecturenotes/`,
-`node bundle.mjs` in `math-mathjax/`.
+The members that have a build are `lecturenotes`, `math-mathjax` and `flm-watchclient`;
+those that have tests are `lecturenotes`, `flm-ext` and `flm-watchclient`. A member's
+script also runs from inside its folder: `node build.mjs` in `lecturenotes/`
+and in `flm-watchclient/`, `node bundle.mjs` in `math-mathjax/`.
 
-A build writes its outputs into the extension that ships them, under the repository's
-`extensions/` folder. The outputs are committed: after a change to a member's sources,
+A build writes its outputs into the extension or the crate that ships them: an extension
+under the repository's `extensions/` folder, or the crate `flm-host`. The outputs are
+committed: after a change to a member's sources,
 rebuild and commit the outputs with the sources. A build of unchanged sources writes the
 committed files byte for byte, so `git status` shows no change after it.
 
@@ -82,7 +93,7 @@ holds no link to it. `node build.mjs --out DIR` writes the two files into `DIR`.
 What checks the member:
 
 - `npm test -w lecturenotes` runs the unit tests with Node's test runner;
-- the test `the_committed_bundle_matches_a_fresh_build` of `flm-cli/tests/lecturenotes.rs`
+- the test `the_committed_bundle_matches_a_fresh_build` of `flm/tests/lecturenotes.rs`
   builds the member into a temporary folder and compares both files with the committed
   ones byte for byte (it is skipped, with a message, when `node` is not on the `PATH` or
   the workspace's dependencies are not installed);
@@ -111,8 +122,8 @@ is the bundle's source: the parts of MathJax the extension uses, gathered in one
 
 Each file begins with a line naming `npm/math-mathjax/bundle.mjs` and the MathJax version
 it was built from. The two files are committed; no test rebuilds them. The extension's
-tests in `flm-cli` and `flm-ext` run the committed bundle. The browser tests of
-`flm-main/tests/watch_page.rs` also load MathJax's own browser files from
+tests in `flm` and `flm-ext` run the committed bundle. The browser tests of
+`flm-host/tests/watch_page.rs` also load MathJax's own browser files from
 `npm/node_modules/@mathjax/src/bundle/`, and a case that needs them is skipped, with a
 message, when they are not installed.
 
@@ -144,3 +155,26 @@ The member is named after the crate because a package of the declarations for ex
 authors, published on the npm registry, would be made from this folder: by adding the
 package's metadata to `package.json` and copying `flm.d.ts` into the folder at build.
 Nothing is published from the workspace.
+
+## `flm-watchclient`: the watch client of the live preview
+
+The member `flm-watchclient` (package name `flm-watchclient`, not published) builds the
+watch client: the page script and its stylesheet, which the page served by `flm watch`
+carries and which keep the page in step with the document, and the tools page, which
+shows that page in a frame beside the preview's tools. Its sources are under `src/`, in
+TypeScript, and its build is `build.mjs`.
+
+`npm run build -w flm-watchclient` (or `node build.mjs` in the member) checks the types,
+then bundles with esbuild into `flm-host/src/watch/client/`: `flm-watchclient.js`, the page
+script, which holds the library `morphdom`, `flm-watchclient.css`, its stylesheet, and the
+folder `tools/` with the tools page (`index.html`, `tools.js`, which holds Preact and its
+signals and the icons it uses, and `tools.css`) and, in `tools/pdfjs/`, the files of
+pdf.js that its PDF view loads. `npm test -w flm-watchclient` runs the tests of its
+logic. The test `the_committed_bundle_matches_a_fresh_build` of
+`flm-host/tests/watch_client.rs` compares every built file with a fresh build (it is
+skipped, with a message, when `node` is not on the `PATH` or the workspace's dependencies
+are not installed).
+
+The member's `README.md` describes the built files, the libraries they hold with their
+licenses, and the checks; its `PROTOCOL.md` specifies what the watch client expects of the
+page and of the server.

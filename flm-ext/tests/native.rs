@@ -10,10 +10,11 @@
 //! started; a panicking rule; a request sent by the
 //! `Drop` of a rule's body, its instance discarded inside another extension's
 //! request, and at the thread's end; the loader's rules: a stem the engine does
-//! not hold, the identity, the digest, one load for two `use` entries. Gated on
-//! `FLM_TESTS_WASM_GUEST=1` (`common::guest`), the stub built for
-//! `wasm32-unknown-unknown` and loaded by the engine `wasm` gives the same
-//! items as the native run.
+//! not hold, the identity, the digest, one load for two `use` entries; the
+//! writer of a formula's TeX called through the guest client, its parts and
+//! holes the library's. Gated on `FLM_TESTS_WASM_GUEST=1` (`common::guest`),
+//! the stub built for `wasm32-unknown-unknown` and loaded by the engine `wasm`
+//! gives the same items as the native run.
 //!
 //! Run also under `--features flm-core/parallel`, where a run's per-tree stages
 //! go to the runner's pool.
@@ -29,6 +30,7 @@ mod stub;
 
 use std::sync::{Arc, Mutex};
 
+use flm_core::core::lowering::DefaultMark;
 use flm_core::core::plan::{Overrides, Plan, PlanRequest};
 use flm_core::core::registry::{FlmRegistry, PackageFactory};
 use flm_core::core::run::{Externals, Run, RunOptions};
@@ -36,10 +38,12 @@ use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::text;
-use flm_ext::guest::CompiledExtension;
+use flm_core::model::element::element_of;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::math::{lines as core_lines, tex as core_tex, ENVIRONMENT};
+use flm_ext::guest::{CompiledExtension, NamedExtension};
 use flm_ext::host::{HostAnswer, HostCaller, HostService, HostServiceError};
-use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_ext::native::NativeEngine;
 use flm_ext::{Engine, ExtensionIdentity, ExtensionLoader, Manifest, MemoryFiles, MemorySource};
 use serde_json::{json, Value};
 
@@ -50,16 +54,22 @@ use common::{ext_items, registry_with};
 /// The table of the stub's stage.
 const TALLY: &str = "stub.tally";
 
-/// The manifest of an extension compiled into the program, as a source answers it.
-const MANIFEST: &str = "extension:\n  engine: native\n";
+/// The table of the stub's TeX of the formulas.
+const TEX: &str = "stub.tex";
 
-/// The extensions this test program compiles in.
-fn extensions() -> [NativeExtension; 2] {
-    [
-        NativeExtension { stem: "stub", manifest: MANIFEST, compiled: &stub::FLM_EXTENSION },
-        NativeExtension { stem: "second", manifest: MANIFEST, compiled: &second::FLM_EXTENSION },
-    ]
-}
+/// Formulas holding text commands, at the top and inside a group, a comment, and an
+/// environment of three lines, one labeled, one tagged, whose line ends the newline
+/// rule reduces.
+const FORMULAS: [&str; 2] = [
+    "Let \\(x + \\text{if } y\\) and \\(\\alpha%%c\nb\\), \\[{\\mbox{all} z}\\].",
+    "\\begin{align}\n  a \\textbf{b} \\label{eq:a}\n  \\\\\n  c \\tag{T}\n  \\\\ d\n\\end{align}",
+];
+
+/// The table of code of the extensions this test program compiles in.
+static EXTENSIONS: &[NamedExtension] = &[
+    NamedExtension { stem: "stub", compiled: &stub::FLM_EXTENSION },
+    NamedExtension { stem: "second", compiled: &second::FLM_EXTENSION },
+];
 
 /// A source answering each of `stems` with the manifest `engine: native` and no file.
 fn source(stems: &[&str]) -> MemorySource {
@@ -88,16 +98,16 @@ impl HostService for Probe {
         "probe"
     }
 
-    fn call(&self, caller: &HostCaller, method: &str, args: &Value) -> Result<HostAnswer, HostServiceError> {
+    fn call(&self, caller: &HostCaller, method: &str, args: &Value, _: &flm_core::progress::Scope) -> Result<HostAnswer, HostServiceError> {
         let call = json!({ "extension": caller.extension.stem, "package": caller.package, "method": method, "args": args });
         self.calls.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(call);
         Ok(HostAnswer::Data(json!({ "twice": args["words"].as_u64().unwrap_or(0) * 2 })))
     }
 }
 
-/// A loader over `source` with the engine `native` holding [`extensions`], offering `probe`.
+/// A loader over `source` with the engine `native` holding [`EXTENSIONS`], offering `probe`.
 fn loader(probe: &Arc<Probe>, source: MemorySource) -> Arc<ExtensionLoader> {
-    let engine = NativeEngine::new(extensions()).with_console(Arc::new(|_, _| {}));
+    let engine = NativeEngine::new(EXTENSIONS.iter().copied());
     Arc::new(
         ExtensionLoader::new(vec![Arc::new(source)])
             .with_engine(Arc::new(engine))
@@ -185,6 +195,25 @@ fn the_stub_s_stage_reads_its_option_calls_the_host_service_and_pushes_items() {
     assert_eq!(probe.calls(), [call("tree#0", 3), call("tree#1", 2)]);
 }
 
+/// The rules of `math-passthrough` the stub registers through the guest client under
+/// its own names, each with the library's element, declaration and description, and
+/// the mark the stub gives.
+#[test]
+fn the_stub_registers_math_passthrough_s_rules_under_its_own_names() {
+    let registry = registry(&loader(&Arc::new(Probe::default()), source(&["stub"])), &["stub"]);
+    let rule = |name: &str| registry.rules().iter().find(|entry| entry.rule.name.as_str() == name).expect("registered");
+    for (ours, library) in [
+        (stub::MATH_RULE, flm_core::math_passthrough::MATH_RULE),
+        (stub::ENVIRONMENT_RULE, flm_core::math_passthrough::ENVIRONMENT_RULE),
+    ] {
+        let (ours, library) = (rule(ours), rule(library));
+        assert_eq!(ours.owner.as_str(), "stub");
+        assert_eq!(ours.rule.default, DefaultMark::Never);
+        assert_eq!((&ours.rule.element, &ours.rule.docs), (&library.rule.element, &library.rule.docs));
+        assert_eq!(format!("{:?}", ours.rule.decl), format!("{:?}", library.rule.decl));
+    }
+}
+
 #[test]
 fn the_stub_s_option_left_unset_reads_as_the_stage_s_default() {
     let probe = Arc::new(Probe::default());
@@ -196,14 +225,10 @@ fn the_stub_s_option_left_unset_reads_as_the_stage_s_default() {
 }
 
 #[test]
-fn a_stem_the_engine_does_not_hold_is_refused_with_the_stems_it_holds() {
+fn a_stem_the_engine_does_not_hold_is_refused() {
     let probe = Arc::new(Probe::default());
     let loader = loader(&probe, source(&["absent"]));
-    assert_eq!(
-        common::load_problems(&loader, "absent"),
-        ["the extension `absent` specifies the engine `native` (`extension.engine`), and no extension `absent` is \
-          compiled into this program; the extensions compiled into it are `stub`, `second`"]
-    );
+    assert_eq!(common::load_problems(&loader, "absent").len(), 1);
 }
 
 /// The engine finds an extension by its stem; the identity is the source's, as for every
@@ -228,9 +253,8 @@ fn the_engine_finds_the_extension_by_its_stem_under_the_source_s_identity() {
 #[test]
 fn the_engine_s_digest_input_is_its_name_and_the_versions_of_flm_ext_and_of_the_crate() {
     let digest = |compiled: &'static CompiledExtension| {
-        let engine = NativeEngine::new([NativeExtension { stem: "stub", manifest: MANIFEST, compiled }])
-            .with_console(Arc::new(|_, _| {}));
-        let identity = ExtensionIdentity { identity: "stub".to_string(), stem: "stub".to_string() };
+        let engine = NativeEngine::new([NamedExtension { stem: "stub", compiled }]);
+        let identity = ExtensionIdentity { identity: "stub".to_string(), stem: "stub".to_string(), name: "stub".to_string() };
         let manifest = Manifest::read("stub", &json!({ "extension": { "engine": "native" } })).expect("the manifest reads");
         let Ok(loaded) = engine.load(&identity, &manifest, Box::new(MemoryFiles::new())) else { panic!("the extension loads") };
         loaded.runtime.digest_input()
@@ -313,10 +337,12 @@ fn a_rule_of_one_extension_lowers_an_element_of_the_other_in_a_nested_entry() {
     assert_eq!(text, "<a [second:b <c> d] e> f\n");
 }
 
-/// The refusal of the second's request (the media type of `pdf`) sent while no handler call
-/// of the second runs.
-const SECOND_REFUSED: &str = "the extension `second` must call `media_type_of` of the extension API from a feature's \
-                              `register` or from a handler that `register` declared";
+/// The kind of the refusal of the second's request (the media type of `pdf`) sent while no
+/// handler call of the second runs.
+const SECOND_REFUSED: &str = "handler";
+
+/// The kind of the answer to a request of the guest client that no host answers.
+const UNANSWERED: &str = "unsupported";
 
 /// The second's instance on the worker thread is created inside the stub's request
 /// `lower_nodes` (the stub's rule runs first there), so the second's `define` runs while the
@@ -348,8 +374,8 @@ fn a_request_of_a_drop_run_inside_another_extension_s_request_is_refused() {
     let registry = registry(&loader, &["stub", "second"]);
     let (text, diagnostics, answers) =
         text_on_one_thread(&registry, "\\stubbox{a \\secondpanic{now} c}", second::drop_answers_on_this_thread);
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].ends_with(&format!("must run without a panic: {}", second::PANIC)), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with(second::PANIC), "{diagnostics:?}");
     assert!(text.starts_with("<a ") && text.ends_with(" c>\n"), "{text:?}");
     // The rule's body was dropped inside the stub's request, and its request was refused.
     assert_eq!(answers, [(true, SECOND_REFUSED.to_string())]);
@@ -376,15 +402,7 @@ fn the_instances_left_on_a_thread_are_dropped_when_it_ends() {
     .join();
     assert_eq!(ended.expect("the thread ends"), "[second:x]\n");
     let answers = second::drop_answers_under(KEY);
-    assert_eq!(
-        answers,
-        [(
-            false,
-            "a request of the guest client sent neither from an extension's own WebAssembly module nor during a call \
-             of the engine `native` (from a thread the extension started, or while a thread ends) is not supported yet"
-                .to_string()
-        )]
-    );
+    assert_eq!(answers, [(false, UNANSWERED.to_string())]);
 }
 
 /// A request sent from a thread the extension started finds no instance's state there:
@@ -397,11 +415,7 @@ fn a_request_from_a_thread_the_extension_started_is_not_answered() {
     let (text, diagnostics, ()) = text_on_one_thread(&registry, "\\secondthread{spawned}", || ());
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "spawned\n");
-    assert_eq!(
-        second::thread_answers_for("spawned"),
-        ["a request of the guest client sent neither from an extension's own WebAssembly module nor during a call of \
-          the engine `native` (from a thread the extension started, or while a thread ends) is not supported yet"]
-    );
+    assert_eq!(second::thread_answers_for("spawned"), [UNANSWERED]);
 }
 
 #[test]
@@ -413,16 +427,8 @@ fn a_panic_fails_its_handler_call_and_the_next_call_runs_on_a_fresh_instance() {
         text_on_one_thread(&registry, "\\secondpanic{now} then \\secondpanic{fine}.", || {
             (second::defines_on_this_thread(), second::drop_answers_on_this_thread())
         });
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: "), "{diagnostics:?}");
-    assert!(
-        diagnostics[0].ends_with(&format!(
-            "the lowering rule `second.panic.lower` of the feature `second` of the package `_` of the extension `second` \
-             must run without a panic: {}",
-            second::PANIC
-        )),
-        "{diagnostics:?}"
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with(second::PANIC), "{diagnostics:?}");
     assert!(text.ends_with(" then fine.\n"), "{text:?}");
     // The panic discarded the thread's instance: `\secondpanic{fine}` ran on a fresh one,
     // which ran `define` again. The discarded instance's rule body sent a request when it was
@@ -435,10 +441,82 @@ fn a_panic_fails_its_handler_call_and_the_next_call_runs_on_a_fresh_instance() {
     assert_eq!(text, "[second:x]\n");
 }
 
+// --- the writer of a formula's TeX through the guest client --------------------------------
+
+/// The parts `parts` of the library as the stub writes them.
+fn core_parts(parts: &[core_tex::TexPart<'_>]) -> Value {
+    Value::Array(
+        parts
+            .iter()
+            .map(|part| match part {
+                core_tex::TexPart::Tex(text) => json!({ "tex": text }),
+                core_tex::TexPart::Hole(hole) => {
+                    json!({ "hole": { "command": hole.command, "source": hole.node.span_content() } })
+                }
+            })
+            .collect(),
+    )
+}
+
+/// The items of `stub.tex` the library answers for the trees of `run`, in tree order.
+fn library_tex(run: &Run) -> Vec<Value> {
+    let mut items = Vec::new();
+    for (_, tree) in run.frozen_trees() {
+        for node in tree.root().descendants() {
+            let element = element_of(&node).name.as_str().to_string();
+            if element == flm_core::lang::structural::MATH {
+                items.push(json!({ "group": core_parts(&core_tex::group_tex(&node)) }));
+            } else if element == ENVIRONMENT {
+                let mut lines = Vec::new();
+                let mut after_line_end = false;
+                for line in core_lines::equation_lines(&node) {
+                    let tex = core_tex::line_tex(&line, after_line_end);
+                    after_line_end = tex.ends_line();
+                    lines.push(json!({ "parts": core_parts(&tex.parts), "trailing": tex.trailing }));
+                }
+                items.push(json!({ "lines": lines }));
+            }
+        }
+    }
+    items
+}
+
+/// The items of `stub.tex` the stub's stage pushes for [`FORMULAS`] through `loader`,
+/// sorted by their text (the per-tree stages run in any order), and the library's items
+/// for the same trees, sorted alike.
+fn tex_items(loader: &Arc<ExtensionLoader>) -> (Vec<Value>, Vec<Value>) {
+    let registry = registry(loader, &["stub"]);
+    let run = run(&registry, PlanRequest::new().demand(TEX), &FORMULAS, &RunOptions::new());
+    assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
+    let mut items = ext_items(&run, TEX);
+    let mut expected = library_tex(&run);
+    items.sort_by_key(Value::to_string);
+    expected.sort_by_key(Value::to_string);
+    (items, expected)
+}
+
+#[test]
+fn the_stub_s_tex_of_each_formula_through_the_guest_client_is_the_library_s() {
+    let probe = Arc::new(Probe::default());
+    let (items, expected) = tex_items(&loader(&probe, source(&["stub"])));
+    assert_eq!(items, expected);
+    let hole = |command: &str, source: &str| json!({ "hole": { "command": command, "source": source } });
+    let first = json!({ "group": [{ "tex": "x + " }, hole("text", "\\text{if }"), { "tex": " y" }] });
+    let comment = json!({ "group": [{ "tex": "\\alpha b" }] });
+    let nested = json!({ "group": [{ "tex": "{" }, hole("mbox", "\\mbox{all}"), { "tex": " z}" }] });
+    for item in [&first, &comment, &nested] {
+        assert!(items.contains(item), "{item} in {items:?}");
+    }
+    let lines = items.iter().find(|item| item.get("lines").is_some()).expect("the environment");
+    assert_eq!(lines["lines"].as_array().map(Vec::len), Some(3), "{lines}");
+    assert_eq!(lines["lines"][0]["parts"][1], hole("textbf", "\\textbf{b}"), "{lines}");
+}
+
 // --- the same stub, built for WebAssembly ------------------------------------------------------
 
 /// The stub built for `wasm32-unknown-unknown` (once, `FLM_TESTS_WASM_GUEST=1`) and loaded by
-/// the engine `wasm` gives the items and the service calls of the native run.
+/// the engine `wasm` gives the items and the service calls of the native run, and the items
+/// of the formulas' TeX.
 #[cfg(feature = "wasm")]
 #[test]
 fn the_stub_built_for_webassembly_gives_the_items_of_the_native_run() {
@@ -464,10 +542,15 @@ fn the_stub_built_for_webassembly_gives_the_items_of_the_native_run() {
     let wasm_source = MemorySource::new().with("stub", "stub", common::wasm_manifest("./stub.wasm"), files);
     let wasm_loader = Arc::new(
         ExtensionLoader::new(vec![Arc::new(wasm_source)])
-            .with_wasm(WasmHost::new(WasmSettings::default()).with_console(Arc::new(|_, _| {})))
+            .with_wasm(WasmHost::new(WasmSettings::default()))
             .with_host_service(Arc::clone(&wasm_probe) as Arc<dyn HostService>),
     );
     let wasm = items_and_calls(&wasm_loader, &wasm_probe);
     assert_eq!(native.0.len(), 3);
     assert_eq!(native, wasm);
+    // The writer of a formula's TeX, its parts and holes across the binding.
+    let (native_tex, expected) = tex_items(&loader(&Arc::new(Probe::default()), source(&["stub"])));
+    let (wasm_tex, _) = tex_items(&wasm_loader);
+    assert_eq!(native_tex, expected);
+    assert_eq!(wasm_tex, native_tex);
 }

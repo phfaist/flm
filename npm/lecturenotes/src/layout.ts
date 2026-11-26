@@ -6,11 +6,11 @@
 //   .ln-app                       the frame
 //     .ln-topbar                  the sticky bar
 //       .ln-book-title            the title, linking to the top
-//       .ln-current-chapter       the text of the chapter being read (written here)
-//       .ln-prev, .ln-next        the previous-chapter and next-chapter buttons
+//       .ln-current-unit          the title of the navigation unit being read (written here)
+//       .ln-prev, .ln-next        the previous-unit and next-unit buttons
 //       .ln-sidebar-toggle        the button hiding or showing the sidebar
 //     .ln-sidebar                 the sidebar, holding the table of contents (.flm-toc)
-//       .ln-toc-toggle            the triangle toggle: folded or all open
+//       .ln-toc-toggle            the unfold toggle: folded or all open
 //     .ln-main                    the main column
 //       #flm-content              the content (FLM's content region)
 //
@@ -18,18 +18,21 @@
 
 /** The settings the page passes to `setup`; other fields are ignored. */
 export interface Settings {
-  /** The level of a chapter's heading (1 by default); a heading above it is a part. */
-  chapter_level?: unknown;
+  /**
+   * The navigation level (1 by default): the level of the headings that begin
+   * the document's navigation units.
+   */
+  navigation_heading_level?: unknown;
 }
 
 /** The settings, checked. */
 export interface Options {
-  /** The level of a chapter's heading. */
-  chapterLevel: number;
+  /** The navigation level. */
+  navigationLevel: number;
 }
 
-/** The level of a chapter's heading when the settings do not give one. */
-export const DEFAULT_CHAPTER_LEVEL = 1;
+/** The navigation level when the settings do not give one. */
+export const DEFAULT_NAVIGATION_LEVEL = 1;
 
 /** The elements of the page this script works with. */
 export interface Page {
@@ -38,7 +41,7 @@ export interface Page {
   root: HTMLElement;
   content: HTMLElement;
   bar: HTMLElement | null;
-  chapterText: HTMLElement | null;
+  unitText: HTMLElement | null;
   prev: HTMLButtonElement | null;
   next: HTMLButtonElement | null;
   sidebarToggle: HTMLElement | null;
@@ -47,21 +50,21 @@ export interface Page {
 }
 
 /**
- * Reads the settings: `chapter_level` must be a whole number from 0 up. A
- * missing value gives the default; a wrong one is reported on the console and
- * gives the default.
+ * Reads the settings: `navigation_heading_level` must be a whole number from
+ * 0 up. A missing value gives the default; a wrong one is reported on the
+ * console and gives the default.
  */
 export function readSettings(settings: unknown): Options {
   const given = (settings !== null && typeof settings === 'object')
-    ? (settings as Settings).chapter_level : undefined;
+    ? (settings as Settings).navigation_heading_level : undefined;
   if (given === undefined || given === null) {
-    return { chapterLevel: DEFAULT_CHAPTER_LEVEL };
+    return { navigationLevel: DEFAULT_NAVIGATION_LEVEL };
   }
   if (typeof given === 'number' && Number.isInteger(given) && given >= 0) {
-    return { chapterLevel: given };
+    return { navigationLevel: given };
   }
-  console.error(`flm-lecturenotes: the setting \`chapter_level\` must be a whole number from 0 up, and it is \`${JSON.stringify(given)}\``);
-  return { chapterLevel: DEFAULT_CHAPTER_LEVEL };
+  console.error(`flm-lecturenotes: the setting \`navigation_heading_level\` must be a whole number from 0 up, and it is \`${JSON.stringify(given)}\``);
+  return { navigationLevel: DEFAULT_NAVIGATION_LEVEL };
 }
 
 /** Finds the page's parts; `null`, reported on the console, when the page has no content. */
@@ -77,7 +80,7 @@ export function findPage(doc: Document): Page | null {
     root: doc.documentElement,
     content,
     bar: one('.ln-topbar'),
-    chapterText: one('.ln-current-chapter'),
+    unitText: one('.ln-current-unit'),
     prev: one<HTMLButtonElement>('.ln-prev'),
     next: one<HTMLButtonElement>('.ln-next'),
     sidebarToggle: one('.ln-sidebar-toggle'),

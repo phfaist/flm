@@ -18,7 +18,7 @@ use flm_ext::adapter::package_factory;
 use flm_ext::adapter::services::DeclaredServices;
 use flm_ext::host::{HostCaller, HostService};
 use flm_ext::source::ExtensionFiles;
-use flm_ext::engine::SettingsReport;
+use flm_ext::engine::{ModuleReport, SettingsReport};
 use flm_ext::{ExtError, ExtRuntime, ExtensionIdentity, FeatureReport, MemoryFiles, PackageReport, UseEntry};
 use serde_json::Value;
 
@@ -51,6 +51,7 @@ impl Double {
                 templates: Vec::new(),
                 features: Vec::new(),
                 host: Vec::new(),
+                caches: Default::default(),
             },
             registers: BTreeMap::new(),
             digest: Vec::new(),
@@ -99,6 +100,7 @@ impl Double {
             docs: String::new(),
             version: None,
             settings: None,
+            templates: Default::default(),
         });
         self.registers.insert(name.to_string(), Box::new(register));
         self
@@ -108,6 +110,15 @@ impl Double {
     pub fn settings(mut self, feature: &str, report: SettingsReport) -> Double {
         if let Some(found) = self.report.features.iter_mut().find(|f| f.name == feature) {
             found.settings = Some(report);
+        }
+        self
+    }
+
+    /// Declares the template module `module` of the feature `feature`, of the
+    /// output `output`, with the settings schema `settings`.
+    pub fn module(mut self, feature: &str, module: &str, output: &str, settings: Value) -> Double {
+        if let Some(found) = self.report.features.iter_mut().find(|f| f.name == feature) {
+            found.templates.insert(module.to_string(), ModuleReport { output: output.to_string(), settings });
         }
         self
     }
@@ -132,15 +143,21 @@ impl Double {
 
     /// The extension's identity: its name, as identity and stem.
     pub fn identity(&self) -> ExtensionIdentity {
-        ExtensionIdentity { identity: self.name.clone(), stem: self.name.clone() }
+        ExtensionIdentity { identity: self.name.clone(), stem: self.name.clone(), name: self.name.clone() }
     }
 
     /// The package's factory, `NAME#_`, or the problems of its report.
     pub fn try_factory(self) -> Result<PackageFactory, Vec<flm_ext::LoadError>> {
         let (extension, report) = (self.identity(), self.report.clone());
         let digest: Arc<[u8]> = Arc::from(self.digest.clone());
-        let caller = HostCaller { extension: extension.clone(), package: report.name.clone(), digest_input: Arc::clone(&digest) };
-        let services = Arc::new(DeclaredServices::new(caller, &self.offered, &report.host, self.files.shared()));
+        let caller = HostCaller { extension: extension.clone(), package: report.name.clone(), caches: report.caches.clone(), digest_input: Arc::clone(&digest) };
+        let services = Arc::new(DeclaredServices::new(
+            caller,
+            &self.offered,
+            &report.host,
+            self.files.shared(),
+            flm_ext::paths::ExtensionsByName::new(),
+        ));
         package_factory(&extension, &report, Arc::new(self), digest, "", services)
     }
 
@@ -243,7 +260,7 @@ pub fn expand(
 
 /// The package `package` with one feature, `defs`, declaring each of
 /// `definitions`: its element under the helper's name
-/// ([`element_name_under`](flm_ext::api::stdcore::features::userdefs::element_name_under)),
+/// ([`element_name_under`](flm_ext::api::stdlib::features::userdefs::element_name_under)),
 /// expanded by its own template or by the hook given beside it, its lowering
 /// rule, and the override of the standard callable when the definition is
 /// marked overriding.
@@ -251,7 +268,7 @@ pub fn defining(
     package: &str,
     definitions: Vec<(flm_ext::api::lang::rewrites::userdefs::UserDefinition, Option<Arc<dyn Expand>>)>,
 ) -> Double {
-    use flm_ext::api::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+    use flm_ext::api::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
     let prefix = package.to_string();
     Double::new(package).feature("defs", move |b| {
         for (definition, hook) in &definitions {
@@ -282,7 +299,7 @@ pub fn expanded_trees(
     use flm_core::core::run::{Externals, Run, RunOptions};
     use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
     use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-    use flm_core::stdcore::features::userdefs::EXPANDED;
+    use flm_core::stdlib::features::userdefs::EXPANDED;
     let source = Arc::new(FlmSource::new(text).with_origin(FlmOrigin::none()));
     let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
         .expect("the document parses");

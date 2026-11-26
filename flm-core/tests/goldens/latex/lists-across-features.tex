@@ -1,5 +1,5 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.f6fc115e.sty
+% flm: style file flmrecomposed.06788627.sty
 Before the list, a list in running text \begin{itemize}\item one\item two\end{itemize} and the sentence goes on.
 
 \begin{enumerate}
@@ -11,11 +11,11 @@ Before the list, a list in running text \begin{itemize}\item one\item two\end{it
 fn main() {}
 \end{flmVerbatimCode}
 \item A nested list:
-\begin{itemize}\item\EscVerb[formatcom=\flmFmtVRB{verbcode}]{inline} code\item\emph{emphasis}\end{itemize}
+\begin{itemize}\item\EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbcode}]{inline} code\item\emph{emphasis}\end{itemize}
 \end{enumerate}%%
-% ===== latex-recomposed:style flmrecomposed.f6fc115e.sty =====
+% ===== latex-recomposed:style flmrecomposed.06788627.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.f6fc115e}
+\ProvidesPackage{flmrecomposed.06788627}
 % --- packages ---
 % flm.latex.pkg.fvextra
 \RequirePackage{fvextra}
@@ -122,9 +122,13 @@ fn main() {}
   \fi}
 % flm.latex.def.verbatim
 % Verbatim content. Inline content is written as
-%   \EscVerb[formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
+%   \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
 % and block content as the flmVerbatimCode environment. \EscVerb comes with
 % fvextra 1.5 (2022) and later, which this file requires.
+% \flmVRBFamily, the font family of the surrounding text, is given to fancyvrb
+% as fontfamily: fancyvrb keeps that family, and each kind's hook alone sets the
+% font. It is expandable, as fancyvrb's fontfamily needs.
+\providecommand\flmVRBFamily{\f@family}
 % \flmFmtVRB{<kind>} runs the hook \flmFmtVRB<kind>; redefine
 % \flmFmtVRBverbtext, \flmFmtVRBverbcode or \flmFmtVRBverba to change how
 % that kind of verbatim content is set.
@@ -148,12 +152,13 @@ fn main() {}
   \begin{Verbatim}[formatcom=\flmFmtVRB{verbcode}]}%
   {\end{Verbatim}}
 % flmVerbatimText[<lang>]: a block of plain verbatim text, set with the
-% verbtext hook. It takes the same optional argument as flmVerbatimCode and
-% ignores it, so that one command (\flmVerbatimBlock below), which always
-% writes the brackets, serves either environment.
+% verbtext hook in the font family of the surrounding text. It takes the same
+% optional argument as flmVerbatimCode and ignores it, so that one command
+% (\flmVerbatimBlock below), which always writes the brackets, serves either
+% environment.
 \ProvideDocumentEnvironment{flmVerbatimText}{O{}}{%
   \VerbatimEnvironment
-  \begin{Verbatim}[formatcom=\flmFmtVRB{verbtext}]}%
+  \begin{Verbatim}[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]}%
   {\end{Verbatim}}
 % \flmVerbatimBlock[<options>]{<environment>}{<lines>}: one block of verbatim
 % content written as a single macro call, for the places a block cannot be

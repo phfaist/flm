@@ -38,12 +38,12 @@
 //! `flm dump` of the `flm` program is the program's view of this engine: the program parses
 //! the command line, reads the file and prints what the engine gives it.
 //!
-//! # The layer over the host library (cargo feature `flm-main`)
+//! # The layer over the host library (cargo feature `flm-host`)
 //!
-//! A document processed by the host library `flm-main` has an environment that its front
+//! A document processed by the host library `flm-host` has an environment that its front
 //! matter shapes: the packages it uses, the settings it writes, the profile it builds with.
-//! Under the cargo feature `flm-main`, `Environment::of_prepared` makes the environment of
-//! a document that the host prepared (`flm_main::session::prepare`), and
+//! Under the cargo feature `flm-host`, `Environment::of_prepared` makes the environment of
+//! a document that the host prepared (`flm_host::session::prepare`), and
 //! `Environment::of_request` the environment of a request without a document; the module
 //! `host` holds what the host adds (`host::HostInfo`: the profile in view, the math
 //! processor, where each package comes from with the description, the author and the
@@ -70,18 +70,22 @@
 //! ```
 //! use std::sync::Arc;
 //! use flm_core::core::plan::{Overrides, Plan};
-//! use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+//! use flm_core::core::registry::{PackageEntry, PackageFactory, RegistryBuilder, RegistryInputs};
+//! use flm_core::core::settings::PackageSettings;
 //! use flm_core::lang::mint::CallableKind;
-//! use flm_core::stdcore::{self, StdcoreConfig};
+//! use flm_core::stdlib::{self, StdlibConfig};
 //! use flm_info::Environment;
 //! use flm_info::pages::{SourceOptions, Tree, source};
 //!
 //! let mut builder = RegistryBuilder::new();
-//! builder.use_package(stdcore::package(StdcoreConfig::new()));
+//! builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 //! builder.use_package(flm_core::math_passthrough::package());
 //! let registry = builder.build(&RegistryInputs::new())?;
 //! let plan = Plan::for_workflow(&registry, "text", &Overrides::none())?;
-//! let factories = vec![stdcore::factory()?, flm_core::math_passthrough::factory()?];
+//! let std = PackageFactory::new("std", |settings: &PackageSettings| {
+//!     Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+//! })?;
+//! let factories = vec![std, flm_core::math_passthrough::factory()?];
 //!
 //! let env = Environment::new(registry, Some(Arc::new(plan)), factories);
 //!
@@ -103,13 +107,13 @@
 //! ```
 
 // A crate of its own, above the host library, whose core needs flm-core alone: inside flm-core
-// or flm-main, the introspection would weigh on every user of those crates, and an embedder
+// or flm-host, the introspection would weigh on every user of those crates, and an embedder
 // of flm-core alone, WebAssembly included, can still query its own registry.
 
 pub mod describe;
 pub mod dump;
 pub mod env;
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 pub mod host;
 pub mod pages;
 

@@ -8,7 +8,7 @@
 //! `pdflatex` and `lualatex` must both run from the `PATH`:
 //!
 //! ```text
-//! FLM_TESTS_LATEX_COMPILE=1 cargo test -p phfpack --test macros
+//! FLM_TESTS_LATEX_COMPILE=1 cargo test -p flm-extensions --features phfpack --test phfpack-macros
 //! ```
 //!
 //! It writes every macro's recomposed LaTeX into one minimal `article` that
@@ -18,7 +18,12 @@
 
 mod common;
 
-use common::{compile_under_both_engines, compiling_enabled, html_of, latex_of, registry, text_of, ENABLE_VARIABLE};
+use flm_core::stdlib::backends::{html, latex_recomposed};
+
+use common::{
+    assert_only_unchecked_output, compile_under_both_engines, compiling_enabled, html_of, latex_of, registry, text_of,
+    workflow_plan, ENABLE_VARIABLE,
+};
 
 /// Each macro's use and the replacement it gives.
 const MACROS: &[(&str, &str)] = &[
@@ -125,7 +130,7 @@ fn each_macro_is_replaced_in_the_formula_the_web_page_hands_the_renderer() {
     let registry = registry();
     for (use_, expected) in MACROS {
         let (html, diagnostics) = html_of(&registry, &format!(r"\({use_}\)"));
-        assert!(diagnostics.is_empty(), "{use_}: {diagnostics:?}");
+        assert_only_unchecked_output(&workflow_plan(&registry, html::WORKFLOW), &diagnostics);
         assert!(html.contains(&format!(r"\({}\)", handed(expected))), "{use_}: {html}");
     }
 }
@@ -141,7 +146,7 @@ fn bitstring_written_in_text_is_an_inline_formula() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "The string \\(\\underline{\\overline{\\texttt{0110}}}\\).\n");
     let (html, diagnostics) = html_of(&registry, used);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert_eq!(html, html_of(&registry, written).0);
     assert!(html.contains(r#"data-flm-display="inline">\(\underline{\overline{"#), "{html}");
 }
@@ -151,7 +156,7 @@ fn each_macro_is_replaced_in_the_recomposed_latex() {
     let registry = registry();
     for (use_, expected) in MACROS {
         let (latex, diagnostics) = latex_of(&registry, &format!(r"\({use_}\)"));
-        assert!(diagnostics.is_empty(), "{use_}: {diagnostics:?}");
+        assert_only_unchecked_output(&workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
         assert!(latex.contains(&format!(r"\({expected}\)")), "{use_}: {latex}");
     }
 }
@@ -168,7 +173,7 @@ fn the_recomposed_latex_of_each_macro_compiles_under_both_engines() {
     assert_eq!(uses.len(), MACROS.len() - NEEDS_MORE_THAN_AMSMATH.len(), "every left-out macro is in the table");
     let source: String = uses.iter().map(|use_| format!("\\({use_}\\)\n\n")).collect();
     let (body, diagnostics) = latex_of(&registry, &source);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     for use_ in &uses {
         let expected = MACROS.iter().find(|(u, _)| u == use_).map(|(_, e)| *e).unwrap_or_default();
         assert!(body.contains(expected), "{use_}: {body}");

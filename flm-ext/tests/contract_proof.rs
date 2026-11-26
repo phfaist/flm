@@ -96,28 +96,34 @@ fn case_one_s_hook_keeps_relatives_beyond_their_borrow() {
 /// the factory name and both entry forms answer one factory, and the catalog
 /// answers what the factories reach.
 fn loader_consumer() -> Result<(), Vec<flm_core::core::registry::ResolveError>> {
-    use flm_core::core::registry::{PackageCatalog, PackageResolver, ResolveError};
+    use flm_core::core::registry::{PackageCatalog, PackageEntry, PackageFactory, PackageResolver, ResolveError};
+    use flm_core::core::settings::PackageSettings;
+    use flm_core::stdlib;
     use flm_ext::{ExtensionLoader, LoadedBlock, MemoryFiles, MemorySource};
     use serde_json::json;
 
     let source = MemorySource::new().with(
         "myext",
         "_flmextensions/myext.yaml",
-        json!({ "extension": { "description": "Mine" }, "flm": { "use": ["stdcore"] } }),
+        json!({ "extension": { "description": "Mine" } }),
         MemoryFiles::new().with_value(
             "templates/html/fancy.yaml",
-            json!({ "output": "html", "engine": "content-only", "accepts": "all" }),
+            json!({ "name": "fancy", "output": "html", "engine": "content-only", "accepts": "all" }),
         ),
     );
     let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(source)]));
     let mut catalog = PackageCatalog::new();
-    catalog.add_compiled(flm_core::stdcore::factory().map_err(|e| vec![ResolveError::new(e.to_string())])?);
+    let standard = PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    });
+    catalog.add_compiled(standard.map_err(|e| vec![ResolveError::new(e.to_string())])?);
     catalog.add_resolver(Arc::clone(&loader) as Arc<dyn PackageResolver>);
     let factory = catalog.resolve("myext")?.expect("found");
     assert_eq!(factory.name().as_str(), "_flmextensions/myext.yaml#_");
     assert_eq!(catalog.resolve("myext#_")?.expect("found").name(), factory.name());
     assert_eq!(catalog.resolve("_flmextensions/myext.yaml#_")?.expect("found").name(), factory.name());
-    let factories = catalog.resolve_all(&["myext"]).map_err(|_| Vec::new())?;
+    // The host's own package of the standard features comes first, as its initial list.
+    let factories = catalog.resolve_all(&["std", "myext"]).map_err(|_| Vec::new())?;
     assert_eq!(factories.len(), 2);
     let _reach: flm_core::core::settings::cascade::Reach = catalog.reach(&factories);
     let blocks: Vec<LoadedBlock> = loader.blocks();
@@ -133,15 +139,16 @@ fn a_memory_source_resolves_through_the_loader() {
 /// A host's template engine.
 struct HostEngine;
 
-impl flm_core::stdcore::features::compose::TemplateEngine for HostEngine {
+impl flm_core::stdlib::features::compose::TemplateEngine for HostEngine {
     fn name(&self) -> &str {
         "host"
     }
 
     fn render(
         &self,
-        template: &flm_core::stdcore::features::compose::Template,
-        _: &flm_core::stdcore::features::compose::TemplateContext,
+        template: &flm_core::stdlib::features::compose::Template,
+        _: &flm_core::stdlib::features::compose::TemplateContext,
+        _: &Arc<dyn flm_core::stdlib::features::compose::TemplateShipper>,
     ) -> Result<String, String> {
         Ok(template.text.clone())
     }
@@ -150,7 +157,7 @@ impl flm_core::stdcore::features::compose::TemplateEngine for HostEngine {
 /// A host's feature contributing its engine and its templates, as `std`'s
 /// `compose-standard` does.
 struct ComposeStandard {
-    templates: Vec<flm_core::stdcore::features::compose::Template>,
+    templates: Vec<flm_core::stdlib::features::compose::Template>,
 }
 
 impl flm_core::core::registry::FlmFeature for ComposeStandard {
@@ -162,7 +169,7 @@ impl flm_core::core::registry::FlmFeature for ComposeStandard {
         &self,
         b: &mut flm_core::core::registry::FeatureBuilder<'_>,
     ) -> Result<(), flm_core::core::registry::BuildError> {
-        use flm_core::stdcore::features::compose::{Template, TemplateEngine, ENGINES_SLOT, TEMPLATES_SLOT};
+        use flm_core::stdlib::features::compose::{Template, TemplateEngine, ENGINES_SLOT, TEMPLATES_SLOT};
         b.peer_slot::<dyn TemplateEngine>(ENGINES_SLOT, Arc::new(HostEngine) as Arc<dyn TemplateEngine>)?;
         for template in &self.templates {
             b.peer_slot::<Template>(TEMPLATES_SLOT, Arc::new(template.clone()))?;
@@ -174,7 +181,7 @@ impl flm_core::core::registry::FlmFeature for ComposeStandard {
 #[test]
 fn a_host_engine_and_template_reach_the_compose_slots() {
     use flm_core::core::registry::{build_registry, FlmFeature};
-    use flm_core::stdcore::features::compose::{ComposeFeature, Template, TemplateEngine, ENGINES_SLOT, TEMPLATES_SLOT};
+    use flm_core::stdlib::features::compose::{ComposeFeature, Template, TemplateEngine, ENGINES_SLOT, TEMPLATES_SLOT};
     use flm_ext::{ExtensionFiles, MemoryFiles};
     use serde_json::json;
 
@@ -182,12 +189,12 @@ fn a_host_engine_and_template_reach_the_compose_slots() {
     let files = MemoryFiles::new().with_text("simple.html", "<html>{{ content }}</html>");
     let template = Template::from_data(
         "std",
-        "simple",
-        json!({ "output": "html", "engine": "host", "main": "simple.html", "accepts": "all" }),
-        &|path| files.read_text(path).map_err(|error| error.detail),
-        &|path| files.read_bytes(path).map_err(|error| error.detail),
+        json!({ "name": "simple", "output": "html", "engine": "host", "main": "simple.html", "accepts": "all" }),
+        &|path| files.read_text("", path).map_err(|error| error.to_string()),
+        &|path| files.read_bytes("", path).map_err(|error| error.to_string()),
         &|_| Ok(None),
-        None,
+        &|_| None,
+        &|written| Ok(written.to_string()),
     )
     .expect("a template");
     let registry = build_registry([
@@ -295,10 +302,10 @@ fn restage_consumer(b: &mut dyn flm_ext::api::core::registry::FeatureBuilder) ->
 /// A provider's body over [`ProviderCx`]: entries made through the context,
 /// kept beyond its borrow, answered with the requests' keys.
 fn provider_consumer(
-    cx: &dyn flm_ext::api::stdcore::features::citations::ProviderCx,
-    requests: &[flm_ext::api::stdcore::features::citations::CitationRequest],
-) -> Result<Vec<flm_ext::api::stdcore::features::citations::CitationResult>, ExtError> {
-    use flm_ext::api::stdcore::features::citations::{CitationAnswer, CitationEntry, EntryPiece};
+    cx: &dyn flm_ext::api::stdlib::features::citations::ProviderCx,
+    requests: &[flm_ext::api::stdlib::features::citations::CitationRequest],
+) -> Result<Vec<flm_ext::api::stdlib::features::citations::CitationResult>, ExtError> {
+    use flm_ext::api::stdlib::features::citations::{CitationAnswer, CitationEntry, EntryPiece};
     let made: Vec<Box<dyn CitationEntry>> = {
         let borrowed = cx;
         let mut made = Vec::new();
@@ -314,14 +321,14 @@ fn provider_consumer(
 
 /// A module's body over [`TemplateCx`]: the `files` handle kept beyond the
 /// borrow of the context, then read.
-fn template_consumer(cx: &dyn flm_ext::api::stdcore::features::compose::TemplateCx) -> Result<Option<String>, ExtError> {
-    use flm_ext::api::host::{FilesScope, HostHandle};
+fn template_consumer(cx: &dyn flm_ext::api::stdlib::features::compose::TemplateCx) -> Result<Option<String>, ExtError> {
+    use flm_ext::api::host::HostHandle;
     let handle: HostHandle = {
         let borrowed = cx;
         borrowed.host("files")?
     };
     match handle {
-        HostHandle::Files(files) => files.read_text(FilesScope::Extension, "head.html"),
+        HostHandle::Files(files) => files.read_text("self:head.html"),
         HostHandle::Service(_) => Ok(None),
     }
 }
@@ -329,9 +336,9 @@ fn template_consumer(cx: &dyn flm_ext::api::stdcore::features::compose::Template
 /// A binding's half over [`CitationEntry`]: the context and the entries it
 /// makes lent into one call table, an entry handed back by its handle.
 fn binding_consumer<'c>(
-    cx: &'c dyn flm_ext::api::stdcore::features::citations::ProviderCx,
+    cx: &'c dyn flm_ext::api::stdlib::features::citations::ProviderCx,
     table: &mut flm_ext::adapter::handles::CallTable<'c>,
-) -> Result<Vec<flm_ext::api::stdcore::features::citations::CitationResult>, ExtError> {
+) -> Result<Vec<flm_ext::api::stdlib::features::citations::CitationResult>, ExtError> {
     use flm_ext::adapter::handles::Entry;
     use flm_ext::adapter::values::{citation_results_from_value, handle_to_value};
     let cx = table.lend(Entry::ProviderCx(cx));
@@ -471,17 +478,22 @@ mod durable_and_aspects {
         assert_eq!((mine.kind, mine.index), (theirs.kind, theirs.index));
         assert_ne!(mine.table, theirs.table);
 
+        // The kind and index the token names, and the feature it was resolved against.
         let stale = |token: DurableToken| {
             let error = this.compiled_template(token).err().expect("stale");
-            assert!(matches!(error, ExtError::StaleDurable { .. }), "{error:?}");
-            error.to_string()
+            let ExtError::StaleDurable { kind, index, feature, package, extension, .. } = &error else {
+                panic!("a stale durable token: {error:?}")
+            };
+            (*kind, *index, feature.clone(), package.clone(), extension.clone())
         };
-        let text = "the `compiled_template` object 1 must be one the feature `titles` of the package `_` of the \
-                    extension `ex` made under the registry in use";
-        assert_eq!(stale(theirs), text);
+        let named = |kind: DurableKind, index: u32| (kind, index, "titles".to_string(), "_".to_string(), "ex".to_string());
+        assert_eq!(stale(theirs), named(DurableKind::CompiledTemplate, theirs.index));
         // An index this table does not hold, and an entry of another kind.
-        assert!(stale(DurableToken { index: 9, ..mine }).contains("object 9 must be one"));
-        assert!(stale(DurableToken { kind: DurableKind::TemplateLanguage, ..mine }).starts_with("the `template_language` object 1"));
+        assert_eq!(stale(DurableToken { index: 9, ..mine }), named(DurableKind::CompiledTemplate, 9));
+        assert_eq!(
+            stale(DurableToken { kind: DurableKind::TemplateLanguage, ..mine }),
+            named(DurableKind::TemplateLanguage, mine.index)
+        );
         assert!(this.compiled_template(mine).is_ok());
     }
 

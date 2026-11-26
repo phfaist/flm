@@ -1,5 +1,5 @@
 //! The default lowering rules of the structural elements
-//! (`flm_core::stdcore::backends::lowering`) over trees the block-structure
+//! (`flm_core::stdlib::backends::lowering`) over trees the block-structure
 //! pass produced: paragraphs to `par`, decorators hoisted into the paragraph's
 //! attached slots, math groups and a math environment to `math-passthrough` with
 //! their content carried verbatim (the math fallback and a paragraph break
@@ -23,8 +23,8 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::element::element_of;
 use flm_core::dump::golden::assert_json_golden;
 use flm_core::lang::Flm;
-use flm_core::stdcore::backends::lowering::{FieldNotRead, stage_trimmed};
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::lowering::{FieldNotRead, stage_trimmed};
+use flm_core::stdlib::backends::pres::{
     self, MathDisplay, MathPassthroughPayload, SpanPayload, SpanStyle, UnknownKind, UnknownPayload,
     VerbatimDisplay, VerbatimPayload, attached_slots, payload_of, plain_text,
 };

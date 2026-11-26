@@ -257,7 +257,7 @@ impl UserDefinition {
         match self.definition.variant_for_use(&site) {
             Ok(variant) => {
                 let mode = site.parsing_state().mode();
-                Ok(Box::new(ModeVariantFacade::new(Arc::clone(&self.definition), mode, variant)))
+                Ok(Box::new(ModeVariantFacade::new(Arc::clone(&self.definition), mode, &variant)))
             }
             Err(condition) => Err(ExtError::Core {
                 kind: condition.identifier().to_string(),

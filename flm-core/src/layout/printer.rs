@@ -153,11 +153,35 @@
 //! scan, and are reported in the order they are opened (the order in which
 //! the printer reaches their nodes). Lines and columns are counted from 0,
 //! columns are display columns, and the end position is excluded from the
-//! span. A marked document and the same document without marks print the same
-//! bytes.
+//! span. A marked document and the same document without marks print the
+//! same bytes.
 //!
-//! Known limitation: table cells are printed by separate runs of the printer,
-//! and the marks inside them are not reported; a mark around a whole table is.
+//! A table's spans follow the spans of the marks opened before it, the mark
+//! around the table included. A table given a border mark
+//! ([`DocBuf::table`]) first reports one span under that mark for each run of
+//! characters it draws on a line, in the order they are written. Then come
+//! the marks inside its cells, row by row and column by column, each cell's
+//! marks in their own order. Each cell is printed by a separate run of the
+//! printer, and each of its marks is placed where the cell's text lands in
+//! the table: on the table's line that holds the cell's line, at the column
+//! after the indentation, the frame or the gutter, and the padding before the
+//! cell.
+//!
+//! A span of a mark inside a cell never covers a character the cell did not
+//! print. The printer reports one span per occurrence of a mark, except that
+//! a mark inside a table's cell over several lines of the cell gives one
+//! span per line of the cell on which it covers at least one character,
+//! because the table interleaves the cell's lines with the rest of the row:
+//! the first span runs from the mark's start to the end of that line of the
+//! cell, the last from the start of its line of the cell to the mark's end,
+//! and each one in between covers its whole line of the cell. The cell's line
+//! breaks belong to no span, and a blank line of the cell gives none. The
+//! spans of one mark are consecutive, in line order, at the mark's place
+//! among the cell's marks. A table nested in a cell places its cells' marks into the cell, and the
+//! enclosing table places them once more. A mark inside a cell whose row
+//! prints nothing gets an empty span at the next content character after the
+//! table or, if nothing follows, at the end of the text before the final
+//! newline.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -165,7 +189,7 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use super::doc::{ColSpec, DocBuf, DocId, MarkId, Node, PoolRange, RawPolicy, TableCell, TableDef};
-use super::table::{self, RenderedCell};
+use super::table::{self, AssembledLine, RenderedCell, RowLine};
 use super::width::{UnicodeMeasure, WidthMeasure};
 
 /// The printer's option: the target line width.
@@ -247,7 +271,14 @@ pub struct PrintOutput {
     /// ends with exactly one `'\n'`.
     pub text: String,
     /// One span per occurrence of a mark, in the order the marks are opened
-    /// (the order in which the printer reaches the `mark` nodes).
+    /// (the order in which the printer reaches the `mark` nodes); a mark
+    /// inside a table cell over several lines of the cell gives one span per
+    /// line, because the table interleaves the cell's lines with the rest of
+    /// the row. A table's spans follow those of the marks opened before it:
+    /// one span under its border mark for each run of characters it draws on
+    /// a line, if it has a border mark, then the marks inside its cells, row
+    /// by row and column by column (see the [module documentation](self),
+    /// section 5).
     pub marks: Vec<MarkSpan>,
 }
 
@@ -306,13 +337,27 @@ pub(crate) fn print_with_measure(
 /// Without this record, the innermost cells of a table nested *n* deep would
 /// be printed three to the *n*-th power times. A cell's printed text depends
 /// only on the cell and the width (the separate run starts from an empty
-/// indentation stack and reports no marks), so one printing serves every
-/// later request for the same cell and width, and the output is the same.
+/// indentation stack), so one printing serves every later request for the
+/// same cell and width, and the output is the same. The record keeps the
+/// marks of the printing with its text, so a table nested in a cell, whose
+/// cells' marks were placed into the cell's printing, places them once more
+/// into the enclosing table.
 #[derive(Default)]
-struct CellRenders(RefCell<BTreeMap<CellAtWidth, Rc<str>>>);
+struct CellRenders(RefCell<BTreeMap<CellAtWidth, Rc<PrintOutput>>>);
 
 /// A table cell and the width it is printed at (`None` for no limit).
 type CellAtWidth = (DocId, Option<u32>);
+
+/// The printing of one cell of a table at its column's width, with its
+/// position in the table, for placing its marks.
+struct PrintedCell {
+    /// The cell's row, counted from 0.
+    row: usize,
+    /// The cell's column, counted from 0.
+    col: usize,
+    /// The cell's printing.
+    output: Rc<PrintOutput>,
+}
 
 /// What a break opportunity prints in the frame from which the printer
 /// reaches it.
@@ -971,7 +1016,8 @@ impl<'a> Printer<'a> {
 
     /// Prints `cell` on its own, at `width`, with this printer's measure and
     /// an empty indentation stack (the table's own stack applies to the
-    /// assembled lines). **Marks inside the cell are not reported.**
+    /// assembled lines), and returns the text and the marks of that printing;
+    /// [`emit_table`](Self::emit_table) places the marks into the table.
     ///
     /// Each printing of a table asks for each of its cells at three widths
     /// (width 1, no limit, and the column's computed width), and each cell is
@@ -979,15 +1025,15 @@ impl<'a> Printer<'a> {
     /// [`CellRenders`], and a later request at the same width reads the
     /// record, so a nested table does not multiply the printings of its
     /// innermost cells by three per level.
-    fn render_cell(&self, cell: DocId, width: Option<u32>) -> Rc<str> {
+    fn render_cell(&self, cell: DocId, width: Option<u32>) -> Rc<PrintOutput> {
         if let Some(done) = self.cells.0.borrow().get(&(cell, width)) {
             return Rc::clone(done);
         }
         let mut printer = Printer::new(self.buf, self.measure, width, self.cells);
         printer.run(cell);
-        let text: Rc<str> = Rc::from(printer.finish().text);
-        self.cells.0.borrow_mut().insert((cell, width), Rc::clone(&text));
-        text
+        let output = Rc::new(printer.finish());
+        self.cells.0.borrow_mut().insert((cell, width), Rc::clone(&output));
+        output
     }
 
     fn max_line_width(&self, s: &str) -> u32 {
@@ -1002,14 +1048,14 @@ impl<'a> Printer<'a> {
     /// cell printed at width 1 (every break opportunity broken), which is the
     /// widest atom (or raw line) plus the indentation around it.
     fn cell_min(&self, cell: DocId) -> u32 {
-        self.max_line_width(&self.render_cell(cell, Some(1)))
+        self.max_line_width(&self.render_cell(cell, Some(1)).text)
     }
 
     /// A cell's **maximum** width: the widest line of the cell printed with no
     /// width limit, where only its unconditional breaks (`hardline`,
     /// `blocksep`, newlines of raw content) end lines.
     fn cell_max(&self, cell: DocId) -> u32 {
-        self.max_line_width(&self.render_cell(cell, None))
+        self.max_line_width(&self.render_cell(cell, None).text)
     }
 
     /// Lays out and writes a table: measure the cells, compute the column
@@ -1052,16 +1098,18 @@ impl<'a> Printer<'a> {
         }
 
         // -- solve -----------------------------------------------------------
-        let gutters = table::GUTTER_WIDTH * (ncols as u32 - 1);
+        let frame = table::frame_width(def.frame, ncols);
         let available = self.width.map(|w| {
             w.saturating_sub(self.stack_width(indent))
-                .saturating_sub(gutters)
+                .saturating_sub(frame)
         });
         let widths = table::solve_columns(&mins, &maxs, available);
 
         // -- render cells ----------------------------------------------------
         let mut rendered: Vec<Vec<RenderedCell>> = Vec::with_capacity(grid.len());
-        for row in &grid {
+        // Each cell's printing, in reading order, for its marks.
+        let mut printed: Vec<PrintedCell> = Vec::new();
+        for (r, row) in grid.iter().enumerate() {
             let mut out_row = Vec::with_capacity(ncols);
             for (i, cell) in row.iter().enumerate() {
                 // With an unbounded profile every column already has its max
@@ -1071,13 +1119,21 @@ impl<'a> Printer<'a> {
                 let lines: Vec<String> = match cell {
                     None => Vec::new(),
                     Some(cell) => {
-                        let s = self.render_cell(cell.doc, cell_width);
-                        let s = s.strip_suffix('\n').unwrap_or(&s);
-                        if s.is_empty() {
+                        let output = self.render_cell(cell.doc, cell_width);
+                        let s = output.text.strip_suffix('\n').unwrap_or(&output.text);
+                        let lines = if s.is_empty() {
                             Vec::new()
                         } else {
                             s.split('\n').map(|l| l.to_string()).collect()
+                        };
+                        if !output.marks.is_empty() {
+                            printed.push(PrintedCell {
+                                row: r,
+                                col: i,
+                                output: Rc::clone(&output),
+                            });
                         }
+                        lines
                     }
                 };
                 // A cell's own alignment replaces its column's.
@@ -1088,13 +1144,20 @@ impl<'a> Printer<'a> {
         }
 
         // -- assemble --------------------------------------------------------
-        let lines = table::assemble_lines(&rendered, &widths, def.header_rows, self.measure);
+        let lines = table::assemble_lines(
+            &rendered,
+            &widths,
+            def.header_rows,
+            def.frame,
+            self.measure,
+        );
 
         // -- emit ------------------------------------------------------------
         // A table that prints nothing is not a block: it leaves the current
         // line and any pending break untouched, since output that does not
         // exist must not push the following text onto a new line.
         if lines.is_empty() {
+            self.add_cell_marks(&printed, &[], &[], &BTreeMap::new());
             return;
         }
         // Otherwise a table is a block: it starts on its own line and ends
@@ -1103,22 +1166,153 @@ impl<'a> Printer<'a> {
             self.request_break(0);
         }
         self.flush_break(indent);
+        // Where each line's text starts in the output, by line of the table.
+        let mut line_starts: Vec<Pos> = Vec::with_capacity(lines.len());
+        // The index of each line of a row in `lines`, by row and line.
+        let mut row_lines: BTreeMap<(usize, usize), usize> = BTreeMap::new();
         for (k, line) in lines.iter().enumerate() {
             if k > 0 {
                 self.hard_nl();
             }
-            if line.is_empty() {
+            if line.text.is_empty() {
                 self.open_blank_line(indent);
             } else {
                 self.open_line(indent);
                 self.note_visible_start();
-                self.out.push_str(line);
-                self.col += self.measure.str_width(line);
+                if let Some(id) = def.border_mark {
+                    self.add_table_runs(id, line);
+                }
+            }
+            line_starts.push(Pos {
+                byte: self.out.len(),
+                line: self.line,
+                col: self.col,
+            });
+            if let Some(RowLine { row, line: n, .. }) = line.row_line {
+                row_lines.insert((row, n), k);
+            }
+            if !line.text.is_empty() {
+                self.out.push_str(&line.text);
+                self.col += self.measure.str_width(&line.text);
                 self.note_visible_end();
             }
         }
         self.last_indent = indent;
         self.request_break(0);
+        self.add_cell_marks(&printed, &lines, &line_starts, &row_lines);
+    }
+
+    /// Records one span under `id` for each run of characters the table draws
+    /// on `line` ([`AssembledLine::borders`]), the line about to be written
+    /// at the current position.
+    fn add_table_runs(&mut self, id: MarkId, line: &AssembledLine) {
+        let byte = self.out.len();
+        for run in &line.borders {
+            let col = self.col + self.measure.str_width(&line.text[..run.start]);
+            let width = self.measure.str_width(&line.text[run.clone()]);
+            self.marks.push(MarkState {
+                id,
+                start: Some(Pos {
+                    byte: byte + run.start,
+                    line: self.line,
+                    col,
+                }),
+                end: Some(Pos {
+                    byte: byte + run.end,
+                    line: self.line,
+                    col: col + width,
+                }),
+                empty: false,
+            });
+        }
+    }
+
+    /// Records the marks printed inside the table's cells, `cells` in reading
+    /// order, each mark placed where its cell's line was written: `lines` are
+    /// the table's assembled lines, `starts[k]` the position in the output at
+    /// which the text of `lines[k]` starts, and `row_lines` the index in
+    /// `lines` of each line of a row, by row and line within the row.
+    ///
+    /// A mark keeps its byte range, line and column relative to the line of
+    /// the cell it is on, shifted to where that line stands in the output; a
+    /// position past the end of a line whose trailing whitespace was removed
+    /// moves to the line's end. A mark over several lines of the cell is
+    /// cut at the cell's line breaks into one span per line on which it
+    /// covers a character (see the [module documentation](self), section 5).
+    /// A mark of a cell whose row prints no line gets an empty span at the
+    /// next content character after the table or, if nothing follows, at the
+    /// end of the text before the final newline.
+    fn add_cell_marks(
+        &mut self,
+        cells: &[PrintedCell],
+        lines: &[AssembledLine],
+        starts: &[Pos],
+        row_lines: &BTreeMap<(usize, usize), usize>,
+    ) {
+        let measure = self.measure;
+        for cell in cells {
+            let text = &cell.output.text;
+            // The byte offset of each line of the cell's text.
+            let offsets: Vec<usize> = std::iter::once(0)
+                .chain(text.match_indices('\n').map(|(i, _)| i + 1))
+                .collect();
+            let place = |byte: usize, at: usize| -> Option<Pos> {
+                let k = *row_lines.get(&(cell.row, at))?;
+                let line = &lines[k];
+                let row_line = line.row_line.as_ref()?;
+                let within = byte - offsets[at];
+                let byte = (row_line.starts[cell.col] + within).min(line.text.len());
+                let start = starts[k];
+                Some(Pos {
+                    byte: start.byte + byte,
+                    line: start.line,
+                    col: start.col + measure.str_width(&line.text[..byte]),
+                })
+            };
+            // The end of each line of the cell's text, before its newline.
+            let line_end = |l: usize| offsets.get(l + 1).map_or(text.len(), |&o| o - 1);
+            for span in &cell.output.marks {
+                // The pieces of the span, one per line of the cell on which it
+                // covers a character: the cell's newlines belong to no piece.
+                let (first, last) = (span.start.line as usize, span.end.line as usize);
+                let mut pieces: Vec<(usize, usize, usize)> = if first == last {
+                    vec![(first, span.bytes.start, span.bytes.end)]
+                } else {
+                    (first..=last)
+                        .map(|l| {
+                            let from = span.bytes.start.max(offsets[l]);
+                            let to = span.bytes.end.min(line_end(l));
+                            (l, from, to)
+                        })
+                        .filter(|&(_, from, to)| from < to)
+                        .collect()
+                };
+                if pieces.is_empty() {
+                    // Only line breaks: an empty span where the mark starts.
+                    pieces.push((first, span.bytes.start, span.bytes.start));
+                }
+                let placed: Option<Vec<(Pos, Pos)>> = pieces
+                    .iter()
+                    .map(|&(l, from, to)| Some((place(from, l)?, place(to, l)?)))
+                    .collect();
+                match placed {
+                    Some(placed) => {
+                        for (start, end) in placed {
+                            self.marks.push(MarkState {
+                                id: span.id,
+                                start: Some(start),
+                                end: Some(end),
+                                empty: false,
+                            });
+                        }
+                    }
+                    None => {
+                        let idx = self.open_mark(span.id);
+                        self.marks[idx as usize].empty = true;
+                    }
+                }
+            }
+        }
     }
 
     // ========================================================================

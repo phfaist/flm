@@ -1,7 +1,7 @@
-//! The layer over the host library `flm-main` (cargo feature `flm-main`): the environment of
+//! The layer over the host library `flm-host` (cargo feature `flm-host`): the environment of
 //! a document the host prepared, and what the host adds to it.
 //!
-//! The host library prepares a document ([`flm_main::session::prepare`]): it reads the
+//! The host library prepares a document ([`flm_host::session::prepare`]): it reads the
 //! document's front matter, finds the packages the document uses, combines the settings
 //! from every source (the program's defaults, the packages of extensions, the front matter,
 //! the settings a package gives the workflow, the command line), builds the registry and
@@ -28,12 +28,13 @@ use std::sync::Arc;
 
 use flm_core::core::registry::PackageFactory;
 use flm_core::model::doc::FragmentLayout;
-use flm_core::stdcore::features::math::CONTENT;
+use flm_core::progress::Scope;
+use flm_core::stdlib::features::math::CONTENT;
 use flm_ext::Manifest;
-use flm_main::files::Files;
-use flm_main::seed::{MathChoice, Place, front_matter_schema};
-use flm_main::session::{Input, PrepareError, Prepared, Request, prepare};
-use flm_main::settings::{FeatureInEffect, KeyInEffect, Origin, Source};
+use flm_host::files::Files;
+use flm_host::seed::{MathChoice, Place, front_matter_schema};
+use flm_host::session::{Input, PrepareError, Prepared, Request, prepare};
+use flm_host::settings::{FeatureInEffect, KeyInEffect, Origin, Source};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -71,7 +72,7 @@ impl Environment {
     /// cannot be found.
     pub fn of_request(mut request: Request, files: Arc<dyn Files>, compiled: &[PackageFactory]) -> Result<Environment, PrepareError> {
         request.input = Input::Text(String::new());
-        let prepared = prepare(request, files, compiled)?;
+        let prepared = prepare(request, files, compiled, &Scope::none())?;
         Ok(Environment::of_prepared(&prepared))
     }
 
@@ -207,7 +208,7 @@ impl HostInfo {
             search_path: prepared
                 .search_path()
                 .iter()
-                .map(|folder| FolderView { path: folder.path.display().to_string(), required: folder.required })
+                .map(|folder| FolderView { path: folder.path.clone(), required: folder.required })
                 .collect(),
             suggestions: prepared.suggestions().to_vec(),
         }
@@ -313,8 +314,9 @@ pub struct HostPackageView {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, schemars::JsonSchema)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum PackageOrigin {
-    /// A package written in Rust and compiled into the program: a package of FLM's
-    /// libraries (such as `stdcore` and `math-passthrough`) or one the program adds.
+    /// A package written in Rust and compiled into the program: a package that the host
+    /// or FLM's libraries declare (such as `std` and `math-passthrough`) or one the program
+    /// adds.
     Compiled,
     /// A package of an extension found on the search path; the extension's identity is the
     /// path of its manifest.
@@ -362,8 +364,8 @@ impl ExtensionOrigin {
 /// The settings in effect for one feature.
 #[derive(Debug, Clone, PartialEq, Serialize, schemars::JsonSchema)]
 pub struct FeatureInEffectView {
-    /// Where the feature was switched off, when the source that decides it wrote `false`;
-    /// none of its keys is then in effect.
+    /// Where the feature was switched off, when the source that decides it wrote
+    /// `enabled: false` (or its shorthand `false`); none of its keys is then in effect.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switched_off: Option<OriginView>,
     /// The value in effect of each key that a source wrote, by the key's name.
@@ -499,7 +501,8 @@ impl WrittenView {
 /// One folder of the search path.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, schemars::JsonSchema)]
 pub struct FolderView {
-    /// The folder, relative to the current folder or absolute.
+    /// The folder, relative to the current folder or absolute, as the host writes paths:
+    /// `/` between names, on every system.
     pub path: String,
     /// Whether the folder must exist: given by the user, rather than looked in by default.
     #[serde(skip_serializing_if = "is_false")]
@@ -542,10 +545,11 @@ mod tests {
         RegistryInputs,
     };
     use flm_core::core::run::StageCx;
+    use flm_core::core::settings::PackageSettings;
     use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
     use flm_core::model::names::StageName;
-    use flm_core::stdcore::features::math::CONTENT;
-    use flm_core::stdcore::{self, StdcoreConfig};
+    use flm_core::stdlib::features::math::CONTENT;
+    use flm_core::stdlib::{self, StdlibConfig};
 
     use super::math_processor;
     use crate::Environment;
@@ -585,12 +589,15 @@ mod tests {
     #[test]
     fn the_math_processor_is_the_provider_that_the_plan_schedules() {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(stdcore::package(StdcoreConfig::new()));
+        builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
         builder.use_package(flm_core::math_passthrough::package());
         builder.use_package(second_package());
         let registry = builder.build(&RegistryInputs::new()).expect("the registry builds");
         let factories = vec![
-            stdcore::factory().expect("the factory of stdcore"),
+            PackageFactory::new("std", |settings: &PackageSettings| {
+                Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+            })
+            .expect("the factory of std"),
             flm_core::math_passthrough::factory().expect("the factory of math-passthrough"),
             PackageFactory::new("second-math", |_| Ok(second_package())).expect("the factory of second-math"),
         ];

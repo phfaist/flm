@@ -5,14 +5,14 @@
 //! A row ([`Row`]) gives a macro's name, its arguments, its argument number
 //! offset, its template, its parsing modes and the default values of its
 //! optional arguments. Each row becomes the same kind of macro as a macro
-//! declared in the settings ([`crate::settings`]), through
-//! [`Macro::from_row`](crate::macros::Macro::from_row); no code reads a
+//! declared in the settings ([`crate::phfpack::settings`]), through
+//! [`Macro::from_row`](crate::phfpack::macros::Macro::from_row); no code reads a
 //! particular row. [`TABLES`] lists the tables in the order their macros are
 //! registered.
 
 use flm_ext::guest::lang::rewrites::userdefs::DefinitionModes;
 
-use crate::sizing::SlotKind;
+use crate::phfpack::sizing::SlotKind;
 
 /// One argument of a row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -241,7 +241,7 @@ const RELATIVE_ENTROPY: &[RowArg] = &[Code("["), Size(Backtick), Code("{"), Code
 // package renders it; the template language's conditional tests one
 // placeholder, so the test of several parts nests one conditional per part,
 // each writing the same parenthesis. These macros assemble the template of a
-// row from its symbol when the crate compiles, so that each parenthesis is
+// row from its symbol when the module compiles, so that each parenthesis is
 // written once here.
 
 /// The parenthesis of an entropy and the state's subscript after it:
@@ -416,7 +416,7 @@ pub const MAIN_DELIMITED_ARGUMENT: &str = "MainDelimitedArgument";
 /// characters written after the backtick as they are, so a marker that is the
 /// start of another (`\Big`, the start of `\Bigg`) comes after it: `\Bigg`,
 /// `\Big`, `\bigg`, `\big` (the indices 3, 1, 2 and 0 of
-/// [`SIZE_COMMANDS`](crate::sizing::SIZE_COMMANDS)), then the star.
+/// [`SIZE_COMMANDS`](crate::phfpack::sizing::SIZE_COMMANDS)), then the star.
 pub const BACKTICK: &[Row] = &[Row {
     kind: RowKind::Specials,
     name: "`",

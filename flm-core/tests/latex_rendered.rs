@@ -23,7 +23,7 @@ use flm_core::core::lowering::{
 };
 use flm_core::core::plan::Overrides;
 use flm_core::core::region::STYLE_PACKAGE;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::Run;
 use flm_core::dump::diag::{expect, expect_none};
 use flm_core::dump::golden::assert_text_golden;
@@ -33,18 +33,18 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::element::ElementSpec;
 use flm_core::model::names::{ElementName, Name};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::construct::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::construct::{
     ARG_SLOT, DEFINITION, ENVIRONMENT, LatexArgShape, LatexDefinitionKind,
     LatexDefinitionPayload, LatexEnvironmentPayload, LatexMacroPayload, MACRO, RAW,
 };
-use flm_core::stdcore::backends::latex::{ExtraPreamble, LatexPackageDef, LatexRawPayload};
-use flm_core::stdcore::backends::latex_rendered::{
+use flm_core::stdlib::backends::latex::{ExtraPreamble, LatexPackageDef, LatexRawPayload};
+use flm_core::stdlib::backends::latex_rendered::{
     DOCUMENT, LatexRenderedRenderOptions, REGIONS, SKELETON_HEADER, WORKFLOW, emit_tree,
     style_artifact,
 };
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::backends::pres::{
     self, BlockPayload, DecoMarkPayload, DecorationPayload, DocRole, DroppedPayload, LinkPayload,
     ParPayload, SpanPayload, SpanStyle, SubtreePayload, UnknownKind, UnknownPayload,
     UnsupportedPayload,
@@ -53,12 +53,13 @@ use techy::core::node::{BuildId, NodeRef};
 
 use common::lowering::PresSite;
 use common::naming::{FixedNamer, JobNamer};
+use common::stdlib::assert_only_unchecked_output;
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The standard package under its default configuration.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The render request every run of this file makes, with `options` set.
@@ -76,7 +77,7 @@ fn with_options(options: LatexRenderedRenderOptions) -> Overrides {
 
 /// Runs the workflow over one document of one tree per text.
 fn render_with(registry: &Arc<FlmRegistry>, texts: &[&str], overrides: &Overrides) -> Run {
-    common::stdcore::run_workflow(registry, WORKFLOW, texts, overrides)
+    common::stdlib::run_workflow(registry, WORKFLOW, texts, overrides)
 }
 
 /// Runs the workflow over `text` with the default registry and options.
@@ -102,9 +103,13 @@ fn content(run: &Run) -> String {
     String::from(&text[start..end])
 }
 
-/// The messages of the diagnostics of `run` reporting `id`, in order.
-fn messages(run: &Run, id: &str) -> Vec<String> {
-    run.diagnostics().iter().filter(|report| report.identifier() == id).map(|report| report.message()).collect()
+/// The data, as compact JSON, of the diagnostics of `run` reporting `id`, in order.
+fn data_of(run: &Run, id: &str) -> Vec<String> {
+    let data = |report: &flm_core::lang::FlmDiagnostic| {
+        let value = techy::serialize::SerialValue::from(report.data().serializable_data());
+        flm_core::dump::json::to_json(&value).expect("diagnostic data is JSON")
+    };
+    run.diagnostics().iter().filter(|report| report.identifier() == id).map(data).collect()
 }
 
 /// The style file's text and its path.
@@ -147,8 +152,8 @@ fn emit_with(options: &LatexRenderedRenderOptions, build: impl FnOnce(&mut PresS
         .segments
         .iter()
         .map(|segment| match segment {
-            flm_core::stdcore::backends::latex_rendered::LatexSegment::Latex(latex) => latex.clone(),
-            flm_core::stdcore::backends::latex_rendered::LatexSegment::Tree(tree) => format!("<tree {tree}>"),
+            flm_core::stdlib::backends::latex_rendered::LatexSegment::Latex(latex) => latex.clone(),
+            flm_core::stdlib::backends::latex_rendered::LatexSegment::Tree(tree) => format!("<tree {tree}>"),
         })
         .collect()
 }
@@ -571,10 +576,8 @@ fn a_placed_tree_is_written_where_it_is_placed_and_not_again() {
 fn trees_placing_each_other_are_written_at_the_top_level_and_the_cycle_reported() {
     let run = render_with(&x_registry(), &["A \\place{} a.", "B \\placefirst{} b."], &overrides(OptionValues::new()));
     assert_eq!(
-        messages(&run, "flm.latex-rendered.subtree-cycle"),
-        vec![String::from(
-            "the document tree `tree#0` must not be placed inside itself, but it is, directly or through other trees"
-        )],
+        data_of(&run, "flm.latex-rendered.subtree-cycle"),
+        vec![String::from("{\"tree\":\"tree#0\"}")],
         "{}",
         run.diagnostics().render_all()
     );
@@ -589,7 +592,7 @@ fn a_macro_without_arguments_is_kept_apart_from_a_letter_that_follows() {
         &["\\word{}is, \\word{} and \\word{}é, \\word{}.\\word{}\\word{}"],
         &overrides(OptionValues::new()),
     );
-    assert_eq!(run.diagnostics().iter().count(), 0, "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(content(&run), "\\LaTeX is, \\LaTeX and \\LaTeX é, \\LaTeX.\\LaTeX\\LaTeX\n");
 }
 
@@ -600,7 +603,7 @@ fn the_construct_elements_are_written_natively_and_a_definition_once_in_the_styl
         &["A \\mac{boxed} and \\mac{again}, \\opt{wide}\\rawhere{} end.\n\n\\env{Centered.}\n\nAfter."],
         &overrides(OptionValues::new()),
     );
-    assert_eq!(run.diagnostics().iter().count(), 0, "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(
         content(&run),
         "A \\xbox{boxed} and \\xbox{again}, \\makebox[3cm]{wide}\\hfill end.\n\n\
@@ -643,7 +646,7 @@ fn the_style_file_holds_the_header_the_engine_check_the_base_packages_the_core_a
     // The hash is of the file without its header.
     let body = &style[style.find("% the engine").expect("the body")..];
     let hash = &name["flmx.".len()..];
-    assert_eq!(hash, flm_core::stdcore::backends::latex::style::content_hash(body));
+    assert_eq!(hash, flm_core::stdlib::backends::latex::style::content_hash(body));
 }
 
 #[test]
@@ -688,11 +691,10 @@ fn two_values_for_one_option_are_an_error_and_the_package_is_not_requested() {
     };
     let run = render_with(&registry(), &["Text."], &with_options(options));
     expect(run.diagnostics().iter(), "flm.latex-rendered.conflicting-package-options").count(1);
-    let reports = messages(&run, "flm.latex-rendered.conflicting-package-options");
+    let reports = data_of(&run, "flm.latex-rendered.conflicting-package-options");
     assert_eq!(
         reports,
-        ["two requests for the LaTeX package `geometry` give the option `papersize` the values \
-          `papersize=a4` and `papersize=letter`"]
+        ["{\"package\":\"geometry\",\"key\":\"papersize\",\"first\":\"papersize=a4\",\"second\":\"papersize=letter\"}"]
     );
     assert!(!style(&run).0.contains("{geometry}"));
 }
@@ -701,17 +703,14 @@ fn two_values_for_one_option_are_an_error_and_the_package_is_not_requested() {
 fn an_identifier_known_nowhere_is_an_error_and_a_stylesheet_is_another_backend_s() {
     let run = render_with(&x_registry(), &["A \\needy{} b"], &overrides(OptionValues::new()));
     expect(run.diagnostics().iter(), "flm.latex-rendered.unknown-requirement").count(3);
-    let mut reports = messages(&run, "flm.latex-rendered.unknown-requirement");
+    let mut reports = data_of(&run, "flm.latex-rendered.unknown-requirement");
     reports.sort();
     assert_eq!(
         reports,
         [
-            "the requirement `flm.latex.def.nothing` names no LaTeX package request, no definition \
-             piece, and no style or script definition",
-            "the requirement `flm.latex.pkg.nothing` names no LaTeX package request, no definition \
-             piece, and no style or script definition",
-            "the requirement `x.nothing` names no LaTeX package request, no definition piece, and \
-             no style or script definition",
+            "{\"id\":\"flm.latex.def.nothing\"}",
+            "{\"id\":\"flm.latex.pkg.nothing\"}",
+            "{\"id\":\"x.nothing\"}",
         ]
     );
     assert!(content(&run).contains("A \\relax b"), "{}", content(&run));
@@ -720,7 +719,7 @@ fn an_identifier_known_nowhere_is_an_error_and_a_stylesheet_is_another_backend_s
 /// The standard package with `namer` contributed to the naming of files.
 fn registry_naming(namer: Arc<dyn ArtifactNamer>) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(StdcoreConfig::new()));
+    builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.contribute_to(NAMER_SLOT, namer);
     builder.build(&RegistryInputs::new()).unwrap_or_else(|error| panic!("{}", error.render()))
@@ -740,9 +739,8 @@ fn the_style_file_is_named_through_the_naming_of_files_or_refused_where_not_load
     let run = render_with(&registry_naming(Arc::new(FixedNamer("files/x.sty"))), &["Text."], &overrides(OptionValues::new()));
     expect(run.diagnostics().iter(), "flm.latex-rendered.style-path").count(1);
     assert_eq!(
-        messages(&run, "flm.latex-rendered.style-path"),
-        ["the naming of files places the style file at `files/x.sty`, which is not a bare file name \
-          ending in `.sty`; the document loads the style file by its package name"]
+        data_of(&run, "flm.latex-rendered.style-path"),
+        ["{\"path\":\"files/x.sty\"}"]
     );
     let (_, path) = style(&run);
     assert!(path.starts_with("flmx.") && path.ends_with(".sty"), "{path}");
@@ -761,7 +759,7 @@ fn the_rendering_guide_holds_the_same_contract_table() {
         eprintln!("skipped: {} is not present", path.display());
         return;
     };
-    let table = flm_core::stdcore::backends::latex_rendered::contract::print_rows();
+    let table = flm_core::stdlib::backends::latex_rendered::contract::print_rows();
     assert!(
         guide.contains(table.trim_end()),
         "`docs/rendering.md` does not hold the contract table as `contract::print_rows()` \

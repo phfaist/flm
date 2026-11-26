@@ -42,7 +42,7 @@ writes into it the files of the output `latex-rendered` (the main `.tex` file, i
 file, the images), runs
 
 ```text
-latexmk -norc -lualatex -f -interaction=nonstopmode -file-line-error paper.tex
+latexmk -norc -lualatex -f -interaction=nonstopmode -file-line-error -auxdir=_aux paper.tex
 ```
 
 there, reads back the PDF and the log, and removes the folder, whatever happened (Ctrl+C,
@@ -56,7 +56,22 @@ program, which does this work.
 - `-f` makes `latexmk` go on running LaTeX after a run that reported an error, as many
   times as the document needs, so that the page numbers of the table of contents and the
   other cross-references of that PDF resolve.
+- `-auxdir=_aux` puts LaTeX's auxiliary files (`.aux`, `.toc`, …) and its log in the
+  folder `_aux`, which is kept from one build of the document to the next (see below).
 - `-shell-escape`, which would let the document start any program, is never passed.
+
+The folder `_aux` is the extension's cache folder `latexmk.aux`, one per document, which
+the `flm` program keeps among its caches (under the name
+`flm.ext.profile-pdf-latex.latexmk.aux`) for 30 days after its last use. At the next build
+of the same document, `latexmk` finds the auxiliary files of the last one there, and runs
+LaTeX only as many times as the changes since then need: once, often, for a document whose
+cross-references have not changed. Only this folder is kept; the rest of the fresh folder,
+the PDF included, is removed after each build. When the program offers no cache folder
+(another build of the same document is using it at the same moment, or the program keeps
+no caches on disk), `_aux` is an empty folder and LaTeX runs as on a first build.
+`flm cache list` lists the folder of each document with its size and its last use, and
+`flm cache clean flm.ext.profile-pdf-latex.latexmk.aux` removes the folders of every
+document, after which each document's next build runs LaTeX as on a first build.
 
 When `latexmk` exits with a status other than 0, the command reports the error
 `pdf-latex.failed`, with the first error that LaTeX's log records (or the last lines of
@@ -99,13 +114,15 @@ end of its time, and a LuaLaTeX run it started goes on until it ends.
 
 ## The live preview
 
-`flm watch -p pdf-latex paper.flm` runs LaTeX at each build and serves the PDF at the
-preview's address, where the browser shows it with its own viewer. The page is not
-updated in place and carries no toolbar: load the address again to see the last build.
+`flm watch -p pdf-latex paper.flm` runs LaTeX at each build. The preview's tools page
+shows the pages of the PDF, and draws them again after each build at the same page and
+the same zoom. The build type `pdf-latex` can also be chosen in the tools page's status
+bar while the preview runs, and the tools page's *Export* tab writes the PDF beside the
+document as `flm render -p pdf-latex -o paper.pdf paper.flm` does.
 
 ## The WebAssembly form
 
-The same crate builds as a WebAssembly module, which a program without the extension
+The same code builds as a WebAssembly module, which a program without the extension
 compiled in loads from its search path:
 
 ```text

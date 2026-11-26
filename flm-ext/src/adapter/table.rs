@@ -1,5 +1,7 @@
 //! `ExtTable`, the type every table a scripted feature declares holds.
 
+use std::sync::Arc;
+
 use flm_core::core::artifact::ArtifactSet;
 use flm_core::core::data::table::{ProjectCx, Table};
 use flm_core::core::registry::DefinitionText;
@@ -9,7 +11,7 @@ use serde_json::Value;
 
 use crate::adapter::values::{artifact_from_value, check_data, node_addr_to_value};
 use crate::api::core::data::store::TablePiece;
-use crate::api::core::data::table::ExtTableRead;
+use crate::api::core::data::table::{ExtTableRead, Rows};
 use crate::runtime::ExtError;
 use crate::sealed::Sealed;
 
@@ -22,10 +24,11 @@ use crate::sealed::Sealed;
 /// own type check covers a Rust feature that names the table with another
 /// type. A piece pushed while a value is caught up goes, as any piece keyed
 /// by node does, to the catch-up's own store: the table keeps the library's
-/// default [`piece_class`](Table::piece_class).
+/// default [`piece_class`](Table::piece_class). The items are shared with
+/// the [`Rows`] a reader answers, so that reading the table copies nothing.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExtTable {
-    items: Vec<Value>,
+    items: Arc<Vec<Value>>,
 }
 
 impl ExtTable {
@@ -37,7 +40,7 @@ impl ExtTable {
     /// ([`ExtError::Value`]); nothing is appended then.
     pub fn push(&mut self, item: Value) -> Result<(), ExtError> {
         check_data(&item)?;
-        self.items.push(item);
+        Arc::make_mut(&mut self.items).push(item);
         Ok(())
     }
 
@@ -68,7 +71,7 @@ impl ExtTable {
 
 impl Table for ExtTable {
     fn absorb(&mut self, piece: ExtTable) {
-        self.items.extend(piece.items);
+        Arc::make_mut(&mut self.items).extend(Arc::unwrap_or_clone(piece.items));
     }
 
     /// The list of the items. An item converts to techy's value model since
@@ -90,8 +93,8 @@ impl TablePiece for ExtTable {
 }
 
 impl ExtTableRead for ExtTable {
-    fn items(&self) -> Vec<Value> {
-        self.items.clone()
+    fn items(&self) -> Rows {
+        Rows::new(Arc::clone(&self.items))
     }
 
     fn items_at(&self, addr: &NodeAddr) -> Vec<Value> {
@@ -177,7 +180,7 @@ mod tests {
         TablePiece::push(&mut piece, json!("b")).expect("an item");
         table.absorb(piece);
         assert_eq!(table.len(), 2);
-        assert_eq!(ExtTableRead::items(&table), vec![json!({ "tree": "a", "words": 3 }), json!("b")]);
+        assert_eq!(ExtTableRead::items(&table).iter().collect::<Vec<_>>(), vec![json!({ "tree": "a", "words": 3 }), json!("b")]);
         assert_eq!(
             flm_core::dump::json::to_json(&table.project(&NoRefs)).ok(),
             Some(r#"[{"tree":"a","words":3},"b"]"#.to_string())
@@ -188,7 +191,7 @@ mod tests {
     fn a_float_is_not_pushed() {
         let mut table = ExtTable::default();
         let error = table.push(json!([1, 2.5])).expect_err("a float");
-        assert_eq!(error.to_string(), "a number must be an integer, not `2.5`");
+        assert_eq!(error.kind(), "value", "{error}");
         assert!(table.is_empty());
     }
 }

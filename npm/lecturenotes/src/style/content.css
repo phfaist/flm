@@ -12,13 +12,13 @@
   margin-bottom: var(--ln-title-space-below);
   border-bottom: var(--ln-rule);
 }
-.flm-meta-title {
+.flm-metadata-title {
   font-size: var(--ln-title-size);
   font-weight: var(--ln-title-weight);
   line-height: var(--ln-title-line-height);
 }
-.flm-meta-author,
-.flm-meta-date {
+.flm-metadata-author,
+.flm-metadata-date {
   padding-top: var(--ln-subtitle-gap);
   font-size: var(--ln-subtitle-size);
   color: var(--ln-muted);
@@ -27,6 +27,10 @@
 /* ── The notes after the content (footnotes, references) ─────────────────── */
 .ln-backmatter {
   --flm-heading-size-1: var(--ln-backmatter-heading-size);
+  /* The rule above the notes is the back matter's own: a list of notes draws
+     none of its own, nor the space between such a rule and its content. */
+  --flm-xnotes-list-rule: none;
+  --flm-xnotes-list-padding: 0;
   margin-top: var(--ln-backmatter-space-above);
   padding-top: var(--ln-backmatter-padding);
   border-top: var(--ln-rule);
@@ -36,57 +40,24 @@
   display: none;
 }
 
-/* ── The headings of the content, by level ───────────────────────────────── */
-.flm-content .flm-pres-block--heading {
-  position: relative;
-}
+/* ── The headings of the content ─────────────────────────────────────────── */
+/* Each heading carries its level in the attribute data-flm-level, and the
+   library sets its size by its HTML level (h1, h2, ...).  The rules that
+   depend on a heading's level (a band at the navigation level and above it,
+   another weight and spacing below it) are not in this stylesheet: the
+   lecture-notes compose template of FLM writes them, from its settings, after
+   it (the file groups.css of the template). */
 .flm-content .flm-pres-block--heading .flm-heading-number {
   color: var(--ln-muted);
   font-weight: inherit;
   margin-right: var(--ln-heading-number-gap);
 }
-/* A part (level 0): large uppercase text with a little letter spacing, on a
-   band. */
-.flm-content .flm-pres-block--heading[data-flm-level="0"] {
-  --flm-heading-weight: var(--ln-part-weight);
-  --flm-heading-space-above: var(--ln-part-space-above);
-  --flm-heading-space-below: var(--ln-part-space-below);
-  font-size: var(--ln-part-size);
-  text-transform: uppercase;
-  letter-spacing: var(--ln-part-spacing);
-  padding: var(--ln-part-padding);
-  border-left: var(--ln-band-rule);
-  background: var(--ln-accent-bg);
-}
-/* A chapter (level 1): a band. */
-.flm-content .flm-pres-block--heading[data-flm-level="1"] {
-  --flm-heading-weight: var(--ln-chapter-weight);
-  --flm-heading-line-height: var(--ln-chapter-line-height);
-  --flm-heading-space-above: var(--ln-chapter-space-above);
-  --flm-heading-space-below: var(--ln-chapter-space-below);
-  padding: var(--ln-chapter-padding);
-  border-left: var(--ln-band-rule);
-  background: var(--ln-accent-bg);
-}
-/* A section (level 2). */
-.flm-content .flm-pres-block--heading[data-flm-level="2"] {
-  --flm-heading-weight: var(--ln-section-weight);
-  --flm-heading-space-above: var(--ln-section-space-above);
-  --flm-heading-space-below: var(--ln-section-space-below);
-}
-/* A subsection (level 3). */
-.flm-content .flm-pres-block--heading[data-flm-level="3"] {
-  --flm-heading-weight: var(--ln-subsection-weight);
-  --flm-heading-space-above: var(--ln-subsection-space-above);
-  --flm-heading-space-below: var(--ln-subsection-space-below);
-  font-style: var(--ln-subsection-style);
-}
-/* The discreet anchor the script adds to each heading of the content: shown
-   while the pointer is over the heading, in the space to its left. */
+/* The discreet anchor the script adds at the end of each heading of the
+   content, after its title: shown while the pointer is over the heading, and
+   left out of a selection of the heading's text. */
 .ln-anchor {
-  position: absolute;
-  right: 100%;
-  padding-right: var(--ln-anchor-gap);
+  margin-left: var(--ln-anchor-gap);
+  padding: var(--ln-anchor-padding);
   opacity: 0;
   color: var(--ln-muted);
   font-size: var(--ln-anchor-size);
@@ -95,6 +66,7 @@
   text-transform: none;
   letter-spacing: normal;
   text-decoration: none;
+  user-select: none;
   transition: opacity var(--ln-fast);
 }
 .flm-pres-block--heading:hover > .ln-anchor,
@@ -135,17 +107,14 @@
 .flm-theorems-theorem[data-flm-kind~="prooflike"]:hover {
   color: var(--ln-text);
 }
-/* A float: its caption muted and set left. */
+/* A float: its caption set as the text, aligned left, and narrower than the
+   column by a margin on each side. */
 .flm-pres-block.flm-floats-float {
   padding: var(--ln-float-padding);
 }
 .flm-floats-float-caption {
-  color: var(--ln-muted);
+  margin-inline: var(--ln-caption-margin);
   text-align: var(--ln-caption-align);
-}
-.flm-floats-float-caption .flm-floats-float-number {
-  color: var(--ln-text);
-  font-weight: var(--ln-caption-number-weight);
 }
 .flm-quote {
   color: var(--ln-muted);

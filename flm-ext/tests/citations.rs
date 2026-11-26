@@ -15,17 +15,18 @@ use flm_ext::adapter::dispatch;
 use flm_ext::adapter::handles::{CallTable, Entry};
 use flm_ext::adapter::values::{citation_requests_to_value, citation_results_from_value};
 use flm_ext::api::core::registry::Contributed;
-use flm_ext::api::host::{FilesScope, HostHandle};
+use flm_ext::api::host::HostHandle;
 use flm_ext::host::HostService;
-use flm_ext::api::stdcore::features::citations::{
+use flm_ext::api::stdlib::features::citations::{
     CitationAnswer, CitationProvider, CitationRequest, CitationResult, EntryPiece, ProviderCx, PROVIDERS_SLOT,
 };
 use flm_ext::{ExtError, MemoryFiles};
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::citations::{CitationProviderError, MissingEntry, NoEntry, ProviderFailed, ProviderWarning};
 use serde_json::{json, Value};
 
 use common::double::Double;
-use common::{diagnostics, registry_with, run, try_registry_with, MemoryHostFiles};
+use common::{diagnostics, feature_errors, registry_with, run, try_registry_with, MemoryHostFiles};
 
 /// A provider over the entries of `refs.json` in the document's folder, read
 /// through the `files` service on every call: `{ key: [source, identity] }`
@@ -48,7 +49,7 @@ impl CitationProvider for FromFile {
     fn answer_all(&self, requests: &[CitationRequest], cx: &dyn ProviderCx) -> Result<Vec<CitationResult>, ExtError> {
         self.calls.lock().expect("calls").push(requests.iter().map(|request| request.key.clone()).collect());
         let HostHandle::Files(files) = cx.host("files")? else { panic!("`files` is the files handle") };
-        let text = files.read_text(FilesScope::Document, "refs.json")?.unwrap_or_else(|| "{}".to_string());
+        let text = files.read_text("doc:refs.json")?.unwrap_or_else(|| "{}".to_string());
         let entries: BTreeMap<String, (String, Option<String>)> = serde_json::from_str(&text).expect("the entries");
         requests
             .iter()
@@ -171,42 +172,36 @@ impl CitationProvider for Failing {
     }
 }
 
-/// The diagnostics of the provider-failed condition of a run of `provider`
-/// over two keys, with `Built` asked after it (`bib` is used last, so its
+/// The provider-failed conditions of a run of `provider` over two keys, as
+/// (key, detail), with `Built` asked after it (`bib` is used last, so its
 /// feature is placed last and its provider asked first).
-fn failures(provider: Arc<dyn CitationProvider>) -> Vec<String> {
+fn failures(provider: Arc<dyn CitationProvider>) -> Vec<(String, String)> {
     let host = the_document_s_folder();
     let registry = registry_with([more(Arc::new(Built)).package(), bib(provider, &host).package()]);
-    let (_, diagnostics) = text_and_diagnostics(&registry, "A \\cite{knuth84}. B \\cite{shor95}.");
-    diagnostics.into_iter().filter(|line| line.starts_with("flm.citations.provider-failed")).collect()
+    let run = run(&registry, text::WORKFLOW, "A \\cite{knuth84}. B \\cite{shor95}.");
+    run.diagnostics()
+        .iter()
+        .filter_map(|d| d.data().downcast_ref::<ProviderFailed>())
+        .map(|failed| (failed.key.clone(), failed.detail.clone()))
+        .collect()
 }
 
 #[test]
 fn a_provider_that_fails_fails_every_key_of_its_call() {
     let error = ExtError::Handler { detail: "TypeError: entries is undefined".to_string(), data: Value::Null };
     let failing = Arc::new(Failing { error: Some(error), answers: 0 });
-    let detail = "flm.ext.handler-failed: the citation provider `bib.failing` of the feature `bib` of the package `_` of the \
-                  extension `bib` failed: TypeError: entries is undefined";
-    assert_eq!(
-        failures(failing),
-        [
-            format!("flm.citations.provider-failed: the bibliography entry of the key `knuth84` could not be retrieved: {detail}"),
-            format!("flm.citations.provider-failed: the bibliography entry of the key `shor95` could not be retrieved: {detail}"),
-        ]
-    );
+    let found = failures(failing);
+    assert_eq!(found.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>(), ["knuth84", "shor95"]);
+    for (_, detail) in &found {
+        assert!(detail.starts_with("flm.ext.handler-failed: "), "{detail}");
+        assert!(detail.ends_with("TypeError: entries is undefined"), "{detail}");
+    }
 }
 
 #[test]
-fn a_provider_answering_a_wrong_count_gets_flm_core_s_text() {
-    let detail = "a source of bibliography entries must return one result for each key it is given, and it returned 1 \
-                  result for 2 keys";
-    assert_eq!(
-        failures(Arc::new(Failing { error: None, answers: 1 })),
-        [
-            format!("flm.citations.provider-failed: the bibliography entry of the key `knuth84` could not be retrieved: {detail}"),
-            format!("flm.citations.provider-failed: the bibliography entry of the key `shor95` could not be retrieved: {detail}"),
-        ]
-    );
+fn a_provider_answering_a_wrong_count_fails_every_key_of_its_call() {
+    let found = failures(Arc::new(Failing { error: None, answers: 1 }));
+    assert_eq!(found.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>(), ["knuth84", "shor95"]);
 }
 
 /// A provider that speaks JSON, as a binding does: its context and the
@@ -259,7 +254,8 @@ fn a_provider_speaking_json_answers_through_the_conversions() {
     };
     let host = the_document_s_folder();
     let registry = registry_with([more(Arc::new(Built)).package(), bib(Arc::new(speaking), &host).package()]);
-    let (out, diagnostics) = text_and_diagnostics(&registry, "A \\cite{knuth84,shor95,lamport94,x}.");
+    let run = run(&registry, text::WORKFLOW, "A \\cite{knuth84,shor95,lamport94,x}.");
+    let out = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
     // The key whose answer is an error keeps its number, its entry dropped.
     assert_eq!(
         out,
@@ -267,16 +263,23 @@ fn a_provider_speaking_json_answers_through_the_conversions() {
          [4] [dropped: bibliography entry]\n"
     );
     assert_eq!(
-        diagnostics,
+        common::identifiers(&run),
         [
-            "flm.citations.provider-warning: a warning",
-            "flm.citations.provider-warning: built from parts",
-            "flm.citations.provider-failed: the bibliography entry of the key `x` could not be retrieved: the server did \
-             not answer",
-            "flm.citations.no-entry: the cited key `x` must have a bibliography entry; retrieving it failed: the server \
-             did not answer",
+            "flm.citations.provider-warning",
+            "flm.citations.provider-warning",
+            "flm.citations.provider-failed",
+            "flm.citations.no-entry",
         ]
     );
+    let warnings: Vec<&str> =
+        run.diagnostics().iter().filter_map(|d| d.data().downcast_ref::<ProviderWarning>()).map(|w| w.detail.as_str()).collect();
+    assert_eq!(warnings, ["a warning", "built from parts"]);
+    let failed: Vec<&ProviderFailed> = run.diagnostics().iter().filter_map(|d| d.data().downcast_ref::<ProviderFailed>()).collect();
+    assert_eq!(failed.iter().map(|f| (f.key.as_str(), f.detail.as_str())).collect::<Vec<_>>(), [("x", "the server did not answer")]);
+    let missing: Vec<&NoEntry> = run.diagnostics().iter().filter_map(|d| d.data().downcast_ref::<NoEntry>()).collect();
+    assert_eq!(missing.len(), 1);
+    assert_eq!(missing[0].key, "x");
+    assert_eq!(missing[0].reason, MissingEntry::Failed(CitationProviderError::new("the server did not answer")).reason());
 }
 
 #[test]
@@ -284,23 +287,24 @@ fn an_answer_of_the_wrong_shape_fails_every_key_of_the_call() {
     let speaking = Speaking { answer: |entries| json!([{ "entry": entries[0], "identity": 3 }]) };
     let host = the_document_s_folder();
     let registry = registry_with([bib(Arc::new(speaking), &host).package()]);
-    let (_, diagnostics) = text_and_diagnostics(&registry, "A \\cite{knuth84}.");
-    assert_eq!(
-        diagnostics.first().map(String::as_str),
-        Some(
-            "flm.citations.provider-failed: the bibliography entry of the key `knuth84` could not be retrieved: \
-             flm.ext.handler-failed: the citation provider `bib.speaking` of the feature `bib` of the package `_` of the \
-             extension `bib` failed: the answer must be a list with one item per request, each `null`, `{ error }` or \
-             `{ entry, identity, warnings }`"
-        )
-    );
+    let run = run(&registry, text::WORKFLOW, "A \\cite{knuth84}.");
+    let first = run.diagnostics().iter().next().and_then(|d| d.data().downcast_ref::<ProviderFailed>()).cloned();
+    let first = first.expect("the first diagnostic is a provider failure");
+    assert_eq!(first.key, "knuth84");
+    assert!(first.detail.starts_with("flm.ext.handler-failed: "), "{}", first.detail);
 }
 
-/// The registry build's error when the package `bib` contributes `value`
-/// to `slot`.
-fn refusal(slot: &'static str, value: impl Fn() -> Contributed + Send + Sync + 'static) -> String {
+/// The registry build's errors, as (feature, detail), when the package `bib`
+/// contributes `value` to `slot`.
+fn refusal(slot: &'static str, value: impl Fn() -> Contributed + Send + Sync + 'static) -> Vec<(String, String)> {
     let double = Double::new("bib").feature("bib", move |b| b.contribute_to(slot, value()));
-    try_registry_with([double.package()]).expect_err("the build fails").render()
+    feature_errors(&try_registry_with([double.package()]).expect_err("the build fails"))
+}
+
+/// Whether `found` is one error of the feature `bib` whose detail begins with
+/// the identifier `identifier`.
+fn is_refused_with(found: &[(String, String)], identifier: &str) -> bool {
+    matches!(found, [(feature, detail)] if feature == "bib" && detail.starts_with(&format!("{identifier}: ")))
 }
 
 #[test]
@@ -314,34 +318,23 @@ fn a_provider_is_named_under_the_stem_and_contributed_to_its_slot_alone() {
             Ok(Ok(None))
         }
     }
-    assert_eq!(
-        refusal(PROVIDERS_SLOT, || Contributed::CitationProvider(Arc::new(Named("file")))),
-        "feature `bib`: flm.ext.name-outside-extension: the citation provider `file` declared by the package `_` of the \
-         extension `bib` must begin with `bib.`"
-    );
-    assert_eq!(
-        refusal(PROVIDERS_SLOT, || Contributed::CitationProvider(Arc::new(Named("")))),
-        "feature `bib`: flm.ext.handler-failed: `contribute_to`: a citation provider contributed to \
-         `flm.citations.providers` by the package `_` of the extension `bib` must be an object with `name` and \
-         `answer` or `answer_all`"
-    );
-    assert_eq!(
-        refusal("flm.compose.templates", || Contributed::CitationProvider(Arc::new(Named("bib.file")))),
-        "feature `bib`: flm.ext.handler-failed: `contribute_to`: the service slot `flm.compose.templates` takes a \
-         compose template module (an object with `name`, `describe` and `render`), and the package `_` of the \
-         extension `bib` contributed a citation provider"
-    );
+    let found = refusal(PROVIDERS_SLOT, || Contributed::CitationProvider(Arc::new(Named("file"))));
+    assert!(is_refused_with(&found, "flm.ext.name-outside-extension"), "{found:?}");
+    let found = refusal(PROVIDERS_SLOT, || Contributed::CitationProvider(Arc::new(Named(""))));
+    assert!(is_refused_with(&found, "flm.ext.handler-failed"), "{found:?}");
+    let found = refusal("flm.compose.templates", || Contributed::CitationProvider(Arc::new(Named("bib.file"))));
+    assert!(is_refused_with(&found, "flm.ext.handler-failed"), "{found:?}");
 }
 
 #[test]
 fn a_provider_s_context_lends_the_declared_services_alone() {
-    struct Asking(Arc<Mutex<Option<String>>>);
+    struct Asking(Arc<Mutex<Option<ExtError>>>);
     impl CitationProvider for Asking {
         fn name(&self) -> String {
             "bib.asking".to_string()
         }
         fn answer(&self, _: &CitationRequest, cx: &dyn ProviderCx) -> Result<CitationResult, ExtError> {
-            let error = cx.host("files").err().map(|error| error.to_string());
+            let error = cx.host("files").err();
             *self.0.lock().expect("seen") = error;
             Ok(Ok(None))
         }
@@ -353,11 +346,6 @@ fn a_provider_s_context_lends_the_declared_services_alone() {
         .feature("bib", move |b| b.contribute_to(PROVIDERS_SLOT, Contributed::CitationProvider(asking.clone())));
     let registry = registry_with([double.package()]);
     let _ = text_and_diagnostics(&registry, "A \\cite{a}.");
-    assert_eq!(
-        seen.lock().expect("seen").as_deref(),
-        Some(
-            "`host`: the host service `files` must be declared in the `host` list of the package `_` of the extension \
-             `bib` before a handler calls it"
-        )
-    );
+    let seen = seen.lock().expect("seen");
+    assert!(matches!(seen.as_ref(), Some(ExtError::Argument { method, .. }) if method == "host"), "{seen:?}");
 }

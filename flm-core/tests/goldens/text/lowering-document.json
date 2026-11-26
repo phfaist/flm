@@ -40,7 +40,8 @@
           }
         ],
         "payload": {
-          "display": "inline"
+          "display": "inline",
+          "role": "flm.math.formula"
         }
       },
       {
@@ -178,7 +179,8 @@
         ],
         "payload": {
           "display": "display",
-          "env": "equation"
+          "env": "equation",
+          "role": "flm.math.formula"
         }
       }
     ],

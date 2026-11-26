@@ -57,6 +57,7 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use flm_core::progress::Scope;
 use serde_json::Value;
 
 use crate::adapter::handles::{CallTable, Handle};
@@ -64,8 +65,8 @@ use crate::adapter::handles::{CallTable, Handle};
 use crate::adapter::values::{citation_requests_to_value, handle_to_value, template_context_to_value};
 use crate::api::core::registry::FeatureBuilder;
 use crate::api::core::settings::ReadError;
-use crate::api::stdcore::features::citations::CitationRequest;
-use crate::api::stdcore::features::compose::TemplateContext;
+use crate::api::stdlib::features::citations::CitationRequest;
+use crate::api::stdlib::features::compose::TemplateContext;
 use crate::engine::ExtensionIdentity;
 #[cfg(feature = "native")]
 use crate::guest::entry::EntryReply;
@@ -91,12 +92,18 @@ pub(crate) trait Binding: Send + Sync {
     /// poisoned instance (by a limit, a trap or a panic), or any in strict mode, is
     /// discarded.
     ///
+    /// `progress` is the scope of the row the handler works under ([`HandlerKind::progress`]):
+    /// QuickJS and WebAssembly stop the handler when its build is cancelled, as when it
+    /// exceeds a limit, and the instance is discarded; a native extension asks
+    /// `cancelled()` itself.
+    ///
     /// # Errors
     ///
     /// [`ExtError::Handler`] when the instance cannot be created on this thread;
     /// otherwise what `run` answers.
     fn enter(
         self: Arc<Self>,
+        progress: &Scope,
         run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
     ) -> Result<Reply, ExtError>;
 }
@@ -258,10 +265,11 @@ pub(crate) fn run_handler<'c, R>(
         "of the feature `{feature}` of the package `{package}` of the extension `{}`",
         registration.binding.identity().stem
     );
+    let progress = kind.progress();
     let call = kind.lend(&mut table, &owner);
     let mut args = vec![EntryArg::Text(package.clone()), EntryArg::Text(feature.clone())];
     args.extend(call.args);
-    let reply = Arc::clone(&registration.binding).enter(&mut |instance| {
+    let reply = Arc::clone(&registration.binding).enter(&progress, &mut |instance| {
         let frame = Frame { call: table.call(), registration: registration.clone(), table: &mut table };
         frames::enter(frame, || {
             if rehearses && !instance.registered().ran(package, feature, settings) {

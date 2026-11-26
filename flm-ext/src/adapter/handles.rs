@@ -17,6 +17,24 @@
 //!
 //! The free functions of the extension API are dispatched on *module handles*
 //! ([`module_handle`]), which are valid in every call.
+//!
+//! # Traversals and sequences
+//!
+//! A method that returns many items lends them as one entry, so that the
+//! number of handles a call creates does not grow with the document:
+//!
+//! - A *traversal* (the entries [`Entry::Walk`], [`Entry::Descendants`] and
+//!   [`Entry::Trees`]) is a [`TraversalEntry`]: the iterator the typed API
+//!   returned, at the position of its last pull. A binding pulls the items in
+//!   groups, and each item of a group is lent as an entry of its own.
+//! - A *sequence* (the entries [`Entry::Rows`], [`Entry::Nodes`] and
+//!   [`Entry::StagedNodes`]) is the list the typed API returned, kept whole
+//!   ([`SequenceEntry`] for nodes and staged nodes). A binding reads an item
+//!   by its index or pulls the items in groups from an index; each node or
+//!   staged node read is lent as an entry of its own, and a row is copied as
+//!   data. A sequence passed back as an argument is read from its entry.
+//!
+//! An item stays in the table, as every entry does, until the call ends.
 
 use std::sync::Arc;
 
@@ -106,27 +124,27 @@ pub enum HandleKind {
     RestagedArgument,
     /// A [`RestagedSlot`](api::techy::transform::RestagedSlot) bundle.
     RestagedSlot,
-    /// A [`LoweredTrees`](api::stdcore::backends::lowering::LoweredTrees)
+    /// A [`LoweredTrees`](api::stdlib::backends::lowering::LoweredTrees)
     /// table, read.
     LoweredTrees,
     /// A [`LibraryStage`](api::core::registry::LibraryStage) a constructor
-    /// made ([`LoweringStage::new`](api::stdcore::backends::lowering::LoweringStage::new)).
+    /// made ([`LoweringStage::new`](api::stdlib::backends::lowering::LoweringStage::new)).
     LibraryStage,
     /// A [`HostService`](api::host::HostService).
     HostService,
     /// A [`Files`](api::host::Files) service.
     Files,
-    /// A [`CitationProvider`](api::stdcore::features::citations::CitationProvider)
+    /// A [`CitationProvider`](api::stdlib::features::citations::CitationProvider)
     /// the binding lent in.
     CitationProvider,
-    /// A [`CitationEntry`](api::stdcore::features::citations::CitationEntry).
+    /// A [`CitationEntry`](api::stdlib::features::citations::CitationEntry).
     CitationEntry,
-    /// A [`ProviderCx`](api::stdcore::features::citations::ProviderCx).
+    /// A [`ProviderCx`](api::stdlib::features::citations::ProviderCx).
     ProviderCx,
-    /// A [`TemplateModule`](api::stdcore::features::compose::TemplateModule)
+    /// A [`TemplateModule`](api::stdlib::features::compose::TemplateModule)
     /// the binding lent in.
     TemplateModule,
-    /// A [`TemplateCx`](api::stdcore::features::compose::TemplateCx).
+    /// A [`TemplateCx`](api::stdlib::features::compose::TemplateCx).
     TemplateCx,
     /// The module `api::<path>`, on which its free functions are dispatched
     /// (one of [`MODULE_PATHS`]). Module handles are not lent:
@@ -146,9 +164,9 @@ pub enum HandleKind {
     LateInit,
     /// A [`Finalizer`](api::core::registry::Finalizer) the binding lent in.
     Finalizer,
-    /// A [`Counters`](api::stdcore::features::numbering::Counters) table.
+    /// A [`Counters`](api::stdlib::features::numbering::Counters) table.
     Counters,
-    /// An [`Anchors`](api::stdcore::features::refs::Anchors) table.
+    /// An [`Anchors`](api::stdlib::features::refs::Anchors) table.
     Anchors,
     /// A [`TemplateLanguage`](api::lang::rewrites::userdefs::TemplateLanguage),
     /// resolved for the call from its durable token.
@@ -157,6 +175,29 @@ pub enum HandleKind {
     ValueBindings,
     /// A [`Tree`](api::techy::node::Tree).
     Tree,
+    /// A [`ProgressScope`](api::progress::ProgressScope).
+    ProgressScope,
+    /// A [`Pending`](api::progress::Pending) row.
+    Pending,
+    /// A [`Task`](api::progress::Task).
+    Task,
+    /// A [`Counted`](api::progress::Counted) row.
+    Counted,
+    /// A [`Walk`](api::core::run::Walk), a traversal.
+    Walk,
+    /// A [`Descendants`](api::techy::node::Descendants), a traversal.
+    Descendants,
+    /// A [`Trees`](api::core::run::Trees), a traversal.
+    Trees,
+    /// The [`Rows`](api::core::data::table::Rows) of an extension's table, a
+    /// sequence.
+    Rows,
+    /// A list of nodes that a method answered (a node's children, an
+    /// argument's nodes, a body, …), a sequence.
+    Nodes,
+    /// A list of staged nodes that a method answered (what a lowerer, a
+    /// restager or an expander staged), a sequence.
+    StagedNodes,
 }
 
 impl HandleKind {
@@ -213,6 +254,16 @@ impl HandleKind {
             HandleKind::TemplateLanguage => "template_language",
             HandleKind::ValueBindings => "value_bindings",
             HandleKind::Tree => "tree",
+            HandleKind::ProgressScope => "progress_scope",
+            HandleKind::Pending => "pending",
+            HandleKind::Task => "task",
+            HandleKind::Counted => "counted",
+            HandleKind::Walk => "walk",
+            HandleKind::Descendants => "descendants",
+            HandleKind::Trees => "trees",
+            HandleKind::Rows => "rows",
+            HandleKind::Nodes => "nodes",
+            HandleKind::StagedNodes => "staged_nodes",
         }
     }
 }
@@ -327,7 +378,7 @@ pub enum Entry<'c> {
     /// A restaged slot a restager's method answered.
     RestagedSlot(Box<dyn api::techy::transform::RestagedSlot>),
     /// A table of a backend's lowered trees, read.
-    LoweredTrees(Box<dyn api::stdcore::backends::lowering::LoweredTrees + 'c>),
+    LoweredTrees(Box<dyn api::stdlib::backends::lowering::LoweredTrees + 'c>),
     /// A stage of the library a constructor made.
     LibraryStage(api::core::registry::LibraryStage),
     /// A host service the package declared, lent by
@@ -337,15 +388,15 @@ pub enum Entry<'c> {
     /// [`StageCx::host`](api::core::run::StageCx::host).
     Files(Box<dyn api::host::Files>),
     /// A citation provider the binding lent in.
-    CitationProvider(Arc<dyn api::stdcore::features::citations::CitationProvider>),
+    CitationProvider(Arc<dyn api::stdlib::features::citations::CitationProvider>),
     /// A citation entry a provider's context made.
-    CitationEntry(Box<dyn api::stdcore::features::citations::CitationEntry>),
+    CitationEntry(Box<dyn api::stdlib::features::citations::CitationEntry>),
     /// The context lent to a citation provider's call.
-    ProviderCx(&'c dyn api::stdcore::features::citations::ProviderCx),
+    ProviderCx(&'c dyn api::stdlib::features::citations::ProviderCx),
     /// A template module the binding lent in.
-    TemplateModule(Arc<dyn api::stdcore::features::compose::TemplateModule>),
+    TemplateModule(Arc<dyn api::stdlib::features::compose::TemplateModule>),
     /// The context lent to a template module's `files` or `render`.
-    TemplateCx(&'c dyn api::stdcore::features::compose::TemplateCx),
+    TemplateCx(&'c dyn api::stdlib::features::compose::TemplateCx),
     /// A reference-points aspect the binding lent in.
     Referenceable(Arc<dyn api::model::aspects::Referenceable>),
     /// A sectioning aspect the binding lent in.
@@ -360,15 +411,38 @@ pub enum Entry<'c> {
     /// A finalizer the binding lent in.
     Finalizer(Arc<dyn api::core::registry::Finalizer>),
     /// The counters table a stage's context or a rule's lowerer answered.
-    Counters(TableEntry<Box<dyn api::stdcore::features::numbering::Counters + 'c>>),
+    Counters(TableEntry<Box<dyn api::stdlib::features::numbering::Counters + 'c>>),
     /// The anchors table a stage's context or a rule's lowerer answered.
-    Anchors(TableEntry<Box<dyn api::stdcore::features::refs::Anchors + 'c>>),
+    Anchors(TableEntry<Box<dyn api::stdlib::features::refs::Anchors + 'c>>),
     /// A template language, resolved from its durable token.
     TemplateLanguage(api::lang::rewrites::userdefs::TemplateLanguage),
     /// Value bindings.
     ValueBindings(api::lang::rewrites::userdefs::ValueBindings),
     /// A tree, shared.
     Tree(Box<dyn api::techy::node::Tree>),
+    /// The scope of a row of the progress sheet, lent by a context's
+    /// `progress()` or by a running row's `scope()`.
+    ProgressScope(Box<dyn api::progress::ProgressScope>),
+    /// A row the handler declared.
+    Pending(Box<dyn api::progress::Pending>),
+    /// A row the handler started, with nothing to count.
+    Task(Box<dyn api::progress::Task>),
+    /// A row the handler started with a count.
+    Counted(Box<dyn api::progress::Counted>),
+    /// The walk a stage's context answered, at the position of its last
+    /// pull.
+    Walk(TraversalEntry<api::core::run::Walk<'c>>),
+    /// The descendants a node answered, at the position of their last pull.
+    Descendants(TraversalEntry<api::techy::node::Descendants<'c>>),
+    /// The trees a context or a table answered, at the position of their
+    /// last pull.
+    Trees(TraversalEntry<api::core::run::Trees>),
+    /// The rows of an extension's table that a reader answered.
+    Rows(api::core::data::table::Rows),
+    /// A list of nodes that a method answered.
+    Nodes(SequenceEntry<Box<dyn api::techy::node::Node<'c> + 'c>>),
+    /// A list of staged nodes that a method answered.
+    StagedNodes(SequenceEntry<api::lang::rewrites::userdefs::Staged>),
 }
 
 /// The built language in the call's table: lent, as a late-initialization
@@ -400,6 +474,167 @@ pub enum TableEntry<T> {
         /// The table's name, as passed to `get`.
         name: String,
     },
+}
+
+/// A traversal in the call's table: the traversal at the position of its
+/// last pull, and a copy of the items that pull answered, which a binding
+/// may have pulled without handing them over to the extension. A
+/// restriction of the traversal (its crate-internal `rest`) starts from
+/// those the binding has not handed over, so that it filters every item the
+/// extension has not been handed yet.
+pub struct TraversalEntry<T: Iterator> {
+    /// The traversal; `None` once a restriction took it.
+    traversal: Option<T>,
+    /// A copy of the items of the last pull, in order.
+    kept: Vec<T::Item>,
+}
+
+/// A traversal that a [`TraversalEntry`] can hold: how to copy one of its
+/// items, and how to make the traversal of given items followed by those of
+/// a traversal.
+pub(crate) trait Resumable: Iterator + Sized {
+    /// A copy of `item`.
+    fn copy(item: &Self::Item) -> Self::Item;
+
+    /// The traversal of `items`, in order, then of the items of `rest`.
+    fn resumed(items: Vec<Self::Item>, rest: Option<Self>) -> Self;
+}
+
+impl<'a> Resumable for api::core::run::Walk<'a> {
+    fn copy(entry: &Self::Item) -> Self::Item {
+        api::core::run::WalkEntry { addr: entry.addr, node: entry.node.clone_box(Token::new()) }
+    }
+
+    fn resumed(items: Vec<Self::Item>, rest: Option<Self>) -> Self {
+        api::core::run::Walk::new(items.into_iter().chain(rest.into_iter().flatten()))
+    }
+}
+
+impl<'t> Resumable for api::techy::node::Descendants<'t> {
+    fn copy(node: &Self::Item) -> Self::Item {
+        node.clone_box(Token::new())
+    }
+
+    fn resumed(items: Vec<Self::Item>, rest: Option<Self>) -> Self {
+        api::techy::node::Descendants::new(items.into_iter().chain(rest.into_iter().flatten()))
+    }
+}
+
+impl Resumable for api::core::run::Trees {
+    fn copy((id, tree): &Self::Item) -> Self::Item {
+        (id.clone(), tree.clone_box(Token::new()))
+    }
+
+    fn resumed(items: Vec<Self::Item>, rest: Option<Self>) -> Self {
+        api::core::run::Trees::new(items.into_iter().chain(rest.into_iter().flatten()).collect())
+    }
+}
+
+impl<T: Iterator> TraversalEntry<T> {
+    /// The entry of `traversal`, nothing pulled yet.
+    pub(crate) fn new(traversal: T) -> TraversalEntry<T>
+    where
+        T: Resumable,
+    {
+        TraversalEntry { traversal: Some(traversal), kept: Vec::new() }
+    }
+
+    /// The next items of the traversal, at most `max`, fewer only at the
+    /// end; the entry keeps a copy of them in place of those of the pull
+    /// before.
+    pub(crate) fn pull(&mut self, max: usize) -> Vec<T::Item>
+    where
+        T: Resumable,
+    {
+        let group: Vec<T::Item> = match &mut self.traversal {
+            Some(traversal) => traversal.take(max).collect(),
+            None => Vec::new(),
+        };
+        self.kept = group.iter().map(T::copy).collect();
+        group
+    }
+
+    /// The traversal of the last `unhanded` items of the last pull (all of
+    /// them when it answered fewer than `unhanded`), in order, then of the
+    /// items not pulled yet: what a restriction filters, when the binding
+    /// has handed over all but `unhanded` items of its last group. The entry
+    /// is left with no item and no copy.
+    ///
+    /// A kept item is lent a second time when the restricted traversal is
+    /// pulled, if it matches: at most one group per restriction, and only
+    /// when a traversal the extension started is restricted.
+    pub(crate) fn rest(&mut self, unhanded: usize) -> T
+    where
+        T: Resumable,
+    {
+        let kept = std::mem::take(&mut self.kept);
+        let handed = kept.len().saturating_sub(unhanded);
+        T::resumed(kept.into_iter().skip(handed).collect(), self.traversal.take())
+    }
+}
+
+/// A list that a method of the extension API answered, in the call's table
+/// as a sequence: the binding reads an item by its index or pulls the items
+/// in groups, and each item is lent only when it is read or pulled. The
+/// entry owns the list; a sequence passed back to the interface is read from
+/// it whole.
+pub struct SequenceEntry<T> {
+    /// The items, in the order the method answered them.
+    items: Vec<T>,
+}
+
+/// An item that a [`SequenceEntry`] can hold: how to copy it, since an item
+/// read or pulled is lent as an entry of its own while the sequence keeps
+/// it.
+pub(crate) trait SequenceItem {
+    /// A copy of the item.
+    fn copy(&self) -> Self;
+}
+
+impl<'t> SequenceItem for Box<dyn api::techy::node::Node<'t> + 't> {
+    fn copy(&self) -> Self {
+        self.clone_box(Token::new())
+    }
+}
+
+impl SequenceItem for api::lang::rewrites::userdefs::Staged {
+    fn copy(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> SequenceEntry<T> {
+    /// The entry of `items`.
+    pub(crate) fn new(items: Vec<T>) -> SequenceEntry<T> {
+        SequenceEntry { items }
+    }
+
+    /// A copy of the item at the index `i`, or `None` past the last item.
+    pub(crate) fn get(&self, i: usize) -> Option<T>
+    where
+        T: SequenceItem,
+    {
+        self.items.get(i).map(T::copy)
+    }
+
+    /// Copies of the items from the index `from` that a binding's pull
+    /// answers, at most `max` of them; none from the end on. An item is a
+    /// handle, whose size is fixed, so the bound `_bytes` on the JSON text of
+    /// a group of data does not limit a group of handles.
+    pub(crate) fn group(&self, from: usize, max: usize, _bytes: usize) -> Vec<T>
+    where
+        T: SequenceItem,
+    {
+        self.items.iter().skip(from).take(max).map(T::copy).collect()
+    }
+
+    /// Copies of every item, in order.
+    pub(crate) fn copies(&self) -> impl Iterator<Item = T> + '_
+    where
+        T: SequenceItem,
+    {
+        self.items.iter().map(T::copy)
+    }
 }
 
 impl Entry<'_> {
@@ -454,6 +689,16 @@ impl Entry<'_> {
             Entry::TemplateLanguage(_) => HandleKind::TemplateLanguage,
             Entry::ValueBindings(_) => HandleKind::ValueBindings,
             Entry::Tree(_) => HandleKind::Tree,
+            Entry::ProgressScope(_) => HandleKind::ProgressScope,
+            Entry::Pending(_) => HandleKind::Pending,
+            Entry::Task(_) => HandleKind::Task,
+            Entry::Counted(_) => HandleKind::Counted,
+            Entry::Walk(_) => HandleKind::Walk,
+            Entry::Descendants(_) => HandleKind::Descendants,
+            Entry::Trees(_) => HandleKind::Trees,
+            Entry::Rows(_) => HandleKind::Rows,
+            Entry::Nodes(_) => HandleKind::Nodes,
+            Entry::StagedNodes(_) => HandleKind::StagedNodes,
         }
     }
 
@@ -591,15 +836,15 @@ mod tests {
         let beyond = Handle { index: 5, ..handle };
         let error = table.entry(beyond).map(|entry| entry.kind()).expect_err("nothing at index 5");
         assert_eq!(error.kind(), "argument");
-        assert_eq!(error.to_string(), "the running call lent no `user_definition` object at index 5");
     }
 
     #[test]
     fn module_handles_are_numbered_by_their_position() {
         assert_eq!(module_handle("core/artifact"), Some(Handle { kind: HandleKind::Module, call: 0, index: 0 }));
         assert_eq!(module_handle("core/lowering").map(|h| h.index), Some(1));
-        assert_eq!(module_handle("lang/mint").map(|h| h.index), Some(2));
-        assert_eq!(module_handle("stdcore/features/math").map(|h| h.index), Some(15));
+        assert_eq!(module_handle("host").map(|h| h.index), Some(2));
+        assert_eq!(module_handle("lang/mint").map(|h| h.index), Some(3));
+        assert_eq!(module_handle("stdlib/features/math").map(|h| h.index), Some(18));
         assert_eq!(module_handle("lang/unknown"), None);
     }
 
@@ -657,6 +902,16 @@ mod tests {
             HandleKind::TemplateLanguage,
             HandleKind::ValueBindings,
             HandleKind::Tree,
+            HandleKind::ProgressScope,
+            HandleKind::Pending,
+            HandleKind::Task,
+            HandleKind::Counted,
+            HandleKind::Walk,
+            HandleKind::Descendants,
+            HandleKind::Trees,
+            HandleKind::Rows,
+            HandleKind::Nodes,
+            HandleKind::StagedNodes,
         ];
         for kind in every {
             match kind {
@@ -708,7 +963,17 @@ mod tests {
                 | HandleKind::Anchors
                 | HandleKind::TemplateLanguage
                 | HandleKind::ValueBindings
-                | HandleKind::Tree => {}
+                | HandleKind::Tree
+                | HandleKind::ProgressScope
+                | HandleKind::Pending
+                | HandleKind::Task
+                | HandleKind::Counted
+                | HandleKind::Walk
+                | HandleKind::Descendants
+                | HandleKind::Trees
+                | HandleKind::Rows
+                | HandleKind::Nodes
+                | HandleKind::StagedNodes => {}
             }
             let json = serde_json::to_value(kind).ok();
             assert_eq!(json, Some(serde_json::Value::String(kind.name().to_string())), "{kind:?}");

@@ -2,7 +2,7 @@
 // `flm-ext/src/api/core/artifact.rs`; do not edit.
 //
 // Mirrors `flm_core::core::artifact`: the files an output consists of, as data.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 const MODULE = module("core/artifact");
 

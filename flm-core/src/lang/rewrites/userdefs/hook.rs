@@ -75,7 +75,7 @@ pub enum ExpandPolicy {
 /// their expansion policy.
 ///
 /// The two rewrite stages of the
-/// [`userdefs` feature](crate::stdcore::features::userdefs) differ in this
+/// [`userdefs` feature](crate::stdlib::features::userdefs) differ in this
 /// alone: `flm.userdefs.expand-always` runs the pass with
 /// [`Always`](ExpandSet::Always), and `flm.userdefs.expand` with
 /// [`PerPlan`](ExpandSet::PerPlan). A caller outside these stages, such as a
@@ -154,7 +154,7 @@ impl ExpandError {
     pub fn descent_refusal(&self) -> Option<&str> {
         match self {
             ExpandError::Restage(error) => match &**error {
-                RestageError::DescentLimitExceeded { detail } => Some(detail),
+                RestageError::DescentLimitExceeded { detail, .. } => Some(detail),
                 RestageError::Visitor(inner) => inner.descent_refusal(),
                 _ => None,
             },

@@ -15,10 +15,10 @@ use flm_core::core::settings::cascade::workflow_def;
 use flm_core::core::settings::named::NamedEntry;
 use flm_core::lang::mint::{ArgDef, ArgStdKind, ScopedPackageDef, TackOnField};
 use flm_core::model::names::Name;
-use flm_core::stdcore::features::cells::CellStyle;
-use flm_core::stdcore::features::headings::{HeadingDecl, HeadingsConfig};
-use flm_core::stdcore::features::numbering::CounterDecl;
-use flm_core::stdcore::features::userdefs::{DefinitionData, DefinitionKind};
+use flm_core::stdlib::features::cells::CellStyle;
+use flm_core::stdlib::features::headings::{HeadingDecl, HeadingsConfig};
+use flm_core::stdlib::features::numbering::CounterDecl;
+use flm_core::stdlib::features::userdefs::{DefinitionData, DefinitionKind};
 
 use common::{macro_def, macro_with};
 

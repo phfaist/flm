@@ -3,7 +3,7 @@
 //
 // Mirrors `flm_core::core::stage`: the stage trait, its declaration, its needs, the rewrite stage
 // trait and its declaration, and the table of a rewrite's trees.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 export { Severity } from "flm:techy/error";
 
 export const Effect = Object.freeze({ Compute: "compute", Check: "check", Io: "io" });

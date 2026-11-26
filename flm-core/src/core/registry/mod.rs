@@ -308,7 +308,7 @@ pub use feature::{
 };
 pub use order::{ChainError, FeatureChain};
 pub use frozen::{
-    ArgumentRoleEntry, BackendEntry, CapId, CapabilityEntry, CollectionEntry, ElemBitset, ElementEntry, ElementKind,
+    ArgumentRoleEntry, BackendEntry, CapId, CapabilityEntry, CollectionEntry, ElemBitset, ElementEntry, ElementKind, ElementTypeText,
     FlmRegistry, OutputEntry as RegisteredOutput, PeerArgumentRoleEntry, PeerBackendEntry, PeerElementEntry,
     PeerElementValueEntry, PeerScopedPackageEntry, PeerTableEntry, PresentationEntry, RuleEntry, RuleIdx, StageEntry, StageIdx, TableEntry,
     WorkflowEntry,

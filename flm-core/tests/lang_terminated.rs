@@ -16,6 +16,7 @@ use flm_core::lang::{
 };
 use flm_core::model::doc::{Fragment, FragmentLayout};
 use techy::core::ParsingStateDelta;
+use techy::core::constructs::{ExpectedArgumentOpener, MissingArgumentTerminator};
 
 use common::{callable_names, callables, element, lang, macro_def, macro_with, parse, source};
 
@@ -143,7 +144,8 @@ fn a_missing_terminator_is_reported_at_the_argument_s_beginning() {
 
     let fragment = parse(&lang, "x ``ab` c");
     let diagnostic = fragment.diags().expect("core.arguments.missing-terminator").at("`").at_line_col(1, 4).once();
-    assert!(diagnostic.message().contains("‘``’"), "{}", diagnostic.message());
+    let condition = diagnostic.data().downcast_ref::<MissingArgumentTerminator>().expect("the condition");
+    assert_eq!(condition.terminator, "``");
     let node = callables(&fragment).into_iter().next().unwrap();
     assert_eq!(node.argument_content_nodes(0).unwrap().source_text(), Some("ab` c"));
 }
@@ -155,7 +157,8 @@ fn an_incomplete_prefix_is_reported_where_the_run_was_expected_and_the_argument_
     let vb = lang(vec![macro_with("t", "vb", vec![arg_def_from_code("F+").unwrap()])]);
     let fragment = parse(&vb, r"\vb a+");
     let diagnostic = fragment.diags().expect("core.arguments.expected-opener").at_line_col(1, 5).once();
-    assert!(diagnostic.message().contains("‘+’"), "{}", diagnostic.message());
+    let condition = diagnostic.data().downcast_ref::<ExpectedArgumentOpener>().expect("the condition");
+    assert_eq!(condition.expected, "+");
     let node = callables(&fragment).into_iter().next().unwrap();
     assert!(node.argument_nodes(0).is_none());
 }

@@ -135,9 +135,9 @@ mod tests {
     #[test]
     fn a_condition_refuses_data_that_cannot_cross() {
         let error = ExtCondition::new("wc.x", "m", json!({ "ratio": 0.5 })).expect_err("a float");
-        assert_eq!(error.to_string(), "a number must be an integer, not `0.5`");
+        assert_eq!(error.kind(), "value", "{error}");
         let error = ExtCondition::new("wc.x", "m", json!({ "$type": 1 })).expect_err("a reserved key");
-        assert_eq!(error.to_string(), "a map key must not begin with `$`, as `$type` does");
+        assert_eq!(error.kind(), "value", "{error}");
     }
 
     #[test]
@@ -145,8 +145,12 @@ mod tests {
         let condition = ExtCondition::rewrite_failed("sd.dash", "tree#0", "staging the restaged tree failed: x");
         assert_eq!(condition.identifier(), REWRITE_FAILED);
         assert_eq!(
-            condition.to_string(),
-            "the rewrite stage `sd.dash` must produce one tree from the tree `tree#0`: staging the restaged tree failed: x"
+            condition.serializable_data(),
+            DiagnosticValue::Map(vec![
+                ("stage".to_string(), DiagnosticValue::Str("sd.dash".to_string())),
+                ("tree".to_string(), DiagnosticValue::Str("tree#0".to_string())),
+                ("detail".to_string(), DiagnosticValue::Str("staging the restaged tree failed: x".to_string())),
+            ])
         );
     }
 
@@ -155,7 +159,6 @@ mod tests {
         let error = ExtError::Handler { detail: "TypeError: x".to_string(), data: json!({ "line": 3 }) };
         let condition = ExtCondition::handler_failed(&error, "the stage `wc.count`");
         assert_eq!(condition.identifier(), HANDLER_FAILED);
-        assert_eq!(condition.to_string(), "the stage `wc.count` failed: TypeError: x");
         let with_float = ExtError::Handler { detail: "x".to_string(), data: json!({ "t": 1.5 }) };
         let data = ExtCondition::handler_failed(&with_float, "the stage `wc.count`").serializable_data();
         assert_eq!(

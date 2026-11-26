@@ -78,6 +78,11 @@
 //! member added to a collection that no feature declares; the checks above
 //! check the remaining members.
 //!
+//! The documentation texts of element types are checked apart too, before
+//! the peer element values are resolved: [`element_type_texts`] refuses a
+//! text from a feature that does not declare its element type and a second
+//! text for one element type.
+//!
 //! # Checks that run when a plan is built
 //!
 //! What a stage requires and reads is a need of one plan, not of the
@@ -99,6 +104,7 @@ use crate::model::names::{
 use crate::model::options::{BindSite, OptionKey};
 use crate::model::options::TypeKey;
 use crate::core::registry::builder::{ArgumentPlace, BuildError, Roster, Site};
+use crate::core::registry::frozen::ElementTypeText;
 use crate::core::registry::declarations::arguments_of;
 use crate::core::registry::entities::{DefContent, DefinitionText, NativeImplicationKind};
 use crate::core::registry::entities::PeerName;
@@ -146,31 +152,66 @@ fn written_command(def: &ElementDef) -> String {
     }
 }
 
-/// Every element type name that the declarations `roster` create: the
-/// structural element names passed in `structural`, the names of the declared
-/// elements, of the fallbacks, of the elements of scoped packages, and of the
-/// presentation elements.
+/// Every element type that the declarations `roster` create, once for each
+/// declaration that creates it, with the feature that declares it, in the
+/// sense of
+/// [`FeatureBuilder::peer_element_value`](crate::core::registry::FeatureBuilder::peer_element_value):
+/// the language ([`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER)) for
+/// the structural element names `structural`, and a feature for each element
+/// that one of its declarations creates (an element declaration, an element
+/// of a scoped package, a fallback, a presentation element, and the field
+/// element for a tack-on field of an argument).
+///
+/// The element declarations at the positions `set_apart` of
+/// [`Roster::elements`] are left out: a caller passes the positions of the
+/// peer element values, which create no element type.
+fn element_declarations(
+    roster: &Roster,
+    structural: &[&str],
+    set_apart: &BTreeSet<usize>,
+) -> Vec<(ElementName, FeatureName)> {
+    let language = FeatureName::from(crate::lang::mint::LANGUAGE_OWNER);
+    let mut pairs: Vec<(ElementName, FeatureName)> =
+        structural.iter().map(|name| (ElementName::from(*name), language.clone())).collect();
+    let field = ElementName::from(crate::lang::structural::FIELD);
+    let mut declaration = |def: &ElementDef| {
+        pairs.push((def.element.name.clone(), def.owner.clone()));
+        let mut arguments = Vec::new();
+        arguments_of(def, None, &mut arguments);
+        let tack_on = arguments
+            .iter()
+            .any(|argument| argument.arg.kind.tack_on_fields().is_some_and(|fields| !fields.is_empty()));
+        if tack_on {
+            pairs.push((field.clone(), def.owner.clone()));
+        }
+    };
+    for (position, def) in roster.elements.iter().enumerate() {
+        if !set_apart.contains(&position) {
+            declaration(def);
+        }
+    }
+    for package in &roster.scoped_packages {
+        for def in &package.elements {
+            declaration(def);
+        }
+    }
+    for fallback in &roster.fallbacks {
+        pairs.push((fallback.element.name.clone(), fallback.owner.clone()));
+    }
+    for pres in &roster.presentation {
+        pairs.push((pres.element.name.clone(), pres.owner.clone()));
+    }
+    pairs
+}
+
+/// Every element type name that the declarations `roster` create
+/// ([`element_declarations`], with every element declaration of
+/// [`Roster::elements`] counted).
 ///
 /// A reference to an element type outside this set is a reference to an
 /// element that no feature declares.
 pub(crate) fn declared_elements(roster: &Roster, structural: &[&str]) -> BTreeSet<ElementName> {
-    let mut names: BTreeSet<ElementName> =
-        structural.iter().map(|n| ElementName::from(*n)).collect();
-    for def in &roster.elements {
-        names.insert(def.element.name.clone());
-    }
-    for fallback in &roster.fallbacks {
-        names.insert(fallback.element.name.clone());
-    }
-    for package in &roster.scoped_packages {
-        for def in &package.elements {
-            names.insert(def.element.name.clone());
-        }
-    }
-    for pres in &roster.presentation {
-        names.insert(pres.element.name.clone());
-    }
-    names
+    element_declarations(roster, structural, &BTreeSet::new()).into_iter().map(|(name, _)| name).collect()
 }
 
 /// The cycle found while following a chain of parent links, given the chain
@@ -230,14 +271,95 @@ pub(crate) fn merge_repeated_peers(roster: &mut Roster) {
         .retain(|record| roles.insert((record.owner.clone(), record.name.clone())));
 }
 
+/// Every element type that the declarations `roster` create, each with the
+/// features that declare it ([`element_declarations`], with the peer element
+/// values set apart).
+///
+/// Reads the positions of the peer element values in
+/// [`Roster::elements`], so it runs before
+/// [`resolve_peer_element_values`] drops any of them.
+fn element_type_declarers(
+    roster: &Roster,
+    structural: &[&str],
+) -> BTreeMap<ElementName, BTreeSet<FeatureName>> {
+    let peers: BTreeSet<usize> = roster.peer_element_values.iter().map(|record| record.position).collect();
+    let mut declarers: BTreeMap<ElementName, BTreeSet<FeatureName>> = BTreeMap::new();
+    for (name, owner) in element_declarations(roster, structural, &peers) {
+        declarers.entry(name).or_default().insert(owner);
+    }
+    declarers
+}
+
+/// Checks the documentation texts that features gave to element types
+/// ([`FeatureBuilder::element_type_text`](crate::core::registry::FeatureBuilder::element_type_text))
+/// and completes them, in [`Roster::element_type_texts`], with the texts of
+/// the language's structural element types (`structural`) and of the
+/// presentation elements.
+///
+/// A text from a feature that does not declare the element type
+/// ([`element_type_declarers`]) is a
+/// [`BuildError::UndeclaredElementTypeText`] and is dropped; a second text
+/// for one element type, after the language's, a presentation element's or
+/// a feature's, is a [`BuildError::DuplicateElementTypeText`]. Of the
+/// presentation elements of one name, a duplicate that [`validate`] reports,
+/// the first gives the text.
+///
+/// Runs before [`resolve_peer_element_values`], which moves the peer element
+/// values that [`element_type_declarers`] sets apart.
+pub(crate) fn element_type_texts(roster: &mut Roster, structural: &[&str]) -> Vec<BuildError> {
+    let declarers = element_type_declarers(roster, structural);
+    let mut errors: Vec<BuildError> = Vec::new();
+    let mut texts: Vec<ElementTypeText> = Vec::new();
+    let language = FeatureName::from(crate::lang::mint::LANGUAGE_OWNER);
+    for name in structural {
+        if let Some(docs) = crate::lang::structural::type_text(name) {
+            texts.push(ElementTypeText {
+                element: ElementName::from(*name),
+                docs: crate::kept_docs(docs),
+                owner: language.clone(),
+            });
+        }
+    }
+    for pres in &roster.presentation {
+        if texts.iter().all(|text| text.element != pres.element.name) {
+            texts.push(ElementTypeText {
+                element: pres.element.name.clone(),
+                docs: pres.docs.clone(),
+                owner: pres.owner.clone(),
+            });
+        }
+    }
+    for text in std::mem::take(&mut roster.element_type_texts) {
+        let declaring = declarers.get(&text.element);
+        if !declaring.is_some_and(|owners| owners.contains(&text.owner)) {
+            errors.push(BuildError::UndeclaredElementTypeText {
+                feature: text.owner,
+                element: text.element,
+                declarers: declaring.map(|owners| owners.iter().cloned().collect()).unwrap_or_default(),
+            });
+            continue;
+        }
+        if let Some(first) = texts.iter().find(|given| given.element == text.element) {
+            errors.push(BuildError::DuplicateElementTypeText {
+                element: text.element,
+                first: first.owner.clone(),
+                second: text.owner,
+            });
+            continue;
+        }
+        texts.push(text);
+    }
+    roster.element_type_texts = texts;
+    errors
+}
+
 /// Resolves every peer declaration of an element value
 /// ([`FeatureBuilder::peer_element_value`](crate::core::registry::FeatureBuilder::peer_element_value))
 /// against the element types that the other declarations of `roster` create
-/// ([`declared_elements`], with `structural` giving the names of the
-/// language's structural elements): the plain element declarations, the
-/// elements of scoped packages, the fallbacks, the presentation elements and
-/// the structural elements, without the peer declarations themselves. A
-/// declaration is resolved when its element type's name is among them.
+/// ([`element_declarations`], with `structural` giving the names of the
+/// language's structural elements and the peer declarations themselves set
+/// apart). A declaration is resolved when its element type's name is among
+/// them.
 ///
 /// Each record is marked as resolved or not, and the unresolved declarations
 /// are removed from [`Roster::elements`], so that no later step sees them;
@@ -253,38 +375,27 @@ pub(crate) fn resolve_peer_element_values(
     structural: &[&str],
 ) -> Vec<(FeatureName, ElementName)> {
     let peers: BTreeSet<usize> = roster.peer_element_values.iter().map(|record| record.position).collect();
-    // The peer declarations are set apart while the declared types are read,
-    // then put back in their places.
-    let mut all: Vec<Option<ElementDef>> = std::mem::take(&mut roster.elements).into_iter().map(Some).collect();
-    let mut set_apart: BTreeMap<usize, ElementDef> = BTreeMap::new();
-    for position in &peers {
-        if let Some(def) = all.get_mut(*position).and_then(Option::take) {
-            set_apart.insert(*position, def);
-        }
-    }
-    roster.elements = all.iter_mut().filter_map(Option::take).collect();
-    let declared = declared_elements(roster, structural);
+    let declared: BTreeSet<ElementName> =
+        element_declarations(roster, structural, &peers).into_iter().map(|(name, _)| name).collect();
+    let mut dropped: BTreeSet<usize> = BTreeSet::new();
     let mut unresolved: Vec<(FeatureName, ElementName)> = Vec::new();
     for record in &mut roster.peer_element_values {
         record.resolved = declared.contains(&record.element);
         if record.resolved {
             continue;
         }
-        set_apart.remove(&record.position);
+        dropped.insert(record.position);
         let key = (record.owner.clone(), record.element.clone());
         if !unresolved.contains(&key) {
             unresolved.push(key);
         }
     }
-    let plain = std::mem::take(&mut roster.elements);
-    let mut plain = plain.into_iter();
-    for position in 0..all.len() {
-        if peers.contains(&position) {
-            roster.elements.extend(set_apart.remove(&position));
-        } else {
-            roster.elements.extend(plain.next());
-        }
-    }
+    let mut position = 0;
+    roster.elements.retain(|_| {
+        let keep = !dropped.contains(&position);
+        position += 1;
+        keep
+    });
     unresolved
 }
 
@@ -1166,9 +1277,9 @@ pub(crate) fn native_implications(
         return Vec::new();
     }
     // The element values, under their names, from the same five sources in the
-    // same order as `declared_elements` above, which gathers the names: a source
-    // of element values added to one must be added to the other, and the key set
-    // of this map is exactly the set `declared_elements` returns.
+    // same order as `element_declarations` above, which gathers the names: a
+    // source of element values added to one must be added to the other, and the
+    // key set of this map is exactly the set `declared_elements` returns.
     let mut specs: BTreeMap<ElementName, Vec<&ElementSpec>> = BTreeMap::new();
     for element in structural.all() {
         specs.entry(element.name.clone()).or_default().push(element);
@@ -1176,13 +1287,13 @@ pub(crate) fn native_implications(
     for def in &roster.elements {
         specs.entry(def.element.name.clone()).or_default().push(&def.element);
     }
-    for fallback in &roster.fallbacks {
-        specs.entry(fallback.element.name.clone()).or_default().push(&fallback.element);
-    }
     for package in &roster.scoped_packages {
         for def in &package.elements {
             specs.entry(def.element.name.clone()).or_default().push(&def.element);
         }
+    }
+    for fallback in &roster.fallbacks {
+        specs.entry(fallback.element.name.clone()).or_default().push(&fallback.element);
     }
     for pres in &roster.presentation {
         specs.entry(pres.element.name.clone()).or_default().push(&pres.element);

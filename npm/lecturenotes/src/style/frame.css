@@ -1,7 +1,8 @@
 /* flm-lecturenotes: the frame of the page.
    A sticky bar across the top; under it, the main column and, on the right, the
    sidebar, a scroll box of its own as high as the window under the bar.  The
-   page scrolls as a whole.  The elements are the page's own (classes under the
+   bar and the sidebar stand apart from the text by a light shade, with no
+   rule.  The page scrolls as a whole.  The elements are the page's own (classes under the
    prefix ln-): .ln-app holds .ln-topbar, .ln-sidebar and .ln-main. */
 
 .ln-app {
@@ -24,8 +25,7 @@
   height: var(--ln-bar-height);
   padding: var(--ln-bar-padding);
   box-sizing: border-box;
-  background: var(--ln-bg);
-  border-bottom: var(--ln-rule);
+  background: var(--ln-panel-bg);
   font-size: var(--ln-bar-size);
 }
 .ln-book-title {
@@ -37,7 +37,7 @@
 .ln-book-title:hover {
   color: var(--ln-accent);
 }
-.ln-current-chapter {
+.ln-current-unit {
   flex: 1;
   min-width: 0;
   color: var(--ln-muted);
@@ -45,11 +45,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ln-current-chapter::before {
-  content: var(--ln-chapter-lead);
-  margin-right: var(--ln-chapter-lead-gap);
+.ln-current-unit::before {
+  content: var(--ln-unit-lead);
+  margin-right: var(--ln-unit-lead-gap);
 }
-.ln-current-chapter:empty::before {
+.ln-current-unit:empty::before {
   content: none;
 }
 .ln-topbar-nav {
@@ -57,6 +57,9 @@
   gap: var(--ln-button-gap);
 }
 .ln-topbar-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   line-height: 1;
   cursor: pointer;
@@ -67,6 +70,15 @@
   width: var(--ln-button-size);
   height: var(--ln-button-size);
   padding: 0;
+}
+/* The buttons' icons, drawn in the color of the button's text. */
+.ln-topbar-nav button svg {
+  width: var(--ln-button-icon-size);
+  height: var(--ln-button-icon-size);
+}
+/* The sidebar's button stands apart from the two arrows. */
+.ln-topbar-nav .ln-sidebar-toggle {
+  margin-left: var(--ln-button-group-gap);
 }
 .ln-topbar-nav button:hover {
   color: var(--ln-accent);
@@ -105,8 +117,7 @@
   overflow-y: auto;
   padding: var(--ln-sidebar-padding);
   box-sizing: border-box;
-  border-left: var(--ln-rule);
-  background: var(--ln-bg);
+  background: var(--ln-panel-bg);
   font-size: var(--ln-sidebar-size);
   line-height: var(--ln-sidebar-line-height);
   /* reaching the sidebar's end does not scroll the page */
@@ -128,15 +139,18 @@
 .ln-sidebar-buttons {
   display: inline-flex;
 }
-/* The triangle toggle: pointing right while the sections of the chapters not
-   being read are folded, down while everything is open. */
+/* The unfold toggle: two chevrons pointing apart while the entries below the
+   units not being read are folded, pointing together while everything is
+   open.  The icon is the toggle's text color seen through the image. */
 .ln-toc-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   line-height: 1;
   cursor: pointer;
   background: none;
-  border: var(--ln-rule);
-  border-color: transparent;
+  border: none;
   border-radius: var(--ln-toggle-radius);
   color: var(--ln-muted);
   width: var(--ln-toggle-width);
@@ -144,15 +158,19 @@
   padding: 0;
 }
 .ln-toc-toggle::before {
-  content: var(--ln-folded-icon);
-  font-size: var(--ln-toggle-icon-size);
+  content: "";
+  width: var(--ln-toggle-icon-size);
+  height: var(--ln-toggle-icon-size);
+  background: currentColor;
+  mask: var(--ln-folded-icon) center / contain no-repeat;
 }
 .ln-toc-all .ln-toc-toggle::before {
-  content: var(--ln-open-icon);
+  mask-image: var(--ln-open-icon);
 }
+/* Under the pointer, the toggle takes the highlight of the sidebar's entries. */
 .ln-toc-toggle:hover {
   color: var(--ln-accent);
-  border-color: var(--ln-border);
+  background: var(--ln-entry-bg);
 }
 
 /* ── The main column ─────────────────────────────────────────────────────── */

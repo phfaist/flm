@@ -1,23 +1,23 @@
-// The chapter and level computations, the folding and the storage keys.
+// The navigation units, the folding and the storage keys.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   STORAGE_KEYS, FOLLOW_PAUSE_MS, CURRENT_MARGIN_PX,
-  chapterIndices, chapterOf, currentHeadingIndex, currentLine, followAllowed, fragmentId,
-  navigationTargets, outsideView, parseFolding, parseHidden, toggleFolding,
+  currentHeadingIndex, currentLine, followAllowed, fragmentId, navigationTargets,
+  outsideView, parseFolding, parseHidden, toggleFolding, unitIndices, unitOf,
 } from '../src/sidebar';
 
-// The sample's structure: a preface chapter with two sections, a part with two
-// chapters, another part with one chapter.
+// The sample's structure, with the navigation level 1: a preface (a unit) with two
+// sections, a part with two units, another part with one unit.
 //              0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
 const LEVELS = [1, 2, 2, 0, 1, 2, 2, 2, 1, 2, 2, 0, 1, 2, 2];
 
-test('the chapters are the headings at the chapter level', () => {
-  assert.deepEqual(chapterIndices(LEVELS, 1), [0, 4, 8, 12]);
-  assert.deepEqual(chapterIndices(LEVELS, 0), [3, 11]);
-  assert.deepEqual(chapterIndices(LEVELS, 2), [1, 2, 5, 6, 7, 9, 10, 13, 14]);
-  assert.deepEqual(chapterIndices([], 1), []);
+test('the units are the headings at the navigation level', () => {
+  assert.deepEqual(unitIndices(LEVELS, 1), [0, 4, 8, 12]);
+  assert.deepEqual(unitIndices(LEVELS, 0), [3, 11]);
+  assert.deepEqual(unitIndices(LEVELS, 2), [1, 2, 5, 6, 7, 9, 10, 13, 14]);
+  assert.deepEqual(unitIndices([], 1), []);
 });
 
 test('the current heading is the last whose top is at or above the line', () => {
@@ -29,31 +29,31 @@ test('the current heading is the last whose top is at or above the line', () => 
   assert.equal(currentHeadingIndex([], 60), -1);
 });
 
-test('a heading belongs to the nearest chapter before it, unless a part comes in between', () => {
-  assert.equal(chapterOf(LEVELS, 0, 1), 0);
-  assert.equal(chapterOf(LEVELS, 2, 1), 0);
-  assert.equal(chapterOf(LEVELS, 3, 1), -1, 'a part heading is in no chapter');
-  assert.equal(chapterOf(LEVELS, 7, 1), 4);
-  assert.equal(chapterOf(LEVELS, 10, 1), 8);
-  assert.equal(chapterOf(LEVELS, 14, 1), 12);
-  assert.equal(chapterOf(LEVELS, -1, 1), -1, 'above the first heading');
-  assert.equal(chapterOf([2, 1, 2], 0, 1), -1, 'a section before any chapter');
-  assert.equal(chapterOf(LEVELS, 7, 0), 3, 'parts as chapters');
+test('a heading belongs to the nearest unit before it, unless a heading above the navigation level comes in between', () => {
+  assert.equal(unitOf(LEVELS, 0, 1), 0);
+  assert.equal(unitOf(LEVELS, 2, 1), 0);
+  assert.equal(unitOf(LEVELS, 3, 1), -1, 'a heading above the navigation level is in no unit');
+  assert.equal(unitOf(LEVELS, 7, 1), 4);
+  assert.equal(unitOf(LEVELS, 10, 1), 8);
+  assert.equal(unitOf(LEVELS, 14, 1), 12);
+  assert.equal(unitOf(LEVELS, -1, 1), -1, 'above the first heading');
+  assert.equal(unitOf([2, 1, 2], 0, 1), -1, 'a heading before any unit');
+  assert.equal(unitOf(LEVELS, 7, 0), 3, 'the navigation level 0');
 });
 
-test('the arrows lead to the previous and the next chapter', () => {
-  // above the first heading: no previous, the first chapter next
+test('the arrows lead to the previous and the next unit', () => {
+  // above the first heading: no previous, the first unit next
   assert.deepEqual(navigationTargets(LEVELS, -1, 1), { prev: -1, next: 0 });
-  // in the first chapter
+  // in the first unit
   assert.deepEqual(navigationTargets(LEVELS, 0, 1), { prev: -1, next: 4 });
   assert.deepEqual(navigationTargets(LEVELS, 2, 1), { prev: -1, next: 4 });
-  // on a part heading: the chapter before it, the chapter after it
+  // on a heading above the navigation level: the unit before it, the unit after it
   assert.deepEqual(navigationTargets(LEVELS, 3, 1), { prev: 0, next: 4 });
-  // in the second chapter
+  // in the second unit
   assert.deepEqual(navigationTargets(LEVELS, 6, 1), { prev: 0, next: 8 });
-  // in the last chapter
+  // in the last unit
   assert.deepEqual(navigationTargets(LEVELS, 14, 1), { prev: 8, next: -1 });
-  // no chapters at all
+  // no units at all
   assert.deepEqual(navigationTargets([2, 2], 1, 1), { prev: -1, next: -1 });
 });
 

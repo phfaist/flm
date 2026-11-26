@@ -1,0 +1,47 @@
+---
+title: A European letter
+flm:
+  use: [letter]
+  features:
+    compose:
+      template_config:
+        html:
+          letter: {style: europe, logo: placeholder}
+        latex-rendered:
+          letter: {style: europe, logo: placeholder}
+---
+\begin{letter}
+
+\begin{fromaddress}
+Alex Morgan\\
+Example Research Institute\\
+Example Street 14\\
+10115 Berlin, Germany\\
+\email{alex@example.org}
+\end{fromaddress}
+
+\begin{toaddress}
+Dr. Taylor Smith\\
+Example University\\
+University Avenue 20\\
+1000 Brussels, Belgium
+\end{toaddress}
+
+\letterdate{Berlin, 16 November 2026}
+\lettersubject{An invitation to collaborate}
+\salutation{Dear Dr. Smith,}
+
+Thank you for your interest in our research. We would be pleased to discuss a
+joint workshop and to exchange ideas with your group.
+
+The enclosed outline describes a possible program. Further information is
+available on \href{https://example.org/workshop}{our workshop page}.
+
+\closing{Yours sincerely,}
+\begin{signature}
+Alex Morgan\\
+Research Coordinator
+\end{signature}
+\enclosed{Enclosed: Workshop outline}
+
+\end{letter}

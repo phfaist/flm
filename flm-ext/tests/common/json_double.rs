@@ -44,6 +44,39 @@ fn next_call() -> u64 {
     CALLS.fetch_add(1, Ordering::Relaxed)
 }
 
+/// The number of items a test's pull asks for: small, so that a traversal of
+/// a few nodes takes several pulls.
+const PULL_GROUP: usize = 3;
+
+/// Every item of the traversal `traversal` (a handle in its JSON shape), as
+/// one list: pulled through `call` (the dispatcher's `call` on the running
+/// table) in groups of [`PULL_GROUP`], until a group of fewer.
+pub fn pull_every(mut call: impl FnMut(&Value, &str, Value) -> Result<Value, ExtError>, traversal: &Value) -> Result<Value, ExtError> {
+    let mut items = Vec::new();
+    loop {
+        let group = list(call(traversal, "pull", json!([PULL_GROUP]))?);
+        let last = group.len() < PULL_GROUP;
+        items.extend(group);
+        if last {
+            return Ok(Value::Array(items));
+        }
+    }
+}
+
+/// Every item of the sequence `sequence` (a handle in its JSON shape, its
+/// length beside it), as one list: pulled through `call` in groups of
+/// [`PULL_GROUP`] from the index of the first not pulled, up to its length.
+pub fn pull_sequence(mut call: impl FnMut(&Value, &str, Value) -> Result<Value, ExtError>, sequence: &Value) -> Result<Value, ExtError> {
+    let len = sequence["@handle"]["len"].as_u64().and_then(|len| usize::try_from(len).ok()).expect("a sequence's length");
+    let mut items = Vec::new();
+    while items.len() < len {
+        let group = list(call(sequence, "pull", json!([items.len(), PULL_GROUP, 1 << 16]))?);
+        assert!(!group.is_empty(), "a pull before the end answers an item");
+        items.extend(group);
+    }
+    Ok(Value::Array(items))
+}
+
 /// What a handler holds: the running call's table, reached by name with JSON.
 pub struct Js<'t, 'c> {
     table: &'t mut CallTable<'c>,
@@ -55,6 +88,22 @@ impl<'c> Js<'_, 'c> {
     pub fn call(&mut self, target: &Value, method: &str, args: Value) -> Result<Value, ExtError> {
         let handle = handle_from_value(target)?;
         dispatch::call(self.table, handle, method, &args)
+    }
+
+    /// `call`, for a method that answers a traversal (`walk`, `descendants`,
+    /// `trees`): every item of the traversal, pulled as a binding pulls them
+    /// ([`pull_every`]), as one list.
+    pub fn traverse(&mut self, target: &Value, method: &str, args: Value) -> Result<Value, ExtError> {
+        let traversal = self.call(target, method, args)?;
+        pull_every(|target, method, args| self.call(target, method, args), &traversal)
+    }
+
+    /// `call`, for a method that answers a sequence (`items`): every item of
+    /// the sequence, pulled as a binding pulls them ([`pull_sequence`]), as
+    /// one list.
+    pub fn sequence(&mut self, target: &Value, method: &str, args: Value) -> Result<Value, ExtError> {
+        let sequence = self.call(target, method, args)?;
+        pull_sequence(|target, method, args| self.call(target, method, args), &sequence)
     }
 
     /// The number of the running call.
@@ -163,6 +212,7 @@ impl JsonDouble {
                 templates: Vec::new(),
                 features: Vec::new(),
                 host: Vec::new(),
+                caches: Default::default(),
             },
             registers: BTreeMap::new(),
         }
@@ -180,6 +230,7 @@ impl JsonDouble {
             docs: String::new(),
             version: None,
             settings: None,
+            templates: Default::default(),
         });
         self.registers.insert(name.to_string(), Box::new(register));
         self
@@ -195,12 +246,18 @@ impl JsonDouble {
 
     /// The package's factory, `NAME#_`.
     pub fn factory(self) -> PackageFactory {
-        let extension = ExtensionIdentity { identity: self.name.clone(), stem: self.name.clone() };
+        let extension = ExtensionIdentity { identity: self.name.clone(), stem: self.name.clone(), name: self.name.clone() };
         let report = self.report.clone();
         let digest: Arc<[u8]> = Arc::from(Vec::new());
-        let caller = flm_ext::host::HostCaller { extension: extension.clone(), package: report.name.clone(), digest_input: Arc::clone(&digest) };
+        let caller = flm_ext::host::HostCaller { extension: extension.clone(), package: report.name.clone(), caches: report.caches.clone(), digest_input: Arc::clone(&digest) };
         let files: Arc<dyn flm_ext::ExtensionFiles + Send + Sync> = Arc::new(flm_ext::MemoryFiles::new());
-        let services = Arc::new(flm_ext::adapter::services::DeclaredServices::new(caller, &BTreeMap::new(), &[], files));
+        let services = Arc::new(flm_ext::adapter::services::DeclaredServices::new(
+            caller,
+            &BTreeMap::new(),
+            &[],
+            files,
+            flm_ext::paths::ExtensionsByName::new(),
+        ));
         package_factory(&extension, &report, Arc::new(self), digest, "", services).expect("the report is a package")
     }
 
@@ -339,7 +396,7 @@ pub const TODOS: &str = "wordcount.todos";
 /// rule. Answers the element's name.
 fn declare(js: &mut Js<'_, '_>, b: &Value, owner: &Value, definition: Value, hook: Option<Value>) -> Result<Value, ExtError> {
     let userdefs = module("lang/rewrites/userdefs");
-    let helpers = module("stdcore/features/userdefs");
+    let helpers = module("stdlib/features/userdefs");
     let ud = js.call(&userdefs, "UserDefinition::new", json!([definition]))?;
     let element = js.call(&helpers, "element_name_under", json!(["wordcount", definition]))?;
     let def = match hook {
@@ -404,7 +461,7 @@ fn register(js: &mut Js<'_, '_>, b: &Value) -> Result<(), ExtError> {
             let mine = js.call(cx, "my_tree", json!([]))?;
             let root = js.call(&mine, "root", json!([]))?;
             let mut words = 0;
-            for node in list(js.call(&root, "descendants", json!([]))?) {
+            for node in list(js.traverse(&root, "descendants", json!([]))?) {
                 if js.call(&node, "is_chars", json!([]))? == json!(true) {
                     words += count_words(js.call(&node, "chars", json!([]))?.as_str().unwrap_or(""));
                 }
@@ -424,10 +481,10 @@ fn register(js: &mut Js<'_, '_>, b: &Value) -> Result<(), ExtError> {
         move |js, cx, out| {
             let read = js.call(cx, "get", json!(["flm.userdefs.always-expanded"]))?;
             let trees = read.get("trees").cloned().unwrap_or(Value::Null);
-            for pair in list(js.call(&trees, "trees", json!([]))?) {
+            for pair in list(js.traverse(&trees, "trees", json!([]))?) {
                 let (tree, expanded) = (pair.get(0).cloned().unwrap_or(Value::Null), pair.get(1).cloned().unwrap_or(Value::Null));
                 let root = js.call(&expanded, "root", json!([]))?;
-                for node in list(js.call(&root, "descendants", json!([]))?) {
+                for node in list(js.traverse(&root, "descendants", json!([]))?) {
                     if js.call(&node, "is_callable", json!([]))? == json!(true)
                         && js.call(&node, "element_name", json!([]))? == todo_element
                     {

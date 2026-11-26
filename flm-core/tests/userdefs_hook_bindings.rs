@@ -17,7 +17,7 @@ use flm_core::lang::rewrites::userdefs::{
 use techy::latexlike::Mode;
 use flm_core::lang::{build_language, BuiltLang, Flm, FlmDiagnostics, LangInputs};
 use flm_core::model::element::ElementSpec;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use techy::core::node::{NodeRef, NodeSlice, NodeTree};
 
 use common::parse;

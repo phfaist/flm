@@ -8,44 +8,32 @@
     "modes": [
       "text"
     ],
-    "docs": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
-    "summary": "`\\section*[…]{title}\\label{…}`: A heading of level 1.",
     "arguments": [
       {
-        "form": "an optional `*` marker",
         "syntax": {
           "syntax": "star"
         },
         "written": "*",
         "name": "star",
-        "layout": "inline",
-        "docs": "A star: not numbered (`numbered=false`).",
-        "summary": "A star: not numbered (`numbered=false`)."
+        "layout": "inline"
       },
       {
-        "form": "an optional `[key=value,…]` group",
         "syntax": {
           "syntax": "key-vals"
         },
         "written": "[options]",
         "name": "options",
-        "layout": "inline",
-        "docs": "Key-values: `numbered=true|false`, `toc=true|false`.",
-        "summary": "Key-values: `numbered=true|false`, `toc=true|false`."
+        "layout": "inline"
       },
       {
-        "form": "a mandatory `{…}` group",
         "syntax": {
           "syntax": "mandatory"
         },
         "written": "{title}",
         "name": "title",
-        "layout": "inline",
-        "docs": "The heading's title.",
-        "summary": "The heading's title."
+        "layout": "inline"
       },
       {
-        "form": "the fields `\\label` written after the command",
         "syntax": {
           "syntax": "tack-on",
           "fields": [
@@ -57,39 +45,30 @@
                   "name": "target",
                   "layout": "inline",
                   "opaque_wrapper": false,
-                  "docs": "The label, written `type:label` (`sec:intro`).",
                   "mode": null,
                   "scoped": [],
                   "role": "flm.refs.defined-label"
                 }
               ],
-              "repeatable": true,
-              "docs": "Attaches a label to the construct, which a reference can point at; may be repeated."
+              "repeatable": true
             }
           ]
         },
         "written": "\\label{target}",
         "name": "fields",
         "layout": "inline",
-        "docs": "`\\label{…}` fields written after the construct, each attaching a label to it.",
-        "summary": "`\\label{…}` fields written after the construct, each attaching a label to it.",
         "fields": [
           {
             "name": "label",
             "repeatable": true,
-            "docs": "Attaches a label to the construct, which a reference can point at; may be repeated.",
-            "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
             "arguments": [
               {
-                "form": "a `{…}` group read as plain characters, kept as written",
                 "syntax": {
                   "syntax": "chars-group"
                 },
                 "written": "{target}",
                 "name": "target",
                 "layout": "inline",
-                "docs": "The label, written `type:label` (`sec:intro`).",
-                "summary": "The label, written `type:label` (`sec:intro`).",
                 "role": "flm.refs.defined-label"
               }
             ]
@@ -99,8 +78,6 @@
     ],
     "element": {
       "name": "flm.heading",
-      "docs": "`section`: A heading of level 1.",
-      "summary": "`section`: A heading of level 1.",
       "aspects": [
         "flm_core::model::aspects::BlockRoleAspect",
         "flm_core::model::aspects::Sectioning",

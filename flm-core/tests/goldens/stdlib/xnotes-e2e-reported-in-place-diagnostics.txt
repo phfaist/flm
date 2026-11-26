@@ -1,0 +1,16 @@
+===== check =====
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Warning flm.refs.unresolved {"label":"fn:nowhere"} — at `\ref{fn:nowhere}`
+===== text =====
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Error flm.refs.unresolved {"label":"fn:nowhere"} — at `\ref{fn:nowhere}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The heading's first paragraph.\n\nThe heading's seco`
+Error flm.blocks.block-in-inline {"element":"flm.xnotes.xnote"} — at `\footnote{The formula's first paragraph.\n\nThe formula's seco`
+Error flm.refs.unresolved {"label":"fn:nowhere"} — at `\ref{fn:nowhere}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.refs.unresolved {"label":"fn:nowhere"} — at `\ref{fn:nowhere}`

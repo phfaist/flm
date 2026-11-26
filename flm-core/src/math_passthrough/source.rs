@@ -4,23 +4,23 @@
 //! the rule of an opaque command lowered on its own.
 //!
 //! Each rule stages (builds into the lowered tree; see [`Lowerer`]) one
-//! [`flm.pres.math-passthrough`](crate::stdcore::backends::pres::MATH_PASSTHROUGH)
+//! [`flm.pres.math-passthrough`](crate::stdlib::backends::pres::MATH_PASSTHROUGH)
 //! node whose body is the source the author wrote, in order and unchanged,
 //! except that every text command becomes content: a `flm.pres.math-text` node
 //! holding the command's argument lowered as inline content, and that
 //! `\ensuremath{…}` inside a formula is written as its argument's content, the
-//! command left out ([`ensuremath`](crate::stdcore::features::math::ensuremath)).
+//! command left out ([`ensuremath`](crate::stdlib::features::math::ensuremath)).
 //! A backend that writes `flm.pres.math-passthrough` natively (the three
 //! standard backends do) needs no rule of its own; on the `latex-recomposed`
 //! backend the feature's rules of [`super::latex`] are chosen instead.
 //!
 //! The rule of the display-math environments reads the line anchors and the
 //! line numbers through the library of the
-//! [`math`](crate::stdcore::features::math) feature
+//! [`math`](crate::stdlib::features::math) feature
 //! ([`line_frames`], [`stage_tag_content`]), which owns the equation lines,
 //! their reference points and their numbering, and writes each line's content
 //! under that library's newline rule (the module documentation of
-//! [`latex`](crate::stdcore::features::math::latex), *The newline rule*), so
+//! [`latex`](crate::stdlib::features::math::latex), *The newline rule*), so
 //! that a `\label`, `\tag` or `\nonumber` taken off a line of its own leaves
 //! no blank line in the formula's source: the run of whitespace that ends a
 //! line's content is written after the line's tag and its `\\`.
@@ -32,17 +32,25 @@ use crate::core::lowering::{Lower, LowerCx, LowerError, Lowerer, Lowering};
 use crate::lang::Flm;
 use crate::lang::mint::is_math_text_command;
 use crate::model::element::{element_of, element_value};
-use crate::model::names::ElementName;
-use crate::stdcore::backends::lowering::{copy_subtree_verbatim, lower_run};
-use crate::stdcore::backends::pres::{
+use crate::model::names::{ElementName, Name};
+use crate::stdlib::backends::lowering::{copy_subtree_verbatim, lower_run};
+use crate::stdlib::backends::pres::{
     self, MathDisplay, MathPassthroughPayload, MathTextPayload, recompose_source,
 };
-use crate::stdcore::features::math::MathEnvironment;
-use crate::stdcore::features::math::ensuremath::ENSUREMATH;
-use crate::stdcore::features::math::frame::{formula_display, line_frames, stage_tag_content};
-use crate::stdcore::features::math::latex::NewlineRule;
-use crate::stdcore::features::numbering::COUNTERS;
-use crate::stdcore::features::refs::ANCHORS;
+use crate::stdlib::features::math::MathEnvironment;
+use crate::stdlib::features::math::ensuremath::ENSUREMATH;
+use crate::stdlib::features::math::frame::{formula_display, line_frames, stage_tag_content};
+use crate::stdlib::features::math::html::FORMULA_ROLE;
+use crate::stdlib::features::math::latex::NewlineRule;
+use crate::stdlib::features::numbering::COUNTERS;
+use crate::stdlib::features::refs::ANCHORS;
+
+/// The payload of a formula's `flm.pres.math-passthrough` node: `display`,
+/// `env`, and the role of a formula's outermost element, which marks the
+/// formula in an HTML page ([`FORMULA_ROLE`]).
+fn formula_payload(display: MathDisplay, env: Option<String>) -> MathPassthroughPayload {
+    MathPassthroughPayload { display, env, role: Some(Name::from(FORMULA_ROLE)) }
+}
 
 /// The display form of a node, taken from the nearest math group that
 /// contains it: display inside a display group, inline inside any other math
@@ -62,7 +70,7 @@ fn enclosing_display(node: &NodeRef<'_, Flm>) -> MathDisplay {
 }
 
 /// The body of [`OPAQUE_RULE`](super::OPAQUE_RULE): it stages a
-/// [`flm.pres.math-passthrough`](crate::stdcore::backends::pres::MATH_PASSTHROUGH) node
+/// [`flm.pres.math-passthrough`](crate::stdlib::backends::pres::MATH_PASSTHROUGH) node
 /// over a copy of the opaque node, displayed when the nearest math group that
 /// contains the node is displayed and inline otherwise.
 ///
@@ -81,7 +89,7 @@ impl Lower for OpaqueRule {
     ) -> Result<Lowering, LowerError> {
         let display = enclosing_display(&node);
         let body = vec![copy_subtree_verbatim(cx, node)?];
-        let payload = MathPassthroughPayload { display, env: None };
+        let payload = formula_payload(display, None);
         let math = lw.pres_with(cx, &ElementName::from(pres::MATH_PASSTHROUGH), payload, body)?;
         Ok(Lowering::Emit(vec![math]))
     }
@@ -213,7 +221,7 @@ fn stage_arguments(
 }
 
 /// Stages one equation line's tag: the text `\tag*{`, a
-/// [`flm.pres.math-text`](crate::stdcore::backends::pres::MATH_TEXT) node
+/// [`flm.pres.math-text`](crate::stdlib::backends::pres::MATH_TEXT) node
 /// holding `content`, and `}`; nothing when `content` is empty.
 ///
 /// The same function writes an author's tag and a line's number: `content` is
@@ -221,7 +229,7 @@ fn stage_arguments(
 /// unstarred form already added, or the number the document gave the line.
 /// The form `\tag*` writes its content as given, so nothing is added to it.
 /// The content node is marked
-/// [`at_tag`](crate::stdcore::backends::pres::MathTextPayload::at_tag), so that
+/// [`at_tag`](crate::stdlib::backends::pres::MathTextPayload::at_tag), so that
 /// each backend can write it as a tag's content requires.
 ///
 /// # Errors
@@ -316,7 +324,7 @@ fn stage_line_content(
 }
 
 /// The body of [`ENVIRONMENT_RULE`](super::ENVIRONMENT_RULE): it stages a displayed
-/// [`flm.pres.math-passthrough`](crate::stdcore::backends::pres::MATH_PASSTHROUGH)
+/// [`flm.pres.math-passthrough`](crate::stdlib::backends::pres::MATH_PASSTHROUGH)
 /// node that carries the environment's name, over the environment's equation
 /// lines: for each line, an empty `flm.pres.math-text` node carrying the
 /// line's anchor, the line's source, the line's tag or number, its `\\` when
@@ -375,10 +383,7 @@ impl Lower for EnvironmentRule {
                 body.push(lw.text(cx, &trailing)?);
             }
         }
-        let payload = MathPassthroughPayload {
-            display: MathDisplay::Display,
-            env: Some(value.name.to_string()),
-        };
+        let payload = formula_payload(MathDisplay::Display, Some(value.name.to_string()));
         let math = lw.pres_with(cx, &ElementName::from(pres::MATH_PASSTHROUGH), payload, body)?;
         Ok(Lowering::Emit(vec![math]))
     }
@@ -405,7 +410,7 @@ impl Lower for MathRule {
             if formula_display(&node) { MathDisplay::Display } else { MathDisplay::Inline };
         let children: Vec<NodeRef<'_, Flm>> = node.children().iter().collect();
         let body = stage_source(cx, lw, &children)?;
-        let payload = MathPassthroughPayload { display, env: None };
+        let payload = formula_payload(display, None);
         let math = lw.pres_with(cx, &ElementName::from(pres::MATH_PASSTHROUGH), payload, body)?;
         Ok(Lowering::Emit(vec![math]))
     }

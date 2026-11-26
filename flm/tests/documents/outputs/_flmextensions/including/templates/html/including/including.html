@@ -1,0 +1,5 @@
+<link rel="stylesheet" href="{{ artifacts.style }}"><script src="{{ artifacts.script }}"></script>
+{% include "partials/head.html" %}
+<script>{{ include_raw("../../../dist/x.js") }}</script>
+<img src="{{ include_artifact_url("doc:logo.png") }}">
+{{ regions.content }}

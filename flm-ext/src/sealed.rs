@@ -18,6 +18,7 @@ use flm_core::lang::rewrites::userdefs::{
 };
 use flm_core::core::lowering::{LowerCx as CoreLowerCx, LowerError, Lowerer as CoreLowerer};
 use flm_core::core::run::{RewriteCx as CoreRewriteCx, StageCx as CoreStageCx};
+use flm_core::progress::Scope as CoreScope;
 use flm_core::techy::core::node::{BuildId, NodeId, NodeTree};
 use flm_core::lang::{BuiltLang as CoreBuiltLang, Flm};
 use flm_core::techy::core::node::NodeRef;
@@ -159,8 +160,8 @@ pub trait LowerCxCore {
 /// [`Lowerer::get`](crate::api::core::lowering::Lowerer::get).
 pub trait LowererCore: DurableOwner {
     /// The table `name`, as [`Lowerer::get`](crate::api::core::lowering::Lowerer::get)
-    /// answers it, but owning what it holds (an extension's own table as a
-    /// copy of its items, a rewrite's trees as shared trees), so that the
+    /// answers it, but owning what it holds (an extension's own table and a
+    /// rewrite's trees, each shared with the store), so that the
     /// dispatcher can lend it into the call's table beside the lowerer it was
     /// asked on.
     ///
@@ -250,13 +251,13 @@ pub trait RestagedSlotCore {
 }
 
 /// The seal of
-/// [`CitationEntry`](crate::api::stdcore::features::citations::CitationEntry),
+/// [`CitationEntry`](crate::api::stdlib::features::citations::CitationEntry),
 /// with its accessor.
 pub trait CitationEntryCore {
     /// The `flm-core` citation entry behind the façade, owned (a clone of its
     /// `Arc`): what the adapter hands to `flm-core` in a provider's answer,
     /// and what the dispatcher copies out of the call's table.
-    fn core_entry(&self, token: Token) -> flm_core::stdcore::features::citations::CitationEntry;
+    fn core_entry(&self, token: Token) -> flm_core::stdlib::features::citations::CitationEntry;
 }
 
 /// No `flm-core` counterpart: the façades that lend a call the durable table
@@ -289,6 +290,14 @@ pub trait DurableOwner: Sealed {
     fn durable_template(&self, token: DurableToken) -> Result<DurableTemplateFacade, ExtError> {
         self.durable_table(Token::new()).compiled_template(token)
     }
+}
+
+/// The seal of [`ProgressScope`](crate::api::progress::ProgressScope), with
+/// its accessor: the engines read through it whether the build of a handler
+/// call was asked to stop, to stop a handler that runs on.
+pub trait ScopeCore {
+    /// A copy of the `flm-core` scope behind the façade.
+    fn core_scope(&self, token: Token) -> CoreScope;
 }
 
 /// The seal of [`BuiltLang`](crate::api::lang::BuiltLang), with its accessor.

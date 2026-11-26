@@ -1,5 +1,7 @@
 //! The making of each page: its body, its children, its title and its summary.
 
+use std::collections::BTreeMap;
+
 use flm_core::lang::mint::CallableKind;
 
 use super::paths::{self, Location};
@@ -39,9 +41,9 @@ const ROOT_SUMMARY: &str =
     "The packages, features, settings and workflows of the environment, and the names its registry holds.";
 const PARSING_TITLE: &str = "Parsing settings";
 const PARSING_SUMMARY: &str = "The settings that decide how a document's source is read, as the registry was built with them.";
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 const FRONT_MATTER_TITLE: &str = "Front matter";
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 const FRONT_MATTER_SUMMARY: &str = "The keys that a document's front matter takes under `flm`.";
 const PATHS_TITLE: &str = "The program's folders";
 const PATHS_SUMMARY: &str =
@@ -67,9 +69,9 @@ pub(super) fn page(tree: &Tree, location: &Location) -> Option<Page> {
             }
             let body = RootView {
                 workflow: env.plan().and_then(|plan| plan.request().workflow.as_ref().map(ToString::to_string)),
-                #[cfg(feature = "flm-main")]
+                #[cfg(feature = "flm-host")]
                 profile: env.host().map(|host| host.profile.clone()),
-                #[cfg(feature = "flm-main")]
+                #[cfg(feature = "flm-host")]
                 math: env.host().and_then(|host| host.math.clone()),
                 packages: env.packages(),
                 features: registry
@@ -207,14 +209,14 @@ pub(super) fn page(tree: &Tree, location: &Location) -> Option<Page> {
         Location::SettingsIndex => {
             #[allow(unused_mut)]
             let mut children = vec![entry(paths::SETTINGS_PARSING, PARSING_TITLE, PARSING_SUMMARY)];
-            #[cfg(feature = "flm-main")]
+            #[cfg(feature = "flm-host")]
             children.push(entry(paths::SETTINGS_FRONT_MATTER, FRONT_MATTER_TITLE, FRONT_MATTER_SUMMARY));
             // Every feature of the packages that takes settings, those the registry does not
             // hold included: the page of a feature switched off says where it was. A feature
             // named `parsing` or `front-matter` has no settings page of its own (its path is a
             // fixed page's), in both builds.
             for factory in env.factories() {
-                for feature in factory.features().iter().filter(|feature| feature.settings.is_some()) {
+                for feature in factory.features().iter().filter(|feature| feature.settings.as_ref().is_some_and(|decl| decl.takes_settings())) {
                     let path = paths::settings(&feature.name);
                     if path == paths::SETTINGS_PARSING || path == paths::SETTINGS_FRONT_MATTER {
                         continue;
@@ -247,7 +249,7 @@ pub(super) fn page(tree: &Tree, location: &Location) -> Option<Page> {
             Node::Parsing(env.parsing_settings()),
             Vec::new(),
         ),
-        #[cfg(feature = "flm-main")]
+        #[cfg(feature = "flm-host")]
         Location::FrontMatter => make(
             tree,
             paths::SETTINGS_FRONT_MATTER,
@@ -257,7 +259,7 @@ pub(super) fn page(tree: &Tree, location: &Location) -> Option<Page> {
             Node::FrontMatter(env.front_matter()),
             Vec::new(),
         ),
-        #[cfg(not(feature = "flm-main"))]
+        #[cfg(not(feature = "flm-host"))]
         Location::FrontMatter => return None,
         Location::WorkflowIndex => {
             let children = registry
@@ -289,7 +291,7 @@ pub(super) fn page(tree: &Tree, location: &Location) -> Option<Page> {
             if paths::has_entity_pages(name) {
                 for entry_view in &namespace.entries {
                     let path = paths::entity(name, &entry_view.name, entry_view.owner.as_deref());
-                    let source = texts::declared(env, entry_view.owner.as_deref(), &entry_view.summary);
+                    let source = texts::entry(env, name, &entry_view.name, entry_view.owner.as_deref(), &entry_view.summary);
                     match children.iter_mut().find(|known| known.path == path) {
                         Some(known) => {
                             if known.summary.is_empty() {
@@ -374,32 +376,56 @@ pub(super) fn lookup(tree: &Tree, name: &str) -> Vec<Page> {
     let feature_rank = |feature: &str| features.iter().position(|info| info.name == *feature).unwrap_or(usize::MAX);
     let mut found: Vec<((usize, usize, usize), String)> = Vec::new();
     for hit in env.lookup(name) {
-        let (key, path) = match hit {
-            Hit::Entity { namespace, name, owner, .. } => {
-                let key = match namespace.as_str() {
-                    "package" => (0, 0, 0),
-                    "feature" => (1, feature_rank(&name), 0),
-                    "scoped-package" => (1, owner.as_deref().map_or(usize::MAX, feature_rank), 4),
-                    "settings-key" => (2, 0, 0),
-                    "workflow" => (3, 0, 0),
-                    _ => (4, 0, 0),
-                };
-                (key, paths::entity(&namespace, &name, owner.as_deref()))
-            }
-            Hit::Command { kind, name, feature, within, .. } => {
-                let rank = match within {
-                    Some(_) => 4,
-                    None => 1 + KINDS.iter().position(|known| *known == kind).unwrap_or(0),
-                };
-                ((1, feature_rank(&feature), rank), paths::command(&feature, within.as_deref(), kind, &name))
-            }
-        };
+        let (key, path) = target(&hit, &feature_rank);
         if !found.iter().any(|(_, known)| *known == path) {
             found.push((key, path));
         }
     }
     found.sort_by_key(|(key, _)| *key);
     found.into_iter().filter_map(|(_, path)| tree.page(&path)).collect()
+}
+
+/// The names by which [`lookup`] finds each page, by the page's path ([`Tree::index`]),
+/// each name once per page, in the order in which the environment lists the names.
+pub(super) fn names(tree: &Tree) -> BTreeMap<String, Vec<String>> {
+    let mut names: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // The rank orders the pages of one name; a page's names need none.
+    let no_rank = |_: &str| 0;
+    for (name, hit) in tree.environment().names() {
+        let (_, path) = target(&hit, &no_rank);
+        let listed = names.entry(path).or_default();
+        if !listed.contains(&name) {
+            listed.push(name);
+        }
+    }
+    names
+}
+
+/// The path of the page of what `hit` found, with the key that orders it among the pages
+/// of one name: the packages, then by feature (`feature_rank`, the feature's place in the
+/// registry) the feature and its commands by kind, then its scoped packages and their
+/// commands, then the settings, the workflows and the other entities.
+fn target(hit: &Hit, feature_rank: &dyn Fn(&str) -> usize) -> ((usize, usize, usize), String) {
+    match hit {
+        Hit::Entity { namespace, name, owner, .. } => {
+            let key = match namespace.as_str() {
+                "package" => (0, 0, 0),
+                "feature" => (1, feature_rank(name), 0),
+                "scoped-package" => (1, owner.as_deref().map_or(usize::MAX, feature_rank), 4),
+                "settings-key" => (2, 0, 0),
+                "workflow" => (3, 0, 0),
+                _ => (4, 0, 0),
+            };
+            (key, paths::entity(namespace, name, owner.as_deref()))
+        }
+        Hit::Command { kind, name, feature, within, .. } => {
+            let rank = match within {
+                Some(_) => 4,
+                None => 1 + KINDS.iter().position(|known| known == kind).unwrap_or(0),
+            };
+            ((1, feature_rank(feature), rank), paths::command(feature, within.as_deref(), *kind, name))
+        }
+    }
 }
 
 impl Page {
@@ -517,11 +543,12 @@ fn kind_index_text(feature: &str, within: Option<&str>, kind: CallableKind) -> (
 }
 
 fn command_title(kind: CallableKind, name: &str) -> String {
-    match kind {
-        CallableKind::Macro => format!("Macro \\{name}"),
-        CallableKind::Environment => format!("Environment {name}"),
-        CallableKind::Specials => format!("Special character sequence {name}"),
-    }
+    let what = match kind {
+        CallableKind::Macro => "Macro",
+        CallableKind::Environment => "Environment",
+        CallableKind::Specials => "Special character sequence",
+    };
+    format!("{what} {}", paths::command_name(kind, name))
 }
 
 fn package_title(name: &str) -> String {

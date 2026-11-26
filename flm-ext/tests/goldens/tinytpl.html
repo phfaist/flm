@@ -4,42 +4,67 @@
 <meta charset="utf-8">
 <title>Tiny notes</title>
 <link rel="stylesheet" href="tiny-style.css">
-<style data-flm-def="flm.meta.style">/* flm.meta.style */
-/* The document's title, authors and date, as the pieces flm.meta.title,
-   flm.meta.author and flm.meta.date hold them: the title large and bold,
-   the authors and the date each on a line of its own, indented under the
-   title.  It applies wherever a page places the pieces, whatever the compose
-   template; a page that wants another presentation adds a stylesheet of its
-   own. */
+<style data-flm-def="flm.metadata.style">/* flm.metadata.style */
+/* The document's title, authors and date, as the pieces flm.metadata.title,
+   flm.metadata.author and flm.metadata.date hold them: the title large and bold,
+   the authors and the date indented under the title, each author a group of
+   lines one below the other: the name, then the affiliations, the email address
+   and the notes in a smaller size.  It applies wherever a page places the
+   pieces, whatever the compose template; a page that wants another
+   presentation adds a stylesheet of its own. */
 @layer flm {
   :root {
-    /* The title's size and line height. */
-    --flm-meta-title-size: 1.6rem;
-    --flm-meta-title-line-height: 1.3em;
-    /* The size of the authors and of the date, their indentation under the
-       title, and the space above each. */
-    --flm-meta-line-size: 1.1rem;
-    --flm-meta-line-indent: 2em;
-    --flm-meta-line-space: 0.5em;
+    /* The title's size, its line height, and the space below it.  The space
+       between the title and the line under it is the larger of this space
+       and the space above that line. */
+    --flm-metadata-title-size: 2rem;
+    --flm-metadata-title-line-height: 1.3em;
+    --flm-metadata-title-space-below: 0.8em;
+    /* The size of the authors and of the date, their line height, their
+       indentation under the title, and the space above each, and between two
+       authors. */
+    --flm-metadata-line-size: 1.1rem;
+    --flm-metadata-line-height: 1.3;
+    --flm-metadata-line-indent: 2em;
+    --flm-metadata-line-space: 0.5em;
+    /* The size of an author's affiliations, email address and notes, against
+       the author's name. */
+    --flm-metadata-author-detail-size: 0.85em;
   }
 
   /* The title. */
-  .flm-pres-block.flm-meta-title[data-flm-kind~="meta"] {
-    font-size: var(--flm-meta-title-size);
+  .flm-pres-block.flm-metadata-title[data-flm-kind~="metadata"] {
+    margin-block-end: var(--flm-metadata-title-space-below);
+    font-size: var(--flm-metadata-title-size);
     font-weight: bold;
-    line-height: var(--flm-meta-title-line-height);
+    line-height: var(--flm-metadata-title-line-height);
   }
 
   /* The authors and the date: indented, with a small space above each. */
-  .flm-pres-block.flm-meta-author[data-flm-kind~="meta"],
-  .flm-pres-block.flm-meta-date[data-flm-kind~="meta"] {
-    margin-inline-start: var(--flm-meta-line-indent);
-    margin-block-start: var(--flm-meta-line-space);
-    font-size: var(--flm-meta-line-size);
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"],
+  .flm-pres-block.flm-metadata-date[data-flm-kind~="metadata"] {
+    margin-inline-start: var(--flm-metadata-line-indent);
+    margin-block-start: var(--flm-metadata-line-space);
+    font-size: var(--flm-metadata-line-size);
+    line-height: var(--flm-metadata-line-height);
   }
-  .flm-pres-block.flm-meta-author[data-flm-kind~="meta"] > .flm-pres-par,
-  .flm-pres-block.flm-meta-date[data-flm-kind~="meta"] > .flm-pres-par {
+  .flm-pres-block.flm-metadata-date[data-flm-kind~="metadata"] > .flm-pres-par {
     margin: 0;
+  }
+
+  /* Each author: its lines, with a small space between two authors. */
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"] > .flm-pres-lines {
+    margin: 0;
+  }
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"] > .flm-pres-lines + .flm-pres-lines {
+    margin-block-start: var(--flm-metadata-line-space);
+  }
+
+  /* An author's affiliations, email address and notes. */
+  .flm-pres-span.flm-metadata-author-affiliation,
+  .flm-pres-span.flm-metadata-author-email,
+  .flm-pres-span.flm-metadata-author-note {
+    font-size: var(--flm-metadata-author-detail-size);
   }
 }
 </style>
@@ -50,7 +75,7 @@
    the text).  Apart from the :root rule that declares the custom
    properties, every selector begins with a class of the HTML contract, the
    set of classes and attributes that this backend promises to write (the
-   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   table CONVENTIONS of the Rust module flm_core::stdlib::backends::html).
    The values a page can adjust are the custom properties declared on :root
    below.  All rules are in the cascade layer flm, so any rule of the page
    outside that layer overrides them.
@@ -281,11 +306,12 @@
 </style>
 <style data-flm-def="flm.html.style.page">/* flm.html.style.page */
 /* The page's own typography and the width of its content.  This is the
-   only stylesheet of the HTML backend with a rule whose selector does not
+   only stylesheet of the HTML backend with rules whose selectors do not
    begin with a class of the HTML contract (the classes and attributes that
    the backend promises to write), apart from the :root rule that declares
-   the custom properties: it styles the page's body, which a document does
-   not have.  No element requires it: the backend adds it to the style and
+   the custom properties: it sets the text size on the page's root element
+   and styles the page's body, which a document does not have.  No element
+   requires it: the backend adds it to the style and
    script definitions of every page that it renders (the definitions table
    flm.html.definitions).  A host that places the HTML output in a page of
    its own leaves this stylesheet out through the HTML backend's render
@@ -300,9 +326,14 @@
     --flm-page-line-height: 1.5;
     --flm-page-color: #1a1a1a;
     --flm-page-background: #ffffff;
-    /* How wide the content runs, and the space around it. */
+    /* How wide the content runs, and the space around it: on its left and
+       right sides, and above and below it.  The space above and below is the
+       space on the sides unless a page sets it apart; it follows a value of
+       --flm-page-padding that a page sets on :root, where the custom
+       properties are set. */
     --flm-page-measure: 42rem;
     --flm-page-padding: 1.5rem;
+    --flm-page-padding-vertical: var(--flm-page-padding);
     /* The width of the column for the notes set beside the text, and the gap
        before it: the same two values as in flm.html.style.core, declared here
        as well because each stylesheet declares every property it uses.  A
@@ -312,17 +343,25 @@
     --flm-margin-note-gap: 1rem;
   }
 
-  /* The page itself.  Apart from the :root rules that declare custom
-     properties, this is the only rule of the backend's stylesheets that does
-     not begin with a class of the HTML contract.  It styles the body of the
-     page, which is why a host that places the HTML output in a page of its
-     own leaves this stylesheet out (see the top of this stylesheet). */
+  /* The page's text size, set on the page's root element rather than on its
+     body: the rem unit is the root element's size, and the stylesheets give
+     in rem the lengths that follow the page's text rather than the text
+     around them (the width of the content, a note beside the text, the
+     document's title). */
+  :root {
+    font-size: var(--flm-page-size);
+  }
+
+  /* The page itself.  Apart from the :root rules, this is the only rule of
+     the backend's stylesheets that does not begin with a class of the HTML
+     contract.  With the rule above, it styles the page, which is why a host
+     that places the HTML output in a page of its own leaves this stylesheet
+     out (see the top of this stylesheet). */
   body {
     margin: 0;
     background: var(--flm-page-background);
     color: var(--flm-page-color);
     font-family: var(--flm-page-family);
-    font-size: var(--flm-page-size);
     line-height: var(--flm-page-line-height);
   }
 
@@ -335,13 +374,15 @@
      --flm-margin-note-column of flm.html.style.core, so that the notes
      inside it are placed in the column.  52rem is the content's width with
      the column (42rem + 8rem + 1rem) plus a little room; it is written as a
-     number because a media condition cannot read a custom property, so a
-     page that widens the text or the column writes its own condition. */
+     number because a media condition cannot read a custom property, and a
+     rem in a media condition is the browser's text size, not the page's, so
+     a page that widens the text or the column, or sets a text size other
+     than the browser's, writes its own condition. */
   .flm-content {
     box-sizing: border-box;
     max-width: var(--flm-page-measure);
     margin: 0 auto;
-    padding: var(--flm-page-padding);
+    padding: var(--flm-page-padding-vertical) var(--flm-page-padding);
   }
   @media (min-width: 52rem) {
     .flm-content {

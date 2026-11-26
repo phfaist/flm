@@ -5,11 +5,10 @@
 mod common;
 
 use std::collections::BTreeMap;
-use std::path::Path;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::techy::source::LineIndexCache;
 use flm_core::lang::{
@@ -19,22 +18,22 @@ use flm_core::lang::{
 use flm_core::model::assemble::assemble;
 use flm_core::model::doc::{Doc, FragmentLayout};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::parse_fragment;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::{self, StdcoreConfig};
-use flm_core::stdcore::features::headings::{HeadingNumbering, HeadingsConfig};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{self, StdlibConfig};
+use flm_core::stdlib::features::headings::{HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 
 use common::pipeline;
-use common::stdcore::{diagnostic_lines, identifiers, plan};
+use common::stdlib::{assert_no_diagnostics, assert_only_unchecked_output, diagnostic_lines, identifiers, plan};
 
 // --- an answerer held in memory -----------------------------------------------------------
 
 /// Files held in memory, each a text and, optionally, parsing settings and
 /// problems of its front matter. A reference is joined to the folder of the
-/// including file, as a host on a disk would.
+/// including file as text, with `/` between them, as a host would.
 #[derive(Default, Clone)]
 struct Memory {
     files: BTreeMap<String, IncludedFile>,
@@ -91,8 +90,10 @@ impl Memory {
 
 impl InputResolver for Memory {
     fn resolve(&self, reference: &str, including: Option<&str>, parsing: &FlmParsing) -> Result<IncludedFile, InputError> {
-        let folder = including.and_then(|name| Path::new(name).parent()).unwrap_or(Path::new(""));
-        let name = folder.join(reference).to_string_lossy().into_owned();
+        let name = match including.and_then(|name| name.rsplit_once('/')) {
+            Some((folder, _)) => format!("{folder}/{reference}"),
+            None => reference.to_string(),
+        };
         let mut file =
             self.files.get(&name).cloned().ok_or_else(|| InputError::new(format!("there is no file `{name}`")))?;
         if let Some(keys) = self.keys.get(&name) {
@@ -120,7 +121,7 @@ impl InputResolver for Endless {
 // --- the pipeline ------------------------------------------------------------------------
 
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The document whose primary file `main.flm` holds `text`, its inclusions
@@ -144,25 +145,21 @@ fn line_col(span: &FlmSpan) -> (usize, usize) {
     LineIndexCache::new().line_col(span.source(), span.start()).expect("a position")
 }
 
-fn clean(run: &Run) {
-    assert_eq!(identifiers(run), Vec::<String>::new(), "{}", diagnostic_lines(run));
-}
-
 fn text_of(text: &str, files: Memory) -> String {
     let run = run(&std(), text::WORKFLOW, text, files);
-    clean(&run);
+    assert_no_diagnostics(&run);
     common::lowering::text(&run)
 }
 
 fn html_of(text: &str, files: Memory) -> String {
     let run = run(&std(), html::WORKFLOW, text, files);
-    clean(&run);
+    assert_only_unchecked_output(&run);
     common::html::fragment(&run)
 }
 
 fn latex_of(text: &str, files: Memory) -> String {
     let run = run(&std(), latex_recomposed::WORKFLOW, text, files);
-    clean(&run);
+    assert_only_unchecked_output(&run);
     common::latex::output(&run)
 }
 
@@ -214,7 +211,7 @@ fn equations_and_headings_are_numbered_through_a_content_input_in_document_order
     let document = "\\section{One}\n\\begin{equation}a\\end{equation}\n\n\\input{part.flm}\n\n\
                     \\section{Three}\n\\begin{equation}c\\end{equation}";
     let run = run(&numbered(), text::WORKFLOW, document, files);
-    clean(&run);
+    assert_no_diagnostics(&run);
     let out = common::lowering::text(&run);
     // The including file's before the command, the included file's, then the
     // including file's after it.
@@ -263,14 +260,14 @@ fn a_file_without_settings_of_its_own_hands_on_those_it_inherited() {
         .with("b.flm", "\\input{c.flm} ;; \\nosuchmacro in b")
         .with_keys("c.flm", "$x$ ;; \\nosuchmacro in c", |parsing| FlmParsing { dollar_math: true, ..parsing });
     let run = run(&std(), text::WORKFLOW, "\\input{a.flm}", files);
-    clean(&run);
+    assert_no_diagnostics(&run);
     assert_eq!(common::lowering::text(&run).trim(), "\\(x\\)");
 }
 
 /// The standard registry, its documents read under `parsing`.
 fn std_reading(parsing: FlmParsing) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let inputs = RegistryInputs { parsing, ..RegistryInputs::new() };
     builder.build(&inputs).unwrap_or_else(|error| panic!("the registry build failed: {}", error.render()))
@@ -420,7 +417,7 @@ fn an_empty_file_brings_in_nothing() {
 // --- a heading input -------------------------------------------------------------------------
 
 fn numbered() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)))
+    common::stdlib::registry(StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)))
 }
 
 /// The chapters of a book: the primary file holds its own section, then
@@ -437,7 +434,7 @@ const BOOK: &str = "\\section{One}\nIntro, see \\ref{sec:art}.\n\n\\input{two.fl
 fn a_heading_input_shows_its_heading_numbered_in_sequence_and_referenced_by_its_label() {
     let done = run(&numbered(), text::WORKFLOW, BOOK, book());
     let run_ = &done;
-    clean(run_);
+    assert_no_diagnostics(run_);
     let out = common::lowering::text(run_);
     let order: Vec<usize> = ["1. One", "Intro, see §", "2. The Art", "Second text.", "Coda", "Third text."]
         .iter()
@@ -447,7 +444,7 @@ fn a_heading_input_shows_its_heading_numbered_in_sequence_and_referenced_by_its_
     assert!(!out.contains("3. Coda"), "{out}");
 
     let done = run(&numbered(), html::WORKFLOW, BOOK, book());
-    clean(&done);
+    assert_only_unchecked_output(&done);
     let page = common::html::page(&done);
     let order: Vec<usize> = ["One</h1>", "Intro, see", "id=\"sec-art\"", "<em class=\"flm-pres-span\" data-flm-style=\"emph\">Art</em></h1>", "Second text.", "Coda</h1>", "Third text."]
         .iter()
@@ -456,7 +453,7 @@ fn a_heading_input_shows_its_heading_numbered_in_sequence_and_referenced_by_its_
     assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{page}");
 
     let done = run(&numbered(), latex_recomposed::WORKFLOW, BOOK, book());
-    clean(&done);
+    assert_only_unchecked_output(&done);
     let latex = common::latex::output(&done);
     let order: Vec<usize> = ["\\section{One}", "Intro, see", "\\section{The \\emph{Art}}", "Second text.", "\\section*{Coda}", "Third text."]
         .iter()
@@ -474,18 +471,18 @@ fn a_heading_after_a_heading_input_is_numbered_after_it() {
     let files = || Memory::default().with_heading("two.flm", "Text.", "section", "Two", Some("sec:two"), true);
     let document = "\\section{One}\\label{sec:one}\n\n\\input{two.flm}\n\n\\section{Three}\\label{sec:three}\nSee \\ref{sec:two} and \\ref{sec:three}.";
     let done = run(&numbered(), text::WORKFLOW, document, files());
-    clean(&done);
+    assert_no_diagnostics(&done);
     let out = common::lowering::text(&done);
     // The references show the numbers the headings were given.
     in_order(&out, &["1. One", "2. Two", "Text.", "3. Three", "See §\u{202f}2 and §\u{202f}3."]);
 
     let done = run(&numbered(), html::WORKFLOW, document, files());
-    clean(&done);
+    assert_only_unchecked_output(&done);
     let page = common::html::page(&done);
     in_order(&page, &[">1</span>. One</h1>", ">2</span>. Two</h1>", "Text.", ">3</span>. Three</h1>", "href=\"#sec-two\" data-flm-kind=\"ref\">§&#x202F;2</a>", "href=\"#sec-three\" data-flm-kind=\"ref\">§&#x202F;3</a>"]);
 
     let done = run(&numbered(), latex_recomposed::WORKFLOW, document, files());
-    clean(&done);
+    assert_only_unchecked_output(&done);
     let latex = common::latex::output(&done);
     in_order(&latex, &["\\section{One}", "\\section{Two}", "Text.", "\\section{Three}"]);
 }
@@ -497,9 +494,9 @@ fn a_heading_after_a_heading_input_is_numbered_after_it() {
 fn a_key_first_cited_in_a_heading_input_is_numbered_where_the_command_stands() {
     let files = || Memory::default().with_heading("two.flm", "Input \\cite{b}.", "section", "Two", None, true);
     let document = "\\section{One}\nOne \\cite{a}.\n\n\\input{two.flm}\n\n\\section{Three}\nThree \\cite{c}\\cite{b}.";
-    let registry = common::citations::registry(StdcoreConfig::new());
+    let registry = common::citations::registry(StdlibConfig::new());
     let done = run(&registry, text::WORKFLOW, document, files());
-    clean(&done);
+    assert_no_diagnostics(&done);
     let out = common::lowering::text(&done);
     in_order(&out, &["One\u{a0}[1].", "Input\u{a0}[2].", "Three\u{a0}[2,3].", "[1] a", "[2] b", "[3] c"]);
 }
@@ -559,7 +556,7 @@ fn the_parallel_and_the_sequential_run_follow_the_same_order() {
     let plan = plan(&registry, text::WORKFLOW, &Overrides::none());
     let sequential = pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::sequential());
     let parallel = pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::new());
-    clean(&sequential);
+    assert_no_diagnostics(&sequential);
     assert_eq!(sequential.tree_order(), parallel.tree_order());
     assert_eq!(common::lowering::text(&sequential), common::lowering::text(&parallel));
     in_order(&common::lowering::text(&sequential), &["A.¹", "B.²", "A again.³", "N.⁴"]);
@@ -588,7 +585,7 @@ fn a_label_written_in_a_heading_input_and_again_after_it_is_the_input_s() {
 #[test]
 fn a_heading_input_copied_by_a_definition_is_placed_once_and_the_copy_reported() {
     let definitions = vec![Definition::environment("twice", Vec::new()).text("#{body}\n\n#{body}")];
-    let registry = common::stdcore::registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
+    let registry = common::stdlib::registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
     let files = Memory::default().with_heading("part.flm", "Text.", "section", "Part", None, true);
     let done = run(&registry, text::WORKFLOW, "\\begin{twice}\n\\input{part.flm}\n\\end{twice}", files);
     assert_eq!(identifiers(&done), ["flm.run.placed-twice"], "{}", diagnostic_lines(&done));
@@ -598,7 +595,7 @@ fn a_heading_input_copied_by_a_definition_is_placed_once_and_the_copy_reported()
     in_order(&out, &["Text.", "[dropped"]);
     // The check reports it too.
     let files = Memory::default().with_heading("part.flm", "Text.", "section", "Part", None, true);
-    let checked = run(&registry, stdcore::CHECK_WORKFLOW, "\\begin{twice}\n\\input{part.flm}\n\\end{twice}", files);
+    let checked = run(&registry, stdlib::CHECK_WORKFLOW, "\\begin{twice}\n\\input{part.flm}\n\\end{twice}", files);
     assert_eq!(identifiers(&checked), ["flm.run.placed-twice"], "{}", diagnostic_lines(&checked));
 }
 
@@ -608,11 +605,11 @@ fn a_heading_input_copied_by_a_definition_is_placed_once_and_the_copy_reported()
 #[test]
 fn a_heading_input_in_a_body_a_definition_drops_is_dropped_with_it() {
     let definitions = vec![Definition::environment("drop", Vec::new()).text("Kept.")];
-    let registry = common::stdcore::registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
+    let registry = common::stdlib::registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
     let files = || Memory::default().with_heading("part.flm", "Text.\\footnote{Note.}", "section", "Part", None, true);
     let document = "\\section{One}\nOne.\n\n\\begin{drop}\n\\input{part.flm}\n\\end{drop}\n\n\\section{Two}\nTwo.";
     let done = run(&registry, text::WORKFLOW, document, files());
-    clean(&done);
+    assert_no_diagnostics(&done);
     let out = common::lowering::text(&done);
     for absent in ["Text.", "Part", "Note."] {
         assert!(!out.contains(absent), "{out}");
@@ -620,8 +617,8 @@ fn a_heading_input_in_a_body_a_definition_drops_is_dropped_with_it() {
     in_order(&out, &["One.", "Kept.", "Two."]);
     assert_eq!(done.tree_order().len(), 1, "{:?}", done.tree_order());
     // The check reports nothing either.
-    let checked = run(&registry, stdcore::CHECK_WORKFLOW, document, files());
-    clean(&checked);
+    let checked = run(&registry, stdlib::CHECK_WORKFLOW, document, files());
+    assert_no_diagnostics(&checked);
 }
 
 #[test]
@@ -669,7 +666,7 @@ fn the_document_holds_one_tree_per_heading_input_placed_at_its_node_and_walked_i
         .with("c.flm", "and of C\\footnote{In C.}");
     let document = "\\section{M}\nM.\\footnote{In M.}\n\n\\input{a.flm}\n\n\\section{N}\nN.\\footnote{In N.}";
     let done = run(&numbered(), text::WORKFLOW, document, files);
-    clean(&done);
+    assert_no_diagnostics(&done);
     let out = common::lowering::text(&done);
     in_order(
         &out,
@@ -682,12 +679,12 @@ fn the_document_holds_one_tree_per_heading_input_placed_at_its_node_and_walked_i
 #[test]
 fn a_user_definition_used_in_an_included_file_is_expanded() {
     let definitions = vec![Definition::macro_("hello", vec![ArgDef::mandatory("name")]).text("Hello, #{name}!")];
-    let registry = common::stdcore::registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
+    let registry = common::stdlib::registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
     let files = Memory::default()
         .with("part.flm", "\\hello{you}")
         .with_heading("chapter.flm", "\\hello{there}", "section", "C", None, true);
     let run = run(&registry, text::WORKFLOW, "\\input{part.flm}\n\n\\input{chapter.flm}", files);
-    clean(&run);
+    assert_no_diagnostics(&run);
     let out = common::lowering::text(&run);
     assert!(out.contains("Hello, you!") && out.contains("Hello, there!"), "{out}");
 }
@@ -699,7 +696,7 @@ fn a_list_in_a_heading_input_inside_a_list_item_is_an_outermost_list() {
     let inner = "\\begin{enumerate}\n\\item Inner\n\\end{enumerate}";
     let files = Memory::default().with_heading("list.flm", inner, "paragraph", "Part", None, false);
     let run = run(&std(), text::WORKFLOW, "\\begin{enumerate}\n\\item Outer\n\n\\input{list.flm}\n\\end{enumerate}", files);
-    clean(&run);
+    assert_no_diagnostics(&run);
     let out = common::lowering::text(&run);
     // The inner list is marked as an outermost list is, not as a nested one.
     assert!(out.contains("1. Inner"), "{out}");
@@ -780,7 +777,7 @@ fn a_heading_input_outside_a_whole_document_is_reported() {
 #[test]
 fn input_in_the_template_of_a_user_definition_is_reported() {
     let definitions = vec![Definition::macro_("chapterx", Vec::new()).text("\\input{part.flm}")];
-    let registry = common::stdcore::registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
+    let registry = common::stdlib::registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)));
     let doc = doc(&registry, "A \\chapterx{} B", Some(Arc::new(Memory::default().with("part.flm", "x"))));
     let plan = plan(&registry, text::WORKFLOW, &Overrides::none());
     let run = pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::sequential());

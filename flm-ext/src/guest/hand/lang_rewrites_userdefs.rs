@@ -1,6 +1,6 @@
 //! The guest's own types of `flm:lang/rewrites/userdefs` ([`Expansion`],
-//! [`CompiledTemplate`], [`TemplateLanguage`], [`Definition`],
-//! [`ExtraValues`]), the handler
+//! [`StagedNodes`], [`CompiledTemplate`], [`TemplateLanguage`],
+//! [`Definition`], [`ExtraValues`]), the handler
 //! trait [`Expand`], and the record-and-lend method
 //! `UserDefinition::element_def_with`, the twin of the prelude's fragment
 //! `lang-rewrites-userdefs.js`: it records the hook under the element's name
@@ -24,6 +24,8 @@ use crate::adapter::typed::{FromApi, IntoApi};
 use crate::adapter::values::durable_table_for;
 use crate::adapter::durable::{DurableKind, DurableToken};
 use crate::adapter::handles::{Handle, HandleKind};
+#[cfg(feature = "native")]
+use crate::adapter::values::push_staged;
 use crate::adapter::values::{durable_from_value, durable_to_value, handle_to_value, is_durable, JsonForm};
 #[cfg(feature = "native")]
 use crate::api;
@@ -34,6 +36,7 @@ use crate::api::model::aspects::BlockRole;
 use crate::guest::abi;
 #[cfg(not(feature = "native"))]
 use crate::guest::abi::ToArg;
+use crate::guest::hand::joined::sequence_type;
 use crate::guest::lang::mint::{ArgDef, ElementDef};
 use crate::guest::lang::rewrites::userdefs::{ExpandCx, Expander, PlaceholderBindings, Staged, UserDefinition, ValueBindings};
 use crate::guest::registry;
@@ -66,10 +69,36 @@ pub enum Expansion {
     /// The element's default expansion.
     Default,
     /// The node expands to these staged nodes.
-    Emit(Vec<Staged>),
+    Emit(StagedNodes),
 }
 
-/// `"default"` or `{"emit": [staged, …]}`; the host's `expansion_from_value`
+sequence_type! {
+    /// Several staged nodes, in order: what a method answers in place of a
+    /// list of staged nodes (what a lowerer, a restager or an expander
+    /// staged), and what a function, a presentation node or an answer that
+    /// takes several staged nodes is given.
+    ///
+    /// A sequence that the host answered is one handle and its length, and
+    /// costs nothing until it is read: [`get`](StagedNodes::get) and
+    /// [`iter`](StagedNodes::iter) fetch its staged nodes from the host, a
+    /// crossing for an index and one for each group iterated. An extension
+    /// builds its own sequence empty ([`Default`]) or from a `Vec` of staged
+    /// nodes, and joins staged nodes and other sequences to it with
+    /// [`push`](StagedNodes::push) and [`push_all`](StagedNodes::push_all),
+    /// with no crossing: a sequence the host answered is passed back as its
+    /// handle, whatever its length. [`to_vec`](StagedNodes::to_vec) fetches
+    /// every staged node.
+    StagedNodes of Staged, "staged node", api api::lang::rewrites::userdefs::Staged, entry StagedNodes, push push_staged
+}
+
+/// The sequence of the one staged node `staged`.
+impl From<Staged> for StagedNodes {
+    fn from(staged: Staged) -> StagedNodes {
+        StagedNodes::from(vec![staged])
+    }
+}
+
+/// `"default"` or `{"emit": staged}`; the host's `expansion_from_value`
 /// and `expansion_to_value`.
 impl JsonForm for Expansion {
     fn to_value(&self) -> Value {

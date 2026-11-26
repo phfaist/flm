@@ -25,16 +25,21 @@ use std::sync::Arc;
 
 use flm_core::core::artifact::media_type_of;
 use flm_core::model::names::Name;
-use flm_core::stdcore::features::compose::{Template, TemplateArtifact, TemplateContext, TemplateEngine};
+use flm_core::progress::Scope;
+use flm_core::stdlib::features::compose::{
+    Template, TemplateArtifact, TemplateContext, TemplateEngine, TemplateShipper,
+};
 use serde_json::{json, Value};
 
 use crate::adapter::diag::HANDLER_FAILED;
 use crate::adapter::names::Owner;
 use crate::adapter::services::DeclaredServices;
-use crate::api::host::{FilesScope, HostHandle};
-use crate::api::stdcore::features::compose::{Accepts, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
-use crate::host::{files, HostAnswer};
+use crate::api::host::HostHandle;
+use crate::api::stdlib::features::compose::{Accepts, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
+use crate::engine::ModuleReport;
+use crate::host::{download, files, HostAnswer};
 use crate::loader::canonical;
+use crate::paths::{QualifiedPath, Root, WrittenPath};
 use crate::runtime::ExtError;
 use crate::sealed::Sealed;
 
@@ -65,54 +70,71 @@ impl ExtTemplateEngine {
     fn failed(&self, error: impl std::fmt::Display) -> String {
         let (name, feature, package, stem) = (&self.template_name, &self.feature, &self.owner.package, &self.owner.stem);
         format!(
-            "{HANDLER_FAILED}: the template module `{name}` of the feature `{feature}` of the package `{package}` of \
-             the extension `{stem}` failed: {error}"
+            "{HANDLER_FAILED}: the template module ‘{name}’ of the feature ‘{feature}’ of the package ‘{package}’ of \
+             the extension ‘{stem}’ failed: {error}"
         )
     }
 
-    /// The file `file` the module ships, as `flm-core`'s artifact; a file of
-    /// a root read through the `files` service.
-    fn artifact(&self, file: TemplateFile) -> Result<TemplateArtifact, String> {
-        let (name, path, scope, media_type) = match file {
+    /// The file `file` the module ships, as `flm-core`'s artifact: a file at
+    /// a qualified path read through the `files` service, at the place that
+    /// the path names (a `self:` path under the root `ext+NAME` of the
+    /// module's extension); a file at an `https:` address downloaded through
+    /// the `download` service, whose warning goes to `shipper`.
+    fn artifact(&self, file: TemplateFile, shipper: &Arc<dyn TemplateShipper>) -> Result<TemplateArtifact, String> {
+        let (name, path, media_type) = match file {
             TemplateFile::Content { name, extension, media_type, text } => {
-                return Ok(TemplateArtifact::File { name, extension, media_type, apply: false, bytes: text.into_bytes() });
+                let bytes = text.into_bytes();
+                return Ok(TemplateArtifact::File { name, extension, media_type, apply: false, bytes, source: None });
             }
-            TemplateFile::File { name, path, scope, media_type } => (name, path, scope, media_type),
+            TemplateFile::File { name, path, media_type } => (name, path, media_type),
         };
-        let from = match scope {
-            FilesScope::Extension => "from the extension's folder",
-            FilesScope::Document => "from the document's folder",
+        let own = Root::Ext(self.services.caller().extension.name.clone());
+        let place = match WrittenPath::parse(&path) {
+            Ok(WrittenPath::Qualified(qualified)) => Some(qualified),
+            Ok(WrittenPath::Own(own_path)) => QualifiedPath::new(own, &own_path).ok(),
+            Ok(WrittenPath::Bare(_)) | Err(_) => None,
         };
-        let Some(extension) = extension_of_file(&path) else {
-            return Err(format!("the file `{path}` it ships {from} must have an extension"));
+        let address = place.as_ref().filter(|place| *place.root() == Root::Https);
+        let file_name = place.as_ref().map_or(path.as_str(), QualifiedPath::file_name);
+        let Some(extension) = extension_of_file(file_name) else {
+            return Err(format!("the file ‘{path}’ it ships must have an extension"));
         };
-        let Some(media_type) = media_type.or_else(|| media_type_of(extension).map(str::to_string)) else {
-            return Err(format!(
-                "the file `{path}` it ships {from} must be given a `media_type`, since \
-                 its extension `{extension}` has no known media type"
-            ));
+        let extension = extension.to_string();
+        let known = media_type.or_else(|| media_type_of(&extension).map(str::to_string));
+        let unknown = || {
+            format!(
+                "the file ‘{path}’ it ships must be given a ‘media_type’ (its extension ‘{extension}’ has no known \
+                 media type)"
+            )
         };
-        if !self.services.declares(files::NAME) {
+        let service = if address.is_some() { download::NAME } else { files::NAME };
+        if !self.services.declares(service) {
             let (package, stem) = (&self.owner.package, &self.owner.stem);
             return Err(format!(
-                "the package `{package}` of the extension `{stem}` must declare the host service `files` in its `host` \
-                 list for the module to ship the file `{path}` {from}"
+                "the package ‘{package}’ of the extension ‘{stem}’ must declare the host service ‘{service}’ in its \
+                 ‘host’ list for the module to ship the file ‘{path}’"
             ));
         }
-        let extension = extension.to_string();
-        let bytes = match self.services.read_file(scope, &path, true) {
-            Ok(Some(HostAnswer::Bytes(bytes))) => bytes,
-            Ok(Some(HostAnswer::Data(_))) | Ok(None) => {
-                return Err(match scope {
-                    FilesScope::Extension => {
-                        format!("the file `{path}` it ships {from} is not a file of the extension")
-                    }
-                    FilesScope::Document => format!("the file `{path}` it ships {from} is not there"),
-                });
+        if let Some(address) = address {
+            let downloaded = self
+                .services
+                .download(&address.to_string(), &Scope::none())
+                .map_err(|error| format!("the file ‘{path}’ it ships cannot be downloaded: {error}"))?;
+            if let Some(warning) = downloaded.warning {
+                shipper.warn(warning);
             }
-            Err(error) => return Err(format!("the file `{path}` it ships {from} cannot be read: {error}")),
+            let Some(media_type) = known.or(downloaded.media_type) else { return Err(unknown()) };
+            let bytes = downloaded.bytes;
+            return Ok(TemplateArtifact::File { name, extension, media_type, apply: false, bytes, source: None });
+        }
+        let Some(media_type) = known else { return Err(unknown()) };
+        let bytes = match self.services.read_file(&path, true, &Scope::none()) {
+            Ok(Some(HostAnswer::Bytes(bytes))) => bytes,
+            Ok(Some(HostAnswer::Data(_))) | Ok(None) => return Err(format!("the file ‘{path}’ it ships is not there")),
+            Err(error) => return Err(format!("the file ‘{path}’ it ships cannot be read: {error}")),
         };
-        Ok(TemplateArtifact::File { name, extension, media_type, apply: false, bytes })
+        let source = place.map(|place| place.to_string());
+        Ok(TemplateArtifact::File { name, extension, media_type, apply: false, bytes, source })
     }
 }
 
@@ -123,14 +145,26 @@ impl TemplateEngine for ExtTemplateEngine {
 
     /// The module's [`files`](TemplateModule::files), each read or taken as
     /// it is.
-    fn artifacts(&self, _template: &Template, context: &TemplateContext) -> Result<Vec<TemplateArtifact>, String> {
+    fn artifacts(
+        &self,
+        _template: &Template,
+        context: &TemplateContext,
+        shipper: &Arc<dyn TemplateShipper>,
+    ) -> Result<Vec<TemplateArtifact>, String> {
         let cx = TemplateCxFacade { services: &self.services };
         let files = self.module.files(context, &cx).map_err(|error| self.failed(error))?;
-        files.into_iter().map(|file| self.artifact(file).map_err(|error| self.failed(error))).collect()
+        files.into_iter().map(|file| self.artifact(file, shipper).map_err(|error| self.failed(error))).collect()
     }
 
-    /// The module's [`render`](TemplateModule::render).
-    fn render(&self, _template: &Template, context: &TemplateContext) -> Result<String, String> {
+    /// The module's [`render`](TemplateModule::render). The module ships its
+    /// files through [`files`](TemplateModule::files), so nothing is shipped
+    /// through `_shipper`.
+    fn render(
+        &self,
+        _template: &Template,
+        context: &TemplateContext,
+        _shipper: &Arc<dyn TemplateShipper>,
+    ) -> Result<String, String> {
         let cx = TemplateCxFacade { services: &self.services };
         self.module.render(context, &cx).map_err(|error| self.failed(error))
     }
@@ -157,34 +191,52 @@ impl Sealed for TemplateCxFacade<'_> {}
 
 impl TemplateCx for TemplateCxFacade<'_> {
     fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-        self.services.handle(name)
+        self.services.handle(name, &Scope::none())
     }
 }
 
 /// The compose template a module's description gives: named `name`,
 /// shipped by the package `package` (`<identity>#<package>`), applied by the
-/// engine `engine`, with no text, no delimiters, no files of its own (the
-/// module's `files` answers them when it is applied) and no include handle.
-pub(crate) fn template_of(name: &str, package: &str, engine: &str, description: TemplateDescription) -> Template {
-    let TemplateDescription { output, accepts, requires, config } = description;
+/// engine `engine`, of the output that the feature declares for it
+/// (`declared`), with no text, no place, no delimiters and no files of its
+/// own (the module's `files` answers them when it is applied). Its settings
+/// ([`Template::settings`]) are the declared schema, each setting given the
+/// default that the description's `config` holds.
+pub(crate) fn template_of(
+    name: &str,
+    package: &str,
+    engine: &str,
+    declared: &ModuleReport,
+    description: TemplateDescription,
+) -> Template {
+    let TemplateDescription { accepts, requires, config } = description;
+    let mut settings = declared.settings.clone();
+    if let Some(Value::Object(properties)) = settings.get_mut("properties") {
+        for (key, setting) in properties.iter_mut() {
+            if let (Value::Object(setting), Some(default)) = (setting, config.get(key)) {
+                setting.insert("default".to_string(), default.clone());
+            }
+        }
+    }
     Template {
         name: name.to_string(),
         package: package.to_string(),
-        output,
+        output: declared.output.clone(),
         engine: engine.to_string(),
         text: String::new(),
+        source: None,
         accepts,
         requires: requires.into_iter().map(Name::from).collect(),
         config,
+        settings: Some(settings),
         delimiters: None,
         artifacts: Vec::new(),
-        files: None,
     }
 }
 
 /// The bytes of a module's template the registry digest takes: one JSON list
-/// of its package, its name and its description (maps in the canonical
-/// order). The module's code is in the extension's digest already.
+/// of its package, its name and its description with its settings (maps in
+/// the canonical order). The module's code is in the extension's digest already.
 pub(crate) fn digest_of(template: &Template) -> Vec<u8> {
     let accepts = match &template.accepts {
         Accepts::All => json!("all"),
@@ -196,6 +248,7 @@ pub(crate) fn digest_of(template: &Template) -> Vec<u8> {
         "accepts": accepts,
         "requires": requires,
         "config": canonical(&Value::Object(template.config.clone())),
+        "settings": template.settings.as_ref().map(canonical),
     });
     serde_json::to_vec(&json!([template.package, template.name, description])).unwrap_or_default()
 }

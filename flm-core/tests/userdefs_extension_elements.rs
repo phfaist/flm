@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, LateInit, LateInitError,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, LateInit, LateInitError, PackageEntry,
 };
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::{
@@ -23,17 +23,17 @@ use flm_core::lang::rewrites::userdefs::{
 };
 use flm_core::lang::{BuiltLang, Flm, FlmDiagnostics};
 use flm_core::model::element::element_value;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::userdefs::{
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::userdefs::{
     element_name_under, expand_in_tree_rule, expand_in_tree_rule_for,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::{NodeRef, NodeSlice};
 use techy::error::Diagnostic;
 use techy::latexlike::Mode;
 
 use common::parse;
-use common::stdcore::{identifiers, package_features_but, run_workflow};
+use common::stdlib::{identifiers, package_features_but, run_workflow};
 
 /// The bindings of the feature's hook: `#{mark}` stands for nothing, and every
 /// other reference means what it means for a user definition.
@@ -77,7 +77,7 @@ impl Expand for Marked {
                 return Ok(Expansion::Emit(xp.recover(cx, node, diagnostic)?));
             }
         };
-        let bindings = MarkBindings { base: DefinitionBindings::new(node, variant) };
+        let bindings = MarkBindings { base: DefinitionBindings::new(node, &variant) };
         Ok(Expansion::Emit(xp.instantiate(cx, node, variant.template(), &bindings)?))
     }
 }
@@ -137,7 +137,7 @@ fn tw() -> Definition {
 /// The standard package's features and the feature of the package
 /// `math-passthrough`, then `ext` over `definitions`.
 fn features(definitions: Vec<Definition>) -> Vec<Arc<dyn FlmFeature>> {
-    let mut features = flm_core::stdcore::package(StdcoreConfig::new()).features;
+    let mut features = flm_core::stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()).features;
     features.push(flm_core::math_passthrough::feature());
     features.push(Arc::new(Ext { definitions }));
     features
@@ -191,7 +191,7 @@ fn a_use_where_the_definition_is_not_in_force_is_reported_as_for_every_user_defi
 fn a_registry_without_the_userdefs_feature_does_not_build() {
     // The rule requires the table of the `userdefs` feature's stage that
     // expands the `always` definitions, which no other feature declares.
-    let mut features = package_features_but(StdcoreConfig::new(), "userdefs");
+    let mut features = package_features_but(StdlibConfig::new(), "userdefs");
     features.push(Arc::new(Ext { definitions: vec![tw()] }));
     let _ = common::pipeline::registry_error(features);
 }

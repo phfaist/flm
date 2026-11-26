@@ -13,15 +13,15 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::floats::latex_rendered::PIECE;
-use flm_core::stdcore::features::floats::{FloatNumbering, FloatType, FloatsConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::floats::latex_rendered::PIECE;
+use flm_core::stdlib::features::floats::{FloatNumbering, FloatType, FloatsConfig};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The four figures of the HTML tests: no caption, a caption, a label, a
@@ -74,7 +74,7 @@ fn unnumbered_figures_and_a_table_float() {
 fn a_configured_type_is_written_with_the_block_s_default() {
     let config = FloatsConfig::new()
         .float_type(FloatType::new("diagram", ["any"]).numbering(FloatNumbering::AutoNumbered));
-    let registry = common::stdcore::registry(StdcoreConfig::new().floats(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().floats(config));
     let run = render(
         &registry,
         &["\\begin{diagram}\\label{diagram:x}Boxes.\\caption{Arrows}\\end{diagram}"],

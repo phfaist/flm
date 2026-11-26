@@ -5,7 +5,9 @@
 mod common;
 
 use common::layout::{assert_max_width, assert_well_formed};
-use flm_core::layout::{print, ColAlign, ColSpec, DocBuf, DocId, Profile, RawPolicy, TableCell};
+use flm_core::layout::{
+    print, ColAlign, ColSpec, DocBuf, DocId, Profile, RawPolicy, TableCell, TableFrame,
+};
 
 fn render(buf: &DocBuf, root: DocId, width: Option<u32>) -> String {
     let out = print(buf, root, &Profile::new(width));
@@ -400,7 +402,7 @@ fn table_columns_take_their_max_when_everything_fits() {
     let b1 = cell(&mut b, "x");
     let a2 = cell(&mut b, "b");
     let b2 = cell(&mut b, "yy");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2, b2]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2, b2]], 0, TableFrame::Gutter, None);
 
     // maxes are 5 and 2; available is 40 - 2 = 38.
     assert_eq!(render(&b, t, Some(40)), "alpha  x\nb      yy\n");
@@ -412,7 +414,7 @@ fn table_distributes_the_surplus_proportionally() {
     let mut b = DocBuf::new();
     let a = cell(&mut b, "aaaa bb");
     let c = cell(&mut b, "ccccccc dddddddddd");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0, TableFrame::Gutter, None);
 
     // available = 20 - 2 gutters = 18.  mins = [4, 10] (widest atom),
     // maxs = [7, 18] (flat width).  Sum(max) = 25 > 18, so:
@@ -435,7 +437,7 @@ fn table_falls_back_to_minimum_widths_and_overflows() {
     let mut b = DocBuf::new();
     let a = cell(&mut b, "aaaaaaaa");
     let c = cell(&mut b, "bbbbbbbb");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0, TableFrame::Gutter, None);
 
     let out = print(&b, t, &Profile::new(Some(6)));
     assert_eq!(out, "aaaaaaaa  bbbbbbbb\n");
@@ -453,6 +455,8 @@ fn table_header_rule_and_alignment() {
         &[ColSpec::left(), ColSpec::right()],
         &[&[h1, h2], &[d1, d2]],
         1,
+        TableFrame::Gutter,
+        None,
     );
 
     // widths = maxes = [2, 4].
@@ -478,6 +482,8 @@ fn table_cell_alignment_replaces_the_columns() {
             &[TableCell::aligned(centered, ColAlign::Center)],
         ],
         0,
+        TableFrame::Gutter,
+        None,
     );
 
     // width 9: "own" padded 6 on the left, "col" left as its column says,
@@ -509,6 +515,8 @@ fn table_cell_alignment_under_a_header_row() {
             &[TableCell::aligned(e1, ColAlign::Right), TableCell::new(e2)],
         ],
         1,
+        TableFrame::Gutter,
+        None,
     );
 
     assert_eq!(
@@ -538,6 +546,8 @@ fn table_an_empty_document_under_a_span_prints_nothing() {
             &[TableCell::new(x), TableCell::new(y)],
         ],
         0,
+        TableFrame::Gutter,
+        None,
     );
 
     assert_eq!(render(&b, t, Some(40)), "spanning two
@@ -554,7 +564,7 @@ fn table_nested_thirty_deep_prints() {
     let mut inner = cell(&mut b, "core");
     for _ in 0..30 {
         let word = cell(&mut b, "w");
-        inner = b.table(&[ColSpec::left(), ColSpec::left()], &[&[inner, word]], 0);
+        inner = b.table(&[ColSpec::left(), ColSpec::left()], &[&[inner, word]], 0, TableFrame::Gutter, None);
     }
     let out = render(&b, inner, Some(200));
     assert_eq!(out.trim_end(), format!("core{}", "  w".repeat(30)));
@@ -567,7 +577,7 @@ fn table_rows_may_be_ragged() {
     let a1 = cell(&mut b, "aa");
     let b1 = cell(&mut b, "bb");
     let a2 = cell(&mut b, "cc");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2]], 0, TableFrame::Gutter, None);
 
     assert_eq!(render(&b, t, Some(40)), "aa  bb\ncc\n");
 }
@@ -581,7 +591,7 @@ fn a_table_inside_a_quote_is_prefixed() {
     let b1 = cell(&mut b, "bb");
     let a2 = cell(&mut b, "cc");
     let b2 = cell(&mut b, "dd");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2, b2]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a1, b1], &[a2, b2]], 0, TableFrame::Gutter, None);
 
     let intro = b.text("before");
     let sep = b.blocksep(1);
@@ -601,7 +611,7 @@ fn table_columns_take_their_max_when_the_width_is_unbounded() {
     let mut b = DocBuf::new();
     let a = cell(&mut b, "aaaa bb");
     let c = cell(&mut b, "ccccccc dddddddddd");
-    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0);
+    let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[a, c]], 0, TableFrame::Gutter, None);
 
     assert_eq!(render(&b, t, None), "aaaa bb  ccccccc dddddddddd\n");
 }
@@ -631,9 +641,9 @@ fn table_cells_are_documents() {
     let mut b = DocBuf::new();
     let ia = cell(&mut b, "x");
     let ib = cell(&mut b, "y");
-    let inner = b.table(&[ColSpec::left(), ColSpec::left()], &[&[ia, ib]], 0);
+    let inner = b.table(&[ColSpec::left(), ColSpec::left()], &[&[ia, ib]], 0, TableFrame::Gutter, None);
     let other = cell(&mut b, "z");
-    let outer = b.table(&[ColSpec::left(), ColSpec::left()], &[&[inner, other]], 0);
+    let outer = b.table(&[ColSpec::left(), ColSpec::left()], &[&[inner, other]], 0, TableFrame::Gutter, None);
 
     assert_eq!(render(&b, outer, Some(40)), "x  y  z\n");
 }
@@ -647,7 +657,7 @@ fn a_table_with_no_columns_prints_nothing_and_is_not_a_block() {
     let mut b = DocBuf::new();
     let a = b.text("aaaa");
     let bb = b.text("bbbb");
-    let t = b.table(&[], &[&[a]], 0);
+    let t = b.table(&[], &[&[a]], 0, TableFrame::Gutter, None);
     let doc = b.concat(&[a, t, bb]);
 
     assert_eq!(render(&b, doc, Some(40)), "aaaabbbb\n");
@@ -661,7 +671,7 @@ fn a_table_with_no_rows_prints_nothing_and_is_not_a_block() {
     let mut b = DocBuf::new();
     let a = b.text("aaaa");
     let bb = b.text("bbbb");
-    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0);
+    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0, TableFrame::Gutter, None);
     let doc = b.concat(&[a, t, bb]);
 
     assert_eq!(render(&b, doc, Some(40)), "aaaabbbb\n");
@@ -674,7 +684,7 @@ fn an_empty_table_leaves_a_pending_break_untouched() {
     let mut b = DocBuf::new();
     let a = b.text("aaaa");
     let sep = b.blocksep(1);
-    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0);
+    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0, TableFrame::Gutter, None);
     let bb = b.text("bbbb");
     let doc = b.concat(&[a, sep, t, bb]);
 
@@ -688,10 +698,178 @@ fn an_empty_table_inside_a_group_does_not_break_the_group() {
     let mut b = DocBuf::new();
     let a = b.text("aaaa");
     let l = b.line();
-    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0);
+    let t = b.table::<DocId>(&[ColSpec::left()], &[], 0, TableFrame::Gutter, None);
     let bb = b.text("bbbb");
     let c = b.concat(&[a, l, t, bb]);
     let g = b.group(c);
 
     assert_eq!(render(&b, g, Some(40)), "aaaa bbbb\n");
+}
+
+// -- the box frame ------------------------------------------------------------
+
+/// The table of the box frame's tests: a header row, a right-aligned column,
+/// and a cell that wraps at width 20.
+fn framed_table(b: &mut DocBuf, frame: TableFrame) -> DocId {
+    let h1 = cell(b, "Header");
+    let h2 = cell(b, "Right");
+    let d1 = cell(b, "a cell wrapped");
+    let d2 = cell(b, "42");
+    b.table(&[ColSpec::left(), ColSpec::right()], &[&[h1, h2], &[d1, d2]], 1, frame, None)
+}
+
+/// Under `Box`: the frame's lines above and below, the rule under the header
+/// row, a bar before, between and after the cells with one space on each
+/// side, the right alignment kept inside the padding, and a wrapped cell with
+/// its row's bars on every line.
+///
+/// The solver subtracts the frame: 3 × 2 + 1 = 7 columns, so 13 are left;
+/// mins [7, 5], maxs [14, 5], so the one column of surplus goes to column 0.
+#[test]
+fn a_boxed_table_draws_its_frame_and_keeps_alignment_and_wrapping() {
+    let mut b = DocBuf::new();
+    let t = framed_table(&mut b, TableFrame::Box);
+
+    let out = render(&b, t, Some(20));
+    assert_eq!(
+        out,
+        "┌──────────┬───────┐
+│ Header   │ Right │
+├──────────┼───────┤
+│ a cell   │    42 │
+│ wrapped  │       │
+└──────────┴───────┘
+"
+    );
+    assert_max_width(&out, 20);
+}
+
+/// The same table under `Gutter`: two spaces between the columns (13 and 5
+/// columns wide, the solver subtracting the one gutter) and the rule of `-`.
+#[test]
+fn the_same_table_under_the_gutter_is_unchanged() {
+    let mut b = DocBuf::new();
+    let t = framed_table(&mut b, TableFrame::Gutter);
+
+    assert_eq!(
+        render(&b, t, Some(20)),
+        "Header         Right
+-------------  -----
+a cell            42
+wrapped
+"
+    );
+}
+
+/// The frame is subtracted from the width before the columns are solved: at
+/// a width where the gutter layout fits on one line, the framed one wraps,
+/// and no line of it passes the width.
+#[test]
+fn a_boxed_table_is_solved_within_the_width_less_the_frame() {
+    let mut b = DocBuf::new();
+    let a = cell(&mut b, "aaaa bb");
+    let c = cell(&mut b, "cc dd");
+    let row: &[DocId] = &[a, c];
+    let gutter = b.table(&[ColSpec::left(), ColSpec::left()], &[row], 0, TableFrame::Gutter, None);
+    let boxed = b.table(&[ColSpec::left(), ColSpec::left()], &[row], 0, TableFrame::Box, None);
+
+    // 7 + 2 + 5 = 14 columns: the gutter layout fits.
+    assert_eq!(render(&b, gutter, Some(14)), "aaaa bb  cc dd\n");
+    // Under the frame, 14 - 7 = 7 columns are left for mins [4, 2] and
+    // maxs [7, 5]: surplus 1 over spans [3, 3] goes to column 0, widths
+    // [5, 2].
+    let out = render(&b, boxed, Some(14));
+    assert_eq!(
+        out,
+        "┌───────┬────┐
+│ aaaa  │ cc │
+│ bb    │ dd │
+└───────┴────┘
+"
+    );
+    assert_max_width(&out, 14);
+}
+
+/// Even the minima do not fit: the columns get their minima and the lines,
+/// frame included, are longer than the width.
+#[test]
+fn a_boxed_table_overflows_at_its_minima() {
+    let mut b = DocBuf::new();
+    let a = cell(&mut b, "aaaaaa");
+    let t = b.table(&[ColSpec::left()], &[&[a]], 0, TableFrame::Box, None);
+
+    assert_eq!(render(&b, t, Some(5)), "┌────────┐\n│ aaaaaa │\n└────────┘\n");
+}
+
+/// A nested table is framed by its own frame, inside the outer cell.
+#[test]
+fn a_nested_boxed_table_is_framed_inside_its_cell() {
+    let mut b = DocBuf::new();
+    let x = cell(&mut b, "x");
+    let y = cell(&mut b, "y");
+    let inner = b.table(&[ColSpec::left(), ColSpec::left()], &[&[x, y]], 0, TableFrame::Box, None);
+    let z = cell(&mut b, "z");
+    let outer = b.table(&[ColSpec::left(), ColSpec::left()], &[&[inner, z]], 0, TableFrame::Box, None);
+
+    assert_eq!(
+        render(&b, outer, Some(40)),
+        "┌───────────┬───┐
+│ ┌───┬───┐ │ z │
+│ │ x │ y │ │   │
+│ └───┴───┘ │   │
+└───────────┴───┘
+"
+    );
+}
+
+/// A boxed table inside a list item: every line of the frame goes under the
+/// item's indentation, and the indentation is subtracted from the width.
+#[test]
+fn a_boxed_table_inside_a_list_item_is_indented() {
+    let mut b = DocBuf::new();
+    let a = cell(&mut b, "aaa bbb");
+    let t = b.table(&[ColSpec::left()], &[&[a]], 0, TableFrame::Box, None);
+    let label = b.text("- item");
+    let body = b.nest(2, t);
+    let item = b.concat(&[label, body]);
+
+    // 12 - 2 (indentation) - 4 (frame) = 6 columns for "aaa bbb".
+    let out = render(&b, item, Some(12));
+    assert_eq!(
+        out,
+        "- item
+  ┌────────┐
+  │ aaa    │
+  │ bbb    │
+  └────────┘
+"
+    );
+    assert_max_width(&out, 12);
+}
+
+/// The header rule is drawn only above rows: a table of header rows alone
+/// is closed by the bottom line, and a table whose cells print nothing gets
+/// no frame and is not a block.
+#[test]
+fn a_boxed_table_of_header_rows_or_of_empty_cells() {
+    let mut b = DocBuf::new();
+    let h = cell(&mut b, "head");
+    let t = b.table(&[ColSpec::left()], &[&[h]], 1, TableFrame::Box, None);
+    assert_eq!(render(&b, t, Some(40)), "┌──────┐\n│ head │\n└──────┘\n");
+
+    let a = b.text("aaaa");
+    let empty = b.concat(&[]);
+    let e = b.table(&[ColSpec::left()], &[&[empty]], 1, TableFrame::Box, None);
+    let bb = b.text("bbbb");
+    let doc = b.concat(&[a, e, bb]);
+    assert_eq!(render(&b, doc, Some(40)), "aaaabbbb\n");
+}
+
+/// Each character of the frame is one display column wide, as the layout
+/// engine measures text: a wrong width would misalign every framed line.
+#[test]
+fn the_frame_characters_are_one_column_wide() {
+    for c in "┌┬┐├┼┤└┴┘│─".chars() {
+        assert_eq!(flm_core::layout::display_width(&c.to_string()), 1, "{c:?}");
+    }
 }

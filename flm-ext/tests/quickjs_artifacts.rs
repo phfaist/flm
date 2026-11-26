@@ -12,11 +12,11 @@ use std::sync::Arc;
 
 use flm_core::core::artifact::{Artifact, ArtifactData, ArtifactId, ArtifactNamer, ArtifactRef, ArtifactSet, NamingScope, RelPath};
 use flm_core::core::data::table::TableHandle;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::Run;
 use flm_core::core::settings::PackageSettings;
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::json;
 
@@ -86,7 +86,7 @@ fn registry() -> Arc<FlmRegistry> {
     let loader = js_loader(&JsHost::new(JsSettings::default()), js_extension("wc", &[("main.js", MAIN)], js_manifest("main.js")));
     let package = common::factory_of(&loader, "wc").build(&PackageSettings::new()).expect("the package builds");
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.use_package(package);
     builder.contribute_to(NAMER_SLOT, Arc::new(JobNamer) as Arc<dyn ArtifactNamer>);

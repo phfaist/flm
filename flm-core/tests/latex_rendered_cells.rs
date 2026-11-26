@@ -24,37 +24,37 @@ use flm_core::core::run::Run;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::{LatexPreambleDef, preamble};
-use flm_core::stdcore::backends::latex_rendered::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::{LatexPreambleDef, preamble};
+use flm_core::stdlib::backends::latex_rendered::{
     BACKEND, DOCUMENT, LatexRenderedRenderOptions, LatexSegment, WORKFLOW, emit_tree, style_artifact,
 };
-use flm_core::stdcore::backends::pres::{self, CellSpec, CellsPayload, ParPayload};
-use flm_core::stdcore::features::cells::{CellStyle, CellsConfig, STYLES_SLOT};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::backends::pres::{self, CellSpec, CellsPayload, ParPayload};
+use flm_core::stdlib::features::cells::{CellStyle, CellsConfig, STYLES_SLOT};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 
 use common::lowering::PresSite;
-use common::stdcore::identifiers;
+use common::stdlib::{assert_only_unchecked_output, identifiers};
 
 // --- helpers -------------------------------------------------------------------------------
 
-fn global() -> StdcoreConfig {
-    StdcoreConfig::new().cells(CellsConfig::new().global(true))
+fn global() -> StdlibConfig {
+    StdlibConfig::new().cells(CellsConfig::new().global(true))
 }
 
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(global())
+    common::stdlib::registry(global())
 }
 
 fn run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
-    common::stdcore::run_workflow(registry, WORKFLOW, &[document], &Overrides::none())
+    common::stdlib::run_workflow(registry, WORKFLOW, &[document], &Overrides::none())
 }
 
-/// Runs the workflow over `document` with `registry`, asserting that nothing
-/// was reported.
+/// Runs the workflow over `document` with `registry`, asserting that it
+/// reported nothing but the Warnings of its plan's unchecked output.
 fn render_with(registry: &Arc<FlmRegistry>, document: &str) -> Run {
     let run = run(registry, document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     run
 }
 
@@ -224,7 +224,7 @@ fn a_table_wider_than_the_line_is_one_environment_like_any() {
 
 #[test]
 fn a_table_in_a_table_float_stands_in_the_float_with_its_caption() {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     let run = render_with(
         &registry,
         "\\begin{table}\\begin{cells}\\celldata<H>{A & B}\\celldata{1 & 2}\\end{cells}\
@@ -242,7 +242,7 @@ fn a_user_definition_writing_a_table_is_expanded_where_it_is_used() {
         vec![ArgDef::mandatory("styles"), ArgDef::mandatory("placement"), ArgDef::mandatory("content")],
     )
     .text("\\begin{cells}\\cell<#1>[#2]{#3}\\cell{x}\\end{cells}");
-    let registry = common::stdcore::registry(global().userdefs(UserdefsConfig::new().definitions(vec![onecell])));
+    let registry = common::stdlib::registry(global().userdefs(UserdefsConfig::new().definitions(vec![onecell])));
     let run = render_with(&registry, "\\onecell{r H}{2}{right}\n");
     // The cell stands in column 2, right-aligned, a header; column 1 is an
     // empty position.
@@ -297,9 +297,9 @@ impl FlmFeature for HostStyles {
 
 #[test]
 fn a_hosts_custom_styles_are_names_in_the_spec_requiring_the_hosts_piece() {
-    let mut features = common::stdcore::package_features_but(global(), "");
+    let mut features = common::stdlib::package_features_but(global(), "");
     features.push(Arc::new(HostStyles));
-    let registry = common::stdcore::registry_over(features);
+    let registry = common::stdlib::registry_over(features);
     let run = render_with(&registry, "\\begin{cells}\\cell<r orange bold>{A}\\cell<bold green>{B}\\cell{C}\\end{cells}\n");
     let written = content(&run);
     assert!(written.contains("{row=1, col=1, align=right, styles={orange bold}}"), "{written}");
@@ -320,10 +320,10 @@ fn the_shipped_styles_require_the_feature_s_piece_where_they_color_the_cell() {
     // The four custom styles require the cells feature's style identifier,
     // which its definition piece delivers on this backend; the structural
     // ones require nothing.
-    for style in flm_core::stdcore::features::cells::styles::shipped() {
+    for style in flm_core::stdlib::features::cells::styles::shipped() {
         let custom = ["green", "blue", "yellow", "red"].contains(&style.name.as_str());
         let expected: &[&str] = if custom {
-            &[flm_core::stdcore::features::cells::STYLE]
+            &[flm_core::stdlib::features::cells::STYLE]
         } else {
             &[]
         };

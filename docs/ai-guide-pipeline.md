@@ -68,7 +68,7 @@ plans](crate::guide::pipeline).
 | context | [`RewriteCx`](crate::core::run::RewriteCx): the registry, the tree's identity and the region layout of its top level ([`FragmentLayout`](crate::model::doc::FragmentLayout)), the option values it declared | [`StageCx`](crate::core::run::StageCx) |
 | publishes | its output for every tree, as a [`TreesTable`](crate::core::stage::TreesTable) under the capability it provides | the tables it declared |
 
-The standard package registers four rewrite stages, which a plan orders totally:
+The standard features register four rewrite stages, which a plan orders totally:
 `flm.input.splice` (the content of included files inserted in place of each `\input`),
 `flm.userdefs.expand-always` and `flm.userdefs.expand` (user definitions replaced by
 their templates), and `flm.blocks.structure` (paragraphs and blocks built, text resolved).
@@ -146,7 +146,7 @@ state no table represents: a marker, a check's result, the parent of refinements
 | mechanism | item | rule |
 |---|---|---|
 | **refinement** | [`CapabilityDef::refines`](crate::core::registry::CapabilityDef::refines), [`CapabilityDef::default`](crate::core::registry::CapabilityDef::default) | providing the refinement satisfies a demand for the parent; at most one refinement is the parent's default, which provider selection chooses for a demand of the parent when no preference decides. `flm.blocks` is refined by `flm.blocks.structured` (the default) and `flm.blocks.raw`; `flm.userdefs` by `flm.userdefs.expanded` (the default) and `flm.userdefs.kept` |
-| **collection** | [`CollectionDef`](crate::core::registry::CollectionDef), [`FeatureBuilder::collection_member`](crate::core::registry::FeatureBuilder::collection_member) | a name for a set of capabilities any feature may add to; demanding it demands every member. It can only be demanded: listing one among a stage's provided or required capabilities is refused. `flm.validated` ([`VALIDATED`](crate::stdcore::VALIDATED)) is the standard one. A member added to a collection that no feature of the registry declares is dropped without a diagnostic |
+| **collection** | [`CollectionDef`](crate::core::registry::CollectionDef), [`FeatureBuilder::collection_member`](crate::core::registry::FeatureBuilder::collection_member) | a name for a set of capabilities any feature may add to; demanding it demands every member. It can only be demanded: listing one among a stage's provided or required capabilities is refused. `flm.validated` ([`VALIDATED`](crate::stdlib::VALIDATED)) is the standard one. A member added to a collection that no feature of the registry declares is dropped without a diagnostic |
 | **ordering-only edge** | [`Needs::after`](crate::core::stage::Needs::after) / [`Needs::before`](crate::core::stage::Needs::before), or [`OrderingDef`](crate::core::registry::OrderingDef) on another feature's stage | "run after (or before) the stage that provides this capability, if a stage does". It never causes anything to be scheduled; on a capability with refinements it follows the refinement the plan scheduled. The `input` rewrite declares such edges before the user-definition expansion and before block structure |
 
 ## Asking for a plan
@@ -235,11 +235,16 @@ until nothing is left to decide ([`crate::core::plan::selection`]).
 To follow how a plan was built: [`Plan::excluded`](crate::core::plan::Plan::excluded)
 ([`Excluded`](crate::core::plan::Excluded): the stage, the stage that ruled it out, a
 capability both provide), [`Plan::commit_order`](crate::core::plan::Plan::commit_order),
-[`Plan::warnings`](crate::core::plan::Plan::warnings) (the preferences the plan could not
-honor: [`PlanWarning`](crate::core::plan::PlanWarning) `PreferredRuleSetAside`,
-`PreferredRuleNotCandidate`, `IgnoredPreference`; the runner reports each as a Warning at
-the start of the run), [`Plan::render`](crate::core::plan::Plan::render) (stable text,
-for a report or a test that compares two plans).
+[`Plan::warnings`](crate::core::plan::Plan::warnings) (the plan's
+[`PlanWarning`](crate::core::plan::PlanWarning)s, which the runner reports as Warnings
+at the start of the run: the preferences the plan could not honor,
+`PreferredRuleSetAside`, `PreferredRuleNotCandidate` and `IgnoredPreference`; and the
+output nothing checks, `UncheckedOutput`, one per backend and feature whose selected
+lowering rules declare it,
+[`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output),
+as `math-passthrough` does on `html`, `latex-rendered` and `latex-recomposed`),
+[`Plan::render`](crate::core::plan::Plan::render) (stable text, for a report or a test
+that compares two plans).
 
 A lowering rule is **set aside** when a peer declaration it depends on resolves to
 nothing: the rule is excluded from rule selection and from the completeness check, listed
@@ -324,9 +329,9 @@ Execution, in the plan's batches:
 3. **The error gate.** Before the first batch that holds an `Io` stage, a run that has
    recorded any Error diagnostic (from a parse or from a stage) stops, unless
    [`RunOptions::continue_with_errors`](crate::core::run::RunOptions#structfield.continue_with_errors)
-   is set; [`Run::halted_at_gate`](crate::core::run::Run::halted_at_gate) and
-   [`RunOutcome`](crate::core::run::RunOutcome) report it. **The standard package
-   registers no `Io` stage**: a plan built from it alone has no gate
+   is set; the outcome
+   [`RunOutcome::HaltedAtGate`](crate::core::run::RunOutcome::HaltedAtGate) reports it. **The standard features
+   register no `Io` stage**: a plan built from them alone has no gate
    ([`Plan::first_io_batch`](crate::core::plan::Plan::first_io_batch) is `None`), and a
    document full of errors still renders. The host library's `write` stage is an `Io`
    stage.
@@ -340,6 +345,26 @@ never what is computed. [`RunOptions`](crate::core::run::RunOptions) has three f
 `continue_with_errors`, and `max_diagnostics` (how many of the run's diagnostics are
 kept, read from the first step's options only). Apart from the error gate, none changes
 what is computed. Pass the same options to every step.
+
+**Progress and cancellation.** [`Run::with_progress`](crate::core::run::Run::with_progress)`(scope)`,
+before the first step, gives the run a [`Scope`](crate::progress::Scope) of a progress
+sheet ([`crate::progress`]); without it the run reports under `Scope::none()`. The run
+declares at once, under that scope: one row `flm.run.rewrites`
+([`REWRITES_KIND`](crate::core::run::REWRITES_KIND)), counted in the trees the rewrites
+run over; one row per scheduled stage, in plan order, kind = the stage's name, started at
+its first call and ended at its last (a per-tree stage's row counts the run's trees; a
+document stage's has no count). A stage gets its row's scope from
+[`StageCx::progress`](crate::core::run::StageCx::progress) and declares its own rows
+under it; a rewrite gets none; stages run in value catch-up get the scope at depth limit
+0 (no rows). Rows: gate-skipped stage → `NotRun`; panicked stage, and every row running at
+a cancellation → `Failed`. The run checks `Scope::cancelled()` at the start of each step,
+before each stage call (each per-tree call, each tree of the rewrites), and once after
+the step's calls return; when cancelled, calls not begun are skipped, the step's output
+and diagnostics are discarded (as for a panic), and the run ends with
+[`RunOutcome::Cancelled`](crate::core::run::RunOutcome::Cancelled); earlier steps' tables
+and diagnostics stay readable. No diagnostic for a cancellation. A run that completes a
+step produces exactly what it would without a sheet
+([progress and cancellation of a run](crate::guide::pipeline#progress-and-cancellation-of-a-run)).
 
 Reading the result back: [`Run::table`](crate::core::run::Run::table) (any table of the
 registry, by typed key; a caller is not limited to declared reads; `Ok(None)` means no
@@ -359,7 +384,7 @@ An external table is a table that no stage of the run writes: the caller install
 value when the run is constructed ([`Externals`](crate::core::run::Externals)). A feature
 declares one with
 [`FeatureBuilder::external_table`](crate::core::registry::FeatureBuilder::external_table);
-the standard one is [`EXTERNAL_INDEX`](crate::stdcore::features::refs::EXTERNAL_INDEX)
+the standard one is [`EXTERNAL_INDEX`](crate::stdlib::features::refs::EXTERNAL_INDEX)
 (`flm.refs.external-index`), the labels of other documents processed together with this
 one, so that references between documents resolve.
 
@@ -411,8 +436,8 @@ Two consequences, also stated at `resolve_value`:
   it sees the value's own entries and nothing of the document's. A stage that works
   inside a value *and* needs document-wide data reads a table that no per-tree stage of
   the catch-up writes, in practice one a `Document`-scope stage writes. The `refs`
-  feature's resolve stage reads [`REF_TARGETS`](crate::stdcore::features::refs::REF_TARGETS)
-  (document scope) for that reason, not [`LABELS`](crate::stdcore::features::refs::LABELS)
+  feature's resolve stage reads [`REF_TARGETS`](crate::stdlib::features::refs::REF_TARGETS)
+  (document scope) for that reason, not [`LABELS`](crate::stdlib::features::refs::LABELS)
   (per tree).
 - **Writing.** A table piece of class
   [`PieceClass::DocumentFact`](crate::core::data::table::PieceClass::DocumentFact) is
@@ -449,12 +474,12 @@ Demanding a collection, and reading a plan back:
 
 ```rust
 use flm_core::core::plan::{Overrides, Plan, PlanRequest};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::{self, StdcoreConfig, VALIDATED};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::{self, StdlibConfig, VALIDATED};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -478,7 +503,7 @@ assert!(render.active_backends().iter().any(|b| b.as_str() == "text"));
 // checks are in the render's plan too.
 assert!(render.scheduled_names().iter().any(|n| n.as_str() == "flm.refs.check-labels"));
 
-// `stdcore` declares no `Io` stage, so no plan built from it has an error gate.
+// The standard features declare no `Io` stage, so no plan built from them has an error gate.
 assert!(render.first_io_batch().is_none());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -492,14 +517,14 @@ use std::sync::Arc;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Plan, PlanCx, PlanRequest};
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder, RegistryInputs,
 };
 use flm_core::core::run::{Externals, Run, RunOptions, StageCx, Step};
 use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_core::core::data::store::StageOut;
 use flm_core::core::data::table::{Table, TableName};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 
 #[derive(Debug, Default)]
 struct NodeCount(usize);
@@ -547,7 +572,7 @@ impl FlmFeature for Counting {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.feature(Arc::new(Counting));
 let registry = builder.build(&RegistryInputs::new())?;
 

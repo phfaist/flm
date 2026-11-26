@@ -14,7 +14,7 @@ mod common;
 
 use common::layout::{assert_max_width, assert_well_formed, golden_path};
 use flm_core::dump::golden::assert_text_golden;
-use flm_core::layout::{print, ColSpec, DocBuf, DocId, Profile, RawPolicy};
+use flm_core::layout::{print, ColSpec, DocBuf, DocId, Profile, RawPolicy, TableFrame};
 
 /// (a) Paragraph wrap with a hanging indent: continuation lines line up
 /// under the first character of the item text, at column 4, not at column 0.
@@ -119,6 +119,8 @@ fn table_wrapped() {
         &[ColSpec::left(), ColSpec::left(), ColSpec::right()],
         &[&[h0, h1, h2], &[a0, a1, a2], &[b0, b1, b2]],
         1,
+        TableFrame::Gutter,
+        None,
     );
 
     let out = print(&b, doc, &Profile::new(Some(44)));
@@ -187,7 +189,7 @@ fn table_and_blank_line_goldens_are_deterministic() {
     fn build(b: &mut DocBuf) -> DocId {
         let h0 = b.fill_words("Name");
         let h1 = b.fill_words("City of residence");
-        let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[h0, h1]], 1);
+        let t = b.table(&[ColSpec::left(), ColSpec::left()], &[&[h0, h1]], 1, TableFrame::Gutter, None);
         let s = b.blocksep(1);
         let r = b.raw("```\nx\n\ny\n```", RawPolicy::Indented);
         let body = b.concat(&[t, s, r]);

@@ -1,0 +1,42 @@
+---
+title: A letter with a page-width letterhead
+flm:
+  use: [letter]
+  features:
+    compose:
+      template_config:
+        html:
+          letter:
+            logo: placeholder
+            logo_alt: Example organization
+            letterhead: page-width
+            logo_max_height: 45mm
+            letterhead_margin_top: 0mm
+        latex-rendered:
+          letter:
+            logo: placeholder
+            letterhead: page-width
+            logo_max_height: 45mm
+            letterhead_margin_top: 0mm
+---
+\begin{letter}
+
+\begin{fromaddress}
+Example Organization\\
+100 Example Street\\
+10115 Berlin, Germany
+\end{fromaddress}
+
+\letterdate{16 November 2026}
+\salutation{Dear colleague,}
+
+The letterhead spans the page, while the sender, date, and letter body use the
+text margins. The graphic keeps its proportions within the configured maximum
+height.
+
+\closing{Kind regards,}
+\begin{signature}
+Alex Morgan
+\end{signature}
+
+\end{letter}

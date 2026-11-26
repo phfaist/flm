@@ -94,6 +94,7 @@ use crate::lang::mint::{
     ArgDef, BodyDef, BodyLayout, CallableKind, ElementDef, OverrideDef, SyntaxDef,
 };
 use crate::lang::origin::{FlmDiagnostic, FlmOrigin, FlmSource};
+use crate::lang::owned::LangOwned;
 use crate::lang::rewrites::userdefs::diagnostics::{
     BadDefinition, BadPlaceholder, DefinitionProblem, PlaceholderProblem,
 };
@@ -125,7 +126,7 @@ pub enum DefinitionKind {
 impl DefinitionKind {
     /// The kind's lowercase token, `macro`, `environment` or `specials`: the
     /// segment of the definition's element name that says its kind
-    /// ([`element_name`](crate::stdcore::features::userdefs::element_name)).
+    /// ([`element_name`](crate::stdlib::features::userdefs::element_name)).
     pub fn token(self) -> &'static str {
         match self {
             DefinitionKind::Macro => "macro",
@@ -151,7 +152,7 @@ impl DefinitionKind {
 /// for text mode and a `\vec` for mathematics mode, may be declared side by
 /// side, and each applies in its own mode. Two whose modes overlap may not: only
 /// one of them could apply where they overlap, so registering the
-/// [`userdefs` feature](crate::stdcore::features::userdefs) fails, and with it
+/// [`userdefs` feature](crate::stdlib::features::userdefs) fails, and with it
 /// the registry build, with the error "two definitions of `vec` apply in the
 /// same parsing mode".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -190,7 +191,7 @@ impl DefinitionModes {
 
     /// The stable token for the value: `text`, `math` or `both`. The canonical
     /// rendering of the `userdefs` feature's configuration
-    /// ([`UserdefsConfig::digest_bytes`](crate::stdcore::features::userdefs::UserdefsConfig::digest_bytes))
+    /// ([`UserdefsConfig::digest_bytes`](crate::stdlib::features::userdefs::UserdefsConfig::digest_bytes))
     /// writes it, so it does not change when a variant is renamed.
     pub fn token(self) -> &'static str {
         match self {
@@ -216,9 +217,9 @@ impl DefinitionModes {
 /// [`Definition::environment`] or [`Definition::specials`] and completed with
 /// the builder methods, such as [`text`](Definition::text),
 /// [`math`](Definition::math) and [`default`](Definition::default). The
-/// [`userdefs` feature](crate::stdcore::features::userdefs) registers the
+/// [`userdefs` feature](crate::stdlib::features::userdefs) registers the
 /// definitions of its configuration
-/// ([`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig)); an
+/// ([`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig)); an
 /// extension that registers definitions of its own wraps each in a
 /// [`UserDefinition`].
 ///
@@ -519,7 +520,7 @@ impl ModeVariant {
     /// ([`DefinitionBindings`]), so a caller that needs a default value's content
     /// outside an expansion gets exactly what the expansion would have put there.
     /// The kept-definition lowering rules of the `userdefs` feature
-    /// ([`kept`](crate::stdcore::features::userdefs::kept)) use it to write an
+    /// ([`kept`](crate::stdlib::features::userdefs::kept)) use it to write an
     /// omitted argument's default value into the call they write in place of the
     /// use site.
     ///
@@ -572,8 +573,8 @@ pub struct CompiledDefinition {
     name: Name,
     display: String,
     arity: usize,
-    text: Option<ModeVariant>,
-    math: Option<ModeVariant>,
+    text: Option<Arc<ModeVariant>>,
+    math: Option<Arc<ModeVariant>>,
     diagnostics: Vec<FlmDiagnostic>,
 }
 
@@ -593,10 +594,10 @@ impl CompiledDefinition {
         self.arity
     }
 
-    /// The compiled templates for `mode`, when the definition's text compiled in that
-    /// mode; `None` otherwise, including for a mode the definition is not defined
-    /// for.
-    pub fn variant(&self, mode: Mode) -> Option<&ModeVariant> {
+    /// The compiled templates for `mode`, shared, when the definition's text
+    /// compiled in that mode; `None` otherwise, including for a mode the definition
+    /// is not defined for.
+    pub fn variant(&self, mode: Mode) -> Option<&Arc<ModeVariant>> {
         match mode {
             Mode::Text => self.text.as_ref(),
             Mode::Math => self.math.as_ref(),
@@ -911,8 +912,8 @@ pub fn compile_with(
         name: definition.name.clone(),
         display,
         arity: definition.arity(),
-        text,
-        math,
+        text: text.map(Arc::new),
+        math: math.map(Arc::new),
         diagnostics,
     })
 }
@@ -1060,7 +1061,7 @@ impl EffectiveSignature {
 /// definition of its output language, and writes each use site as a call of it.
 /// The `latex-recomposed` backend does this for LaTeX, through the
 /// kept-definition lowering rules of the `userdefs` feature
-/// ([`kept`](crate::stdcore::features::userdefs::kept)).
+/// ([`kept`](crate::stdlib::features::userdefs::kept)).
 ///
 /// **Every definition an author can write is recomposable**, apart from the
 /// reasons listed below. This covers arguments of every shape a definition can
@@ -1294,9 +1295,13 @@ pub struct RegistryBuildFacts {
 /// the compiled templates and the facts the registry build decided about the
 /// definition ([`RegistryBuildFacts`]). A lowering rule or an extension finds it
 /// on a use site with [`element_value`](crate::model::element::element_value).
+///
+/// The compiled templates refer to the language that the definition's element is
+/// declared in, so that language owns them and this value reads them through a
+/// [`LangOwned`] cell: they are available for as long as the registry exists.
 pub struct UserDefinition {
     definition: Definition,
-    compiled: OnceLock<Arc<CompiledDefinition>>,
+    compiled: LangOwned<CompiledDefinition>,
     registry_build_facts: OnceLock<RegistryBuildFacts>,
     recursion_limit: OnceLock<usize>,
 }
@@ -1307,7 +1312,7 @@ impl UserDefinition {
     pub fn new(definition: Definition) -> Arc<UserDefinition> {
         Arc::new(UserDefinition {
             definition,
-            compiled: OnceLock::new(),
+            compiled: LangOwned::new(),
             registry_build_facts: OnceLock::new(),
             recursion_limit: OnceLock::new(),
         })
@@ -1340,7 +1345,10 @@ impl UserDefinition {
     /// The compiled templates, once [`compile`](UserDefinition::compile) or
     /// [`compile_with`](UserDefinition::compile_with) has succeeded; `None` before,
     /// and for a definition whose compilation failed.
-    pub fn compiled(&self) -> Option<&Arc<CompiledDefinition>> {
+    ///
+    /// The compiled templates are owned by the language they were compiled against
+    /// ([`LangOwned`]), so this method returns `None` once that language is dropped.
+    pub fn compiled(&self) -> Option<Arc<CompiledDefinition>> {
         self.compiled.get()
     }
 
@@ -1350,7 +1358,7 @@ impl UserDefinition {
     ///
     /// The `userdefs` feature calls this from its late-initialization build hook,
     /// after the templates are compiled, for every definition it registers
-    /// ([`record_recomposability`](crate::stdcore::features::userdefs::kept::record_recomposability));
+    /// ([`record_recomposability`](crate::stdlib::features::userdefs::kept::record_recomposability));
     /// no other caller should. The facts are read back through
     /// [`recomposable`](UserDefinition::recomposable),
     /// [`effective_signature`](UserDefinition::effective_signature) and
@@ -1404,10 +1412,12 @@ impl UserDefinition {
         self.registry_build_facts.get().is_some_and(|facts| facts.shares_its_name)
     }
 
-    /// Compiles the templates against the built language `lang` and keeps the
-    /// result, over a template language built for this call alone;
+    /// Compiles the templates against the built language `lang`, over a template
+    /// language built for this call alone;
     /// [`compile_with`](UserDefinition::compile_with) shares one template language
-    /// across many definitions.
+    /// across many definitions. `lang` must be the language that this definition's
+    /// element is declared in: `lang` becomes the owner of the compiled templates
+    /// ([`LangOwned`]).
     ///
     /// Returns the warnings of the compilation, for the caller to report with the
     /// registry's build diagnostics. Once a compilation has succeeded, a further
@@ -1449,7 +1459,7 @@ impl UserDefinition {
         let warnings = compiled.diagnostics().to_vec();
         // A concurrent first compilation of the same definition produces the same
         // value; whichever lands first is kept.
-        let _ = self.compiled.set(Arc::new(compiled));
+        let _ = self.compiled.set(lang, compiled);
         Ok(warnings)
     }
 
@@ -1538,13 +1548,13 @@ impl UserDefinition {
     /// template text did not parse in the use site's parsing mode. An [`Expand`]
     /// implementation reports it as an Error at the use site through
     /// [`Expander::recover`].
-    pub fn variant_for_use(&self, node: &NodeRef<'_, Flm>) -> Result<&ModeVariant, BadDefinition> {
+    pub fn variant_for_use(&self, node: &NodeRef<'_, Flm>) -> Result<Arc<ModeVariant>, BadDefinition> {
         let display = self.definition.display_name();
         let mode = node.parsing_state().mode();
         let Some(compiled) = self.compiled.get() else {
             return Err(BadDefinition::new(display, DefinitionProblem::NotCompiled));
         };
-        compiled.variant(mode).ok_or_else(|| {
+        compiled.variant(mode).cloned().ok_or_else(|| {
             // The definition was declared by one text, which compiled in the
             // other mode only: that is where it is in force (the module
             // documentation's first rule).
@@ -1716,7 +1726,7 @@ impl Expand for UserDefinition {
                 return Ok(Expansion::Emit(xp.recover(cx, node, diagnostic)?));
             }
         };
-        let bindings = DefinitionBindings::new(node, variant);
+        let bindings = DefinitionBindings::new(node, &variant);
         Ok(Expansion::Emit(xp.instantiate(cx, node, variant.template(), &bindings)?))
     }
 }

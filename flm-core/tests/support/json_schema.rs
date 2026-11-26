@@ -3,7 +3,7 @@
 //! assembles around them. It knows the keywords those schemas use and panics on any other,
 //! so that a keyword it does not check can never pass data silently; annotations
 //! (`description`, `default`, `examples`, `format`, `title`, the `x-flm-*` extensions) are not checked,
-//! as JSON Schema's own rules say. Shared by the tests of `flm-core` and `flm-main`, each
+//! as JSON Schema's own rules say. Shared by the tests of `flm-core` and `flm-host`, each
 //! including this file as a module.
 
 use serde_json::{Map, Value};

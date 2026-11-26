@@ -1,11 +1,11 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.135c18da.sty
+% flm: style file flmrecomposed.9cccc220.sty
 \flmHeading[toc=true]
-\section{Code \EscVerb[formatcom=\flmFmtVRB{verbcode}]{f\(x\)}}{\flmLabels{}}
+\section{Code \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbcode}]{f\(x\)}}{\flmLabels{}}
 
-Inline \EscVerb[formatcom=\flmFmtVRB{verbtext}]{a\{b\}\\c} text, the code \EscVerb[formatcom=\flmFmtVRB{verbcode}]{f\(x\)\ \=\ 1} and the
-identifier \EscVerb[formatcom=\flmFmtVRB{verba}]{struct}, then \EscVerb[formatcom=\flmFmtVRB{verbtext}]{raw\ \{text\}\ 100\%}
-in the same paragraph, and \emph{inside \EscVerb[formatcom=\flmFmtVRB{verbtext}]{an\ argument}} too.
+Inline \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]{a\{b\}\\c} text, the code \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbcode}]{f\(x\)\ \=\ 1} and the
+identifier \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verba}]{struct}, then \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]{raw\ \{text\}\ 100\%}
+in the same paragraph, and \emph{inside \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]{an\ argument}} too.
 
 \begin{flmVerbatimCode}[python]
 def f(x):
@@ -16,9 +16,9 @@ def f(x):
 no language
 \end{flmVerbatimCode}
 %%
-% ===== latex-recomposed:style flmrecomposed.135c18da.sty =====
+% ===== latex-recomposed:style flmrecomposed.9cccc220.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.135c18da}
+\ProvidesPackage{flmrecomposed.9cccc220}
 % --- packages ---
 % flm.latex.pkg.fvextra
 \RequirePackage{fvextra}
@@ -216,9 +216,13 @@ no language
 \ExplSyntaxOff
 % flm.latex.def.verbatim
 % Verbatim content. Inline content is written as
-%   \EscVerb[formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
+%   \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
 % and block content as the flmVerbatimCode environment. \EscVerb comes with
 % fvextra 1.5 (2022) and later, which this file requires.
+% \flmVRBFamily, the font family of the surrounding text, is given to fancyvrb
+% as fontfamily: fancyvrb keeps that family, and each kind's hook alone sets the
+% font. It is expandable, as fancyvrb's fontfamily needs.
+\providecommand\flmVRBFamily{\f@family}
 % \flmFmtVRB{<kind>} runs the hook \flmFmtVRB<kind>; redefine
 % \flmFmtVRBverbtext, \flmFmtVRBverbcode or \flmFmtVRBverba to change how
 % that kind of verbatim content is set.
@@ -242,12 +246,13 @@ no language
   \begin{Verbatim}[formatcom=\flmFmtVRB{verbcode}]}%
   {\end{Verbatim}}
 % flmVerbatimText[<lang>]: a block of plain verbatim text, set with the
-% verbtext hook. It takes the same optional argument as flmVerbatimCode and
-% ignores it, so that one command (\flmVerbatimBlock below), which always
-% writes the brackets, serves either environment.
+% verbtext hook in the font family of the surrounding text. It takes the same
+% optional argument as flmVerbatimCode and ignores it, so that one command
+% (\flmVerbatimBlock below), which always writes the brackets, serves either
+% environment.
 \ProvideDocumentEnvironment{flmVerbatimText}{O{}}{%
   \VerbatimEnvironment
-  \begin{Verbatim}[formatcom=\flmFmtVRB{verbtext}]}%
+  \begin{Verbatim}[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]}%
   {\end{Verbatim}}
 % \flmVerbatimBlock[<options>]{<environment>}{<lines>}: one block of verbatim
 % content written as a single macro call, for the places a block cannot be

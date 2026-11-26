@@ -9,7 +9,7 @@
 //! of substitutions. Collapsing whitespace is not one of the families: it
 //! always happens and has no flag.
 //!
-//! The `blocks` feature ([`crate::stdcore::features::blocks`]) takes a
+//! The `blocks` feature ([`crate::stdlib::features::blocks`]) takes a
 //! [`BlocksConfig`] as its configuration, a value fixed when the registry is
 //! built (see [settings, options and
 //! configuration](crate::guide::concepts_overview#settings-options-and-configuration)).
@@ -30,7 +30,7 @@
 ///
 /// A value is passed to [`structure`](super::structure), or to the `blocks`
 /// feature's constructor
-/// ([`Blocks::new`](crate::stdcore::features::blocks::Blocks::new)). Because
+/// ([`Blocks::new`](crate::stdlib::features::blocks::Blocks::new)). Because
 /// every field is public, a value can be built from the default with one change,
 /// or from [`no_typography`](BlocksConfig::no_typography) with one family
 /// switched on. In settings written as data ([`crate::core::settings`]), the

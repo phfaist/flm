@@ -1,64 +1,64 @@
-//! The recursion guard, which refuses deeply nested content instead of
-//! overflowing the stack, and the worker threads every guarded operation runs
-//! on.
+//! This module provides the recursion guard of FLM, which reports an error for
+//! deeply nested content before the content overflows the stack, along with the
+//! worker threads on which every guarded operation runs.
 //!
-//! Parsing, walking, rewriting and serializing a tree are recursive, so deeply
-//! nested input uses stack. techy's **descent guard** measures how much stack a
-//! recursive operation has used (the distance from a reference point taken when
-//! the operation starts) and refuses to descend one level further once a
-//! budget is spent; the library then reports the condition
-//! `flm.blocks.nesting-too-deep`. Without the guard, deeply nested input would
-//! overflow the stack, which ends the process; no embedding program can
-//! recover from that. See
-//! [the recursion guard and worker
+//! Parsing, traversing, rewriting and serializing a tree are recursive
+//! operations, so deeply nested content uses much stack. A stack overflow ends
+//! the process, and the program that embeds FLM cannot recover from it. To
+//! prevent the overflow, techy provides a *descent guard*: the guard measures
+//! the stack that a recursive operation has used since it started, and stops the
+//! operation when this amount exceeds a budget. The operation then reports an
+//! error, for instance [`NestingTooDeep`] (`flm.blocks.nesting-too-deep`) for a
+//! parse. See also [the recursion guard and worker
 //! threads](crate::guide::concepts_overview#the-recursion-guard-and-worker-threads).
 //!
 //! # Guarded construction
 //!
-//! techy's default budget is small, and it cannot be changed on a traversal or
-//! a language once constructed, so the library constructs every recursive
-//! operation through a function of this module, which sets the budget
-//! [`STACK_BUDGET`]: [`language`] (parsing), [`walker`], [`restager`] and
-//! [`recomposer`] (traversals), and [`serde_session`] (serialization). Each
-//! takes a [`GuardPolicy`]. The stack budget is the policy for normal use; a
-//! limit on the number of open descents is the policy for tests, because it
-//! refuses at the same input on every platform. A count of descents does not
-//! measure how much stack each level uses, so it gives no protection and is
-//! not used outside tests.
+//! techy's default budget is small, and the budget of a language or of a
+//! traversal can only be set when the language or the traversal is constructed.
+//! FLM therefore constructs every recursive operation with one of the following
+//! functions of this module, which install the guard with the budget
+//! [`STACK_BUDGET`]:
+//!
+//! - [`language`], for parsing;
+//! - [`walker`], [`restager`] and [`recomposer`], for traversals of a tree;
+//! - [`serde_session`], for serialization.
+//!
+//! The limit is selected with the [`GuardPolicy`] argument that each function
+//! takes.
+//! [`GuardPolicy::StackBudget`] limits the stack use and is the policy for
+//! normal use. [`GuardPolicy::DepthLimit`] limits the number of nested descents
+//! and is used in tests only.
 //!
 //! # The worker-thread requirement
 //!
-//! The budget limits how much stack a guarded operation *may use*; it does not
-//! check how much stack the thread has. On a thread with less stack than the
-//! budget, a guarded operation would overflow before the guard refused. A
-//! guarded operation must therefore run on a **worker thread**: a thread created
+//! The guard limits the stack that an operation uses, but it does not check the
+//! size of the stack of the current thread. On a thread with less stack than the
+//! budget, an operation overflows the stack before the guard stops it. Every
+//! guarded operation must therefore run on a *worker thread*: a thread created
 //! with at least [`WORKER_STACK_SIZE`] bytes of stack.
 //!
-//! The library meets this requirement for its callers. A thread-local marker
-//! records that the current thread is a worker thread ([`mark_worker_thread`];
-//! [`run_with_worker_stack`] sets it on the thread it creates). Before a guarded
-//! operation, the library's entry points call [`on_worker_thread`], which runs
-//! the work on the current thread if it is marked and otherwise on a new worker
-//! thread. The [parse entry points](crate::lang::parse), the [rewrite
-//! passes](crate::lang::rewrites), the run of a plan
-//! ([`Run`](crate::core::run::Run)) and the emitters of the standard backends
-//! do so, so an embedding program does not need to know about this
-//! requirement. When a run uses a thread pool, the pool's threads are created
-//! with the worker stack size and marked as they start, so no further thread
-//! is created on that path.
+//! The entry points of the library meet this requirement for their callers. They
+//! run each guarded operation through [`on_worker_thread`], which runs the
+//! operation on the current thread if this thread is marked as a worker thread,
+//! and otherwise on a new worker thread. The [parse functions](crate::lang::parse),
+//! the [rewrite passes](crate::lang::rewrites), the run of a plan
+//! ([`Run`](crate::core::run::Run)) and the emitters of the standard backends work
+//! in this way. A program that embeds FLM therefore does not need to create
+//! worker threads.
 //!
-//! A caller that runs a guarded operation that does not make this check itself
-//! (one built with the functions of this module, or
-//! [`copy_run_into_value`](crate::lang::copy::copy_run_into_value)) must run it
-//! inside [`on_worker_thread`].
+//! If you construct a guarded operation with a function of this module, or if
+//! you call [`copy_run_into_value`](crate::lang::copy::copy_run_into_value), run
+//! the operation inside [`on_worker_thread`].
 //!
-//! # A refusal is never a panic
+//! # Content that exceeds the limit
 //!
-//! When the guard refuses to descend, the operation produces the condition
-//! [`NestingTooDeep`] (`flm.blocks.nesting-too-deep`) and no tree: a parse
-//! returns [`FragmentError::NestingTooDeep`](crate::lang::FragmentError::NestingTooDeep),
-//! and a rewrite pass produces nothing for the tree it was working on and
-//! records the diagnostic instead.
+//! When the guard stops an operation, the operation does not panic. It reports
+//! an error and produces no result. For instance, a parse returns
+//! [`FragmentError::NestingTooDeep`](crate::lang::FragmentError::NestingTooDeep),
+//! which contains the error [`NestingTooDeep`]. A rewrite pass records the same
+//! error, and the tree that the pass was rewriting is absent from the output of
+//! the run.
 
 use std::cell::Cell;
 use std::thread;
@@ -73,43 +73,41 @@ use techy::visit::TreeWalker;
 
 use crate::lang::flm::Flm;
 
-/// The stack size, in bytes, of a worker thread: 64 MiB. Every guarded
-/// operation may assume that this much stack is available.
+/// The stack size of a worker thread, in bytes (64 MiB).
 ///
-/// A thread marked with [`mark_worker_thread`] must have at least this much
-/// stack; see [the worker-thread
-/// requirement](self#the-worker-thread-requirement).
+/// A thread that is marked as a worker thread with [`mark_worker_thread`] must
+/// have at least this much stack (see [the worker-thread
+/// requirement](self#the-worker-thread-requirement)).
 pub const WORKER_STACK_SIZE: usize = 64 * 1024 * 1024;
 
-/// The number of bytes of stack a guarded operation may use before it refuses
-/// to descend further: 48 MiB.
+/// The amount of stack, in bytes, that a guarded operation may use before the
+/// recursion guard stops it (48 MiB).
 ///
-/// It is smaller than [`WORKER_STACK_SIZE`], because the stack used between two
-/// checks of the guard, and by the refusal itself, must still fit on the worker
-/// thread.
+/// This budget is smaller than [`WORKER_STACK_SIZE`]. The difference leaves room
+/// for the stack that the operation uses between two checks of the guard, and
+/// for the stack that is used to report the error.
 pub const STACK_BUDGET: usize = 48 * 1024 * 1024;
 
 // The budget must leave headroom below the worker stack (checked at compile time).
 const _: () = assert!(STACK_BUDGET < WORKER_STACK_SIZE);
 
 thread_local! {
-    /// Whether the current thread is known to carry a worker stack.
+    /// Whether the current thread is marked as a worker thread.
     static WORKER_THREAD: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Marks the current thread as a worker thread: a thread on which a guarded
-/// operation may run directly.
+/// Marks the current thread as a worker thread. [`on_worker_thread`] then runs
+/// guarded operations directly on this thread.
 ///
-/// Call this **only** on a thread created with a stack of at least
-/// [`WORKER_STACK_SIZE`] bytes (`std::thread::Builder::stack_size`, or a thread
-/// pool's equivalent). A run's thread pool calls it once in each thread, as
-/// the thread starts.
+/// Call this function only on a thread that was created with at least
+/// [`WORKER_STACK_SIZE`] bytes of stack, for instance with
+/// `std::thread::Builder::stack_size` or with the corresponding setting of a
+/// thread pool. On a thread with a smaller stack, a guarded operation can
+/// overflow the stack before the recursion guard stops it (see [the
+/// worker-thread requirement](self#the-worker-thread-requirement)).
 ///
-/// Marking a thread with a smaller stack allows the stack overflow that [the
-/// worker-thread requirement](self#the-worker-thread-requirement) prevents,
-/// because the guard's budget limits how much stack an operation uses and does
-/// not check how much the thread has. [`run_with_worker_stack`] marks the
-/// thread it creates, so its callers need not call this function.
+/// [`run_with_worker_stack`] marks the thread that it creates, so you do not
+/// need to call this function on that thread.
 pub fn mark_worker_thread() {
     WORKER_THREAD.with(|marker| marker.set(true));
 }
@@ -120,25 +118,25 @@ pub fn is_worker_thread() -> bool {
     WORKER_THREAD.with(|marker| marker.get())
 }
 
-/// Runs `f` on a worker thread and returns its result: on the current thread
-/// when it is already one ([`is_worker_thread`]), and otherwise on a new
-/// thread created through [`run_with_worker_stack`].
+/// Runs `f` on a worker thread and returns its result.
 ///
-/// A worker thread is a thread created with at least [`WORKER_STACK_SIZE`]
-/// bytes of stack; every guarded operation (a parse, a rewrite, an emit) must
-/// execute on one, and the library's entry points create one when the calling
-/// thread is not marked as a worker thread. The library's guarded entry points
-/// call this function for their callers; call it yourself around any guarded
-/// operation you build with this module's functions.
+/// If the current thread is marked as a worker thread ([`is_worker_thread`]),
+/// `f` runs on the current thread. Otherwise, `f` runs on a new thread created
+/// with [`run_with_worker_stack`].
+///
+/// The entry points of the library call this function before they run a
+/// guarded operation (see [the worker-thread
+/// requirement](self#the-worker-thread-requirement)). Call it yourself around a
+/// guarded operation that you construct with the functions of this module.
 ///
 /// # Errors
 ///
-/// The operating system's error when it refuses to create the thread. `f` did
-/// not run in that case.
+/// Returns the error of the operating system if a new thread is needed and the
+/// operating system fails to create it. In this case, `f` does not run.
 ///
 /// # Panics
 ///
-/// A panic inside `f` propagates to the caller, whichever thread `f` ran on.
+/// A panic inside `f` propagates to the caller, on whichever thread `f` ran.
 pub fn on_worker_thread<T, F>(f: F) -> std::io::Result<T>
 where
     T: Send,
@@ -151,49 +149,49 @@ where
     }
 }
 
-/// Condition `flm.blocks.nesting-too-deep`: the recursion guard refused to
-/// descend one level further, because the content is nested too deeply.
+/// The error that is reported when content is nested too deeply to be
+/// processed (`flm.blocks.nesting-too-deep`).
 ///
-/// The parse, the rewrite passes and the other guarded operations report this
-/// same condition, so an embedding program has one identifier to recognize.
+/// Reported by a parse and by the rewrite passes when the recursion guard stops
+/// them (see the [module documentation](self)).
 ///
-/// Reported at error severity. Recovery: none. A parse that hits the limit
-/// returns no fragment; a rewrite pass that hits it produces no tree for the
-/// tree it was working on. This diagnostic is the only record of why.
+/// A parse that reports this error returns no fragment. When a rewrite pass
+/// reports this error, the tree that the pass was rewriting is absent from the
+/// output of the run.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.nesting-too-deep",
-    message = "the content nests too deeply to process: {detail}"
+    message = "Content too deeply nested: {detail}"
 )]
 pub struct NestingTooDeep {
     /// techy's description of the limit that was reached.
     pub detail: String,
 }
 
-/// How the recursion guard limits a guarded operation: by stack use (for
-/// normal use) or by the number of open descents (for tests). The [module
-/// documentation](self#guarded-construction) explains why there are two
-/// policies.
+/// A `GuardPolicy` is the kind of limit that the recursion guard sets on a
+/// guarded operation. The default policy,
+/// [`StackBudget`](GuardPolicy::StackBudget), is the policy for normal use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum GuardPolicy {
-    /// Refuse to descend once the operation has used [`STACK_BUDGET`] bytes of
-    /// stack. This is the policy for normal use, and the default.
+    /// Stops the operation once it has used more than [`STACK_BUDGET`] bytes of
+    /// stack.
     #[default]
     StackBudget,
-    /// Refuse to descend once this many descents are open at the same time
-    /// (roughly two per nesting level of a parse, one per tree level of a
-    /// traversal).
+    /// Stops the operation when it would open more than the given number of
+    /// descents at the same time. A parse opens about two descents for each
+    /// level of nesting, and a traversal opens one descent for each level of the
+    /// tree.
     ///
-    /// A count of descents does not measure how much stack each level uses, so
-    /// it does not protect against a stack overflow. It exists because it
-    /// refuses at the same input on every platform and build profile, which a
-    /// test needs. Use it in tests only.
+    /// Use this policy in tests only. It stops an operation at the same input on
+    /// every platform and with every build profile, which a test needs. However,
+    /// the number of descents does not measure the stack that each level uses, so
+    /// this policy does not protect against a stack overflow.
     DepthLimit(usize),
 }
 
 impl GuardPolicy {
-    /// Returns this policy as techy's descent-guard configuration, which
-    /// techy's constructors take.
+    /// Returns this policy as a [`StdDescentGuardInit`], the configuration of
+    /// the descent guard that techy's constructors take.
     pub fn init(self) -> StdDescentGuardInit {
         match self {
             GuardPolicy::StackBudget => StdDescentGuardInit::fixed_stack_budget(STACK_BUDGET),
@@ -202,37 +200,46 @@ impl GuardPolicy {
     }
 }
 
-/// Returns `language` with the recursion guard of `policy` installed, so that
-/// every parse it runs is guarded.
-/// [`build_language`](crate::lang::build_language) applies this to the language
-/// it builds.
+/// Returns `language` with a recursion guard that applies `policy` to every
+/// parse with this language.
+///
+/// [`build_language`](crate::lang::build_language) calls this function on the
+/// language that it builds.
 pub fn language(language: Language<Flm>, policy: GuardPolicy) -> Language<Flm> {
     language.with_descent_guard_init(policy.init())
 }
 
-/// Returns a tree walker (a read-only traversal) that drives `visitor` under
-/// the recursion guard of `policy`. Use it instead of techy's constructor.
+/// Returns a [`TreeWalker`] for `visitor`, with a recursion guard that applies
+/// `policy`.
+///
+/// A tree walker traverses a tree without changing it. Use this function in
+/// place of `TreeWalker::new`, which installs techy's small default budget.
 pub fn walker<V: ?Sized>(visitor: &mut V, policy: GuardPolicy) -> TreeWalker<'_, V> {
     TreeWalker::new(visitor).with_descent_guard_init(policy.init())
 }
 
-/// Returns a tree restager (a traversal that builds a new tree as it goes) that
-/// drives `visitor` under the recursion guard of `policy`. Use it instead of
-/// techy's constructor.
+/// Returns a [`TreeRestager`] for `visitor`, with a recursion guard that
+/// applies `policy`.
+///
+/// A tree restager traverses a tree and builds a new tree from it, with
+/// changes applied. Use this function in place of `TreeRestager::new`, which
+/// installs techy's small default budget.
 pub fn restager<V: ?Sized>(visitor: &mut V, policy: GuardPolicy) -> TreeRestager<'_, V> {
     TreeRestager::new(visitor).with_descent_guard_init(policy.init())
 }
 
-/// Returns a tree recomposer (a traversal that rebuilds a tree with edits
-/// applied) that drives `recomposer` under the recursion guard of `policy`. Use
-/// it instead of techy's constructor.
+/// Returns a [`TreeRecomposer`] for `recomposer`, with a recursion guard that
+/// applies `policy`.
+///
+/// A tree recomposer traverses a tree and combines it into one value, for
+/// instance a string of source text. Use this function in place of
+/// `TreeRecomposer::new`, which installs techy's small default budget.
 pub fn recomposer<R: ?Sized>(recomposer: &mut R, policy: GuardPolicy) -> TreeRecomposer<'_, R> {
     TreeRecomposer::new(recomposer).with_descent_guard_init(policy.init())
 }
 
-/// Returns `session` with the recursion guard of `policy` installed, so that
-/// reading or writing a deeply nested tree is refused instead of overflowing
-/// the stack.
+/// Returns `session` with a recursion guard that applies `policy` when the
+/// session serializes or deserializes a tree.
 pub fn serde_session<L: SerializableLang>(
     session: SerdeSession<L>,
     policy: GuardPolicy,
@@ -240,25 +247,23 @@ pub fn serde_session<L: SerializableLang>(
     session.with_descent_guard_init(policy.init())
 }
 
-/// Runs `f` on a new thread created with a stack of [`WORKER_STACK_SIZE`]
-/// bytes and marked as a worker thread ([`mark_worker_thread`]), and returns its
-/// result.
+/// Runs `f` on a new worker thread and returns its result.
 ///
-/// This meets [the worker-thread
-/// requirement](self#the-worker-thread-requirement) from a thread whose stack
-/// size is unknown (a test thread, the main thread of a program). It always
-/// creates a thread; [`on_worker_thread`] creates one only when the current
-/// thread is not a worker thread, and is usually the better choice.
+/// The new thread is created with [`WORKER_STACK_SIZE`] bytes of stack, and it
+/// is marked as a worker thread with [`mark_worker_thread`]. This function
+/// always creates a thread. In most cases, prefer [`on_worker_thread`], which
+/// creates a thread only if the current thread is not a worker thread.
 ///
 /// # Errors
 ///
-/// The operating system's error when it refuses to create the thread. `f` did
-/// not run in that case.
+/// Returns the error of the operating system if the operating system fails to
+/// create the thread. In this case, `f` does not run.
 ///
 /// # Panics
 ///
-/// A panic inside `f` is caught on the worker thread and resumed on the calling
-/// thread, so it reaches the caller as if `f` had run there.
+/// A panic inside `f` is caught on the new thread and resumed on the calling
+/// thread. The caller therefore observes the panic as if `f` had run on the
+/// calling thread.
 pub fn run_with_worker_stack<T, F>(f: F) -> std::io::Result<T>
 where
     T: Send,

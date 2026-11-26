@@ -1,8 +1,8 @@
-//! The façades over two tables of the standard package that a stage's
+//! The façades over two tables of the standard features that a stage's
 //! context and a rule's lowerer answer typed: the numbering feature's
-//! [`Counters`](flm_core::stdcore::features::numbering::Counters)
+//! [`Counters`](flm_core::stdlib::features::numbering::Counters)
 //! (`CountersFacade`) and the references feature's
-//! [`Anchors`](flm_core::stdcore::features::refs::Anchors)
+//! [`Anchors`](flm_core::stdlib::features::refs::Anchors)
 //! (`AnchorsFacade`); and the reading of a point's identifier from data.
 //!
 //! Both tables are keyed by a [`PointId`], whose node cannot be made from
@@ -17,16 +17,16 @@
 use flm_core::lang::Flm;
 use flm_core::model::addr::{NodeAddr, TreeId};
 use flm_core::core::run::StageCx as CoreStageCx;
-use flm_core::stdcore::features::numbering::{Counters as CoreCounters, FormatOptions};
-use flm_core::stdcore::features::refs::Anchors as CoreAnchors;
+use flm_core::stdlib::features::numbering::{Counters as CoreCounters, FormatOptions};
+use flm_core::stdlib::features::refs::Anchors as CoreAnchors;
 use flm_core::techy::core::node::NodeTree;
 use serde_json::Value;
 
 use crate::adapter::stage::{tree_id_of, tree_of};
 use crate::adapter::values::{field, fields};
 use crate::api::model::aspects::PointId;
-use crate::api::stdcore::features::numbering::{CounterRecord, Counters, NumberSegment};
-use crate::api::stdcore::features::refs::Anchors;
+use crate::api::stdlib::features::numbering::{CounterRecord, Counters, NumberSegment};
+use crate::api::stdlib::features::refs::Anchors;
 use crate::runtime::ExtError;
 use crate::sealed::{Sealed, Token};
 

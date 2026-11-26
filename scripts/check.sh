@@ -37,8 +37,9 @@
 #   flm-core and flm-info, 1.88 for the others);
 # - `wasm`: the target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`);
 # - `latex`: `pdflatex`, `lualatex` and `latexmk` on the PATH, with the LaTeX packages the
-#   generated documents load (a full TeX Live has them); on macOS, the MacTeX folder
-#   /Library/TeX/texbin is added to the PATH when `pdflatex` is not found on it;
+#   generated documents load (a full TeX Live has them), and Poppler's `pdftotext`; on
+#   macOS, the MacTeX folder /Library/TeX/texbin is added to the PATH when `pdflatex` is
+#   not found on it;
 # - `browser`: Google Chrome or Chromium (the variable FLM_TESTS_CHROME may give its path),
 #   and MathJax's files, installed by `npm ci` in `npm/`;
 # - `npm`: Node 22 or later, and the npm workspace's dependencies (`npm ci` in `npm/`).
@@ -52,9 +53,11 @@
 # has free. With --on-tight-disk-space, each command that tests whole packages runs in
 # pieces: the unit tests of the libraries, programs and examples (NAME-units), the
 # documentation tests (NAME-doc), then the integration tests, 50 programs at a time
-# (NAME-1, NAME-2, ...). After each command, the programs that cargo linked into
-# TARGET/debug/deps are deleted (TARGET is `target/` of the checkout, or $CARGO_TARGET_DIR).
-# The same tests run, and the compiled libraries stay: no dependency is compiled twice.
+# (NAME-1, NAME-2, ...). After each command, the test programs that cargo linked are
+# deleted from its build folder (the `build_directory` of `cargo metadata`: `target/` of the
+# checkout, or $CARGO_TARGET_DIR, unless cargo's `build.build-dir` names another). The same
+# tests run, and the compiled libraries stay: no dependency is compiled twice. When a
+# command ran test programs and none was found to delete, the summary says so.
 #
 # In GitHub Actions, each command's output is folded into a group, a failed command is
 # reported as an error annotation, and the summary is added to the job summary.
@@ -87,7 +90,7 @@ usage() {
 
 describe() { # describe <part>
     case "$1" in
-        test)     echo "the tests of the workspace, of flm-info without its optional feature, and of the guest client without the feature native" ;;
+        test)     echo "the lock files of the crates the tests build apart, the version written in each crate and output header, the tests of the workspace, of flm-info without its optional feature, and of the guest client without the feature native" ;;
         clippy)   echo "clippy with warnings denied, on the workspace and on the guest client without the feature native" ;;
         docs)     echo "the API documentation with warnings denied" ;;
         msrv)     echo "the crates build with the oldest Rust versions they declare" ;;
@@ -162,6 +165,13 @@ if [ -z "$logdir" ]; then
     logdir="$target_dir/check"
 fi
 summary="$logdir/summary.txt"
+# Cargo's build folder, where --on-tight-disk-space deletes the test programs.
+build_dir=$target_dir
+if [ "$tight" = 1 ] && [ "$dry" = 0 ]; then
+    reported=$(cargo metadata --format-version 1 --no-deps 2>/dev/null \
+        | sed -n 's/.*"build_directory":"\([^"]*\)".*/\1/p')
+    [ -n "$reported" ] && build_dir=$reported
+fi
 in_actions=0
 [ "${GITHUB_ACTIONS:-}" = true ] && in_actions=1
 
@@ -200,7 +210,8 @@ run() { # run <name> <command ...>
     fi
     [ "$in_actions" = 1 ] && echo "::endgroup::"
     elapsed=$(( $(date +%s) - started ))
-    [ "$tight" = 1 ] && delete_programs
+    local deleted=""
+    [ "$tight" = 1 ] && deleted=$(delete_programs)
 
     local counts skips outcome
     counts=$(grep -E '^test result:' "$log" | awk '{ p += $4; f += $6; i += $8 } END { if (NR) printf ", passed %d, failed %d, ignored %d", p, f, i }')
@@ -220,20 +231,38 @@ run() { # run <name> <command ...>
         printf '%s\n' "$skips" | sed 's/^/    /' >> "$summary"
         [ "$quiet" = 1 ] || printf '%s\n' "$skips" | sed 's/^/    /'
     fi
+    # Cargo writes a line `Running ... (PROGRAM)` for each test program it runs.
+    if [ "$deleted" = 0 ] && grep -Eq 'Running .+ \(.+\)' "$log"; then
+        local missed="No test program found to delete in $build_dir/debug"
+        echo "    $missed" >> "$summary"
+        [ "$quiet" = 1 ] || echo "    $missed"
+        [ "$in_actions" = 1 ] && echo "::warning title=check.sh::$name: $missed"
+    fi
     case "$outcome" in
         FAILED*) [ "$in_actions" = 1 ] && echo "::error title=check.sh::$name $outcome (log: $log)" ;;
     esac
     return 0
 }
 
-# With --on-tight-disk-space, after each command: the programs that cargo linked into
-# TARGET/debug/deps, the test programs and the packages' own programs (cargo links one
-# again when a later command needs it). The libraries stay, with the shared libraries of
-# the procedural macros.
+# With --on-tight-disk-space, after each command: the programs that cargo linked into its
+# build folder BUILD, each named NAME-HASH (HASH: 16 hexadecimal digits); prints how many.
+# Cargo 1.100 and later put them in BUILD/debug/build/PACKAGE/HASH/out/, older versions in
+# BUILD/debug/deps/. They are the test programs, and with the older versions also the
+# packages' own programs (cargo links one again when a later command needs it). The
+# libraries stay, with the shared libraries of the procedural macros, and so do the build
+# scripts.
 delete_programs() {
-    [ -d "$target_dir/debug/deps" ] || return 0
-    find "$target_dir/debug/deps" -maxdepth 1 -type f -perm -u+x \
-        ! -name '*.so' ! -name '*.dylib' ! -name '*.dll' -delete
+    local h='[0-9a-f]' d dirs=()
+    local program="*-$h$h$h$h$h$h$h$h$h$h$h$h$h$h$h$h"
+    for d in "$build_dir/debug/deps" "$build_dir"/debug/build/*/*/out; do
+        [ -d "$d" ] && dirs+=("$d")
+    done
+    if [ ${#dirs[@]} = 0 ]; then
+        echo 0
+        return 0
+    fi
+    find "${dirs[@]}" -maxdepth 1 -type f -perm -u+x \( -name "$program" -o -name "$program.exe" \) \
+        -print -delete | wc -l | tr -d ' '
 }
 
 run_tests() { # run_tests <name> <command ...>: `cargo test` over whole packages
@@ -274,12 +303,48 @@ part() { # part <name>: the heading of a part
     fi
 }
 
+# The version of FLM is written once, in the workspace's Cargo.toml. The lock files and the
+# generated flm-ext/flm.d.ts follow from it, and are checked elsewhere (the lock-file checks,
+# --locked, and the test api_surface of flm-ext). This checks the other places: every crate
+# of the workspace has that one version, and every header of an output written in the
+# repository's files (`"kind": ..., "flm": VERSION`, as in the guides' examples) names it.
+check_versions() {
+    local crates versions version stale
+    crates=$(cargo tree $locked --workspace --depth 0 --prefix none --format '{p}') || return 1
+    versions=$(printf '%s\n' "$crates" | awk 'NF { print $2 }' | LC_ALL=C sort -u)
+    case $versions in
+        *$'\n'*)
+            echo "The crates of the workspace have different versions:"
+            printf '%s\n' "$crates" | awk 'NF { print "    " $1 " " $2 }'
+            return 1
+            ;;
+    esac
+    version=${versions#v}
+    stale=$(git grep -n -E '"kind": ?"[a-z]+", ?"flm": ?"' | grep -v -F -e "\"flm\":\"$version\"" -e "\"flm\": \"$version\"")
+    if [ -n "$stale" ]; then
+        echo "These output headers do not have the version of the workspace, $version:"
+        printf '%s\n' "$stale" | sed 's/^/    /'
+        return 1
+    fi
+    echo "Every crate of the workspace and every output header has the version $version."
+}
+
 if selected test; then
     part test
+    # The crates that the tests build apart from the workspace (the guest crates of
+    # flm-ext/tests/) each have a lock file of their own, which a change of the workspace's
+    # dependencies leaves out of date. `cargo tree --locked` refuses such a lock file and
+    # builds nothing. It is given --locked whatever the options, since that refusal is the
+    # check.
+    while IFS= read -r lock; do
+        crate=$(dirname "$lock")
+        run "lock-$(basename "$crate")" cargo tree --locked --depth 0 --manifest-path "$crate/Cargo.toml"
+    done < <(git ls-files -- '*/Cargo.lock')
+    run versions check_versions
     # Cargo builds each crate of the workspace once, with every feature that any crate of
-    # the workspace turns on: flm-ext with all its features, flm-info with `flm-main`.
+    # the workspace turns on: flm-ext with all its features, flm-info with `flm-host`.
     run_tests test-workspace   cargo test $locked --workspace
-    # flm-info without its feature `flm-main`, the build that needs flm-core alone.
+    # flm-info without its feature `flm-host`, the build that needs flm-core alone.
     run_tests test-info-core   cargo test $locked -p flm-info
     # The guest client without the feature `native`, as a WebAssembly module has it (its
     # requests cross as JSON): the unit tests whose requests the ABI's test hook answers.
@@ -308,42 +373,65 @@ fi
 if selected features; then
     part features
     # flm-core without its default features `parallel` and `docs` (the sequential path).
-    # Package-scoped on purpose: in a workspace build, flm-main turns the features back on.
+    # Package-scoped on purpose: in a workspace build, flm-host turns the features back on.
     run_tests test-core-nodefault cargo test $locked -p flm-core --no-default-features
     run clippy-core-nodefault  cargo clippy $locked -p flm-core --all-targets --no-default-features -- -D warnings
     # The parallel build on a pool of one thread.
     run_tests test-core-1thread env RAYON_NUM_THREADS=1 cargo test $locked -p flm-core
     # The host library without the disk, and with each optional feature alone.
-    run test-host-nodefault    cargo test $locked -p flm-main --no-default-features --test watch_update --no-fail-fast
-    run check-host-graphics    cargo check $locked -p flm-main --no-default-features --features graphics
-    run check-host-citations   cargo check $locked -p flm-main --no-default-features --features citations
-    run check-host-watch       cargo check $locked -p flm-main --no-default-features --features watch
+    run test-host-nodefault    cargo test $locked -p flm-host --no-default-features --test watch_update --no-fail-fast
+    run check-host-graphics    cargo check $locked -p flm-host --no-default-features --features graphics
+    run check-host-citations   cargo check $locked -p flm-host --no-default-features --features citations
+    run check-host-watch       cargo check $locked -p flm-host --no-default-features --features watch
+    run check-host-download    cargo check $locked -p flm-host --no-default-features --features download
     # The program without its default engines (`js`, `wasm`) and without the extensions
     # shipped with FLM (`bundled-extensions`).
-    run check-cli-nodefault    cargo check $locked -p flm-cli --no-default-features
+    run check-cli-nodefault    cargo check $locked -p flm --no-default-features
+    # flm-extensions with the feature of one extension alone: the test that the tables hold
+    # that extension alone exists in this build only. Package-scoped on purpose: in a
+    # workspace build, the feature `all` is on.
+    run test-extensions-one    cargo test $locked -p flm-extensions --no-default-features --features phfpack --lib --no-fail-fast
 fi
 
 if selected wasm; then
     part wasm
     run wasm-core              cargo check $locked -p flm-core --no-default-features --target $wasm_target
-    run wasm-host              cargo check $locked -p flm-main --no-default-features --target $wasm_target
+    run wasm-host              cargo check $locked -p flm-host --no-default-features --target $wasm_target
     run wasm-info              cargo check $locked -p flm-info --no-default-features --target $wasm_target
     # The extension layer without its bindings, and the guest client that an extension
     # compiled to WebAssembly is written against.
     run wasm-ext               cargo check $locked -p flm-ext --no-default-features --target $wasm_target
     run wasm-guest-client      cargo check $locked -p flm-ext --no-default-features --features guest --target $wasm_target
-    # The extension `phfpack` (written in Rust) in its WebAssembly form: its package selected
-    # alone, so that `flm-ext` has the guest client without the feature `native`, as
-    # extensions/rust/build-wasm.sh builds it.
-    run wasm-phfpack           cargo check $locked -p phfpack --target $wasm_target
+    # The extension `phfpack` (written in Rust) in its WebAssembly form: the package
+    # `flm-extensions` selected alone with the extension's feature, so that `flm-ext` has the
+    # guest client without the feature `native`, as extensions/rust/build-wasm.sh builds it.
+    run wasm-phfpack           cargo check $locked -p flm-extensions --no-default-features --features phfpack --target $wasm_target
+    # The extension `math-techxt` in its WebAssembly form, as for `phfpack`; the line
+    # `wasm-guest-math-techxt` below builds the module and runs it.
+    run wasm-math-techxt       cargo check $locked -p flm-extensions --no-default-features --features math-techxt --target $wasm_target
     # The guest crates of flm-ext/tests/wasm/ built for WebAssembly and run through the
     # engine `wasm`; the engine `native` in a program built for WebAssembly.
     run wasm-guest-ext         env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-ext --all-features --test wasm_case1 --test native --test native_wasm32 --no-fail-fast -- --nocapture
-    run wasm-guest-cli         env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-cli --test extensions_wasm --no-fail-fast -- --nocapture
+    run wasm-guest-cli         env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm --test extensions_wasm --no-fail-fast -- --nocapture
     # The extension `profile-pdf-latex` built by extensions/rust/build-wasm.sh gives the PDF
     # of its form compiled into the program. Selected by name: the other gated test of the
     # file needs LaTeX (the part `latex`).
-    run wasm-guest-pdf-latex   env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-cli --test pdf_latex --no-fail-fast -- --nocapture the_webassembly_form
+    run wasm-guest-pdf-latex   env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm --test pdf_latex --no-fail-fast -- --nocapture the_webassembly_form
+    # The extension `profile-tty` built by the same script gives the bytes of its form
+    # compiled into the program.
+    run wasm-guest-tty         env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm --test tty --no-fail-fast -- --nocapture the_webassembly_form
+    # The extension `math-techxt` built by the same script gives the text and HTML outputs of
+    # its form compiled into the program.
+    run wasm-guest-math-techxt env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm --test math_techxt --no-fail-fast -- --nocapture the_webassembly_form
+    # A collection built from `flm-extensions` with the feature `collection`, and the files
+    # that its custom section holds, read back.
+    run wasm-collection        env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-extensions --features all --test collection --no-fail-fast -- --nocapture
+    # A collection loaded by a program: the guest crate flm-ext/tests/wasm/collection/ run
+    # through the engine `wasm`, its two extensions in one instance.
+    run wasm-guest-collection  env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-ext --features wasm --test wasm_collection --no-fail-fast -- --nocapture
+    # A collection built by extensions/rust/build-wasm.sh --collection, given in a request of
+    # flm-host, renders a document as the program's own tables do.
+    run wasm-host-collection   env FLM_TESTS_WASM_GUEST=1 cargo test $locked -p flm-host --features wasm,native --test collection --no-fail-fast -- --nocapture
 fi
 
 if selected latex; then
@@ -354,14 +442,14 @@ if selected latex; then
     fi
     # A test of these suites fails, rather than being skipped, when a LaTeX program is missing.
     run_tests latex-core       env FLM_TESTS_LATEX_COMPILE=1 cargo test $locked -p flm-core
-    run latex-cli              env FLM_TESTS_LATEX_COMPILE=1 cargo test $locked -p flm-cli --test templates --test end_to_end --test pdf_latex --no-fail-fast
-    run latex-phfpack          env FLM_TESTS_LATEX_COMPILE=1 cargo test $locked -p phfpack --test macros --test quantities --no-fail-fast
+    run latex-cli              env FLM_TESTS_LATEX_COMPILE=1 cargo test $locked -p flm --test templates --test end_to_end --test pdf_latex --no-fail-fast
+    run latex-phfpack          env FLM_TESTS_LATEX_COMPILE=1 cargo test $locked -p flm-extensions --features phfpack --test phfpack-macros --test phfpack-quantities --no-fail-fast
 fi
 
 if selected browser; then
     part browser
     # The feature `js`: the cases of the `math-mathjax` extension's pages are behind it.
-    run browser-watch-page     env FLM_TESTS_BROWSER=1 cargo test $locked -p flm-main --features watch,js --test watch_page --no-fail-fast -- --nocapture
+    run browser-watch-page     env FLM_TESTS_BROWSER=1 cargo test $locked -p flm-host --features watch,js --test watch_page --no-fail-fast -- --nocapture
 fi
 
 if selected npm; then
@@ -370,7 +458,10 @@ if selected npm; then
     run npm-typescript-check   env FLM_TESTS_TYPESCRIPT=1 cargo test $locked -p flm-ext --all-features --test typescript_check --no-fail-fast -- --nocapture
     # The committed lecture-notes bundle is the one its sources build (this test also runs
     # in the part `test`, where it is skipped when the npm workspace is not installed).
-    run npm-lecturenotes       cargo test $locked -p flm-cli --test lecturenotes --no-fail-fast -- --nocapture
+    run npm-lecturenotes       cargo test $locked -p flm --test lecturenotes --no-fail-fast -- --nocapture
+    # The committed bundle of the watch client is the one its sources build (this test also
+    # runs in the part `test`, where it is skipped when the npm workspace is not installed).
+    run npm-watchclient        cargo test $locked -p flm-host --test watch_client --no-fail-fast -- --nocapture
 fi
 
 if [ "$dry" = 1 ]; then

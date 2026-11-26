@@ -48,7 +48,7 @@
 //! [`crate::model::addr`].
 
 // The crate's module layering, of which this module's position is one line:
-//     {model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+//     {model, lang} < core < dump < stdlib < math_passthrough        layout standalone
 // This module uses `crate::model` and the diagnostic, span and source aliases of
 // `crate::lang`, and no other submodule of `crate::core`; nothing in
 // `crate::model` or `crate::lang` uses it. It does not depend on any backend nor

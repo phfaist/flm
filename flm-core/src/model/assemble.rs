@@ -16,7 +16,7 @@
 //! - The content of an included file (a **content input**) is parsed at the
 //!   place of its `\input` command, inside the tree of the file that includes
 //!   it, and the rewrite stage of the `input` feature
-//!   ([`input`](crate::stdcore::features::input)) later inserts it in place of
+//!   ([`input`](crate::stdlib::features::input)) later inserts it in place of
 //!   the command, so every later stage sees one continuous text.
 //! - An included file whose front matter (the block of settings at the head of
 //!   the file, read by the input resolver) declares that it opens with a
@@ -107,7 +107,7 @@ use crate::model::doc::{DocContent, Fragment, FragmentLayout};
 ///
 /// // The source holds no `\input`, so the document is the primary file's tree
 /// // alone. (The bare language below would not recognize `\input` anyway: the
-/// // `input` feature of the standard package declares it.)
+/// // standard feature `input` declares it.)
 /// let lang = build_language(LangInputs::new());
 /// let source = Arc::new(FlmSource::new("Hello").with_origin(FlmOrigin::new("main.flm")));
 /// let options = ParseOptions { input_resolver: Some(Arc::new(OneFile)), ..ParseOptions::default() };

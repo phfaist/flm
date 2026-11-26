@@ -52,7 +52,7 @@ defines it in full.
   ([`FeatureBuilder::presentation_element`](crate::core::registry::FeatureBuilder::presentation_element)).
   The presentation elements, named
   `flm.pres.<name>`, form one vocabulary that every backend shares
-  ([`crate::stdcore::backends::pres`]). A **presentation tree**, also called a **lowered
+  ([`crate::stdlib::backends::pres`]). A **presentation tree**, also called a **lowered
   tree**, is the result of lowering one tree: a tree of presentation elements and of
   elements in the backend's native set.
 - An **emitter** is a backend's emit stage: it walks the lowered trees and writes the
@@ -146,16 +146,16 @@ use std::sync::Arc;
 
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_core::techy::source::Source;
 
-// A registry holding the standard package, and nothing else.
+// A registry holding a package of the standard features, and a math processor.
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -183,17 +183,17 @@ assert_eq!(output.text, "Title\n=====\n\nSome emphasized text.\n");
 
 A caller always reads a result this way: a backend's stages write tables, and the caller
 reads the table that holds what it wants. The plain-text backend writes the printed text
-twice: as a [`TextOutput`](crate::stdcore::backends::text::TextOutput), with the position
+twice: as a [`TextOutput`](crate::stdlib::backends::text::TextOutput), with the position
 of every printed element, in
-[`TEXT_OUTPUT`](crate::stdcore::backends::text::TEXT_OUTPUT) (`flm.output.text`), and as
+[`TEXT_OUTPUT`](crate::stdlib::backends::text::TEXT_OUTPUT) (`flm.output.text`), and as
 the `text` output's artifact set in
-[`TEXT_DOCUMENT`](crate::stdcore::backends::text::TEXT_DOCUMENT)
+[`TEXT_DOCUMENT`](crate::stdlib::backends::text::TEXT_DOCUMENT)
 (`flm.output.text.document`). Besides its output, the `text` workflow demands the
 [collection](crate::guide::concepts_overview#stages-capabilities-and-plans) (a named set of
-capabilities that any feature may join) [`flm.validated`](crate::stdcore::VALIDATED), which
-every check of the standard package joins, so a render also runs every check of the
+capabilities that any feature may join) [`flm.validated`](crate::stdlib::VALIDATED), which
+every check of the standard features joins, so a render also runs every check of the
 document
-([`TextBackend`](crate::stdcore::backends::text::TextBackend)).
+([`TextBackend`](crate::stdlib::backends::text::TextBackend)).
 
 ## Lowering
 
@@ -204,15 +204,15 @@ holds a heading, a `flm.pres.block-heading` node; where it holds a cross-referen
 never changed.
 
 Each backend has one lowering stage,
-[`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage), named
+[`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage), named
 `flm.<backend>.lower`, which runs once per document tree. It writes its result into the
 table `flm.lowered.<backend>` as a
-[`LoweredTrees`](crate::stdcore::backends::lowering::LoweredTrees) value, which holds one
-[`LoweredTree`](crate::stdcore::backends::lowering::LoweredTree) per document tree: the
+[`LoweredTrees`](crate::stdlib::backends::lowering::LoweredTrees) value, which holds one
+[`LoweredTree`](crate::stdlib::backends::lowering::LoweredTree) per document tree: the
 lowered tree itself, the requirements its rules recorded (identifiers of the definitions
 its output needs, below), and the number of rounds lowering ran over it. The work on one
 tree is done by the **lowering driver**, the function
-[`lower_tree`](crate::stdcore::backends::lowering::lower_tree): it walks the tree and calls
+[`lower_tree`](crate::stdlib::backends::lowering::lower_tree): it walks the tree and calls
 the rules.
 
 Each element's part of that rewrite is done by a lowering rule
@@ -231,7 +231,7 @@ handles each node in one of three ways:
 1. A node whose element the backend writes natively under this plan (its native set, less
    any element for which the plan request prefers a rule) is copied, and its children are
    lowered. An element whose content is source text carries the
-   [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent) aspect
+   [`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent) aspect
    (`flm.pres.math-passthrough` and `flm.pres.verbatim` are the two elements of the vocabulary
    that carry it): the driver copies its subtree unchanged and lowers nothing inside it
    except a node carrying `ContentInOpaque`, no element inside it counts toward the rounds,
@@ -308,33 +308,33 @@ receives the interface, and are listed on the [`Lowerer`](crate::core::lowering:
 page under its `impl dyn Lowerer` block. This page writes them without a link, because
 rustdoc has no link syntax for a method of a trait object.
 
-These functions of [`crate::stdcore::backends::lowering`] lower or copy content that a rule
+These functions of [`crate::stdlib::backends::lowering`] lower or copy content that a rule
 has chosen itself: a run of sibling nodes (the content of one argument, the children of one
 node, a single node) or one argument of the node:
 
-- [`lower_run`](crate::stdcore::backends::lowering::lower_run) lowers such a run of nodes
+- [`lower_run`](crate::stdlib::backends::lowering::lower_run) lowers such a run of nodes
   through the rules, so that each node becomes what its own rule stages for it.
-- [`copy_run_verbatim`](crate::stdcore::backends::lowering::copy_run_verbatim) and
-  [`copy_subtree_verbatim`](crate::stdcore::backends::lowering::copy_subtree_verbatim)
+- [`copy_run_verbatim`](crate::stdlib::backends::lowering::copy_run_verbatim) and
+  [`copy_subtree_verbatim`](crate::stdlib::backends::lowering::copy_subtree_verbatim)
   copy the run of nodes or one subtree unchanged. A rule uses them to put the source of an
   [opaque region](crate::guide::concepts_overview#opaque-regions), such as a formula,
   into a presentation node.
-- [`stage_verbatim_content`](crate::stdcore::backends::lowering::stage_verbatim_content)
+- [`stage_verbatim_content`](crate::stdlib::backends::lowering::stage_verbatim_content)
   stages the content of a [verbatim
   region](crate::guide::concepts_overview#verbatim-regions); every rule that stages
   verbatim content calls it, the default rule of a bare verbatim group included. It reads
   the content as characters first. Content that a user definition's template put there and
   that is not characters (a command, a formula) is reported as
-  [`ContentNotCharacters`](crate::stdcore::backends::lowering::ContentNotCharacters) at
+  [`ContentNotCharacters`](crate::stdlib::backends::lowering::ContentNotCharacters) at
   the command or environment that owns the region, and the region then shows that
   content's source text.
-- [`lower_arg_or_nothing`](crate::stdcore::backends::lowering::lower_arg_or_nothing) and
-  [`lower_arg_named_or_nothing`](crate::stdcore::backends::lowering::lower_arg_named_or_nothing)
+- [`lower_arg_or_nothing`](crate::stdlib::backends::lowering::lower_arg_or_nothing) and
+  [`lower_arg_named_or_nothing`](crate::stdlib::backends::lowering::lower_arg_named_or_nothing)
   lower a mandatory argument and produce nothing where a recovered parse error left the
   argument absent, so that the parse's own report stays the only one.
 
 The `headings` feature's rule
-([`HeadingRule`](crate::stdcore::features::headings::HeadingRule)) is a short example of
+([`HeadingRule`](crate::stdlib::features::headings::HeadingRule)) is a short example of
 what a rule does. It reads the heading's level from its element, reads the heading's
 anchor from the anchors table and its number from the counter table, lowers the title
 argument, and stages one `flm.pres.block-heading` node carrying the level and the anchor,
@@ -349,12 +349,13 @@ written with no number.
 
 Plan construction reads a rule's [`LoweringDecl`](crate::core::lowering::LoweringDecl)
 before any rule runs, so a rule takes part in scheduling without having run. The
-declaration has six fields. Four of them (`requires`, `reads`, `reads_opt` and `options`)
+declaration has seven fields. Four of them (`requires`, `reads`, `reads_opt` and `options`)
 say what the rule needs; `produces` lists what it may stage; `selection_requires` lists
-the requirements it records just by being selected:
+the requirements it records just by being selected; `unchecked_output` lists the backends
+on which nothing checks what it writes:
 
 - `requires`, `reads`, `reads_opt` and the option types the rule reads are added to the
-  needs of its backend's lowering stage ([`rules_needs`](crate::stdcore::backends::lowering::rules_needs)).
+  needs of its backend's lowering stage ([`rules_needs`](crate::stdlib::backends::lowering::rules_needs)).
   A rule that reads the references table therefore causes the stage that writes that table
   to be scheduled, and a plan whose backend lowers paragraphs runs the block-structure
   rewrite, because the paragraph rule requires the capability `flm.blocks.structured`.
@@ -388,6 +389,17 @@ the requirements it records just by being selected:
   into the packages and definitions of its style file. The plain-text backend has no use
   for a definition: it records the requirements in the lowered-trees table, where a host
   can read them, and reads none itself.
+- `unchecked_output` lists the backends on which what the rule writes is checked by
+  nothing before the program that reads the output, each with what is written and what
+  reads it ([`UncheckedOutputDecl`](crate::core::lowering::UncheckedOutputDecl)). A plan
+  that selects the rule on such a backend keeps a warning, which the runner reports as
+  `flm.run.unchecked-output` ([Choosing a rule per backend](#choosing-a-rule-per-backend)).
+  The two texts complete that warning's message, which reads "Unchecked output for
+  *reader*: feature ‘…’ writes *written* as is (backend ‘…’)". The rules of
+  `math-passthrough` declare their formulas this way on `html`, `latex-rendered` and
+  `latex-recomposed`, and keep that declaration when another feature registers them under
+  names of its own, as the `math-techxt` extension does on the two LaTeX backends; the
+  warning then names that feature.
 
 ### Choosing a rule per backend
 
@@ -425,9 +437,15 @@ acceptable is decided by the completeness check described under [accepted unrend
 elements](#accepted-unrenderable-elements). A feature that ships only a rule marked for one
 backend is therefore incomplete on the other backends, and that check reports it.
 
-A preference the plan cannot honor is never dropped without a report. The plan keeps it as
-a [`PlanWarning`](crate::core::plan::PlanWarning), and the runner reports each one as a
-Warning before the run's own diagnostics:
+A preference the plan cannot honor is never dropped without a report, and neither is
+output that nothing checks. The plan keeps each as a
+[`PlanWarning`](crate::core::plan::PlanWarning), and the runner reports each one as a
+Warning before the run's own diagnostics. Three concern a preference; the fourth, the
+output of the selected rules that nothing checks before the program reading the output
+does, concerns none. A rule declares such output in
+[`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output),
+for one backend, with what it writes and what reads it, and the plan keeps one warning per
+backend and feature, however many rules of the feature declare it:
 
 - `flm.run.preferred-rule-set-aside`: the preferred rule is set aside; the warning lists
   the peer declarations that did not resolve.
@@ -435,6 +453,12 @@ Warning before the run's own diagnostics:
   only.
 - `flm.run.ignored-preference`: a preferred *stage* could not be scheduled, because
   scheduling another stage that provides a capability in common ruled it out.
+- `flm.run.unchecked-output`: the rules of a feature write output that nothing checks,
+  for example the formulas of `math-passthrough` on `html`, `latex-rendered` and
+  `latex-recomposed`, whose commands nothing checks.
+
+A plan holds nothing of a document, so these warnings are reported for every document
+rendered with the plan, whatever it holds.
 
 The result of rule selection is one `SelectedRules` value per backend. The lowering stage
 reads it to compute its needs, and the lowering driver reads it at every node.
@@ -445,14 +469,14 @@ A rule may stage nodes of elements that themselves need lowering, so one pass ov
 is not always enough. Lowering therefore runs in **rounds**: each round is one pass over
 the tree, and another round follows while the tree still holds an element outside the
 backend's native set. The number of rounds allowed is
-[`rank`](crate::stdcore::backends::lowering::rank), computed from the plan's rule
+[`rank`](crate::stdlib::backends::lowering::rank), computed from the plan's rule
 selection: the length of the longest chain of rule applications from any element a
 document may contain to the backend's native set, following what each selected rule
 declares in `produces`.
 
 A tree that still holds a non-native element after the last allowed round fails: it is
 reported as `flm.lowering.rounds-exceeded`
-([`RoundsExceeded`](crate::stdcore::backends::lowering::RoundsExceeded)), which lists the
+([`RoundsExceeded`](crate::stdlib::backends::lowering::RoundsExceeded)), which lists the
 elements left. Two mistakes of a rule lead there: a `produces` list that omits an element
 the rule stages, and `Lowering::Default` returned for an element the backend does not
 write natively.
@@ -462,28 +486,28 @@ write natively.
 Lowering reports every problem of a document as a diagnostic. It neither panics nor
 returns an error to the caller because of the document, so a malformed document still
 produces a run. The only panic is for a plan run against a registry other than the one it
-was built from ([`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage)). A
+was built from ([`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage)). A
 failure has one of two extents
-([`crate::stdcore::backends::lowering::error`]):
+([`crate::stdlib::backends::lowering::error`]):
 
 - **One node.** The node is replaced by a childless `flm.pres.unsupported` node, and one
   Error is reported at the node; the rest of the tree is lowered normally. This applies to
   a rule that failed
-  ([`RuleFailed`](crate::stdcore::backends::lowering::RuleFailed)), to a rule that refused
+  ([`RuleFailed`](crate::stdlib::backends::lowering::RuleFailed)), to a rule that refused
   the node with a diagnostic of its own
   ([`LowerError::Refused`](crate::core::lowering::LowerError::Refused), whose diagnostic is
   reported instead), to a rule that asked for a region of another node that does not exist
-  ([`RegionNotFound`](crate::stdcore::backends::lowering::RegionNotFound)), to an element
+  ([`RegionNotFound`](crate::stdlib::backends::lowering::RegionNotFound)), to an element
   the backend cannot render that the plan request accepted
-  ([`UnsupportedElement`](crate::stdcore::backends::lowering::UnsupportedElement)), and to
+  ([`UnsupportedElement`](crate::stdlib::backends::lowering::UnsupportedElement)), and to
   an element that nothing lowers at all
-  ([`NoRule`](crate::stdcore::backends::lowering::NoRule)).
+  ([`NoRule`](crate::stdlib::backends::lowering::NoRule)).
 - **The whole tree.** The tree gets no entry in the lowered-trees table, so nothing is
   written for it, and one Error at its root gives the reason:
-  [`RoundsExceeded`](crate::stdcore::backends::lowering::RoundsExceeded),
-  [`LoweringFailed`](crate::stdcore::backends::lowering::LoweringFailed) (a node could not
+  [`RoundsExceeded`](crate::stdlib::backends::lowering::RoundsExceeded),
+  [`LoweringFailed`](crate::stdlib::backends::lowering::LoweringFailed) (a node could not
   be staged at all, or the lowered tree could not be written into the backend's table), or
-  [`NestingTooDeep`](crate::stdcore::backends::lowering::NestingTooDeep) (the tree nests
+  [`NestingTooDeep`](crate::stdlib::backends::lowering::NestingTooDeep) (the tree nests
   more deeply than the recursion guard allows).
 
 [`LowerError`](crate::core::lowering::LowerError) lists which failure of a rule leads to
@@ -494,7 +518,7 @@ after a refused call, the `Lowerer` has staged nothing.
 
 Some content is shown again away from where it is written: a heading's title that a
 reference prints, a [kept
-definition](crate::stdcore::features::userdefs::kept)'s template (a user definition left in
+definition](crate::stdlib::features::userdefs::kept)'s template (a user definition left in
 the tree for the recomposed LaTeX) staged at each use site, a list's own
 label template. Such content is brought up to date and lowered at every place it is shown,
 and every diagnostic its lowering raises is reported at each of those places: an
@@ -515,7 +539,7 @@ diagnostics merges duplicates if it wants to.
 ## The presentation vocabulary
 
 The presentation elements form one vocabulary that every backend shares
-([`crate::stdcore::backends::pres`]). Because every backend reads the same elements, a
+([`crate::stdlib::backends::pres`]). Because every backend reads the same elements, a
 lowering rule written once serves all of them, and a format needs a rule of its own only
 where it does something different. The vocabulary has no general-purpose element that can
 carry anything: a feature whose content none of these elements can carry registers a
@@ -525,32 +549,32 @@ see [Extending FLM](crate::guide::extending#lowering-rules)).
 
 The elements are listed below; each is named `flm.pres.<name>`. A node's **body** is the
 run of nodes it contains; a **content slot** is a named group of a node's children, of
-which the body is one ([`crate::stdcore::backends::pres::read`]).
+which the body is one ([`crate::stdlib::backends::pres::read`]).
 
 | element | what it is |
 |---|---|
-| [`PAR`](crate::stdcore::backends::pres::PAR) | a paragraph; its body is a run of inline nodes |
-| [`BLOCK`](crate::stdcore::backends::pres::BLOCK) | a block container with a role and kind tokens (below); its body is a run of blocks |
-| [`BLOCK_HEADING`](crate::stdcore::backends::pres::BLOCK_HEADING) | a heading placed between blocks, with its heading kind's name, its level and whether it is in the table of contents |
-| [`RUNIN_HEADING`](crate::stdcore::backends::pres::RUNIN_HEADING) | the title of a run-in heading, inside the run-in decoration that leads its paragraph, with the same payload as a block heading |
-| [`SPAN`](crate::stdcore::backends::pres::SPAN) | inline content with a display style, a role and kind tokens |
-| [`LIST`](crate::stdcore::backends::pres::LIST) | a list: one node holding a `label` and an `item` content slot per entry, read by position because the names repeat; its kind tokens include at most one of `numbered`, `unnumbered` and `terms`, which say what shape of list it is, and `labeled` when every entry carries its own label ([`LIST_RESERVED_KINDS`](crate::stdcore::backends::pres::LIST_RESERVED_KINDS)) |
-| [`CELLS`](crate::stdcore::backends::pres::CELLS) | a table of cells: one node whose payload is the table's grid, holding one `cell` content slot per cell, in the order of the payload's entries |
-| [`LINES`](crate::stdcore::backends::pres::LINES) / [`LINE`](crate::stdcore::backends::pres::LINE) | a run of lines, each with its own indentation and alignment |
-| [`VERBATIM`](crate::stdcore::backends::pres::VERBATIM) | byte-exact content of a [`VerbatimKind`](crate::stdcore::backends::pres::VerbatimKind) (`text` for characters set as they are, `code` for computer code, `a` for an identifier), inline or as a block, with an optional language name |
-| [`MATH_PASSTHROUGH`](crate::stdcore::backends::pres::MATH_PASSTHROUGH) | mathematics passed on as source text: its body is the original content of the formula |
-| [`MATH_TEXT`](crate::stdcore::backends::pres::MATH_TEXT) | content inside a formula: the argument of a text command such as `\text`, or, holding nothing, a link target placed in the formula |
-| [`LINK`](crate::stdcore::backends::pres::LINK) | a link around inline content |
-| [`IMAGE`](crate::stdcore::backends::pres::IMAGE) | an image; it has no content |
-| [`UNSUPPORTED`](crate::stdcore::backends::pres::UNSUPPORTED) | the childless node that replaces something the backend could not render |
-| [`DROPPED`](crate::stdcore::backends::pres::DROPPED) | the childless **dropped mark** a lowering rule stages where it left out something it could not place, with the condition of the diagnostic it reported and a short statement of what was left out |
-| [`UNKNOWN`](crate::stdcore::backends::pres::UNKNOWN) | a macro or environment that no feature declares, carried into the output as the content the author wrote |
-| [`DECO_RUNIN`](crate::stdcore::backends::pres::DECO_RUNIN), [`DECO_FINAL`](crate::stdcore::backends::pres::DECO_FINAL), [`DECO_MARGIN`](crate::stdcore::backends::pres::DECO_MARGIN) | the three decoration elements ([Decorations](#decorations)) |
-| [`DECO_MARK`](crate::stdcore::backends::pres::DECO_MARK) | the **decoration mark**, left where a decoration was moved out of a content slot ([Decorations](#decorations)) |
-| [`SUBTREE`](crate::stdcore::backends::pres::SUBTREE) | the place where another document tree is placed ([Trees placed inside other trees](#trees-placed-inside-other-trees)) |
+| [`PAR`](crate::stdlib::backends::pres::PAR) | a paragraph; its body is a run of inline nodes |
+| [`BLOCK`](crate::stdlib::backends::pres::BLOCK) | a block container with a role and kind tokens (below); its body is a run of blocks |
+| [`BLOCK_HEADING`](crate::stdlib::backends::pres::BLOCK_HEADING) | a heading placed between blocks, with its heading kind's name, its level and whether it is in the table of contents |
+| [`RUNIN_HEADING`](crate::stdlib::backends::pres::RUNIN_HEADING) | the title of a run-in heading, inside the run-in decoration that leads its paragraph, with the same payload as a block heading |
+| [`SPAN`](crate::stdlib::backends::pres::SPAN) | inline content with a display style, a role and kind tokens |
+| [`LIST`](crate::stdlib::backends::pres::LIST) | a list: one node holding a `label` and an `item` content slot per entry, read by position because the names repeat; its kind tokens include at most one of `numbered`, `unnumbered` and `terms`, which say what shape of list it is, and `labeled` when every entry carries its own label ([`LIST_RESERVED_KINDS`](crate::stdlib::backends::pres::LIST_RESERVED_KINDS)) |
+| [`CELLS`](crate::stdlib::backends::pres::CELLS) | a table of cells: one node whose payload is the table's grid, holding one `cell` content slot per cell, in the order of the payload's entries |
+| [`LINES`](crate::stdlib::backends::pres::LINES) / [`LINE`](crate::stdlib::backends::pres::LINE) | a run of lines, each with its own indentation and alignment |
+| [`VERBATIM`](crate::stdlib::backends::pres::VERBATIM) | byte-exact content of a [`VerbatimKind`](crate::stdlib::backends::pres::VerbatimKind) (`text` for characters set as they are, `code` for computer code, `a` for an identifier), inline or as a block, with an optional language name |
+| [`MATH_PASSTHROUGH`](crate::stdlib::backends::pres::MATH_PASSTHROUGH) | mathematics passed on as source text: its body is the original content of the formula |
+| [`MATH_TEXT`](crate::stdlib::backends::pres::MATH_TEXT) | content inside a formula: the argument of a text command such as `\text`, or, holding nothing, a link target placed in the formula |
+| [`LINK`](crate::stdlib::backends::pres::LINK) | a link around inline content |
+| [`IMAGE`](crate::stdlib::backends::pres::IMAGE) | an image; it has no content |
+| [`UNSUPPORTED`](crate::stdlib::backends::pres::UNSUPPORTED) | the childless node that replaces something the backend could not render |
+| [`DROPPED`](crate::stdlib::backends::pres::DROPPED) | the childless **dropped mark** a lowering rule stages where it left out something it could not place, with the condition of the diagnostic it reported and a short statement of what was left out |
+| [`UNKNOWN`](crate::stdlib::backends::pres::UNKNOWN) | a macro or environment that no feature declares, carried into the output as the content the author wrote |
+| [`DECO_RUNIN`](crate::stdlib::backends::pres::DECO_RUNIN), [`DECO_FINAL`](crate::stdlib::backends::pres::DECO_FINAL), [`DECO_MARGIN`](crate::stdlib::backends::pres::DECO_MARGIN) | the three decoration elements ([Decorations](#decorations)) |
+| [`DECO_MARK`](crate::stdlib::backends::pres::DECO_MARK) | the **decoration mark**, left where a decoration was moved out of a content slot ([Decorations](#decorations)) |
+| [`SUBTREE`](crate::stdlib::backends::pres::SUBTREE) | the place where another document tree is placed ([Trees placed inside other trees](#trees-placed-inside-other-trees)) |
 
-[`ALL`](crate::stdcore::backends::pres::ALL) lists them in registration order. The
-`lowering` feature ([`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature))
+[`ALL`](crate::stdlib::backends::pres::ALL) lists them in registration order. The
+`lowering` feature ([`LoweringFeature`](crate::stdlib::backends::lowering::LoweringFeature))
 registers the whole vocabulary, so a registry that renders anything holds it once.
 
 ### Typed payloads
@@ -558,46 +582,51 @@ registers the whole vocabulary, so a registry that renders anything holds it onc
 Everything a presentation node states beyond its element and its children is its
 **payload**: one typed value per node, of the type its element declares. A node carries no
 untyped collection of properties and no handler per backend;
-[`crate::stdcore::backends::pres::payload`] lists every payload type. Some examples:
+[`crate::stdlib::backends::pres::payload`] lists every payload type. Some examples:
 
-- A `flm.pres.span` carries a [`SpanPayload`](crate::stdcore::backends::pres::SpanPayload):
-  its [`SpanStyle`](crate::stdcore::backends::pres::SpanStyle) (emphasis, bold,
+- A `flm.pres.span` carries a [`SpanPayload`](crate::stdlib::backends::pres::SpanPayload):
+  its [`SpanStyle`](crate::stdlib::backends::pres::SpanStyle) (emphasis, bold,
   superscript, …), its role, its kind tokens and its anchor field.
-- A `flm.pres.link` carries a [`LinkPayload`](crate::stdcore::backends::pres::LinkPayload):
+- A `flm.pres.link` carries a [`LinkPayload`](crate::stdlib::backends::pres::LinkPayload):
   its `href`, which is `#anchor` for a target inside the document and an address
   otherwise; its link kind (`ref`, `cite`, `url`, `term`); its optional `label`, the
   link's **accessible name**: the text that assistive technology, such as a screen reader,
   speaks in place of the link's content; and
-  [`shows_target`](crate::stdcore::backends::pres::LinkPayload::shows_target), which says
+  [`shows_target`](crate::stdlib::backends::pres::LinkPayload::shows_target), which says
   whether the link's content is the target's own display rather than words an author wrote.
   The feature that stages the link states it, and it is true for a `\url` and an `\email`,
   whose content is derived from the address.
-- A `flm.pres.line` carries a [`LinePayload`](crate::stdcore::backends::pres::LinePayload):
+- A `flm.pres.line` carries a [`LinePayload`](crate::stdlib::backends::pres::LinePayload):
   its indentation from the left and from the right, each a length (below), and its
-  [`LineAlign`](crate::stdcore::backends::pres::LineAlign).
+  [`LineAlign`](crate::stdlib::backends::pres::LineAlign).
 - A `flm.pres.math-text` carries a
-  [`MathTextPayload`](crate::stdcore::backends::pres::MathTextPayload): the text command
+  [`MathTextPayload`](crate::stdlib::backends::pres::MathTextPayload): the text command
   its content was written in, whether it is an equation line's tag (`at_tag`), and its
   anchor field.
-- A `flm.pres.cells` carries a [`CellsPayload`](crate::stdcore::backends::pres::CellsPayload),
+- A `flm.pres.cells` carries a [`CellsPayload`](crate::stdlib::backends::pres::CellsPayload),
   the table's grid: its number of rows and columns, and one
-  [`CellSpec`](crate::stdcore::backends::pres::CellSpec) per cell, in row-major order of
+  [`CellSpec`](crate::stdlib::backends::pres::CellSpec) per cell, in row-major order of
   the cells' top-left positions. A cell's entry gives its top-left position counted from
   zero, its row and column spans, its alignment, whether it heads its column or its row,
   the edges at which a rule is drawn, and the custom cell styles it carries by name; the
   content of entry *i* is in the node's content slot *i*. The method
-  [`grid`](crate::stdcore::backends::pres::CellsPayload::grid) states what occupies every
+  [`grid`](crate::stdlib::backends::pres::CellsPayload::grid) states what occupies every
   position of the grid (nothing, a cell's top-left corner, or a cell's span), and every
   backend reads the grid through it rather than working it out again.
+- A `flm.pres.list` carries a [`ListPayload`](crate::stdlib::backends::pres::ListPayload):
+  its kind tokens, its anchor field, and, for each entry in order, the entry's anchor
+  (`entry_anchors`) and the entry's level (`entry_levels`). An entry has a level when its
+  list gives it one: the table of contents gives each entry the level of its heading, and
+  the other standard lists give their entries none.
 - A `flm.pres.dropped` carries a
-  [`DroppedPayload`](crate::stdcore::backends::pres::DroppedPayload): the condition of the
+  [`DroppedPayload`](crate::stdlib::backends::pres::DroppedPayload): the condition of the
   diagnostic reported for what was left out, and a short statement of it.
 
 Three conventions apply to every payload:
 
 - The payload's **anchor field** is a plain `String`: the identifier a link points at for
   this node, as the `refs` feature's anchors stage computed it
-  ([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)), not a reference still to be
+  ([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)), not a reference still to be
   resolved.
 - A **role** is a dotted name, owned by a feature, that says what a container is (a
   theorem's heading, a quotation's attribution), and **kind tokens** are names, owned by
@@ -608,18 +637,18 @@ Three conventions apply to every payload:
   roles of two features do not collide. Kind tokens are `Name`s too. Four of them are
   reserved by the vocabulary and shared by every feature that stages a list: `numbered`,
   `unnumbered`, `terms` and `labeled`
-  ([`LIST_RESERVED_KINDS`](crate::stdcore::backends::pres::LIST_RESERVED_KINDS)).
-- A **document role** ([`DocRole`](crate::stdcore::backends::pres::DocRole)) is one of a
+  ([`LIST_RESERVED_KINDS`](crate::stdlib::backends::pres::LIST_RESERVED_KINDS)).
+- A **document role** ([`DocRole`](crate::stdlib::backends::pres::DocRole)) is one of a
   small fixed set of structural roles in a document (a list of notes, a note, a link to a
   note, a link back from one, a list of cited works, a link to a cited work, a table of
   contents), which a backend with such a notion renders.
 
-A **length** ([`Length`](crate::stdcore::backends::pres::Length)) is how a payload states
+A **length** ([`Length`](crate::stdlib::backends::pres::Length)) is how a payload states
 a dimension: an exact amount and a unit, written `1tab`, `1.5em` or `10pt`, never a bare
 number. The amount is a fixed-point number with sixteen fractional bits (one unit of the
 fraction is 1/65536 of the unit, as in TeX), so that equal lengths compare and hash alike
 and the output written from them is the same on every platform. The units form a closed
-set ([`LengthUnit`](crate::stdcore::backends::pres::LengthUnit)):
+set ([`LengthUnit`](crate::stdlib::backends::pres::LengthUnit)):
 
 - `em`, the width of an em in the current font;
 - `pt`, `mm`, `cm` and `in`, the units of fixed size, the point being 1/72 inch, the point
@@ -639,7 +668,7 @@ A rule stages a node with `pres_with`, which takes the payload by value:
 # use flm_core::core::lowering::{LowerCx, LowerError, Lowerer, Lowering};
 # use flm_core::model::names::ElementName;
 # use flm_core::lang::Flm;
-use flm_core::stdcore::backends::pres::{self, SpanPayload, SpanStyle};
+use flm_core::stdlib::backends::pres::{self, SpanPayload, SpanStyle};
 use flm_core::techy::core::node::NodeRef;
 
 fn lower_emphasis(
@@ -659,33 +688,33 @@ Every payload type also has a stable serialized form
 ([`PresPayload::project`](crate::lang::PresPayload::project)), made only of names, numbers
 and strings and never of spans or node identifiers, so a lowered tree can be written out
 and read back without a tree to resolve identifiers against.
-[`payload_readers`](crate::stdcore::backends::pres::payload_readers) supplies the
+[`payload_readers`](crate::stdlib::backends::pres::payload_readers) supplies the
 functions that read the payloads back.
 
 ### Reading a presentation tree
 
 An emitter walks a lowered tree with the functions of
-[`crate::stdcore::backends::pres::read`]:
+[`crate::stdlib::backends::pres::read`]:
 
-- [`is_presentation`](crate::stdcore::backends::pres::is_presentation) tests whether a node
+- [`is_presentation`](crate::stdlib::backends::pres::is_presentation) tests whether a node
   is a presentation node;
-- [`payload_of`](crate::stdcore::backends::pres::payload_of) returns a node's typed
-  payload, and [`body_of`](crate::stdcore::backends::pres::body_of) its body;
-- [`list_entries`](crate::stdcore::backends::pres::list_entries) returns a list's
-  label and item pairs, and [`cells_of`](crate::stdcore::backends::pres::cells_of) a
+- [`payload_of`](crate::stdlib::backends::pres::payload_of) returns a node's typed
+  payload, and [`body_of`](crate::stdlib::backends::pres::body_of) its body;
+- [`list_entries`](crate::stdlib::backends::pres::list_entries) returns a list's
+  label and item pairs, and [`cells_of`](crate::stdlib::backends::pres::cells_of) a
   table of cells' payload with each cell's content;
-- [`plain_text`](crate::stdcore::backends::pres::plain_text) returns the characters of a run
+- [`plain_text`](crate::stdlib::backends::pres::plain_text) returns the characters of a run
   of nodes with every construct dropped; the test that decides whether a run-in title gets a stop
-  ([`ends_in_sentence_punctuation`](crate::stdcore::backends::pres::ends_in_sentence_punctuation))
+  ([`ends_in_sentence_punctuation`](crate::stdlib::backends::pres::ends_in_sentence_punctuation))
   is built on it;
-- [`recompose_source`](crate::stdcore::backends::pres::recompose_source) returns the source
+- [`recompose_source`](crate::stdlib::backends::pres::recompose_source) returns the source
   text of a run of nodes: byte for byte for a run parsed from one source, and with a space
   kept between a control word and a letter that follows it from another source. An emitter
   prints opaque content (mathematics, verbatim content) from it.
 
 An emitter that prints the content of an opaque node as source must expect one kind of
 node inside it that is not source: a node whose element carries the
-[`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque) aspect, whose body is
+[`ContentInOpaque`](crate::stdlib::backends::pres::ContentInOpaque) aspect, whose body is
 ordinary content that the lowering rules have been through. `flm.pres.math-text` is the
 one element of the vocabulary that carries this aspect, and it occurs among the direct
 children of a `flm.pres.math-passthrough` body. The emitter writes the source around it and its
@@ -695,7 +724,7 @@ one line, and nothing at all for a node with no content.
 ## Decorations
 
 A **decoration** is a node whose element carries the
-[`Decoration`](crate::stdcore::backends::pres::Decoration) aspect (a run-in heading, a
+[`Decoration`](crate::stdlib::backends::pres::Decoration) aspect (a run-in heading, a
 margin note, a closing mark): when a rule stages the presentation node that contains it,
 the lowering driver moves it out of the content slot into an attached slot of that node and
 leaves a `flm.pres.deco-mark` node where it was ([decorations, roles and
@@ -704,7 +733,7 @@ content attached to a block rather than part of the block's ordinary content: a 
 heading (`Theorem.` before the first word), an end-of-proof mark closing the block, a note
 in the margin beside it. The vocabulary has three decoration elements, `flm.pres.deco.runin`,
 `flm.pres.deco.final` and `flm.pres.deco.margin`
-([`DECORATIONS`](crate::stdcore::backends::pres::DECORATIONS)).
+([`DECORATIONS`](crate::stdlib::backends::pres::DECORATIONS)).
 
 A rule stages a decoration node as an ordinary child of the presentation node it belongs
 to. When the rule stages that presentation node (with `pres_with` or `pres_slots_with`),
@@ -712,12 +741,12 @@ the lowering driver does the same thing for every rule: it moves each decoration
 among the direct children of a content slot into an **attached slot** of the node, named
 after the decoration's element, and stages in its place a childless **decoration mark**, a
 `flm.pres.deco-mark` node whose
-[`DecoMarkPayload`](crate::stdcore::backends::pres::DecoMarkPayload) holds the position of
+[`DecoMarkPayload`](crate::stdlib::backends::pres::DecoMarkPayload) holds the position of
 that attached slot. The attached slots follow the content slots. An emitter writes the
 decoration at the mark's position: the emitter decides how the decoration is set, while the
 tree keeps it apart from the block's ordinary content.
-[`attached_slots`](crate::stdcore::backends::pres::attached_slots) lists a node's attached
-slots, and [`decoration_at`](crate::stdcore::backends::pres::decoration_at) returns the
+[`attached_slots`](crate::stdlib::backends::pres::attached_slots) lists a node's attached
+slots, and [`decoration_at`](crate::stdlib::backends::pres::decoration_at) returns the
 decoration a mark refers to.
 
 The driver recognizes a decoration by its element's `Decoration`
@@ -729,7 +758,7 @@ The decoration mark is staged by the driver itself, so a rule does not declare
 `flm.pres.deco-mark` in `produces`. A backend whose native set holds any decoration element
 must therefore hold `flm.pres.deco-mark` too. The `lowering` feature declares this as a
 [native-set implication](crate::core::registry::NativeImplication)
-([`native_implications`](crate::stdcore::backends::lowering::native_implications)), a
+([`native_implications`](crate::stdlib::backends::lowering::native_implications)), a
 requirement on native sets that the registry build checks: a backend missing the mark is
 refused when the registry is built, before any document is lowered. The decoration element
 itself is not special in that respect: the rule that stages one lists it in `produces`,
@@ -737,29 +766,29 @@ like everything else it stages.
 
 Four standard features stage decorations:
 
-- The [`headings`](crate::stdcore::features::headings) feature stages a
+- The [`headings`](crate::stdlib::features::headings) feature stages a
   `flm.pres.deco.runin` for a heading of a run-in heading kind: a heading set at the start
   of the paragraph it introduces rather than on a line of its own. A heading kind is run
   in when its configuration says so
-  ([`HeadingDecl::run_in`](crate::stdcore::features::headings::HeadingDecl#structfield.run_in)); no
+  ([`HeadingDecl::run_in`](crate::stdlib::features::headings::HeadingDecl#structfield.run_in)); no
   kind is run in by default. The decoration holds the title inside a
   `flm.pres.runin-heading`, which carries what a `flm.pres.block-heading` carries (the
   heading kind's name, the level, whether the heading is in the table of contents, and the
   anchor field), because a decoration's own payload carries nothing.
-- The [`defterm`](crate::stdcore::features::defterm) feature stages a
+- The [`defterm`](crate::stdlib::features::defterm) feature stages a
   `flm.pres.deco.runin` holding a definition's lead-in at the head of the definition's
   first paragraph.
-- The [`theorems`](crate::stdcore::features::theorems) feature stages a
+- The [`theorems`](crate::stdlib::features::theorems) feature stages a
   `flm.pres.deco.runin` holding a theorem's heading at the head of its first paragraph,
   and, for a theorem kind with a closing mark (a proof's `□`), a `flm.pres.deco.final`
   holding the mark at the end of its last paragraph.
-- The [`annotations`](crate::stdcore::features::annotations) feature stages a
+- The [`annotations`](crate::stdlib::features::annotations) feature stages a
   `flm.pres.deco.margin` holding an annotator's initials as the first node of a highlight's
   or a comment's span or block, so that its decoration mark is placed where the annotation
   starts.
 
 The `defterm` and `theorems` features place their decorations through
-[`lower_blocks_with_edges`](crate::stdcore::backends::lowering::lower_blocks_with_edges),
+[`lower_blocks_with_edges`](crate::stdlib::backends::lowering::lower_blocks_with_edges),
 which gives a decoration a paragraph of its own where the body begins or ends with a block
 other than a paragraph.
 
@@ -779,8 +808,8 @@ A caller who wants an output anyway says so, per backend and element, through
 unrenderable element** is an element the plan request lists, per backend, as one the
 backend need not render: the plan builds anyway, and each occurrence lowers to a childless
 `flm.pres.unsupported` node with one Error diagnostic
-([`UnsupportedElement`](crate::stdcore::backends::lowering::UnsupportedElement)). The node
-carries an [`UnsupportedPayload`](crate::stdcore::backends::pres::UnsupportedPayload),
+([`UnsupportedElement`](crate::stdlib::backends::lowering::UnsupportedElement)). The node
+carries an [`UnsupportedPayload`](crate::stdlib::backends::pres::UnsupportedPayload),
 which holds the element's name and a message.
 
 The construct's source text never reaches the output; the diagnostic shows it. The
@@ -805,17 +834,17 @@ HTML and the two LaTeX backends describe theirs.
 
 The **emit stage** writes the output format's bytes into a table of the backend's own.
 The plain-text backend's emit stage (`flm.text.emit`,
-[`TextEmitStage`](crate::stdcore::backends::text::TextEmitStage)) runs once per document,
+[`TextEmitStage`](crate::stdlib::backends::text::TextEmitStage)) runs once per document,
 not once per tree as lowering does: it declares
 [`Scope::Document`](crate::core::stage::Scope::Document), because the printed text is one
 text. It reads the lowered trees `flm.lowered.text`, the lowered [pieces](#pieces)
 `flm.lowered.text.pieces` and the backend's render options, and writes one
-[`TextOutput`](crate::stdcore::backends::text::TextOutput) into `flm.output.text`.
+[`TextOutput`](crate::stdlib::backends::text::TextOutput) into `flm.output.text`.
 
 Two more stages run once per document after it. The **regions stage** (`flm.text.regions`,
-[`TextRegionsStage`](crate::stdcore::backends::text::TextRegionsStage)) writes the output
+[`TextRegionsStage`](crate::stdlib::backends::text::TextRegionsStage)) writes the output
 regions the entry artifact is made of into `flm.output.text.regions`. The **final stage**
-(`flm.text.final`, [`TextFinalStage`](crate::stdcore::backends::text::TextFinalStage))
+(`flm.text.final`, [`TextFinalStage`](crate::stdlib::backends::text::TextFinalStage))
 assembles the entry artifact from those regions and writes the output's artifact set into
 `flm.output.text.document`. Because emitting and publishing are separate stages, a caller
 that wants the printed text and the positions of its elements reads the emit stage's
@@ -873,7 +902,7 @@ A host can assemble the same regions another way, through a template of its own,
 `flm` program does. Each backend states which of its outputs are made of regions with a
 [`RegionsOutput`](crate::core::region::RegionsOutput), contributed to the [service
 slot](crate::guide::concepts_overview#services-and-service-slots) `flm.output.regions`
-([`REGIONS_SLOT`](crate::stdcore::backends::lowering::REGIONS_SLOT)): the regions table,
+([`REGIONS_SLOT`](crate::stdlib::backends::lowering::REGIONS_SLOT)): the regions table,
 the tables of the files beside the entry artifact, and the capability the final stage
 provides. The host registers a stage that provides that capability from the regions, and
 prefers it in the plan request; the plan then schedules the host's stage in place of the
@@ -885,7 +914,7 @@ A document may place one tree inside another: one
 [fragment](crate::guide::concepts_overview#documents-fragments-and-the-corpus) of the
 document placed inside another fragment. The lowered form of the outer tree then holds a
 `flm.pres.subtree` node at that place, whose
-[`SubtreePayload`](crate::stdcore::backends::pres::SubtreePayload) identifies the placed
+[`SubtreePayload`](crate::stdlib::backends::pres::SubtreePayload) identifies the placed
 tree. An emitter that writes one output document inserts the placed tree's own lowered
 form at that node, so that, on plain text, a wrapped line continues across the boundary
 between the two trees.
@@ -896,19 +925,19 @@ are one blank line apart. Trees left over, those that place each other in a cycl
 printed afterwards, so that every tree is printed exactly once and the cycle is reported.
 A placed tree that has no lowered form, and a placement that would print a tree inside
 itself, print nothing and are reported
-([`MissingSubtree`](crate::stdcore::backends::text::MissingSubtree),
-[`SubtreeCycle`](crate::stdcore::backends::text::SubtreeCycle)).
+([`MissingSubtree`](crate::stdlib::backends::text::MissingSubtree),
+[`SubtreeCycle`](crate::stdlib::backends::text::SubtreeCycle)).
 
 None of the plain-text backend's emit, regions and final stages fails the run. When one of
 them cannot read or write a table its declaration describes, its output is absent and the
 reason is reported as `flm.text.stage-failed`
-([`StageFailed`](crate::stdcore::backends::text::StageFailed)).
+([`StageFailed`](crate::stdlib::backends::text::StageFailed)).
 
 ## Pieces
 
 A piece (see [Terms used on this page](#terms-used-on-this-page); [`crate::core::piece`];
 [pieces](crate::guide::concepts_overview#pieces)) is placed before or after the document's
-content. The standard features offer these pieces: the document's title, authors and date (the `meta`
+content. The standard features offer these pieces: the document's title, authors and date (the `metadata`
 feature), the table of contents (the `toc` feature), the list of each listed kind of
 xnote (the `xnotes` feature), and the bibliography (the `citations` feature). An author does not write a piece where it
 appears: a stage *builds* it once, over the whole document, and the backend *places* it
@@ -925,7 +954,7 @@ A piece has three parts:
 2. **Its declaration** is a [`PieceDecl`](crate::core::piece::PieceDecl): the piece's name,
    its table, its place, and whether a render places it by default. The feature contributes
    the declaration to the service slot `flm.pieces`
-   ([`SLOT`](crate::stdcore::backends::pieces::SLOT)), which the `pieces` feature declares.
+   ([`SLOT`](crate::stdlib::backends::pieces::SLOT)), which the `pieces` feature declares.
    The feature contributes it as a peer contribution: a value offered to a service slot
    that another feature owns, which the registry build drops with one Note when no feature
    of the registry declares that slot ([`crate::core::services`]). The feature therefore
@@ -933,11 +962,11 @@ A piece has three parts:
    which two pieces at the same place are placed. [`PieceDecl`](crate::core::piece::PieceDecl)
    lists what a feature does to offer a piece.
 3. **Its rendering** belongs to each backend. The backend's pieces stage
-   `flm.<backend>.pieces` ([`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage))
+   `flm.<backend>.pieces` ([`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage))
    brings the value up to date, lowers it with the rules the plan selected for that backend
-   ([`lower_value`](crate::stdcore::backends::lowering::lower_value)), and writes the table
+   ([`lower_value`](crate::stdlib::backends::lowering::lower_value)), and writes the table
    `flm.lowered.<backend>.pieces`
-   ([`LoweredPieces`](crate::stdcore::backends::pieces::LoweredPieces)); the backend's own
+   ([`LoweredPieces`](crate::stdlib::backends::pieces::LoweredPieces)); the backend's own
    stages then write the result and place it.
 
 Because the content is made of document elements, and never of a string or of one
@@ -947,9 +976,9 @@ preferred by the plan request, changes the piece on every output at once. A titl
 author or a date is FLM content like any other.
 
 **Which pieces a render places** is decided by one function,
-[`selected_pieces`](crate::stdcore::backends::pieces::selected_pieces), per backend, from
+[`selected_pieces`](crate::stdlib::backends::pieces::selected_pieces), per backend, from
 the render option
-[`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions):
+[`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions):
 
 - A render places every piece declared on by default that the option's `exclude` does not
   list, and every piece its `include` lists.
@@ -959,7 +988,7 @@ the render option
   The `backends` field is not a setting that can be written as data.
 - On a backend that `backends` does not list, it places all of them, except where the
   backend's pieces stage places only the pieces listed for it
-  ([`PiecesStage::placing_only_named`](crate::stdcore::backends::pieces::PiecesStage::placing_only_named)).
+  ([`PiecesStage::placing_only_named`](crate::stdlib::backends::pieces::PiecesStage::placing_only_named)).
   The recomposed LaTeX's pieces stage does, so by default the recomposed LaTeX places no
   piece.
 
@@ -1043,7 +1072,7 @@ can link to another before that other artifact's bytes exist. A host decides whe
 artifact is written, through its **naming service**: an
 [`ArtifactNamer`](crate::core::artifact::ArtifactNamer), which turns an identity into a
 relative path. A host contributes its naming service to the service slot
-`flm.artifacts.namer` ([`NAMER_SLOT`](crate::stdcore::backends::lowering::NAMER_SLOT));
+`flm.artifacts.namer` ([`NAMER_SLOT`](crate::stdlib::backends::lowering::NAMER_SLOT));
 the library provides no implementation. The library itself asks the naming service only
 where an output must write the address of another artifact: the address of the copy of an
 image (below), the name of the recomposed LaTeX's style file, which the document loads by
@@ -1118,11 +1147,12 @@ host reads every backend's result the same way, whether it is one file or severa
 **A folder artifact** holds a whole folder of files as one artifact
 ([`Artifact::folder`](crate::core::artifact::Artifact::folder)): its data is
 [`ArtifactData::Files`](crate::core::artifact::ArtifactData::Files), a list of files, each
-by its path relative to the folder (with `/` between its parts, no `/` at its start, no
-`.` or `..` part) and its bytes, the paths distinct, in the order the producer gives. It
-has no file extension and its media type is the empty text: each of its files has the
-media type of its own extension. The naming service names it as one folder, with the
-flag [`ArtifactRef::folder`](crate::core::artifact::ArtifactRef::folder) set, and returns
+by its path relative to the folder (with `/` between its parts, no `/` at its start; the
+host places the file with `.` and `..` resolved as text, inside the output folder) and its
+bytes, the paths distinct, in the order the producer gives. It has no file extension and
+its media type is the empty text: each of its files has the media type of its own
+extension. The naming service names it as one folder, with the flag
+[`ArtifactRef::folder`](crate::core::artifact::ArtifactRef::folder) set, and returns
 the folder's path with no extension and no `/` at its end; a host that writes the files
 writes each file of the folder under that path. A compose template that ships a folder
 (an extension's folder of icons, for example) makes one: the `compose` feature names it
@@ -1134,20 +1164,21 @@ under it (`paper-icons/check.svg`).
 ### Images and how an output reaches them
 
 An image is a file this library never opens itself. Where a host supplies a **graphics
-resolver** ([`GraphicsResolver`](crate::stdcore::features::graphics::GraphicsResolver),
+resolver** ([`GraphicsResolver`](crate::stdlib::features::graphics::GraphicsResolver),
 contributed to the service slot `flm.graphics.resolver`; see [the services a host
 provides](crate::guide::embedding#services-the-host-provides)), the resolver finds the
 file a path refers to and reads it. Each output then **publishes** its images by one of
-three **strategies**, chosen per output by the render option `graphics.strategy`, a
+four **strategies**, chosen per output by the render option `graphics.strategy`, a
 map from an output's name to a strategy
-([`GraphicsRenderOptions`](crate::stdcore::features::graphics::GraphicsRenderOptions);
-[`publish`](crate::stdcore::features::graphics::publish)):
+([`GraphicsRenderOptions`](crate::stdlib::features::graphics::GraphicsRenderOptions);
+[`publish`](crate::stdlib::features::graphics::publish)):
 
 | strategy | the address written | what the output holds |
 |---|---|---|
 | `reference` (the default) | the file's own address: the resolver's address where it found the file, else the path as written | the entry artifact alone |
 | `copy` | the address of the copy, where the host's naming service places it, for example `paper-plot-3fa9c2d1.png` | the entry artifact and one copy per file |
 | `data-uri` | the content itself: `data:image/png;base64,iVBORw0…` | the entry artifact alone |
+| `content` | the file's own address, as under `reference` | the entry artifact alone; the file's content is a row of the table `flm.graphics.content.<backend>` |
 
 A copy is the artifact `graphics:<stem>-<digest>`: the file's name without its extension,
 then eight hexadecimal digits of a digest of the file's content, the copy's format and the
@@ -1159,16 +1190,31 @@ plain-text output is one file and holds no copy: `copy` there is an Error, and t
 is published by `reference`. A data address can be shown only in a web page: `data-uri` on
 the plain-text output or on either LaTeX output is an Error in the same way.
 
-Under `copy` and `data-uri`, the output's **conversion rules** (`graphics.convert`, a map
-from an output's name to a list of
-[`ConversionRule`](crate::stdcore::features::graphics::ConversionRule)s) turn an image of
+The strategy `content` is for an output that renders images itself from their content,
+such as an output that draws each image with characters on a terminal. The output writes
+the file's own address, as under `reference`, and the publish stage reads the file, as
+under `copy`, and writes its content into the table `flm.graphics.content.<backend>`
+([`content_table`](crate::stdlib::features::graphics::content_table)), one
+[`ImageContent`](crate::stdlib::features::graphics::ImageContent) per image, keyed by
+node address: the address, the media type and the content. A stage of the output's own
+reads the table; the output holds no copy, so every output can use the strategy. An image
+in a synthesized value, such as a heading's title that a reference shows again, has its
+row as well. The table's projection gives each row as `{node, src, media_type, content}`,
+`content` being `{text: …}` where the bytes are UTF-8 text and `{base64: …}` otherwise, the
+form the artifacts take across an extension's binding. Under the other strategies the
+table is empty.
+
+Under `copy`, `data-uri` and `content`, the output's **conversion rules**
+(`graphics.convert`, a map from an output's name to a list of
+[`ConversionRule`](crate::stdlib::features::graphics::ConversionRule)s) turn an image of
 one format into another. The first rule whose `from` lists the file's format applies, and
 the first of the host's converters, in the order the host contributed them, that the
 rule's `via` allows (every converter, where `via` is empty) and that offers that conversion
-performs it; the copy, or the data address, then has the rule's `to` format. A rule that no
-converter can perform, a `via` that lists no registered converter, and a converter's
-failure are each an Error at the image, which is then published as the file is. Under
-`reference` no rule applies, because nothing is read.
+performs it; the copy, the data address, or the content written into the table then has
+the rule's `to` format. A rule that no converter can perform, a `via` that lists no
+registered converter, and a converter's failure are each an Error at the image, which is
+then published as the file is. Under `reference` no rule applies, because nothing is
+read.
 
 ```yaml
 graphics:
@@ -1190,12 +1236,12 @@ published by `reference`. With no graphics resolver and no setting, every output
 each image's path as written.
 
 The size an image is shown at is decided once, for every output alike, where the image is
-lowered ([`shown_size`](crate::stdcore::features::graphics::rules::shown_size)): the
+lowered ([`shown_size`](crate::stdlib::features::graphics::rules::shown_size)): the
 `width=` and `height=` the author gave; one of them with the other scaled from the size
 the host's **image inspector** reported, so that the image keeps its proportions; or, with
 neither, the inspected size. Each dimension is then multiplied by the output's
 **magnification** (`graphics.magnification`, a map from an output's name to a
-[`Magnification`](crate::stdcore::features::graphics::Magnification)): its factor `raster`
+[`Magnification`](crate::stdlib::features::graphics::Magnification)): its factor `raster`
 for an image the inspector reported as a raster image (a grid of pixels: PNG, JPEG, GIF,
 WebP), its factor `vector` for any other image (a drawing, SVG or PDF, and an image that
 was not inspected). Each factor is a number greater than zero, 1 where not given, and it
@@ -1211,54 +1257,59 @@ graphics:
 An image whose size is not decided at all (neither `width=` nor `height=` given, and
 nothing inspected: no inspector is registered, its inspection failed, or the path is a web
 address, which is never inspected) is reported with the Warning `flm.graphics.unknown-size`
-([`UnknownSize`](crate::stdcore::features::graphics::UnknownSize)) on each output, and is
+([`UnknownSize`](crate::stdlib::features::graphics::UnknownSize)) on each output, and is
 written without a size.
 
 ## The plain-text backend
 
-The `text` backend ([`crate::stdcore::backends::text`]) writes a document as plain text,
+The `text` backend ([`crate::stdlib::backends::text`]) writes a document as plain text,
 wrapped to a chosen line width. Its native set is the whole presentation vocabulary,
 together with the six structural elements that it writes natively, without a lowering
-rule ([`FLOW_THROUGH`](crate::stdcore::backends::text::FLOW_THROUGH): `flm.text`,
+rule ([`FLOW_THROUGH`](crate::stdlib::backends::text::FLOW_THROUGH): `flm.text`,
 `flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and `flm.parbreak`),
 because they carry no meaning that plain text has to translate. The feature
-[`TextBackend`](crate::stdcore::backends::text::TextBackend) registers the backend, the
-`text` output and the `text` workflow.
+[`TextBackend`](crate::stdlib::backends::text::TextBackend) registers the backend, the
+`text` output and the `text` workflow. Beside the text, the backend records which ranges of
+it carry a property that plain text cannot show ([Style
+marks](#style-marks-what-plain-text-could-not-show)); the extension `profile-tty`, which
+the `flm` program carries compiled in, paints those ranges for a terminal (see [Text for a
+terminal](crate::guide::command_line#text-for-a-terminal)).
 
 The backend has five stages: three in its `BackendDef` and two that the `TextBackend`
 feature registers beside it. Stages 1 and 2 do not depend on each other; the emit stage
 reads the results of both, and stages 4 and 5 follow it in order:
 
 1. the shared lowering stage
-   ([`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage)) for `text`,
+   ([`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage)) for `text`,
    `flm.text.lower`, which writes the lowered trees into `flm.lowered.text`;
 2. the shared [pieces](#pieces) stage
-   ([`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage)) for `text`,
+   ([`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage)) for `text`,
    `flm.text.pieces`, which writes the lowered pieces into `flm.lowered.text.pieces`;
-3. the emit stage [`TextEmitStage`](crate::stdcore::backends::text::TextEmitStage);
-4. the regions stage [`TextRegionsStage`](crate::stdcore::backends::text::TextRegionsStage);
-5. the final stage [`TextFinalStage`](crate::stdcore::backends::text::TextFinalStage).
+3. the emit stage [`TextEmitStage`](crate::stdlib::backends::text::TextEmitStage);
+4. the regions stage [`TextRegionsStage`](crate::stdlib::backends::text::TextRegionsStage);
+5. the final stage [`TextFinalStage`](crate::stdlib::backends::text::TextFinalStage).
 
 A caller reads one of two tables:
 
-- [`TEXT_OUTPUT`](crate::stdcore::backends::text::TEXT_OUTPUT) (`flm.output.text`), which
-  the emit stage writes, holds a [`TextOutput`](crate::stdcore::backends::text::TextOutput):
-  the printed text and the position marks
-  ([Position marks](#position-marks-where-a-printed-byte-came-from));
-- [`TEXT_DOCUMENT`](crate::stdcore::backends::text::TEXT_DOCUMENT)
+- [`TEXT_OUTPUT`](crate::stdlib::backends::text::TEXT_OUTPUT) (`flm.output.text`), which
+  the emit stage writes, holds a [`TextOutput`](crate::stdlib::backends::text::TextOutput):
+  the printed text, the position marks
+  ([Position marks](#position-marks-where-a-printed-byte-came-from)) and the style marks
+  ([Style marks](#style-marks-what-plain-text-could-not-show));
+- [`TEXT_DOCUMENT`](crate::stdlib::backends::text::TEXT_DOCUMENT)
   (`flm.output.text.document`), which the final stage writes, holds the artifact set with
   the one entry artifact `text:document`, of media type `text/plain`. It is the table of
   the `text` output, which the `text` workflow lists.
 
 ### Render options
 
-[`TextRenderOptions`](crate::stdcore::backends::text::TextRenderOptions) has six fields:
+[`TextRenderOptions`](crate::stdlib::backends::text::TextRenderOptions) has eight fields:
 
 - `width` is the line width in columns, or `None` to never wrap; the default is 80.
 - `tab_width` is the width of a tab in columns, 4 by default: a line of a quotation
   indented by `\indent\indent` starts eight columns in. Every length is converted to
   columns by one function,
-  [`TextRenderOptions::columns`](crate::stdcore::backends::text::TextRenderOptions::columns):
+  [`TextRenderOptions::columns`](crate::stdlib::backends::text::TextRenderOptions::columns):
   a tab spans `tab_width` columns and an em two; the units of fixed size are converted at
   twelve points to the em, so a point is a sixth of a column and an inch twelve columns;
   each result is rounded to the nearest whole column.
@@ -1276,22 +1327,45 @@ A caller reads one of two tables:
   every link prints its content alone, which keeps a text with many links readable.
 - `link_addresses_when_shown`, off by default, concerns a link whose content is already
   its address's display, which the link states itself
-  ([`LinkPayload::shows_target`](crate::stdcore::backends::pres::LinkPayload::shows_target)):
+  ([`LinkPayload::shows_target`](crate::stdlib::backends::pres::LinkPayload::shows_target)):
   `\url{https://example.com}` prints `example.com` and `\email{a@b.c}` prints `a@b.c`;
   with the option on, they print `example.com <https://example.com>` and
   `a@b.c <mailto:a@b.c>`. This option has no effect when `link_addresses` is off.
+- `table_frame` is how a table is drawn: `none`, the default, sets the columns two spaces
+  apart with a rule of `-` under the header rows; `box` draws a frame of box-drawing
+  characters around every cell, with a rule of the frame under the header rows (below).
+- `heading_rules` is the characters of the rule under a heading: `ascii`, the default,
+  draws `=` under a first-level heading and `-` under a heading one level deeper;
+  `unicode` draws `═` and `─`. The `#` characters in front of a deeper heading are the
+  same either way.
+
+Under `table_frame = box`, a table of two columns, the second aligned right, with one
+header row, prints at a width of 24 columns as:
+
+```text
+┌──────────────┬───────┐
+│ Header       │ Right │
+├──────────────┼───────┤
+│ a cell       │    42 │
+│ wrapped      │       │
+└──────────────┴───────┘
+```
+
+Each cell has one space on each side, and each line ends with its bar. The frame takes
+three columns per column of the table, and one more, from the width before the columns'
+widths are computed; a table nested in a cell is framed inside that cell.
 
 A link to a place inside the document never prints its target.
 
 The run-in stop is written only where the title does not already end in `.`, `,`, `:`,
 `;`, `?` or `!`
-([`ends_in_sentence_punctuation`](crate::stdcore::backends::pres::ends_in_sentence_punctuation),
+([`ends_in_sentence_punctuation`](crate::stdlib::backends::pres::ends_in_sentence_punctuation),
 the test both backends use). That test looks only at the characters the title ends in: a
 title ending in a formula gets the stop after it. A program that needs another treatment
 registers a lowering rule of its own ([Headings in HTML](#headings-in-html) gives
 the details).
 
-All six fields are declared with
+All eight fields are declared with
 [`Bind::Render`](crate::model::options::Bind::Render): their values come from the render
 request rather than from the document, and they are part of the plan's identity, so two
 runs asking for different widths use two plans.
@@ -1301,15 +1375,15 @@ runs asking for different widths use two plans.
 # use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 # use flm_core::model::options::OptionValues;
 # use flm_core::core::plan::{Overrides, Plan};
-# use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+# use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 # use flm_core::core::run::{Externals, Run, RunOptions};
 # use flm_core::lang::{FlmOrigin, ParseOptions, parse_fragment};
-# use flm_core::stdcore::{self, StdcoreConfig};
+# use flm_core::stdlib::{self, StdlibConfig};
 # use flm_core::techy::source::Source;
-use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT, TextRenderOptions};
+use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT, TextRenderOptions};
 
 # let mut builder = RegistryBuilder::new();
-# builder.use_package(stdcore::package(StdcoreConfig::new()));
+# builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 # builder.use_package(flm_core::math_passthrough::package());
 # let registry = builder.build(&RegistryInputs::new())?;
 # let source = Arc::new(
@@ -1341,7 +1415,7 @@ assert_eq!(
 
 ### What the emitter prints
 
-The emitter ([`mod@crate::stdcore::backends::text::emit`]) maps each presentation element
+The emitter ([`mod@crate::stdlib::backends::text::emit`]) maps each presentation element
 onto the constructs of the [layout engine](#the-layout-engine), and the layout engine
 breaks the lines and produces the characters. The emitter works in two contexts.
 
@@ -1374,7 +1448,9 @@ below). The blocks, and the marks that stand in their place, print as follows:
   of the layout engine](#tables-of-the-layout-engine)): one column per column of its grid,
   each cell's blocks padded in the cell's own alignment, the content of a cell that spans
   several positions at the first position of its span, and the leading rows of column
-  headers above a line of `-`. A row header, a rule at a cell's edge and a custom cell
+  headers above a line of `-`, or, under `table_frame = box`, inside a frame of
+  box-drawing characters and above the frame's rule ([Render options](#render-options)).
+  A row header, a rule at a cell's edge and a custom cell
   style do not show in plain text.
 - A `lines` node prints one line per `line`, indented by the line's left indentation
   converted to columns ([Render options](#render-options)); a quotation's `\lines` section
@@ -1400,7 +1476,7 @@ prints whole and never splits across two lines.
   nested inside the span (a link, another span) is converted too. A link's printed
   address, mathematics, verbatim content, an `unsupported` node and a decoration moved out
   of the span are written unchanged. The forms are listed in
-  [`superscript`](mod@crate::stdcore::backends::text::superscript).
+  [`superscript`](mod@crate::stdlib::backends::text::superscript).
 - A `link` prints its content, followed by ` <address>` when the target is outside the
   document and the render options ask for it.
 - An inline `math-passthrough` prints as one atom, `\(source\)`, and an inline `verbatim` node
@@ -1482,8 +1558,8 @@ the recomposed LaTeX, which writes the reference for LaTeX to set, reports nothi
 An xnote is a note set apart from the running text, marked where it belongs and
 shown elsewhere or in place (a footnote, an endnote, a side note); a kind of xnote, or
 **xnote kind**, is one way of being an xnote, declared by the feature's configuration
-([`xnotes`](crate::stdcore::features::xnotes)). The rule
-[`XNOTE_RULE`](crate::stdcore::features::xnotes::XNOTE_RULE) writes an xnote where it is
+([`xnotes`](crate::stdlib::features::xnotes)). The rule
+[`XNOTE_RULE`](crate::stdlib::features::xnotes::XNOTE_RULE) writes an xnote where it is
 written, with elements of the shared vocabulary; this backend prints them as it prints
 any span, superscript or block. What is printed where the xnote is written depends on the
 xnote kind's placement.
@@ -1511,11 +1587,11 @@ The claim holds in every case.¹ The next sentence goes on.
 The content of a listed xnote is shown in **the xnote kind's list**, a piece placed after
 the document's content ([Pieces](#pieces)). The list is one synthesized value, built once
 for every output by the xnote kind's builder,
-[`ListBuilder`](crate::stdcore::features::xnotes::ListBuilder): one entry per xnote of that
+[`ListBuilder`](crate::stdlib::features::xnotes::ListBuilder): one entry per xnote of that
 xnote kind, in document order, each holding a [content
 pointer](crate::guide::concepts_overview#content-pointers) to the xnote's content, never a
 copy of it. The xnote kind's list rule,
-[`ListRule`](crate::stdcore::features::xnotes::ListRule), lowers the list into a block
+[`ListRule`](crate::stdlib::features::xnotes::ListRule), lowers the list into a block
 holding the xnote kind's title as a heading and a labeled list. Each entry's label is the
 xnote's mark text, in superscript form, and its item is the xnote's content: one
 paragraph where the content is inline, its paragraphs and blocks as they are otherwise.
@@ -1550,7 +1626,7 @@ Footnotes
 ```
 
 An xnote kind with no title
-([`XnoteKind::without_title`](crate::stdcore::features::xnotes::XnoteKind::without_title))
+([`XnoteKind::without_title`](crate::stdlib::features::xnotes::XnoteKind::without_title))
 prints no heading: a blank line alone separates the list from the content. A title two
 levels or more below the root heading level prints as such a heading prints (`### Notes`
 for a title at level 3 under the default root heading level, 1). A title is FLM text,
@@ -1561,7 +1637,7 @@ of an unnumbered xnote kind are labeled with its fixed mark, or, for an empty ma
 margin. Each xnote kind has a list of its own, in the order of the xnote kinds; a kind shown in
 place, and a kind with no xnote in the document, has none. A render leaves a list out
 through the pieces' render options
-([`PiecesRenderOptions::exclude`](crate::stdcore::backends::pieces::PiecesRenderOptions::exclude)
+([`PiecesRenderOptions::exclude`](crate::stdlib::backends::pieces::PiecesRenderOptions::exclude)
 with the piece's name, `flm.xnotes.list.<kind>`), and its builder is then not scheduled.
 
 The content of a listed xnote is lowered once, in the list, as the document's own content;
@@ -1639,10 +1715,10 @@ because it writes a reference back as `\ref`, for LaTeX to resolve.
 ### Defined terms
 
 A term definition, the `defterm` environment
-([`defterm`](crate::stdcore::features::defterm)), is written by its rule
-[`DEFINITION_RULE`](crate::stdcore::features::defterm::DEFINITION_RULE) as a block around
+([`defterm`](crate::stdlib::features::defterm)), is written by its rule
+[`DEFINITION_RULE`](crate::stdlib::features::defterm::DEFINITION_RULE) as a block around
 its paragraphs. The first paragraph begins with the **lead-in**: the configured template
-([`DeftermConfig`](crate::stdcore::features::defterm::DeftermConfig)), `#{term}: ` by
+([`DeftermConfig`](crate::stdlib::features::defterm::DeftermConfig)), `#{term}: ` by
 default, staged as a run-in decoration. This backend prints it as it prints a run-in
 heading: before the paragraph's first words, followed by the run-in stop only where it
 ends in no punctuation. The default ends in a colon, so
@@ -1652,7 +1728,7 @@ paragraph, or is empty, the lead-in is printed in a paragraph of its own. With n
 configured, the definition prints its body alone.
 
 A term link, `\term[ref]{shown}`, is written by
-[`TERM_RULE`](crate::stdcore::features::defterm::TERM_RULE) as a link of link kind `term`
+[`TERM_RULE`](crate::stdlib::features::defterm::TERM_RULE) as a link of link kind `term`
 around the text written for it, which this backend prints as that text, the link's target
 inside the document printed as nothing. Inside the definition of its own term, a term link
 is a span of role `flm.defterm.term` instead, printed as its text. A term link that nothing
@@ -1666,12 +1742,12 @@ recomposed LaTeX](#defined-terms-in-the-recomposed-latex)).
 
 ### Annotations
 
-A reviewer's annotations ([`annotations`](crate::stdcore::features::annotations)) print as
+A reviewer's annotations ([`annotations`](crate::stdlib::features::annotations)) print as
 their text, the annotator's initials first. On this backend every annotation is lowered by
 the backend's own rule
-([`AnnotationTextRule`](crate::stdcore::features::annotations::AnnotationTextRule)), which
+([`AnnotationTextRule`](crate::stdlib::features::annotations::AnnotationTextRule)), which
 differs from the general rule
-([`AnnotationRule`](crate::stdcore::features::annotations::AnnotationRule)) in comments
+([`AnnotationRule`](crate::stdlib::features::annotations::AnnotationRule)) in comments
 alone. A **highlight** is lowered as the general rule lowers it: a span holding a margin
 decoration with the initials, then the highlighted passage. This backend prints the
 decoration as it prints every margin decoration, then the passage:
@@ -1693,16 +1769,17 @@ With multiple paragraphs.] More text
 
 A part around a block (a list inside a highlighted passage) prints the initials, where it
 is the first part, in a paragraph of their own above the block. Under the render option
-[`hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden), a
+[`hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden), a
 highlight prints as its passage, and a comment as nothing.
 
 ### Images
 
-An image ([`graphics`](crate::stdcore::features::graphics)) is lowered by the image rule
-([`image_rule`](crate::stdcore::features::graphics::image_rule)) as a `flm.pres.image`
-node carrying the address the plain-text output published for it (the plain-text output
-always uses the `reference` strategy: the graphics resolver's address where it found the
-file, else the path as written), whether the image is a block or inline, the alternative
+An image ([`graphics`](crate::stdlib::features::graphics)) is lowered by the image rule
+([`image_rule`](crate::stdlib::features::graphics::image_rule)) as a `flm.pres.image`
+node carrying the address the plain-text output published for it (the file's own address
+under both strategies this output can use, `reference`, the default, and `content`: the
+graphics resolver's address where it found the file, else the path as written; see [Images
+and how an output reaches them](#images-and-how-an-output-reaches-them)), whether the image is a block or inline, the alternative
 text and the size. This backend prints it as `[image: <alternative text or address>]`,
 with the alternative text where there is one: `\includegraphics[alt=A plot]{plot.png}`
 prints `[image: A plot]`, and `\includegraphics{plot.png}` prints `[image: plot.png]`. An
@@ -1713,8 +1790,8 @@ a line of its own. The size is not printed.
 
 ### Floats
 
-A float ([`floats`](crate::stdcore::features::floats)) is written by its rule
-[`FLOAT_RULE`](crate::stdcore::features::floats::FLOAT_RULE) as a block of role
+A float ([`floats`](crate::stdlib::features::floats)) is written by its rule
+[`FLOAT_RULE`](crate::stdlib::features::floats::FLOAT_RULE) as a block of role
 `flm.floats.float` holding a block of its content and, where the float is numbered or has
 a caption, a block holding the line under the content, the number in a span of role
 `flm.floats.float.number`. This backend prints them as it prints any blocks: the content's
@@ -1731,10 +1808,10 @@ float with neither prints its content alone.
 
 ### Citations
 
-A **citation chunk** ([`citations`](crate::stdcore::features::citations)) is a
+A **citation chunk** ([`citations`](crate::stdlib::features::citations)) is a
 `\cite[note]{keys}` together with the `\cite` calls written directly after it, or an
 `\R\cite{keys}`. Its rule writes it where it is written by staging its **citation mark**
-([`stage_mark`](crate::stdcore::features::citations::stage_mark)): a span of role
+([`stage_mark`](crate::stdlib::features::citations::stage_mark)): a span of role
 `flm.citations.mark`, whose kind token says how it is written, `attached` for a `\cite`
 and `standalone` for an `\R`. The span holds the numbers of the cited works, each a link of
 link kind `cite` to the work's identifier `#citation-<n>`, with the delimiters, the join texts,
@@ -1750,7 +1827,7 @@ The rule of a `\cite` writes, before the span, the space its form calls for: a n
 space under the bracketed form (a span of role `flm.citations.space`, placed directly
 before the citation mark's span and holding that character, printed as the character), and
 nothing under the superscript form, where the span carries the superscript style and
-prints raised digits, `text¹,²`. The rule of an `\R` writes the word of the [citation counter style](crate::stdcore::features::citations#the-configuration)
+prints raised digits, `text¹,²`. The rule of an `\R` writes the word of the [citation counter style](crate::stdlib::features::citations#the-configuration)
 before the span, in a span of role `flm.citations.word` (`refs. [1,2]`, `Ref. [1]` under
 the flag `S`, `\R[S]`, which capitalizes the word; no word under the flag `I`, `\R[I]`), and nothing before the word. Its citation mark is never
 raised, and under the superscript form it shows its numbers bare, `refs. 1,2`.
@@ -1758,7 +1835,7 @@ raised, and under the superscript form it shows its numbers bare, `refs. 1,2`.
 A citation chunk that shows no number (every call lists no citation key, or an `\R` has
 no citation after it) is written as a dropped mark,
 `[dropped: citation]`, beside the Error its rule reports. Under the in-place placement
-([`CitationPlacement::InPlace`](crate::stdcore::features::citations::CitationPlacement)),
+([`CitationPlacement::InPlace`](crate::stdlib::features::citations::CitationPlacement)),
 the span shows the citation entries instead, with the kind tokens `attached` or
 `standalone`, then `in-place`. For each cited work, in the order written, it shows the
 style's opening delimiter, the work's citation entry (read by citation key from the table
@@ -1772,9 +1849,9 @@ The bound is tight [Knuth, 1984][Lamport, 1994; Thm 4]; see [[dropped: bibliogra
 ```
 
 The **bibliography**, the piece `flm.citations.bibliography`
-([`BIBLIOGRAPHY`](crate::stdcore::features::citations::BIBLIOGRAPHY)), holds one
+([`BIBLIOGRAPHY`](crate::stdlib::features::citations::BIBLIOGRAPHY)), holds one
 synthesized element of that name. Its rule
-([`BibliographyRule`](crate::stdcore::features::citations::BibliographyRule)) stages a
+([`BibliographyRule`](crate::stdlib::features::citations::BibliographyRule)) stages a
 block of role `flm.citations.bibliography`, with the kind token `citations`, holding a
 heading (the configured title, `References` by default, at the configured level, 2 by
 default, with the heading kind name `citations`, out of any table of contents) and a
@@ -1806,14 +1883,14 @@ LaTeX writes its own.
 
 ### The table of contents
 
-The **table of contents**, the piece `flm.toc` of the [`toc`](crate::stdcore::features::toc)
-feature ([`PIECE`](crate::stdcore::features::toc::PIECE)), lists the document's headings
+The **table of contents**, the piece `flm.toc` of the [`toc`](crate::stdlib::features::toc)
+feature ([`PIECE`](crate::stdlib::features::toc::PIECE)), lists the document's headings
 (the [language syntax guide](crate::guide::language_syntax#the-table-of-contents) says
 which, and how a render asks for it). It is off by default, and it is placed before the
 content, after the metadata's pieces. Its content holds three synthesized elements: the
 root `flm.toc`, holding one list `flm.toc.list`, whose entries `flm.toc.entry` each hold
 the entry's title and, where the heading has listed sub-headings, a list of them. The
-feature's general rules ([`toc::rules`](crate::stdcore::features::toc::rules)), the same
+feature's general rules ([`toc::rules`](crate::stdlib::features::toc::rules)), the same
 on every backend, stage:
 
 - the root as a `block` of role `flm.toc`, with the kind token `toc` and the document
@@ -1844,32 +1921,106 @@ numbering:
 ### Position marks: where a printed byte came from
 
 The emitter wraps every presentation node it prints in a layout mark, and
-[`TextOutput::marks`](crate::stdcore::backends::text::TextOutput::marks) records, for each
+[`TextOutput::marks`](crate::stdlib::backends::text::TextOutput::marks) records, for each
 mark, the byte range and the line and column range of what that node printed: a **position
-mark** ([`TextMark`](crate::stdcore::backends::text::TextMark)).
+mark** ([`TextMark`](crate::stdlib::backends::text::TextMark)).
 
 A position mark refers to a *lowered* node, by a
-[`LoweredAddr`](crate::stdcore::backends::lowering::LoweredAddr): the document tree the
+[`LoweredAddr`](crate::stdlib::backends::lowering::LoweredAddr): the document tree the
 node was lowered from, and the node's position in that tree's lowered form. It does not
 refer to a node of a frozen tree, because a rule may stage nodes that correspond to no
 single node of the document. The lowered node is found with
-[`LoweredAddr::resolve`](crate::stdcore::backends::lowering::LoweredAddr::resolve), and its
+[`LoweredAddr::resolve`](crate::stdlib::backends::lowering::LoweredAddr::resolve), and its
 span and provenance lead back to the document. Because a position is the same in two runs
 over the same document, two such runs produce equal position marks.
 
-[`TextOutput::slice`](crate::stdcore::backends::text::TextOutput::slice) returns the
+[`TextOutput::slice`](crate::stdlib::backends::text::TextOutput::slice) returns the
 printed text that one of this output's position marks covers (it panics for a mark of
 another output), and
-[`TextOutput::marks_at`](crate::stdcore::backends::text::TextOutput::marks_at) the position
+[`TextOutput::marks_at`](crate::stdlib::backends::text::TextOutput::marks_at) the position
 marks of one lowered node. An editor that shows a document beside its rendering, or a test
 that checks where something was printed, is built on these.
+
+### Style marks: what plain text could not show
+
+Some content carries a property that plain text cannot show: a heading's title, a bold or
+an emphasized span, the address of a link. The emitter prints that content as plain text,
+and records where it printed it in a **style mark**
+([`TextStyleMark`](crate::stdlib::backends::text::TextStyleMark), held in
+[`TextOutput::styles`](crate::stdlib::backends::text::TextOutput::styles)). The emitter
+also records a style mark for the characters it draws to set content apart, such as the
+rule under a heading. A style mark holds the byte range and the line and column range of
+the characters it covers, and the property, a
+[`TextStyle`](crate::stdlib::backends::text::TextStyle). A style mark never changes the
+printed text. A program that writes the text to a medium able to show the property reads
+the style marks: the extension `profile-tty`, which the `flm` program carries compiled in,
+paints them with the escape sequences of a terminal (see [Text for a
+terminal](crate::guide::command_line#text-for-a-terminal)).
+
+The marks are the text backend's, and the painting is left to the program that writes the
+text, for two reasons. Only the printer knows where a node's content lands once the lines
+are broken and indented, so only the backend can say which bytes are bold; and a medium's
+codes (a terminal's escape sequences, for instance) are the business of the program that
+writes to it, so the text output stays the same for every reader, and a medium is served
+without a backend of its own that would lay the text out a second time.
+
+These printed ranges get a style mark:
+
+| lowered node | style mark |
+|---|---|
+| `block-heading` | `Heading`, holding the heading's depth below the root heading level (0 for a first-level heading), over the title as printed, with the `#` characters in front of a deep heading; the rule under a heading is outside it. `HeadingRule`, holding the same depth, over that rule, and over the `#` characters with the space after them |
+| `runin-heading` | `Heading`, holding the heading's depth, over the title; the stop written after the title is outside it |
+| `span` of style `Bold`, `Italic`, `Emphasis`, `Underline`, `Monospace` or `SmallCaps` | the style of the same name, over the span's content |
+| `link` | `Link`, holding the link's target exactly as the link's payload holds it (`#…` for a place inside the document), over the link's content; the ` <address>` printed after the content is outside it |
+| `verbatim`, inline or as a block | `Verbatim`, over the content |
+| `cells` | `TableBorder`, over each run of characters drawn for the table on a line: a whole line of the frame or the `-` rule under the header rows, and each bar of a line of the rows on its own; the spaces that pad a cell are outside it |
+
+No other node gets a style mark. A superscript or subscript span gets none, since the
+emitter already writes its text in Unicode superscript or subscript forms.
+
+The style marks differ from the position marks in one respect: they are recorded inside
+pieces too (the title, the list of notes, the bibliography, the table of contents), so a
+piece shows the same styles as the document's content. A position mark addresses a node of
+a document tree, which a piece is not part of; a style mark needs no address.
+
+The emitter prints the label of a list entry and a decoration (a run-in heading, a theorem's
+heading) as one piece of flattened text. The styled nodes inside that text still get style
+marks, each over its part of the text.
+
+[`TextOutput::styles`](crate::stdlib::backends::text::TextOutput::styles) holds the style
+marks in the order the printer reaches their nodes, a node's mark before the marks inside
+it, so two style marks are either nested or apart. A styled node whose content prints no
+character gets no style mark, so the range of a style mark is never empty.
+[`TextOutput::style_slice`](crate::stdlib::backends::text::TextOutput::style_slice) returns
+the text one style mark covers.
+
+The content of a table of cells has its position marks and style marks like any other
+content, each over its text where the cell stands in the table ([Layout
+marks](#layout-marks)). They follow the marks of the table's node: first the table's
+`table-border` marks, then the marks inside its cells, row by row and column by column. A
+node printed over several lines of a cell has one mark per line of the cell on which it
+prints a character, each over that line's part of the cell's text, because the table prints
+the cell's lines between the frame or the gutter and the other cells of the row. A mark
+never covers a character its cell did not print.
+
+In the projection of `flm.output.text`, which an extension's stage reads, the style marks
+are the list `styles`, each entry holding `style` (the style's name, as
+[`TextStyle::name`](crate::stdlib::backends::text::TextStyle::name) gives it: `heading`,
+`heading-rule`, `bold`, `italic`, `emphasis`, `underline`, `monospace`, `small-caps`,
+`verbatim`, `link` or `table-border`), `depth` for a heading and a heading's rule (a whole
+number), `href` for a link, `bytes` (the byte range, as two numbers) and `start` and `end`
+(the line and column range, written `line:col`). The line and the column count as those of
+the position marks, which the projection holds in the list `marks` in the same form: both
+from 0, the column in display columns. A position mark's entry also holds `addr`, its
+lowered node's address in its display form (`tree#0/5`); an extension's stage that reads
+the lowered trees `flm.lowered.text` gets the node itself with their method `node_at`.
 
 ### The depth limit and the worker thread
 
 The emitter's walk recurses as deeply as the trees nest, counting the trees they place,
-and is bounded by [`DEPTH_LIMIT`](crate::stdcore::backends::text::DEPTH_LIMIT). A tree that
+and is bounded by [`DEPTH_LIMIT`](crate::stdlib::backends::text::DEPTH_LIMIT). A tree that
 nests more deeply prints nothing and is reported as `flm.text.nesting-too-deep`
-([`NestingTooDeep`](crate::stdcore::backends::text::NestingTooDeep)). A tree parsed from a
+([`NestingTooDeep`](crate::stdlib::backends::text::NestingTooDeep)). A tree parsed from a
 document never comes near the limit, because the parse refuses far shallower nesting; a
 lowered tree can reach it when rules stage levels of their own, or when placed trees form
 a long chain.
@@ -1877,10 +2028,10 @@ a long chain.
 Because the walk recurses, it must run on a worker thread: a thread created with at least
 [`WORKER_STACK_SIZE`](crate::lang::guard::WORKER_STACK_SIZE) bytes of stack
 ([`on_worker_thread`](crate::lang::guard::on_worker_thread)). Every stage of a run already
-runs on one. [`emit`](crate::stdcore::backends::text::emit()) therefore runs in place when
+runs on one. [`emit`](crate::stdlib::backends::text::emit()) therefore runs in place when
 its caller is a worker thread, and creates one otherwise. When the operating system refuses
 to create a thread, it reports `flm.text.worker-thread-unavailable`
-([`NoWorkerThread`](crate::stdcore::backends::text::NoWorkerThread)) and prints nothing. It
+([`NoWorkerThread`](crate::stdlib::backends::text::NoWorkerThread)) and prints nothing. It
 never panics.
 
 ## The layout engine
@@ -1993,14 +2144,18 @@ column widths from each column's minimum and maximum content width. When the max
 all fit, each column starts at its minimum, and the width left over is shared out in whole
 columns in proportion to each column's room to grow: each column first takes the whole part
 of its share, then the columns with the largest fractional shares take one more column each
-until nothing is left. Cells are then wrapped at their column's width and separated by two
-spaces, and a line of `-` is drawn under the header rows. A cell is a
+until nothing is left. Cells are then wrapped at their column's width and drawn as the
+table's [`TableFrame`](crate::layout::TableFrame) says: separated by two spaces, with a line
+of `-` under the header rows (`Gutter`), or inside a frame of box-drawing characters, with a
+rule of the frame under the header rows (`Box`); the solver subtracts the gutters or the
+frame from the width first. A table given a mark for its border reports the characters it
+draws under that mark, one span per run of them on a line. A cell is a
 [`TableCell`](crate::layout::TableCell): its layout document and, optionally, an alignment
 of its own, which replaces the column's for that cell alone. A row given as bare
 [`DocId`](crate::layout::DocId)s holds cells that follow their columns' alignment.
 
 ```rust
-use flm_core::layout::{ColSpec, DocBuf, Profile, print};
+use flm_core::layout::{ColSpec, DocBuf, Profile, TableFrame, print};
 
 let mut b = DocBuf::new();
 let cells: Vec<_> = ["name", "count", "alpha", "3"].iter().map(|s| b.text(s)).collect();
@@ -2008,6 +2163,8 @@ let t = b.table(
     &[ColSpec::left(), ColSpec::right()],
     &[&cells[0..2], &cells[2..4]],
     1, // one header row
+    TableFrame::Gutter,
+    None, // no mark for the characters the table draws
 );
 
 assert_eq!(print(&b, t, &Profile::new(Some(40))), "name   count\n-----  -----\nalpha      3\n");
@@ -2015,12 +2172,15 @@ assert_eq!(print(&b, t, &Profile::new(Some(40))), "name   count\n-----  -----\na
 
 A table is a block: it starts on a line of its own and ends one. A table that prints
 nothing (no columns, no rows, or only empty cells) is not a block, and leaves the
-surrounding line unchanged. Layout marks inside table cells are not reported; a layout mark
-around a whole table is.
+surrounding line unchanged. The layout marks inside the cells are reported where the cells'
+text lands in the table ([Layout marks](#layout-marks)).
 
-The plain-text backend builds one layout table for each table of cells (`flm.pres.cells`): one column per column of the
-grid, each cell with its own alignment, and the rows of column headers as the header rows.
-The engine has no cell that spans several rows or columns: the content of a cell that spans
+The plain-text backend builds one layout table for each table of cells (`flm.pres.cells`):
+one column per column of the grid, each cell with its own alignment, and the rows of column
+headers as the header rows. The frame is the one the render option `table_frame` chooses
+([Render options](#render-options)), and the characters the table draws are the backend's
+`TableBorder` style marks ([Style marks](#style-marks-what-plain-text-could-not-show)). The
+engine has no cell that spans several rows or columns: the content of a cell that spans
 several positions is placed at the first position of its span, and every other position of
 the span holds an empty layout document.
 
@@ -2028,17 +2188,31 @@ the span holds an empty layout document.
 
 A [`mark`](crate::layout::DocBuf::mark) only observes: it never changes the layout, and a
 layout document with marks prints to the same bytes as one without.
-[`print_full`](crate::layout::print_full) reports one
-[`MarkSpan`](crate::layout::MarkSpan) per occurrence of a layout mark, in the order the
-marks were opened. A span gives the byte range and the zero-based
+[`print_full`](crate::layout::print_full) reports one [`MarkSpan`](crate::layout::MarkSpan)
+per occurrence of a layout mark, in the order the marks were opened, except a mark over
+several lines of a table's cell (below). A span gives the byte range and the zero-based
 [`LineCol`](crate::layout::LineCol) range of the child's printed content: from its first
 content character, after any line break and indentation before it, to just after its last
 content character, not counting whitespace that has not yet been written. The plain-text
-backend's position marks are built from these spans.
+backend's position marks and style marks are built from these spans.
+
+A table's spans follow those of the marks opened before it, the mark around the table
+included: first one span under the table's border mark for each run of characters it draws
+on a line, if it has a border mark, then the marks inside its cells, row by row and column
+by column, each cell's marks in their own order. Each cell is printed on its own, and each
+of its marks is placed where the cell's text lands in the table: on the table's line that
+holds the cell's line, after the indentation, the frame or the gutter, and the padding of a
+right-aligned or centered cell. A span inside a cell never covers a character the cell did
+not print: a mark over several lines of a cell gives one span per line of the cell on which
+it covers a character, because the table interleaves the cell's lines with the rest of the
+row. The first span runs from the mark's start to the end of that line of the cell, the last
+from the start of its line of the cell to the mark's end, each one in between over its whole
+line of the cell; the spans of one mark are consecutive, in line order. The marks of a table
+nested in a cell are placed twice, into the cell and then into the enclosing table.
 
 ## The HTML backend
 
-The `html` backend ([`crate::stdcore::backends::html`]) writes a document as an HTML page
+The `html` backend ([`crate::stdlib::backends::html`]) writes a document as an HTML page
 for a browser. It reads the lowered trees of the document, made mostly of the presentation elements
 that every backend shares, and writes each element as HTML tags with classes and
 attributes derived from the element's name and payload.
@@ -2053,7 +2227,7 @@ the general rule does not write. A general rule that needs the feature's stylesh
 it by the feature's style identifier, which each backend resolves in its own way ([Style and
 script definitions](#style-and-script-definitions) below).
 
-One feature, [`HtmlBackend`](crate::stdcore::backends::html::HtmlBackend), registers the
+One feature, [`HtmlBackend`](crate::stdlib::backends::html::HtmlBackend), registers the
 backend, the output and the workflow, all three named `html`, together with the HTML
 construct element `flm.pres.html.tag`, the backend's stages, tables and stylesheets, and
 the formula renderer's script. A caller asks for the page
@@ -2080,15 +2254,15 @@ Python FLM](crate::guide::python_flm_migration) lists the differences.
 ### The elements the backend writes without a lowering rule
 
 The backend's native set
-([`native_elements`](crate::stdcore::backends::html::native_elements)) holds 29 elements:
+([`native_elements`](crate::stdlib::backends::html::native_elements)) holds 29 elements:
 
-- every presentation element ([`pres::ALL`](crate::stdcore::backends::pres::ALL));
+- every presentation element ([`pres::ALL`](crate::stdlib::backends::pres::ALL));
 - the HTML construct element
-  [`flm.pres.html.tag`](crate::stdcore::backends::html::TAG), one HTML tag that a lowering
+  [`flm.pres.html.tag`](crate::stdlib::backends::html::TAG), one HTML tag that a lowering
   rule stages when no presentation element carries what it must write ([Escaping, and the
   trust guarantee](#escaping-and-the-trust-guarantee) below);
 - six [structural elements](crate::lang::structural::StructuralElements) that
-  need no translation ([`FLOW_THROUGH`](crate::stdcore::backends::html::FLOW_THROUGH)):
+  need no translation ([`FLOW_THROUGH`](crate::stdlib::backends::html::FLOW_THROUGH)):
   `flm.text`, `flm.group`, `flm.opaque-wrapper`, `flm.comment`, `flm.container` and
   `flm.parbreak`.
 
@@ -2098,7 +2272,7 @@ document, such as `headings`, `refs` or `xnotes`, as opposed to a backend featur
 for `flm.ref` reads the table of resolved references, so a plan that writes HTML schedules
 the `refs` feature's resolve stage and, before it, the stage that computes each reference
 point's **anchor**, the identifier a link points at
-([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)). A heading therefore reaches the
+([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)). A heading therefore reaches the
 emitter with its anchor, and the emitter writes the anchor as the heading's `id`. In a
 registry without the `refs` feature no anchor is computed, and a heading has no `id`.
 
@@ -2151,20 +2325,20 @@ payload already has:
 
 - **The class of an element.** A node's first class is the name of its presentation
   element with every hyphen doubled and every dot replaced by one hyphen
-  ([`class_of_element`](crate::stdcore::backends::html::class_of_element)):
+  ([`class_of_element`](crate::stdlib::backends::html::class_of_element)):
   `flm.pres.block-heading` becomes `flm-pres-block--heading`, and `flm.pres.deco.runin`
   becomes `flm-pres-deco-runin`. Because hyphens are doubled, a class converts back to
   exactly one element name (a single hyphen was a dot, a double hyphen was a hyphen), so
   two element names never produce the same class.
 - **The class of a role.** A payload's role, a dotted name owned by a feature that says
   what a container is ([roles and kind
-  tokens](crate::stdcore::backends::pres::payload)), becomes the
+  tokens](crate::stdlib::backends::pres::payload)), becomes the
   node's second class by the same conversion
-  ([`class_of_role`](crate::stdcore::backends::html::class_of_role)): `flm.heading.number`
+  ([`class_of_role`](crate::stdlib::backends::html::class_of_role)): `flm.heading.number`
   becomes `flm-heading-number`.
 - **A `data-flm-` attribute.** A payload field that is not one of HTML's own attributes
   is written as `data-flm-` followed by the field's name, with every `_` and `.` replaced
-  by `-` ([`data_attribute`](crate::stdcore::backends::html::data_attribute)). Three fields
+  by `-` ([`data_attribute`](crate::stdlib::backends::html::data_attribute)). Three fields
   are written under another name. A field holding a list of kind tokens (`kinds`) is
   written as `data-flm-kind`, the attribute of a field holding a single kind token, so that
   a stylesheet selects a kind token in the same way whichever field carried it. A heading's
@@ -2174,7 +2348,7 @@ payload already has:
 Three classes are not derived from an element or a role: `flm-content` on the element
 that holds the page's content, `flm-pres-list-label` on the label of a list entry, and
 `flm-pres-unknown-marker` on the `\begin` and `\end` lines of an environment that no
-feature declares ([`AUXILIARY_CLASSES`](crate::stdcore::backends::html::AUXILIARY_CLASSES)).
+feature declares ([`AUXILIARY_CLASSES`](crate::stdlib::backends::html::AUXILIARY_CLASSES)).
 They are written by hand but follow the same conversion: read back, they give
 `flm.content`, `flm.pres.list.label` and `flm.pres.unknown.marker`, each an element's name
 followed by the name of one of its parts, which is the form of a role's name. So none of
@@ -2191,13 +2365,13 @@ produces, and every stylesheet written against the old class stops matching. A f
 that introduces a role chooses its name once and keeps it, as it would keep the name of a
 public function.
 
-**Lengths.** A payload field holding a [length](crate::stdcore::backends::pres::Length),
+**Lengths.** A payload field holding a [length](crate::stdlib::backends::pres::Length),
 such as a line's indentation, is written as a **custom property** (a CSS variable) in the
 element's `style` attribute. The property's name is `--flm-element-` followed by the
 field's name converted as for a `data-flm-` attribute
-([`style_property`](crate::stdcore::backends::html::style_property)); its value is the
+([`style_property`](crate::stdlib::backends::html::style_property)); its value is the
 length as a CSS length
-([`css_length`](crate::stdcore::backends::html::conventions::css_length)). A length in
+([`css_length`](crate::stdlib::backends::html::conventions::css_length)). A length in
 tabs is written as a multiple of the custom property `--flm-tab`, which the core
 stylesheet declares on the page's root (`2em` by default); every other unit is written as
 it is, since the units of the presentation vocabulary are CSS's own units and its point
@@ -2218,10 +2392,10 @@ Content Security Policy that forbids inline styles loses these values; the page 
 backend assembles already needs inline styles allowed for its `<style>` elements.
 
 The HTML contract is written down once, as data
-([`CONVENTIONS`](crate::stdcore::backends::html::CONVENTIONS)), with one row per
+([`CONVENTIONS`](crate::stdlib::backends::html::CONVENTIONS)), with one row per
 presentation element. The emitter reads an element's row before it writes a node of that
 element, the function
-[`markdown_table`](crate::stdcore::backends::html::markdown_table) prints the rows, and
+[`markdown_table`](crate::stdlib::backends::html::markdown_table) prints the rows, and
 tests compare the output, the rows and the table below, which that function printed:
 
 | element | tag | classes | attributes | dropped | style definition |
@@ -2231,12 +2405,12 @@ tests compare the output, the rows and the table below, which that function prin
 | `flm.pres.block-heading` | `<h1>`–`<h6>` by level counted from `root_heading_level`, `<h6>` five levels below it and deeper; a render option maps a heading kind to a tag of its own | `flm-pres-block--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.headings` |
 | `flm.pres.runin-heading` | `<span>` | `flm-pres-runin--heading` | `id` ← `anchor`, `data-flm-heading` ← `name`, `data-flm-level` ← `level`, `data-flm-toc` ← `in_toc` | `number` (the number stands in the content) | `flm.html.style.core` |
 | `flm.pres.span` | by style; `<span>` otherwise | `flm-pres-span`, the role's own class | `id` ← `anchor`, `role` ← `doc_role`, `data-flm-style` ← `style`, `data-flm-kind` ← `kinds` | — | `flm.html.style.core` |
-| `flm.pres.list` | `<ol>`, `<ul>` or `<dl>` by the kind `numbered`, `unnumbered` or `terms`; `<ul>` otherwise | `flm-pres-list` | `id` ← `anchor`, `data-flm-kind` ← `kinds`, each entry's `id` ← `entry_anchors` | — | `flm.html.style.lists` |
+| `flm.pres.list` | `<ol>`, `<ul>` or `<dl>` by the kind `numbered`, `unnumbered` or `terms`; `<ul>` otherwise | `flm-pres-list` | `id` ← `anchor`, `data-flm-kind` ← `kinds`, each entry's `id` ← `entry_anchors`, each entry's `data-flm-level` ← `entry_levels` | — | `flm.html.style.lists` |
 | `flm.pres.cells` | `<table>` | `flm-pres-cells` | each entry's `rowspan` ← `row_span`, each entry's `colspan` ← `col_span`, each entry's `scope` ← `header`, each entry's `data-flm-align` ← `align`, each entry's `data-flm-rules` ← `rules`, each entry's `data-flm-style-<name>` ← `styles` | `rows` (the grid's size is its shape: one `<tr>` per row, and in it one element per position a span does not cover, an empty `<td>` where there is no cell), `cols` (the grid's size is its shape, as for `rows`), `cells` (each entry is a `<td>`, or a `<th>` for a header, at its top-left position, holding its `cell` slot, its fields written as the attributes of each entry) | `flm.cells.style` |
 | `flm.pres.lines` | `<div>` | `flm-pres-lines` | — | — | `flm.html.style.lists` |
 | `flm.pres.line` | `<div>` | `flm-pres-line` | `style` ← `indent_left` as `--flm-element-indent-left`, `indent_right` as `--flm-element-indent-right` (custom properties, none for a zero length), `data-flm-align` ← `align` | — | `flm.html.style.lists` |
-| `flm.pres.verbatim` | `<code>` inline, `<pre><code>` as a block | `flm-pres-verbatim` | `data-flm-kind` ← `kind`, `data-flm-display` ← `display`, `data-flm-lang` ← `lang` | — | `flm.html.style.verbatim` |
-| `flm.pres.math-passthrough` | `<span>` | `flm-pres-math--passthrough` | `data-flm-display` ← `display`, `data-flm-env` ← `env` | — | `flm.html.style.math-passthrough` |
+| `flm.pres.verbatim` | for the kind `code`, `<code>` inline, `<pre><code>` as a block; for every other kind, `<span>` inline, `<div>` as a block | `flm-pres-verbatim` | `data-flm-kind` ← `kind`, `data-flm-display` ← `display`, `data-flm-lang` ← `lang` | — | `flm.html.style.verbatim` |
+| `flm.pres.math-passthrough` | `<span>` | `flm-pres-math--passthrough`, the role's own class | `data-flm-display` ← `display`, `data-flm-env` ← `env` | — | `flm.html.style.math-passthrough` |
 | `flm.pres.math-text` | `<span>` | `flm-pres-math--text` | `id` ← `anchor`, `data-flm-command` ← `command` | `at_tag` (the content is written at the position of an equation line's tag; no attribute: a pair of dollar signs is written around the element instead, inside the formula) | `flm.html.style.math-passthrough` |
 | `flm.pres.link` | `<a>` | `flm-pres-link` | `href` ← `href`, `role` ← `doc_role`, `aria-label` ← `label`, `data-flm-kind` ← `kind` | — | `flm.html.style.core` |
 | `flm.pres.image` | `<img>` | `flm-pres-image`, `flm-pres-block` before it where `display` is `block` | `id` ← `anchor`, `src` ← `src`, `alt` ← `alt`, `srcset` ← `srcset`, `style` ← `width` as `--flm-element-width`, `height` as `--flm-element-height`, `width` ÷ `height` as `--flm-element-aspect-ratio` (custom properties, none for a zero length) | — | `flm.html.style.core` |
@@ -2257,8 +2431,8 @@ page needs. How the stylesheet then reaches the page is decided separately, by t
 option `definitions` ([Style and script definitions](#style-and-script-definitions) below).
 
 A **role** is written as the node's second class, after the element's own class, on the
-two rows (`flm.pres.block` and `flm.pres.span`) whose classes column says so. The roles of
-each standard feature are documented with that feature below.
+three rows (`flm.pres.block`, `flm.pres.span` and `flm.pres.math-passthrough`) whose classes
+column says so. The roles of each standard feature are documented with that feature below.
 
 ### How each element is written
 
@@ -2268,7 +2442,7 @@ cannot express.
 
 - **A block** (`flm.pres.block`) is written with the tag that its role is given in the
   backend's table of block tags,
-  [`BLOCK_TAGS`](crate::stdcore::backends::html::conventions::BLOCK_TAGS): a quotation
+  [`BLOCK_TAGS`](crate::stdlib::backends::html::conventions::BLOCK_TAGS): a quotation
   (role `flm.quote`) is a `<blockquote>`, a float (role `flm.floats.float`) a `<figure>`,
   the line under a float's content (role `flm.floats.float.caption`) a `<figcaption>`, the
   table of contents (role `flm.toc`) a `<nav>`, and every other block a `<div>`. No feature, configuration value or lowering rule chooses a
@@ -2276,9 +2450,9 @@ cannot express.
   selects a block by its role's class (`.flm-quote`), never by its tag.
 - **A list** is an `<ol>`, a `<ul>` or a `<dl>`, chosen by the first of the kind tokens
   `numbered`, `unnumbered` and `terms` that the list carries
-  ([`LIST_NUMBERED`](crate::stdcore::backends::pres::LIST_NUMBERED),
-  [`LIST_UNNUMBERED`](crate::stdcore::backends::pres::LIST_UNNUMBERED),
-  [`LIST_TERMS`](crate::stdcore::backends::pres::LIST_TERMS)), and a `<ul>` when it
+  ([`LIST_NUMBERED`](crate::stdlib::backends::pres::LIST_NUMBERED),
+  [`LIST_UNNUMBERED`](crate::stdlib::backends::pres::LIST_UNNUMBERED),
+  [`LIST_TERMS`](crate::stdlib::backends::pres::LIST_TERMS)), and a `<ul>` when it
   carries none of them. The tag never depends on the name of the environment that produced
   the list, so a list environment a host configures is written according to its structure.
   Each entry is an `<li>`; an entry's label, when the list has one, is a
@@ -2286,8 +2460,12 @@ cannot express.
   (`<dl>`) may hold only `<dt>` and `<dd>` children, so its label is a `<dt>` carrying the
   same class and its entry a `<dd>`. An entry's anchor is the `id` of the element that
   begins the entry, the `<li>` or the `<dt>`, which is where a link to a list item leads.
+  An entry's level is written on the same element as `data-flm-level`, the attribute that
+  carries a heading's level, so that the selector `[data-flm-level="2"]` matches the
+  headings of level 2 and the entries of level 2 alike. An entry without a level has no
+  such attribute.
 - **A table of cells** is a `<table class="flm-pres-cells">` with one `<tr>` per row of the
-  grid ([`CellsPayload::grid`](crate::stdcore::backends::pres::CellsPayload::grid)), and
+  grid ([`CellsPayload::grid`](crate::stdlib::backends::pres::CellsPayload::grid)), and
   in each row one element per position that no spanning cell covers. A cell is written at
   its top-left position as a `<td>`, or as a `<th>` for a header cell with `scope="col"`
   (a column header) or `scope="row"` (a row header), with `colspan` and `rowspan` where it
@@ -2325,9 +2503,9 @@ cannot express.
   is `dropped: ` followed by the mark's short statement, so that it is readable on a page
   with no stylesheet; the errors stylesheet gives it the look of an error. The dropped
   marks of a table of cells are written before the table, one per thing left out.
-- **Verbatim content** written as a block is `<pre><code>…</code></pre>`, with the class
-  and the attributes on the `<pre>` and the content written as text, unchanged except for
-  escaping.
+- **Verbatim content** written as a block is `<pre><code>…</code></pre>` for code and a
+  `<div>` for the other kinds, with the class and the attributes on the outer element and
+  the content written as text, unchanged except for escaping.
 - **A macro or an environment that no feature declares** (`flm.pres.unknown`) is shown as
   the author wrote it: a macro is a `<span class="flm-pres-unknown">` around its
   spelling; an environment is a `<div>` holding a `\begin{…}` line, the lowered body and
@@ -2338,16 +2516,16 @@ cannot express.
   the element's name in it through generated content. **An unresolved reference** is a
   span carrying `data-flm-style="unresolved-reference"`, which the core stylesheet shows
   as an error.
-- **A document role** ([`DocRole`](crate::stdcore::backends::pres::DocRole)), what a
+- **A document role** ([`DocRole`](crate::stdlib::backends::pres::DocRole)), what a
   block, a span or a link is among a document's notes, cited works and table of contents,
   is written as the `role` attribute: `doc-` followed by the role's name (`doc-endnotes`,
   `doc-footnote`, `doc-noteref`, `doc-backlink`, `doc-bibliography`, `doc-biblioref`,
   `doc-toc`), the roles of the
   digital-publishing vocabulary that assistive technology reads. A link's **accessible
-  name** ([`LinkPayload::label`](crate::stdcore::backends::pres::LinkPayload::label)) is
+  name** ([`LinkPayload::label`](crate::stdlib::backends::pres::LinkPayload::label)) is
   written as `aria-label`: a screen reader speaks it instead of the link's text, which
   stays what a reader sees.
-- **A decoration** ([`Decoration`](crate::stdcore::backends::pres::Decoration)) of every
+- **A decoration** ([`Decoration`](crate::stdlib::backends::pres::Decoration)) of every
   kind is a `<span>` written where its decoration mark is, in the flow of the text. A
   margin decoration is written at its mark too: inside a paragraph, inside a heading's
   title, or at the start of the block that carries it. The core stylesheet places it in a
@@ -2390,22 +2568,22 @@ not promise this order; the golden files of the tests rely on it.
 
 A heading set on a line of its own (`flm.pres.block-heading`) is written as `<h1>` to
 `<h6>`, chosen by its level counted from the **root heading level**, the render option
-[`root_heading_level`](crate::stdcore::backends::html::HtmlRenderOptions::root_heading_level)
+[`root_heading_level`](crate::stdlib::backends::html::HtmlRenderOptions::root_heading_level)
 (1 by default). A heading at the root's level is `<h1>`, a heading one level deeper
 `<h2>`, and a heading five or more levels below the root `<h6>`
-([`heading_depth`](crate::stdcore::backends::pres::heading_depth)). A heading's level is
+([`heading_depth`](crate::stdlib::backends::pres::heading_depth)). A heading's level is
 a number counted from zero, smaller for outer headings; the root heading level says which
 level the page writes as its first-level heading. The five heading kinds of the standard
 package, `section` to `subparagraph`, are levels 1 to 5, and a host may declare kinds of
 its own, deeper ones and a kind at level 0 above the sections
-([`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig)). Under the default
+([`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig)). Under the default
 root, a section is `<h1>`; with a root of 0, a chapter kind declared at level 0 is `<h1>`
 and a section `<h2>`; with a root of 2, the subsections of one section are the page's
 first-level headings. The root changes the tags and nothing else: the numbering, the
 run-in headings, the anchors and the text of a reference use the heading's own level.
 
 A heading whose level is less than the root heading level is the Error
-[`flm.pres.heading-above-root`](crate::stdcore::backends::pres::HeadingAboveRoot), and is
+[`flm.pres.heading-above-root`](crate::stdlib::backends::pres::HeadingAboveRoot), and is
 written as `<h1>` unless the host maps its kind to a tag (below). The plain-text output
 reports the same condition under the same identifier. The `check` workflow does not
 report it, because the root heading level is a render option.
@@ -2417,7 +2595,7 @@ name of its heading kind (`section`); `data-flm-level`, its own level; and `data
 title.
 
 The render option
-[`heading_tags`](crate::stdcore::backends::html::HtmlRenderOptions::heading_tags) maps the
+[`heading_tags`](crate::stdlib::backends::html::HtmlRenderOptions::heading_tags) maps the
 name of a heading kind to a tag chosen by the host, for example `section` to `h2` on a page
 whose own title is its `<h1>`. A kind that the option does not list keeps the tag of its
 level. The mapping chooses the tag and nothing else: the attributes are the same, so a
@@ -2429,7 +2607,7 @@ heading of the heading kind `xnotes` for every xnote kind, so mapping `xnotes` t
 writes every such title as `<h3>`.
 
 The heading's `id` is its **anchor**
-([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)), computed for every backend by the
+([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)), computed for every backend by the
 `refs` feature. A heading
 with a `\label` carries that label's anchor. A heading without a label is still a point a
 reference can name, so it also carries an anchor, derived from the words of its title. An
@@ -2440,22 +2618,22 @@ of its content is not part of the words around it). In a registry without the `r
 feature a heading has no `id`.
 
 **Run-in headings.** A heading kind that a host declares as run in
-([`HeadingDecl::run_in`](crate::stdcore::features::headings::HeadingDecl::run_in)) is set at
+([`HeadingDecl::run_in`](crate::stdlib::features::headings::HeadingDecl::run_in)) is set at
 the start of the paragraph it introduces rather than on a line of its own. The lowered tree
 holds a run-in decoration (`flm.pres.deco.runin`) inside the paragraph, holding a
 `flm.pres.runin-heading` with the title; the backend writes the heading's `<span>` inside the
 decoration's `<span>`. The stop after the title is not part of the tree's content: the
 backend writes it as text inside the decoration's span, after the title, from the render
-option [`run_in_stop`](crate::stdcore::backends::html::HtmlRenderOptions::run_in_stop) (a
+option [`run_in_stop`](crate::stdlib::backends::html::HtmlRenderOptions::run_in_stop) (a
 period by default; the empty text writes no stop). The stop is therefore part of the page's
 text: a reader copies it with the rest, and a host that replaces the stylesheet keeps it.
 The gap between the title and the following text is set by the core stylesheet
 (`--flm-runin-gap`).
 
 The stop is written only when the title holds text and does not already end in `.`, `,`,
-`:`, `;`, `?` or `!` ([`RUN_IN_STOPS`](crate::stdcore::backends::pres::RUN_IN_STOPS)), so
+`:`, `;`, `?` or `!` ([`RUN_IN_STOPS`](crate::stdlib::backends::pres::RUN_IN_STOPS)), so
 `Why?` is written `Why?`. The test reads the decoration's content tree
-([`ends_in_sentence_punctuation`](crate::stdcore::backends::pres::ends_in_sentence_punctuation)),
+([`ends_in_sentence_punctuation`](crate::stdlib::backends::pres::ends_in_sentence_punctuation)),
 and the plain-text backend uses the same test, so the two outputs of one document agree.
 The test looks only at the characters the title's plain text ends in, not at the title's
 last element: a title that ends in a formula, or in a box drawn by an author's own command,
@@ -2465,7 +2643,7 @@ rules](crate::guide::extending#lowering-rules)).
 
 **Numbered headings.** A numbered heading carries its number inside the heading, before
 the title. What precedes the title is written by the heading kind's title number format
-([`HeadingDecl::title_number_format`](crate::stdcore::features::headings::HeadingDecl::title_number_format),
+([`HeadingDecl::title_number_format`](crate::stdlib::features::headings::HeadingDecl::title_number_format),
 `#{number}. ` by default); in it, the number alone is a `<span>` with the class of the role
 `flm.heading.number`, and the rest is ordinary text:
 
@@ -2501,7 +2679,7 @@ written outside the links, so that each target can be followed on its own.
 An unresolved reference does not stop the render. Each one is written as a span carrying
 `data-flm-style="unresolved-reference"`, which the core stylesheet shows as an error, and
 each is reported once, as an Error by default or as a Warning under the render option
-`unresolved: allow` ([`RefsRenderOptions`](crate::stdcore::features::refs::RefsRenderOptions)),
+`unresolved: allow` ([`RefsRenderOptions`](crate::stdlib::features::refs::RefsRenderOptions)),
 so that an author sees every broken reference at once. No link is written for it, so the
 page holds no address that leads nowhere.
 
@@ -2511,7 +2689,7 @@ inside the formula at the start of that line ([Mathematics in HTML](#mathematics
 ### Hyperlinks in HTML
 
 `\href{address}{text}`, `\url{address}` and `\email{address}`
-([`href`](crate::stdcore::features::href)) are written as a link carrying
+([`href`](crate::stdlib::features::href)) are written as a link carrying
 `data-flm-kind="url"`, whose `href` is the address as the author wrote it (with `mailto:`
 before the address of an `\email`), around the text or around the address as displayed:
 
@@ -2522,11 +2700,12 @@ before the address of an `\email`), around the text or around the address as dis
 The address is checked like every address the page writes ([Escaping, and the trust
 guarantee](#escaping-and-the-trust-guarantee) below): `\href{javascript:alert(1)}{click}` writes `click` in a link with no
 `href` and reports `flm.html.refused-address`. The `href` feature checks no address
-itself; which addresses a page accepts is decided by this backend.
+itself; which addresses a page accepts is decided by this backend, under the render option
+[`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes).
 
 ### Defined terms in HTML
 
-A term definition ([`defterm`](crate::stdcore::features::defterm)) is a block of role
+A term definition ([`defterm`](crate::stdlib::features::defterm)) is a block of role
 `flm.defterm` carrying the definition's anchor as its `id`. Its lead-in is the run-in
 decoration at the start of its first paragraph, holding a span of role
 `flm.defterm.leadin`, so that a page can tell a definition's lead-in from a run-in
@@ -2551,7 +2730,7 @@ reference.
 
 ### Theorems in HTML
 
-A theorem ([`theorems`](crate::stdcore::features::theorems)) is a block of role
+A theorem ([`theorems`](crate::stdlib::features::theorems)) is a block of role
 `flm.theorems.theorem`, a `<div>` whose second class is the role's class. It carries the
 anchor of its reference point as its `id` and, as its kind tokens, the name of its theorem
 class and then the name of its theorem kind. Its heading is the run-in decoration at the
@@ -2600,9 +2779,9 @@ Its custom properties:
 
 ### Quotations in HTML
 
-A quotation ([`quote`](crate::stdcore::features::quote)) is lowered by the feature's
+A quotation ([`quote`](crate::stdlib::features::quote)) is lowered by the feature's
 general rule, which requires the feature's stylesheet
-([`quote::html`](crate::stdcore::features::quote::html)) wherever it writes a quotation. The quotation is a block of role `flm.quote`, written as a
+([`quote::html`](crate::stdlib::features::quote::html)) wherever it writes a quotation. The quotation is a block of role `flm.quote`, written as a
 `<blockquote>` (from the table of block tags) for every quote environment, and carrying the
 environment's name as its kind token. Each quotation section is a `<div>` whose second
 class is its role's class: `flm-quote-text`, `flm-quote-lines`, `flm-quote-attributed` or
@@ -2666,9 +2845,9 @@ edge of the text, so that a margin decoration inside it still reaches the column
 
 ### Annotations in HTML
 
-A reviewer's annotations ([`annotations`](crate::stdcore::features::annotations)) are
+A reviewer's annotations ([`annotations`](crate::stdlib::features::annotations)) are
 lowered by the feature's general rule, which requires the feature's stylesheet
-([`annotations::html`](crate::stdcore::features::annotations::html)) wherever it writes an
+([`annotations::html`](crate::stdlib::features::annotations::html)) wherever it writes an
 annotation. A **highlight** is a span of role
 `flm.annotations.highlight` in the flow of the text, whose kind tokens are the annotator's
 command and number. The annotator's initials are at its start, in a margin decoration
@@ -2698,7 +2877,7 @@ Like every kind token, these two have a meaning only together with the role's cl
 (`.flm-annotations-comment[data-flm-kind~="mark-continues"]`); another feature's element
 that carries a token of the same spelling is not selected by such a selector. Under the
 render option
-[`hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden),
+[`hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden),
 nothing of the annotation itself is written: a highlight is written as its passage, with
 its paragraphs and blocks, and a reviewer's comment is not written at all.
 
@@ -2729,8 +2908,8 @@ With that color:
 
 ### Images in HTML
 
-An image ([`graphics`](crate::stdcore::features::graphics)) is lowered by the image rule
-([`image_rule`](crate::stdcore::features::graphics::image_rule)) to a `flm.pres.image`,
+An image ([`graphics`](crate::stdlib::features::graphics)) is lowered by the image rule
+([`image_rule`](crate::stdlib::features::graphics::image_rule)) to a `flm.pres.image`,
 written as an `<img>`:
 
 - an inline image, in the text around it, is a bare `<img class="flm-pres-image">`; an
@@ -2747,7 +2926,7 @@ written as an `<img>`:
   that dimension, and, where it has both in units of fixed size, their ratio
   `--flm-element-aspect-ratio`, two amounts in points separated by a slash, the form CSS's
   `aspect-ratio` property reads
-  ([`css_ratio`](crate::stdcore::backends::html::conventions::css_ratio)).
+  ([`css_ratio`](crate::stdlib::backends::html::conventions::css_ratio)).
 
 ```html
 <img class="flm-pres-image" src="figures/plot.png" alt="A plot" style="--flm-element-width: 5cm; --flm-element-height: 2in; --flm-element-aspect-ratio: 141.73228 / 144">
@@ -2768,9 +2947,9 @@ is written with no `src` and keeps its alternative text, and the Error
 
 ### Floats in HTML
 
-A float ([`floats`](crate::stdcore::features::floats)) is lowered by the feature's general
+A float ([`floats`](crate::stdlib::features::floats)) is lowered by the feature's general
 rule, which requires the feature's stylesheet
-([`floats::html`](crate::stdcore::features::floats::html)) wherever it writes a float. The float is a block of role
+([`floats::html`](crate::stdlib::features::floats::html)) wherever it writes a float. The float is a block of role
 `flm.floats.float`, written as a `<figure>` (from the table of block tags) for every
 float type, carrying the float type's name and `numbered` or `unnumbered` as its kind
 tokens, and the anchor of its reference point as its `id`. Its content is a `<div>` of role
@@ -2804,12 +2983,12 @@ keeps its proportions.
 
 ### Xnotes in HTML
 
-An xnote ([`xnotes`](crate::stdcore::features::xnotes)) is a piece of text set apart from
+An xnote ([`xnotes`](crate::stdlib::features::xnotes)) is a piece of text set apart from
 the running text, marked where it belongs and shown elsewhere or in place, such as a
 footnote. On the page an xnote is written in the same shapes as on every other output
 ([Xnotes](#xnotes) under the plain-text backend above), built by the same lowering code of
 the `xnotes` feature. The feature's rules for this backend
-([`xnotes::html`](crate::stdcore::features::xnotes::html)) differ from its general rules in
+([`xnotes::html`](crate::stdlib::features::xnotes::html)) differ from its general rules in
 three ways: they add a link back from each entry of a list of xnotes to its mark; they
 write no bracket text around an xnote shown in place, since the feature's stylesheet draws
 the brackets; and they require that stylesheet. Every element below is a presentation element written as
@@ -2834,7 +3013,7 @@ tokens `xnotes` and the kind's name, holding the title as a block heading and a 
 list whose entries carry the xnotes' identifiers. The last paragraph of each entry ends,
 after a space, with the link back to the mark: its document role is `doc-backlink`, its
 accessible name is `Back to ` followed by the xnote's name as a reference writes it, and
-its text is the kind's [`backlink`](crate::stdcore::features::xnotes::XnoteKind::backlink)
+its text is the kind's [`backlink`](crate::stdlib::features::xnotes::XnoteKind::backlink)
 text (`↩`). Both accessible names use the kind's configured words as written: the mark's
 name uses the kind's capitalized variant (its usual word when it has none), and the link
 back's name uses its usual word. A list of footnotes with two entries:
@@ -2860,7 +3039,7 @@ stylesheets this backend ships](#the-stylesheets-this-backend-ships) below). The
 whose content ends with a list has its link back in a paragraph of its own after that
 list; a kind whose `backlink` text is empty writes no link back. The title is written
 with the tag of its level, or with the tag that the render option
-[`heading_tags`](crate::stdcore::backends::html::HtmlRenderOptions::heading_tags) maps
+[`heading_tags`](crate::stdlib::backends::html::HtmlRenderOptions::heading_tags) maps
 `xnotes` to ([Headings in HTML](#headings-in-html) above).
 
 **An xnote shown in place** whose content is inline is one span at the place where the
@@ -2891,8 +3070,8 @@ identifier, the mark has no link and no entry has a link back.
 
 **The stylesheet** `flm.xnotes.style` belongs to the `xnotes` feature and is required by
 every rule of an xnote and of a list of xnotes, so a page with no xnote does not carry it.
-It draws a rule above a list of xnotes and the brackets around an xnote shown in place,
-and nothing more. It selects a list by its document role as well as its kind token,
+It draws a rule above a list of xnotes, with a space between the rule and the list's
+content, and the brackets around an xnote shown in place, and nothing more. It selects a list by its document role as well as its kind token,
 because an xnote shown in place as a block carries the `xnotes` token too. Its custom
 properties:
 
@@ -2901,6 +3080,7 @@ properties:
 | `--flm-xnotes-list-rule` | `1px solid #999` | the rule above a list of xnotes |
 | `--flm-xnotes-list-size` | `0.9em` | the size of a list's text |
 | `--flm-xnotes-list-space` | `2em` | the space above a list |
+| `--flm-xnotes-list-padding` | `1em` | the space between the rule and the list's content |
 | `--flm-xnotes-inplace-open` | `"["` | the opening bracket of an xnote shown in place |
 | `--flm-xnotes-inplace-close` | `"]"` | the closing bracket of an xnote shown in place |
 
@@ -2918,29 +3098,32 @@ assemble a page of its own around the HTML of the trees.
 
 ### The table of contents in HTML
 
-The table of contents ([`toc`](crate::stdcore::features::toc); [The table of
+The table of contents ([`toc`](crate::stdlib::features::toc); [The table of
 contents](#the-table-of-contents) under the plain-text backend above) is written on the
 page with the same presentation elements as on every other output, each written as its
 row of the HTML contract says. Three rows decide its markup:
 
 - The root is a block of role `flm.toc`, which the contract's tag table writes as a
-  `<nav>` ([`BLOCK_TAGS`](crate::stdcore::backends::html::conventions::BLOCK_TAGS)), carrying the
+  `<nav>` ([`BLOCK_TAGS`](crate::stdlib::backends::html::conventions::BLOCK_TAGS)), carrying the
   document role `doc-toc`, the document role that the digital-publishing roles define for a
   table of contents.
 - Each list is a `<ul>` with the kind tokens `unnumbered` and `toc`. Its labels are empty,
   so no label span is written.
 - Each entry is an `<li>` holding a link to its heading's anchor, of link kind `toc`; inside
   the link stand the number, in a `<span>` of role `flm.toc.entry.number`, a space, and the
-  title. The list of sub-entries follows the link, inside the same `<li>`.
+  title. The list of sub-entries follows the link, inside the same `<li>`. The `<li>`
+  carries the level of its heading as `data-flm-level`, the attribute the heading itself
+  carries, so that one selector, such as `[data-flm-level="1"]`, matches the headings of
+  level 1 in the content and their entries in the table of contents.
 
 For `\section{One}` and `\subsection{Two}` under numbering:
 
 ```html
 <nav class="flm-pres-block flm-toc" role="doc-toc" data-flm-kind="toc">
   <ul class="flm-pres-list" data-flm-kind="unnumbered toc">
-    <li><a class="flm-pres-link" href="#sec--One" data-flm-kind="toc"><span class="flm-pres-span flm-toc-entry-number">1</span> One</a>
+    <li data-flm-level="1"><a class="flm-pres-link" href="#sec--One" data-flm-kind="toc"><span class="flm-pres-span flm-toc-entry-number">1</span> One</a>
       <ul class="flm-pres-list" data-flm-kind="unnumbered toc">
-        <li><a class="flm-pres-link" href="#sec--Two" data-flm-kind="toc"><span class="flm-pres-span flm-toc-entry-number">1.1</span> Two</a></li>
+        <li data-flm-level="2"><a class="flm-pres-link" href="#sec--Two" data-flm-kind="toc"><span class="flm-pres-span flm-toc-entry-number">1.1</span> Two</a></li>
       </ul>
     </li>
   </ul>
@@ -2957,28 +3140,29 @@ HTML contract](#the-html-contract) above). The anchors are the headings' own (`#
 On the page assembled by the library, the table of contents is placed inside `<main>`
 before the trees, after the metadata's pieces, as every piece placed before the content
 is ([Pieces](#pieces)). A compose template of a host places it where it chooses: the
-program's compose template `simple` places it between the page's header and its main
-content, inside the `<div id="flm-region-flm.toc">` that wraps every piece.
+program's compose template `simple` places it inside `<main>`, between the page's header
+and the content, inside the `<div id="flm-region-flm.toc">` that wraps every piece.
 
-**The stylesheet** `flm.toc.style` ([`toc::html`](crate::stdcore::features::toc::html))
+**The stylesheet** `flm.toc.style` ([`toc::html`](crate::stdlib::features::toc::html))
 belongs to the `toc` feature and is required by the feature's general rule of the root, so a page
 without a table of contents does not carry it. It removes the list markers and the lists'
-own margins and padding, and indents each nested list by one step; the space after an
-entry's number is the text the entry writes, not a rule of the stylesheet. Its custom
-property:
+own margins and padding, indents each nested list by one step, and leaves a space below
+the table; the space after an entry's number is the text the entry writes, not a rule of
+the stylesheet. Its custom properties:
 
 | property | default | what it changes |
 |---|---|---|
 | `--flm-toc-indent` | `1.5em` | the indentation of each nested list |
+| `--flm-toc-space-below` | `2em` | the space between the table and what follows it |
 
 ### Citations in HTML
 
 A citation chunk (adjacent `\cite` commands read as one;
-[`citations`](crate::stdcore::features::citations)) is lowered by the feature's general
+[`citations`](crate::stdlib::features::citations)) is lowered by the feature's general
 rules: the citation mark is a span, its numbers are links, and the list of cited works is
 a block holding a heading and a labeled list ([Citations](#citations) under the plain-text backend
 above). The feature's general rules require the feature's stylesheet
-([`citations::html`](crate::stdcore::features::citations::html)) wherever they write a
+([`citations::html`](crate::stdlib::features::citations::html)) wherever they write a
 citation or the list of citation entries.
 
 `Codes of this family are well studied \cite{a,b}.` writes a no-break space and then the
@@ -2998,8 +3182,8 @@ the span by its class `flm-citations-space` (to hide the space or change its wid
 Directly after an element that the browser lays out as one solid box in the line, such as
 an image or an inline block, the line may still break before the mark, as CSS specifies
 for every such box. Whether a mark has a space before it follows from the form of the
-mark ([`MarkForm`](crate::stdcore::features::citations::MarkForm)) and the placement of the
-entries ([`CitationPlacement`](crate::stdcore::features::citations::CitationPlacement)),
+mark ([`MarkForm`](crate::stdlib::features::citations::MarkForm)) and the placement of the
+entries ([`CitationPlacement`](crate::stdlib::features::citations::CitationPlacement)),
 both set in the `citations` feature's configuration: a space under
 the bracketed form and under the in-place placement, none under the superscript form of
 the listed placement.
@@ -3050,19 +3234,25 @@ property:
 
 ### Verbatim content in HTML
 
-Verbatim content, the text an author wrote taken exactly as written, is a `<code>` element
-inline and `<pre><code>…</code></pre>` as a block, with the class and the attributes on
-the outer element. Three attributes describe it: `data-flm-kind`, the verbatim kind:
+Verbatim content, the text an author wrote taken exactly as written, is written by its
+kind. Code is a `<code>` element inline and `<pre><code>…</code></pre>` as a block; plain
+characters and an identifier are not code, and are a `<span>` inline and a `<div>` as a
+block. The class and the attributes are on the outer element. Three attributes describe it: `data-flm-kind`, the verbatim kind:
 `text`, `code`, or `a` (the kind of `\verba`, for an identifier such as a keyword or a
-name; [`VerbatimKind`](crate::stdcore::backends::pres::VerbatimKind)); `data-flm-display`, inline or block; and
+name; [`VerbatimKind`](crate::stdlib::backends::pres::VerbatimKind)); `data-flm-display`, inline or block; and
 `data-flm-lang`, the language tag, where the author gave one.
 
 The content is written unchanged except for the escaping HTML requires everywhere (`&`,
 `<`, `>`); no character is decorated, wrapped or replaced. A backslash is written as a
 backslash, and nothing has to be hidden from the formula renderer, because the shipped
 configuration of the renderer looks only inside the elements that hold mathematics (the
-[module that declares the renderer's script](crate::stdcore::backends::html::mathjax)
+[module that declares the renderer's script](crate::stdlib::backends::html::mathjax)
 lists what that configuration says).
+
+The stylesheet `flm.html.style.verbatim` sets code in a font of its own, on a tinted
+background, and an identifier in italics in the font of the text around it; it gives
+plain characters no look of their own, so that they read as the text around them. A
+block keeps its own line breaks.
 
 No stylesheet or rule of this library reads `data-flm-lang`. It is written so that a
 host's stylesheet, or a feature that highlights syntax, can use the language tag the
@@ -3089,28 +3279,46 @@ formulas (the `math` feature only introduces mathematics into the language; see
 library's math processor, [`math-passthrough`](crate::math_passthrough), which
 carries each formula's source to the page unread. The `math-mathjax` extension, a
 processing feature written in JavaScript, writes formulas its own way ([mathematics
-processed by MathJax](crate::guide::command_line#mathematics-processed-by-mathjax)). In a
+processed by MathJax](crate::guide::command_line#mathematics-processed-by-mathjax)), and
+so does the `math-techxt` extension, written in Rust, which writes each formula as Unicode
+text in `<span>` elements of its own classes and stylesheet, outside the HTML contract but
+for the mark of a formula (below) ([mathematics rendered as Unicode
+text](crate::guide::command_line#mathematics-rendered-as-unicode-text)). In a
 registry with no processing feature, the rule of last resort of the `lowering` feature
-([`MathGroupRule`](crate::stdcore::backends::lowering::MathGroupRule)) reports every math
+([`MathGroupRule`](crate::stdlib::backends::lowering::MathGroupRule)) reports every math
 group as the Error `flm.math.unprocessed`
-([`MathUnprocessed`](crate::stdcore::backends::lowering::MathUnprocessed)) and writes its
+([`MathUnprocessed`](crate::stdlib::backends::lowering::MathUnprocessed)) and writes its
 content as ordinary text, and the `math` feature's own rule of last resort
-([`unprocessed`](crate::stdcore::features::math::unprocessed)) does the same for every
+([`unprocessed`](crate::stdlib::features::math::unprocessed)) does the same for every
 display-math environment.
+
+**The mark of a formula.** Whatever a processing feature writes for a formula, the
+outermost element it writes carries the same mark, so that a stylesheet or a script of the
+page finds every formula alike, whichever feature wrote it: the class `flm-math-formula`,
+the class of the role `flm.math.formula` of the `math` feature
+([`html`](crate::stdlib::features::math::html)), after the element's own classes;
+`data-flm-display`, `inline` or `display`; and, for a display-math environment,
+`data-flm-env`, the environment's name. Nothing is written around a formula for the
+mark's sake: the element that carries it is the one the feature chose (a `<span>` holding
+the TeX under `math-passthrough`, the `<math>` element of MathML). A stylesheet selects a
+displayed formula as `.flm-math-formula[data-flm-display="display"]`. The mark says only
+what an element is: whether a script of the page still has to transform the formula is
+that script's business ([a page updated in place](#a-page-updated-in-place) below).
 
 Under `math-passthrough`, the backend does not translate a formula into HTML. It writes
 the formula whole, as the LaTeX the author wrote, for a **formula renderer**: a script in
 the reader's browser that reads LaTeX out of the page and typesets it. The renderer this
-backend ships is MathJax ([`mathjax`](crate::stdcore::backends::html::mathjax)). Every
+backend ships is MathJax ([`mathjax`](crate::stdlib::backends::html::mathjax)). Every
 formula, inline or displayed, is a `<span>` (`flm.pres.math-passthrough`, the
-presentation element of a formula's unread source) carrying the class, `data-flm-display`
-and, where the author wrote a mathematics environment, `data-flm-env` with the
-environment's name. Inside it are the delimiters this backend chose and, between them,
+presentation element of a formula's unread source) carrying its class and the mark of a
+formula: the class of the role `flm.math.formula`, which the rules of `math-passthrough` give
+the node, `data-flm-display` and, where the author wrote a mathematics environment,
+`data-flm-env` with the environment's name. Inside it are the delimiters this backend chose and, between them,
 the document's own source, written as text like any other document text:
 
 ```html
-<span class="flm-pres-math--passthrough" data-flm-display="inline">\(x^2 + y\)</span>
-<span class="flm-pres-math--passthrough" data-flm-display="display" data-flm-env="align">\begin{align}a &amp;= b \\
+<span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="inline">\(x^2 + y\)</span>
+<span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="display" data-flm-env="align">\begin{align}a &amp;= b \\
 c &amp;= d\end{align}</span>
 ```
 
@@ -3129,11 +3337,18 @@ own.
 Writing a formula **requires** two definitions ([Style and script definitions](#style-and-script-definitions) below):
 the style definition `flm.html.style.math-passthrough` that the mathematics rows of the HTML contract
 give (the stylesheet of a displayed formula and of content written inside a formula, which
-a page whose formulas the `math-mathjax` extension writes requires too, for its text
-inside formulas), and the script definition `flm.html.mathjax`, the formula renderer itself. The
+a page whose formulas the `math-mathjax` or the `math-techxt` extension writes requires
+too, for its text inside formulas), and the script definition `flm.html.mathjax`, the formula renderer itself. The
 emitter requires the script at the first formula of each tree, so a document with no
 mathematics loads no renderer. The page loads the renderer from the network unless the
 host decides otherwise through the render option `definitions`.
+
+Nothing checks a formula before the renderer reads it: a command the renderer does not
+know reaches the page as written. Every run of this backend under `math-passthrough`
+therefore reports the Warning `flm.run.unchecked-output` once, at its start ([choosing a
+rule per backend](#choosing-a-rule-per-backend) lists the plan's warnings): "Unchecked output for the
+formula renderer in the reader's browser: feature ‘math-passthrough’ writes each
+formula's LaTeX source as is (backend ‘html’)".
 
 #### Content inside a formula
 
@@ -3146,7 +3361,7 @@ typeset result. This backend writes each `flm.pres.math-text` node inside a form
 way, with the lowered content inside a `<span>`:
 
 ```html
-<span class="flm-pres-math--passthrough" data-flm-display="inline">\(x = <tex-html><span
+<span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="inline">\(x = <tex-html><span
   class="flm-pres-math--text" data-flm-command="text">one half</span></tex-html> + y\)</span>
 ```
 
@@ -3188,7 +3403,7 @@ and the formula's element has no identifier. The rule therefore stages an empty
 backend writes it as the empty `<span>` above. Every line has an anchor, labeled or not: a
 labeled line has the anchor of its label (`eq-x`), and every other line has the prefix
 `eq`, a double hyphen, its position among the document's equation lines and four letters
-([`auto_anchor`](crate::stdcore::features::refs::auto_anchor)). The anchors come from the
+([`auto_anchor`](crate::stdlib::features::refs::auto_anchor)). The anchors come from the
 `refs` feature; in a registry without it there are no anchors, no such node is staged, and
 nothing is reported.
 
@@ -3201,7 +3416,7 @@ source comments are kept as the author wrote them, so a multi-line formula is al
 exactly as written.
 
 ```html
-<span class="flm-pres-math--passthrough" data-flm-display="display" data-flm-env="align">\begin{align}<tex-html><span
+<span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="display" data-flm-env="align">\begin{align}<tex-html><span
   class="flm-pres-math--text" id="eq-x"></span></tex-html>
   x &amp;= y \\<tex-html><span class="flm-pres-math--text" id="eq--2oqua"></span></tex-html>
   z &amp;= w
@@ -3212,7 +3427,7 @@ exactly as written.
 line: the content of a `\tag` the author wrote, or the number the document gave the line.
 Both are written the same way: the LaTeX `\tag*{`, a `flm.pres.math-text` node marked as
 being at a tag's place
-([`MathTextPayload::at_tag`](crate::stdcore::backends::pres::MathTextPayload::at_tag)),
+([`MathTextPayload::at_tag`](crate::stdlib::backends::pres::MathTextPayload::at_tag)),
 and `}`. This backend writes a pair of dollar signs around the `<tex-html>` element it
 writes for such a node. An author's `\tag{A}` puts the parentheses that FLM reads into the
 unstarred form inside that content, and a number arrives with the delimiters of its
@@ -3221,7 +3436,7 @@ every line under a configuration of the `math` feature that numbers no equations
 written with no tag.
 
 ```html
-<span class="flm-pres-math--passthrough" data-flm-display="display" data-flm-env="equation">\begin{equation}<tex-html><span
+<span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="display" data-flm-env="equation">\begin{equation}<tex-html><span
   class="flm-pres-math--text" id="eq-euler"></span></tex-html>
   e^{i\pi} + 1 = 0 \tag*{$<tex-html><span
   class="flm-pres-math--text">(1)</span></tex-html>$}\end{equation}</span>
@@ -3301,7 +3516,7 @@ written by authors the host does not trust](#mathematics-written-by-authors-the-
 everything outside mathematics.
 
 Every byte this backend writes goes through one typed sink
-([`HtmlSink`](crate::stdcore::backends::html::HtmlSink)), whose entry points differ by the
+([`HtmlSink`](crate::stdlib::backends::html::HtmlSink)), whose entry points differ by the
 kind of content they write: document text, an attribute value, an attribute value that is
 a piece of JSON, a piece of already-formed markup, or the content of a `<style>` or a
 `<script>`. Text that comes from a document reaches the page through the first three
@@ -3312,7 +3527,7 @@ element it would close next).
 
 - **Text** has `&`, `<` and `>` escaped, and eight invisible space characters (the
   no-break space and seven others,
-  [`SPACE_REFERENCES`](crate::stdcore::backends::html::escape::SPACE_REFERENCES)) written
+  [`SPACE_REFERENCES`](crate::stdlib::backends::html::escape::SPACE_REFERENCES)) written
   as numeric character references such as `&#xA0;`, so that a space a reader cannot see is
   still apparent in the page's source, and so that a parser that reads no named HTML references, an
   XML parser included, reads the output.
@@ -3329,7 +3544,7 @@ Unescaped bytes have exactly three sources, none of them a document:
 - the syntax that the sink's tag builder writes itself;
 - the content of a style or script definition, or what a host put in its place, written
   in one place, the assembly of the page;
-- [`Markup::trusted`](crate::stdcore::backends::html::Markup::trusted), the call by which
+- [`Markup::trusted`](crate::stdlib::backends::html::Markup::trusted), the call by which
   an extension puts HTML that it takes responsibility for into the body of a construct
   node.
 
@@ -3340,12 +3555,23 @@ Some values are checked rather than escaped, because escaping is not what makes 
 safe.
 
 **Addresses.** A link's `href`, an image's `src` and each candidate of its `srcset` must
-pass one policy ([`check_address`](crate::stdcore::backends::html::check_address)): a
-fragment (`#…`), a relative address, or an address with one of the schemes `http`,
-`https`, `mailto`, `ftp` and `tel`; for an image, also a `data:` address holding a
+pass one policy ([`check_address`](crate::stdlib::backends::html::check_address)): a
+fragment (`#…`), a relative address, or an address with a scheme that the render option
+[`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes) allows, by default
+`http`, `https`, `mailto`, `ftp` and `tel`; for an image, also a `data:` address holding a
 picture. Every other address, `javascript:` above all, is refused: the attribute is left
 out, the link keeps its text and the image its alternative text, and the Error
-`flm.html.refused-address` gives the scheme. The list is fixed data, not a setting.
+`flm.html.refused-address` gives the scheme. Under the default list, a page this library
+produced runs no program that a document asked for.
+
+A host whose pages must reference other schemes, such as a scheme of its own that a
+script of the page handles, sets the option to its own list of schemes, which replaces
+the default list, or to `All`, under which every address is written as given,
+`javascript:` included. Only Rust code sets the option, on the render request or in a
+workflow defined in Rust: it is not a settings key, so no front matter, command line or
+other settings written as data can set it. Whether a page may reference an address that
+a browser runs is the decision of the program that serves the page, not of the
+document.
 
 **Tag and attribute names.** A tag or attribute name is valid when it is an ASCII letter
 followed by ASCII letters, digits and `-` (an attribute name may also hold `_`, `:` and
@@ -3363,7 +3589,7 @@ when it is not valid:
 of `data-flm-kind`; both are names that a lowering rule wrote. Both attributes separate
 their tokens by whitespace, so a name that holds whitespace, or an empty one, would be
 read as several tokens or as none. Such a name is refused
-([`is_valid_token`](crate::stdcore::backends::html::is_valid_token)): that one class or
+([`is_valid_token`](crate::stdlib::backends::html::is_valid_token)): that one class or
 that one token is left out, and where every kind token of the node is refused, the
 `data-flm-kind` attribute is not written at all. Everything else about the node is
 written, and the Error `flm.html.invalid-name` gives the name and says which of the two
@@ -3371,7 +3597,7 @@ happened.
 
 **Construct nodes.** The HTML construct element `flm.pres.html.tag` is one HTML tag that a
 lowering rule stages, with its attributes and either child nodes or a body of
-already-formed markup ([`HtmlTagPayload`](crate::stdcore::backends::html::HtmlTagPayload)).
+already-formed markup ([`HtmlTagPayload`](crate::stdlib::backends::html::HtmlTagPayload)).
 The HTML contract and the address policy do not apply to it: the emitter writes the tag,
 the attributes and the body as the payload gives them and adds nothing of its own, so the
 rule's author is responsible for the attributes and addresses it writes. Inside a formula
@@ -3429,41 +3655,41 @@ two stages of the [pieces](crate::core::piece::Piece), the definitions stage and
    lowered trees into `flm.lowered.html`.
 2. `flm.html.pieces`: the shared pieces stage, set up for this backend, writes the
    lowered pieces into `flm.lowered.html.pieces`.
-3. `flm.html.emit` ([`HtmlEmitStage`](crate::stdcore::backends::html::HtmlEmitStage)),
+3. `flm.html.emit` ([`HtmlEmitStage`](crate::stdlib::backends::html::HtmlEmitStage)),
    once per tree, writes that tree's HTML into the table `flm.output.html`
-   ([`HtmlFragments`](crate::stdcore::backends::html::HtmlFragments)) as an
-   [`HtmlFragment`](crate::stdcore::backends::html::HtmlFragment): the HTML as a list of
+   ([`HtmlFragments`](crate::stdlib::backends::html::HtmlFragments)) as an
+   [`HtmlFragment`](crate::stdlib::backends::html::HtmlFragment): the HTML as a list of
    **segments** (bytes, or another tree placed at that point) together with the
    identifiers of the style and script definitions the tree requires. Trees are emitted
    independently, possibly at the same time, and the table orders them by tree, so the
    bytes do not depend on how the run was executed.
 4. `flm.html.emit-pieces`
-   ([`HtmlEmitPiecesStage`](crate::stdcore::backends::html::HtmlEmitPiecesStage)), once
+   ([`HtmlEmitPiecesStage`](crate::stdlib::backends::html::HtmlEmitPiecesStage)), once
    per document, writes the HTML of each lowered piece, with the same emitter, into the
    table `flm.output.html.pieces`
-   ([`HtmlPieces`](crate::stdcore::backends::html::HtmlPieces)), each with the identifiers
+   ([`HtmlPieces`](crate::stdlib::backends::html::HtmlPieces)), each with the identifiers
    of the definitions it requires.
 5. `flm.html.resolve-definitions`
-   ([`ResolveDefinitionsStage`](crate::stdcore::backends::html::ResolveDefinitionsStage)),
+   ([`ResolveDefinitionsStage`](crate::stdlib::backends::html::ResolveDefinitionsStage)),
    once per document, turns the identifiers that the trees and the pieces required into the
    table `flm.html.definitions`
-   ([`ResolvedDefinitions`](crate::stdcore::backends::html::ResolvedDefinitions)), which
+   ([`ResolvedDefinitions`](crate::stdlib::backends::html::ResolvedDefinitions)), which
    says how each definition reaches the page ([Style and script definitions](#style-and-script-definitions) below).
 6. `flm.html.regions`
-   ([`HtmlRegionsStage`](crate::stdcore::backends::html::HtmlRegionsStage)), once per
+   ([`HtmlRegionsStage`](crate::stdlib::backends::html::HtmlRegionsStage)), once per
    document, makes the page's [output regions](crate::core::region::Regions) and writes
    them into the table `flm.output.html.regions`
-   ([`REGIONS`](crate::stdcore::backends::html::REGIONS)): the content, with each placed
+   ([`REGIONS`](crate::stdlib::backends::html::REGIONS)): the content, with each placed
    tree written where it was placed; each piece; the stylesheets and the scripts, one part
    per element written for a definition; the words of the page's title; and the language.
 7. `flm.html.final.singlefile`
-   ([`HtmlFinalStage`](crate::stdcore::backends::html::HtmlFinalStage)), once per
+   ([`HtmlFinalStage`](crate::stdlib::backends::html::HtmlFinalStage)), once per
    document, is the backend's final stage. It assembles the page from the regions and
    writes it into the artifact set `flm.output.html.document`
-   ([`DOCUMENT`](crate::stdcore::backends::html::DOCUMENT)) as the entry artifact
+   ([`DOCUMENT`](crate::stdlib::backends::html::DOCUMENT)) as the entry artifact
    `html:document`, of media type `text/html` and extension `html`. It then adds to that
    set every artifact of the **artifact table** `flm.output.html.artifacts`
-   ([`ARTIFACTS`](crate::stdcore::backends::html::ARTIFACTS)), when a stage of the plan
+   ([`ARTIFACTS`](crate::stdlib::backends::html::ARTIFACTS)), when a stage of the plan
    wrote that table: files the page links to that exist only once a document is rendered,
    such as copies of the images the page shows. No standard stage writes the artifact
    table, so the set holds the page alone unless a host's stage writes it; a table has one
@@ -3489,7 +3715,7 @@ HTML ready to be placed in a page of the embedder's own.
 
 The name of the artifact-set table, `flm.output.html.document`, is also the capability "the
 document has been written as HTML". The capability `flm.output.html.singlefile`
-([`SINGLEFILE`](crate::stdcore::backends::html::SINGLEFILE)) refines it with *how*: one
+([`SINGLEFILE`](crate::stdlib::backends::html::SINGLEFILE)) refines it with *how*: one
 self-contained file. It is the default among the refinements, and the final stage provides
 it. A host that assembles the regions through a template of its own provides the same
 table from the same regions, and the plan schedules one of the two.
@@ -3501,7 +3727,7 @@ The conditions this backend reports:
 - `flm.pres.heading-above-root` ([Headings in HTML](#headings-in-html) above);
 - `flm.html.refused-in-math` ([Mathematics in HTML](#mathematics-in-html) above);
 - `flm.html.nesting-too-deep`, for a lowered tree nested more deeply than the emitter's
-  limit ([`DEPTH_LIMIT`](crate::stdcore::backends::html::DEPTH_LIMIT)), and
+  limit ([`DEPTH_LIMIT`](crate::stdlib::backends::html::DEPTH_LIMIT)), and
   `flm.html.worker-thread-unavailable`, when the emitter cannot run on a [worker
   thread](crate::lang::guard::on_worker_thread);
 - `flm.html.missing-subtree` and `flm.html.subtree-cycle`, from the regions stage, for a
@@ -3566,7 +3792,7 @@ its MathJax configuration lists the TeX packages the document uses, from such a 
 
 **Deciding the delivery.** The render option `definitions` maps an identifier to what the
 host puts in place of the declared content
-([`DefinitionOverride`](crate::stdcore::backends::html::DefinitionOverride)): either its
+([`DefinitionOverride`](crate::stdlib::backends::html::DefinitionOverride)): either its
 own ordered parts, or `ProvidedByHost`, which writes nothing because the host's own page or
 bundle supplies the definition. An override never changes *which* definitions the document
 requires, only how they reach the page.
@@ -3599,10 +3825,10 @@ Four conditions concern definitions:
 #### The three ways to load the formula renderer
 
 The formula renderer is the script definition `flm.html.mathjax`
-([`mathjax_script`](crate::stdcore::backends::html::mathjax_script)), whose two parts are
+([`mathjax_script`](crate::stdlib::backends::html::mathjax_script)), whose two parts are
 its configuration and then the address
 `https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js`
-([`MATHJAX_LOADER`](crate::stdcore::backends::html::MATHJAX_LOADER)). A host changes how
+([`MATHJAX_LOADER`](crate::stdlib::backends::html::MATHJAX_LOADER)). A host changes how
 the renderer is loaded with an entry for it in the render option `definitions`:
 
 ```rust
@@ -3610,7 +3836,7 @@ use std::collections::BTreeMap;
 
 use flm_core::core::registry::DefContent;
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::html::{DefinitionOverride, HtmlRenderOptions, MATHJAX_LOADER};
+use flm_core::stdlib::backends::html::{DefinitionOverride, HtmlRenderOptions, MATHJAX_LOADER};
 
 // 1. From the network, the default: the declared parts, nothing to say.
 let from_the_network = HtmlRenderOptions::default();
@@ -3621,7 +3847,7 @@ assert_eq!(MATHJAX_LOADER, "https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"
 //    declared configuration by listing it again as the first part: an override
 //    replaces the whole content, and a loader without its configuration reads
 //    the wrong delimiters.
-let declared = flm_core::stdcore::backends::html::mathjax_script();
+let declared = flm_core::stdlib::backends::html::mathjax_script();
 let configuration = declared.content[0].clone();
 let mut definitions = BTreeMap::new();
 definitions.insert(
@@ -3644,7 +3870,7 @@ assert_eq!(from_the_hosts_bundle.definitions.len(), 1);
 ```
 
 The [module that declares the renderer's
-script](crate::stdcore::backends::html::mathjax) lists what the shipped configuration says:
+script](crate::stdlib::backends::html::mathjax) lists what the shipped configuration says:
 it holds what this backend's output needs, and nothing that restricts what an author may
 write inside a formula.
 
@@ -3655,7 +3881,7 @@ therefore does not handle mathematics written by authors a host does not trust**
 ships no configuration that claims to. A host in that
 situation writes a configuration of its own for the formula renderer and delivers it
 through the render option `definitions`; the [module that declares the renderer's
-script](crate::stdcore::backends::html::mathjax) gives the configuration to write.
+script](crate::stdlib::backends::html::mathjax) gives the configuration to write.
 
 ### A page updated in place
 
@@ -3672,22 +3898,39 @@ govern how the updater and such a script work together, whoever performs the upd
 
 - **The event.** Once the content of a region's element is new, the updater dispatches the
   event `flm:region-updated`
-  ([`REGION_UPDATED_EVENT`](crate::stdcore::backends::html::page::REGION_UPDATED_EVENT)) on
+  ([`REGION_UPDATED_EVENT`](crate::stdlib::backends::html::page::REGION_UPDATED_EVENT)) on
   that element. The event bubbles, so a listener on the element and a listener on
   `document` both receive it. Its `detail` holds `region`, the element's identifier, and
   `artifacts`, the paths of the files beside the page that changed with it.
 - **The record.** A script that transforms an element records the HTML the element held
   before, in the attribute `data-flm-original-html`
-  ([`ORIGINAL_HTML_ATTRIBUTE`](crate::stdcore::backends::html::page::ORIGINAL_HTML_ATTRIBUTE)).
+  ([`ORIGINAL_HTML_ATTRIBUTE`](crate::stdlib::backends::html::page::ORIGINAL_HTML_ATTRIBUTE)).
   The updater leaves such an element as it is when the new HTML inside it equals the
   record, and otherwise replaces its content, which removes the record, since the new HTML
   carries none. On the event, the script transforms again the elements of the region that
   carry no record.
 
+A script of the page may also show a copy of part of the page elsewhere on it, as a popup
+that previews the target of a link does. The same two rules apply to the copy, with an
+event of its own:
+
+- **The copy.** The copy holds none of the page's identifiers, and it keeps the record of
+  each element it copies, so that an element copied after it was transformed needs nothing
+  more. Once the copy is in the page, the script dispatches the event `flm:content-copied`
+  ([`CONTENT_COPIED_EVENT`](crate::stdlib::backends::html::page::CONTENT_COPIED_EVENT)) on
+  the element that holds it. The event bubbles, and its `detail` holds nothing.
+- **Completing the copy.** On this event, a script that transforms elements transforms the
+  elements of the copy that carry no record, and those that it had not finished
+  transforming when they were copied (a formula that the renderer typesets only when it
+  scrolls into view, say). Such an element first gets back the HTML of its record, without
+  the identifiers in it. The script forgets what it kept about the elements of a copy that
+  is no longer in the page.
+
 The formula renderer's shipped configuration follows these rules: it writes the record on
-each formula just before typesetting it, and on the event it typesets the formulas of the
-region that carry no record, the new ones and those whose HTML changed. A formula whose HTML
-did not change stays typeset. These rules define no name on `window`: the updater
+each formula just before typesetting it; on the event `flm:region-updated` it typesets the
+formulas of the region that carry no record, the new ones and those whose HTML changed; and
+on the event `flm:content-copied` it typesets the formulas of the copy that are not
+typeset. A formula whose HTML did not change stays typeset. These rules define no name on `window`: the updater
 dispatches an event and each script listens for it, so several scripts can listen and each
 learns which region changed. A feature whose script transforms elements follows the same
 two rules ([extending FLM](crate::guide::extending#style-and-script-definitions) says
@@ -3710,7 +3953,7 @@ definition, delivered like any other ([Style and script definitions](#style-and-
 | `flm.html.style.page` | the page's own typography and the width of its content | the page itself, always, and no element |
 
 Each element's rules are in the stylesheet that the element's row of the HTML contract
-gives ([`conventions`](crate::stdcore::backends::html::conventions)), so a page that
+gives ([`conventions`](crate::stdlib::backends::html::conventions)), so a page that
 requires a stylesheet receives every rule for the content it holds. The unresolved
 reference is styled by the core stylesheet for that reason: it is a display style of a
 span, and the span's row gives the core stylesheet.
@@ -3737,16 +3980,22 @@ pieces](#style-identifiers-and-definition-pieces)):
 - the `cells` feature's `flm.cells.style`: a table's rules and its cells (below);
 - the `citations` feature's `flm.citations.style`: a raised citation mark kept from moving
   its line ([Citations in HTML](#citations-in-html) above);
-- the `meta` feature's `flm.meta.style`: the document's title large and bold, and the
-  authors and the date each on a line of its own, indented under the title, wherever the
-  page places them, whatever the compose template. Its custom properties are
-  `--flm-meta-title-size` (`1.6rem`) and `--flm-meta-title-line-height` (`1.3em`) for the
-  title, and `--flm-meta-line-size` (`1.1rem`), `--flm-meta-line-indent` (`2em`) and
-  `--flm-meta-line-space` (`0.5em`, the space above each line) for the authors and the date.
+- the `metadata` feature's `flm.metadata.style`: the document's title large and bold, and the
+  authors and the date indented under the title, the authors one below the other, an
+  author's affiliations, email address and notes smaller than the name, wherever the page
+  places them, whatever the compose template. Its custom properties are
+  `--flm-metadata-title-size` (`2rem`), `--flm-metadata-title-line-height` (`1.3em`) and
+  `--flm-metadata-title-space-below` (`0.8em`) for the title; `--flm-metadata-line-size`
+  (`1.1rem`), `--flm-metadata-line-height` (`1.3`), `--flm-metadata-line-indent` (`2em`) and
+  `--flm-metadata-line-space` (`0.5em`, the space above the authors and above the date, and
+  between two authors) for the authors and the date; and
+  `--flm-metadata-author-detail-size` (`0.85em`) for an author's affiliations, email address
+  and notes.
   The rule under the header that holds them on the default page is the compose template's.
 
-In the standard package these features are registered before the backends, so their
-stylesheets are registered first and are written first in a page's `<head>`.
+[`stdlib::add_features`](crate::stdlib::add_features) adds these features before the
+backends, so their stylesheets are registered first and are written first in a page's
+`<head>`.
 
 **The stylesheet of tables of cells.** `flm.cells.style` is the stylesheet that the HTML
 contract's row of `flm.pres.cells` gives, so the page requires it wherever a table of cells
@@ -3769,7 +4018,7 @@ styles their backgrounds, and centers a table inside a float. Its custom propert
 
 A custom style that a host declares is styled by a stylesheet of the host, which the
 custom style's declaration requires
-([`CellStyle::requires`](crate::stdcore::features::cells::CellStyle::requires)) and which
+([`CellStyle::requires`](crate::stdlib::features::cells::CellStyle::requires)) and which
 selects a cell by its attribute `data-flm-style-<name>`.
 
 **What every shipped stylesheet follows.** The first line of every shipped stylesheet is a
@@ -3786,7 +4035,7 @@ else's page:
 - **Every selector begins with a class of the HTML contract**, never a bare `p`, `a`, `h1`
   or `table`, so including this output in a page restyles nothing of that page's own
   content. `flm.html.style.page` is the one exception: it sets the typography of the page
-  this backend assembles, so it has a rule on `body`. A host that builds its own page
+  this backend assembles, so it has rules on `:root` (the text size) and on `body`. A host that builds its own page
   around the HTML of the trees leaves this stylesheet out of its page.
 - **Every adjustable value is a custom property**, declared on `:root` inside the layer, in
   the same stylesheet that uses it. No stylesheet depends on another, and a host that wants
@@ -3826,9 +4075,9 @@ size and which a host does not set):
 | `--flm-heading-line-height` | headings | `1.2` | the distance between the lines of one heading |
 | `--flm-heading-space-above` | headings | `1.5em` | the space above a heading |
 | `--flm-heading-space-below` | headings | `0.5em` | the space below a heading |
-| `--flm-verbatim-family` | verbatim | `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | the font family of verbatim content |
+| `--flm-verbatim-family` | verbatim | `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` | the font family of code |
 | `--flm-verbatim-size` | verbatim | `0.9em` | its size |
-| `--flm-verbatim-background` | verbatim | `#f2f2f2` | the tint behind it |
+| `--flm-verbatim-background` | verbatim | `#f2f2f2` | the tint behind code |
 | `--flm-verbatim-radius` | verbatim | `0.2em` | the rounding of that tint's corners |
 | `--flm-verbatim-inline-padding` | verbatim | `0.1em 0.3em` | the space inside that tint, for verbatim content in a line of text |
 | `--flm-verbatim-block-padding` | verbatim | `0.6em 0.8em` | the space inside it, for a block of verbatim content |
@@ -3853,12 +4102,13 @@ size and which a host does not set):
 | `--flm-unsupported-open` | errors | `"["` | what is written before the name of an element the backend cannot write |
 | `--flm-unsupported-close` | errors | `"]"` | what is written after that name |
 | `--flm-page-family` | page | `"Source Serif 4", "Times New Roman", Times, serif` | the font family of the page's text; another stylesheet may read it to use the page's font, as the `math-mathjax` extension's stylesheet does for the text inside a formula |
-| `--flm-page-size` | page | `100%` | its size |
+| `--flm-page-size` | page | `100%` | its size, set on the page's root element, so that a length in `rem` follows it |
 | `--flm-page-line-height` | page | `1.5` | the distance between the page's lines |
 | `--flm-page-color` | page | `#1a1a1a` | the color of the page's text |
 | `--flm-page-background` | page | `#ffffff` | the page's background |
 | `--flm-page-measure` | page | `42rem` | the width of the content |
-| `--flm-page-padding` | page | `1.5rem` | the space between the content and the edge of the page |
+| `--flm-page-padding` | page | `1.5rem` | the space between the content and the edges of the page |
+| `--flm-page-padding-vertical` | page | `var(--flm-page-padding)` | the space above and below the content, where a page sets it apart from the space on the sides |
 
 A host that wants a stylesheet of its own in place of a shipped one gives its text under
 the same identifier through the render option `definitions`: the requirement is unchanged,
@@ -3906,7 +4156,7 @@ that its block's `--flm-margin-note-inset` does not account for: that of a quota
 the quotation it is in, or a line's indentation from the right.
 
 **Labeled lists.** A list whose every entry carries a label of its own says so with the
-kind token `labeled` ([`LIST_LABELED`](crate::stdcore::backends::pres::LIST_LABELED)),
+kind token `labeled` ([`LIST_LABELED`](crate::stdlib::backends::pres::LIST_LABELED)),
 since only the feature that produced the list has that information; the `lists` feature writes it on
 every list. `flm.html.style.lists` turns off the marker a browser draws beside each entry
 of such a list and lays the list out as a grid of two columns: the labels in the first,
@@ -3934,7 +4184,7 @@ width of every indentation with that one property.
 
 ### HTML render options
 
-[`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions) holds the
+[`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions) holds the
 backend's render options. They are declared with
 [`Bind::Render`](crate::model::options::Bind::Render): their values come from the render
 request rather than from the document, and they are part of the plan's identity
@@ -3952,13 +4202,18 @@ plans.
 | `heading_tags` | empty | the tag of the headings of each listed heading kind ([Headings in HTML](#headings-in-html) above); the name `xnotes` gives the tag of the title above a list of xnotes |
 | `root_heading_level` | 1 | the heading level written as `<h1>`; each deeper level one tag deeper, down to `<h6>`; a heading above it is an Error and is written as `<h1>` ([Headings in HTML](#headings-in-html) above) |
 
+One more render option of this backend is not among these settings keys:
+[`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes), the URL schemes the
+page's links and images may have, which only Rust code sets ([Escaping, and the trust
+guarantee](#escaping-and-the-trust-guarantee) above).
+
 No option renames a class or an attribute of the HTML contract: the HTML contract is not
 configurable.
 
 ### The plan an `html` workflow builds, and the one it shares with `text`
 
 The `html` workflow lists the `html` output and also demands the capability
-`flm.validated`, as every rendering workflow of the standard package does, so that one
+`flm.validated`, as every rendering workflow of the standard features does, so that one
 document receives the same checks whichever workflow is run over it. The rest of the plan
 follows from what the selected lowering rules and stages require.
 
@@ -3972,17 +4227,17 @@ together with this one is refused when the plan is built.
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan, PlanError, PlanRequest};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::backends::text::TEXT_DOCUMENT;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::backends::text::TEXT_DOCUMENT;
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -4026,7 +4281,7 @@ assert!(page.contains("<a class=\"flm-pres-link\" href=\"#sec-sums\" data-flm-ki
 
 ## The rendered LaTeX backend
 
-The `latex-rendered` backend ([`crate::stdcore::backends::latex_rendered`]) writes a
+The `latex-rendered` backend ([`crate::stdlib::backends::latex_rendered`]) writes a
 document as LaTeX for the LuaLaTeX engine, with everything FLM can resolve already
 resolved: the numbers of headings, equations, theorems, figures and notes, the
 cross-references, the table of contents, the lists of notes and the bibliography are
@@ -4046,10 +4301,10 @@ decides the look.
 
 A caller asks for the `latex-rendered` output, or for the `latex-rendered` workflow, and
 reads the artifact set from the table `flm.output.latex-rendered.document`
-([`DOCUMENT`](crate::stdcore::backends::latex_rendered::DOCUMENT)). The entry artifact is
+([`DOCUMENT`](crate::stdlib::backends::latex_rendered::DOCUMENT)). The entry artifact is
 a complete LaTeX document of the class `article`; the style file is a second artifact,
 whose name the document's first line gives; image copies, where the output copies images,
-follow. One feature, [`LatexRendered`](crate::stdcore::backends::latex_rendered::LatexRendered),
+follow. One feature, [`LatexRendered`](crate::stdlib::backends::latex_rendered::LatexRendered),
 registers the backend, the output and the workflow, all three named `latex-rendered`.
 
 The chapter covers, in order:
@@ -4085,7 +4340,7 @@ The library ships two LaTeX backends, and they are two independent products:
 Each has its own backend feature, emitter, style file, render options, default
 definitions, compose templates and tests; nothing of one is used by the other. What they
 share is library mechanism with no policy in it, all of it in the **LaTeX family**
-([`crate::stdcore::backends::latex`], described in [What the LaTeX family
+([`crate::stdlib::backends::latex`], described in [What the LaTeX family
 provides](#what-the-latex-family-provides)): the escaping of document text, the typed sink
 through which an emitter writes LaTeX, the four construct elements, and the two service
 slots through which features contribute LaTeX package requests and definition pieces. The
@@ -4096,16 +4351,16 @@ not used.
 ### The elements the backend writes without a lowering rule
 
 The backend's native set
-([`native_elements`](crate::stdcore::backends::latex_rendered::native_elements)) holds 32
+([`native_elements`](crate::stdlib::backends::latex_rendered::native_elements)) holds 32
 elements:
 
-- every presentation element ([`pres::ALL`](crate::stdcore::backends::pres::ALL));
+- every presentation element ([`pres::ALL`](crate::stdlib::backends::pres::ALL));
 - the four construct elements of the LaTeX family
-  ([`construct::ALL`](crate::stdcore::backends::latex::construct::ALL)): a macro call, an
+  ([`construct::ALL`](crate::stdlib::backends::latex::construct::ALL)): a macro call, an
   environment, a raw node written byte for byte, and a definition;
 - the six structural elements `flm.text`, `flm.group`, `flm.opaque-wrapper`,
   `flm.comment`, `flm.container` and `flm.parbreak`
-  ([`FLOW_THROUGH`](crate::stdcore::backends::latex_rendered::FLOW_THROUGH)).
+  ([`FLOW_THROUGH`](crate::stdlib::backends::latex_rendered::FLOW_THROUGH)).
 
 Every element of a content feature is therefore lowered by its feature's general lowering
 rule, the rule that serves every backend. The standard features write one rule of their
@@ -4146,12 +4401,12 @@ with two renames on a heading: its `name` is written `kind` and its `in_toc` is 
 test whether a key is present.
 
 The contract is written down once, as data
-([`contract::ROWS`](crate::stdcore::backends::latex_rendered::contract::ROWS)), one row per
+([`contract::ROWS`](crate::stdlib::backends::latex_rendered::contract::ROWS)), one row per
 presentation element. The emitter reads an element's row before it writes a node of that
 element, and requires the row's definition piece (the part of the style file that defines
 the command), so that the style file holds the definition of every command the document
 uses. The function
-[`print_rows`](crate::stdcore::backends::latex_rendered::contract::print_rows) prints the
+[`print_rows`](crate::stdlib::backends::latex_rendered::contract::print_rows) prints the
 rows, as below: each line gives the element, its LaTeX form with the keys in the order the
 emitter writes them (a renamed key with the payload field it comes from in parentheses, a
 key filled from a slot as `slot NAME`, an item's key as `item`), its mandatory arguments
@@ -4189,7 +4444,10 @@ there. A list's entries are written `\flmxItem[label=…, anchor=…]`, each fol
 entry's content. A test checks that every field of every payload appears in its row,
 either as a key or as a field the row lists as not written, with the reason (a
 paragraph's anchor is written as `\flmxTarget` at its start; a formula's display and
-environment choose its delimiters).
+environment choose its delimiters). For instance, the levels of a list's entries
+(`entry_levels`) are not written: on HTML an entry's level selects its looks in the page's
+stylesheet, while the LaTeX of a document sets the entries of one list alike, and a nested
+list by its `depth` key.
 
 Because a template registers a look under these names, **the name of an element's
 command, the name of every key, and every role and kind token a feature writes are public
@@ -4325,7 +4583,7 @@ The style file holds a default definition for every element and for every role a
 token the standard features write, so that the rendered LaTeX compiles under
 `\documentclass{article}` and looks like an article: headings in the article's sizes with
 FLM's numbers; theorems with a bold run-in name and an italic body for the theorem-like
-class; bulleted, numbered and labeled lists; verbatim blocks in a typewriter font;
+class; bulleted, numbered and labeled lists; verbatim code in a typewriter font;
 figures and tables as LaTeX floats with the caption below; tables of cells set with
 `tabularray`, with rules above and below; colored links; notes at the bottom of the page
 for a kind shown in place and as a list after the content for a kind collected in a list;
@@ -4359,7 +4617,7 @@ own; a template that needs deeper lists defines `flmxList` otherwise.
 
 ### Headings in the rendered LaTeX
 
-A heading ([`headings`](crate::stdcore::features::headings)) is written
+A heading ([`headings`](crate::stdlib::features::headings)) is written
 `\flmxHeading[…]{<title>}` on a line of its own. FLM numbers the heading itself: the
 number stands in the title, in a span of role `flm.heading.number`, followed by the rest of
 the kind's title template, and no LaTeX counter is stepped (`\section` and `secnumdepth`
@@ -4429,8 +4687,8 @@ template supplies the separator after it); a template changes it with
 ### Links, the table of contents and page numbers in the rendered LaTeX
 
 **Links.** Every link is written `\flmxLink[…]{<content>}`: a reference
-([`refs`](crate::stdcore::features::refs)), a hyperlink
-([`href`](crate::stdcore::features::href)), a term link, a citation's number, an xnote's
+([`refs`](crate::stdlib::features::refs)), a hyperlink
+([`href`](crate::stdlib::features::href)), a term link, a citation's number, an xnote's
 mark, an entry of the table of contents. From the links golden test:
 
 ```latex
@@ -4476,7 +4734,7 @@ the style file is loaded, or with `\hypersetup` in the same hook. A template tha
 `hyperref` itself lists it in the render option `skip_packages`, which leaves the line out.
 
 **The table of contents.** FLM builds the table of contents itself, as the piece `flm.toc`
-of the [`toc`](crate::stdcore::features::toc) feature; nothing of LaTeX's own
+of the [`toc`](crate::stdlib::features::toc) feature; nothing of LaTeX's own
 table-of-contents machinery is used. It is a block of role `flm.toc` and kind token `toc`
 holding nested lists of kind tokens `unnumbered toc`, one entry per listed heading; an
 entry holds a link of kind `toc` to the heading, whose content is the heading's number in
@@ -4557,14 +4815,24 @@ e &= f\tag*{(\(\star\))}
 `amsmath` is always loaded by the style file. A reference to an equation, `\eqref`
 included, is a link of kind `ref`. With the extension `math-mathjax` in place of
 `math-passthrough`, the formulas reach this backend in the same form (the extension's
-rules for `latex-rendered` stage the same elements). The backend sets no mathematics font;
+rules for `latex-rendered` stage the same elements). With the extension `math-techxt`,
+they are staged by the rules of `math-passthrough` themselves, which the extension
+registers under names of its own: its rendering as Unicode text serves the text and HTML
+backends only. The backend sets no mathematics font;
 `unicode-math` and the like are the template's.
+
+Nothing checks a formula's source before LuaLaTeX reads it: a command that the document's
+packages do not provide stops the compilation. Every run of this backend under
+`math-passthrough` therefore reports the Warning `flm.run.unchecked-output` once, at its
+start: "Unchecked output for LuaLaTeX: feature ‘math-passthrough’ writes each formula's
+LaTeX source as is (backend ‘latex-rendered’)". Under `math-techxt` the same Warning names
+the feature `math-techxt`.
 
 ### Xnotes in the rendered LaTeX
 
-How an xnote (a footnote or another kind of note, [`xnotes`](crate::stdcore::features::xnotes))
+How an xnote (a footnote or another kind of note, [`xnotes`](crate::stdlib::features::xnotes))
 is written follows its kind's placement
-([`XnoteKind::placement`](crate::stdcore::features::xnotes::XnoteKind::placement)), as on
+([`XnoteKind::placement`](crate::stdlib::features::xnotes::XnoteKind::placement)), as on
 every backend; the backend adds no policy of its own.
 
 **A kind collected in a list** (the placement `List`, the default of the standard
@@ -4638,7 +4906,7 @@ looked up first.
 
 ### Lists in the rendered LaTeX
 
-A list ([`lists`](crate::stdcore::features::lists), and every list another feature
+A list ([`lists`](crate::stdlib::features::lists), and every list another feature
 writes) is the environment `flmxList`, each entry `\flmxItem[…]` on a line of its own
 followed by the entry's content, up to the next `\flmxItem` or the `\end`, as with
 LaTeX's `\item`, so that an entry may hold paragraphs, verbatim blocks and nested lists.
@@ -4709,7 +4977,7 @@ point is 1/72 inch, which is LaTeX's big point, not its `pt`.
 
 ### Verbatim content in the rendered LaTeX
 
-Verbatim content ([`verbatim`](crate::stdcore::features::verbatim)) is written as ordinary
+Verbatim content ([`verbatim`](crate::stdlib::features::verbatim)) is written as ordinary
 LaTeX text in which every character stands for itself: the ten special characters
 escaped, every space a control space `\ `, a tab four of them. No verbatim category codes
 are used, so verbatim content may stand anywhere: in a list entry, a note, a table cell, a
@@ -4729,18 +4997,27 @@ and code \flmxVerbatim[kind=code, lang=rust]{let\ x\ =\ 1;} and an identifier \f
 
 The `kind` key is `text` (characters), `code` (computer code) or `a` (an identifier, such
 as a keyword or a name); `lang` is the language the text is written in, where one was
-given. The three kinds share one default: inline, the text in `\flmxVerbatimFont` (the
-font switch, `\ttfamily` by default, redefined with `\renewcommand`); as a block, a
-paragraph group in `\flmxVerbatimFont` with `\parindent` and `\parskip` zero, ragged
-right, each line `\par\noindent\strut<line>`, between the hooks `\flmxVerbatimBlockBegin`
-and `\flmxVerbatimBlockEnd`, empty by default, which a template redefines for a frame or a
-background. A template distinguishes the kinds, or a language, by registering a look per
-kind with `\flmxDefineVerbatim{<kind>}{<code over #1>}` and
-`\flmxDefineVerbatimBlock{<kind>}{…}{…}`.
+given.
+
+Each verbatim kind has its own font switch, registered with
+`\flmxDefineVerbatimFont{<kind>}{<font switch>}`; a later registration replaces an earlier
+one. The style file registers `\ttfamily` for `code` and `\itshape` for `a`. A kind with no
+registered font, `text` included, keeps the font of the surrounding text: the content of
+`\verbtext{…}` looks like the text around it. A template changes the font of a kind by
+registering a font switch for that kind.
+
+The three kinds share one default look, which applies the font registered for the
+element's kind. Inline, the default sets the text in that font. As a block, the default
+sets a paragraph group in that font with `\parindent` and `\parskip` zero, ragged right,
+each line `\par\noindent\strut<line>`, between the hooks `\flmxVerbatimBlockBegin` and
+`\flmxVerbatimBlockEnd`. Both hooks are empty by default, and a template redefines them for
+a frame or a background. A template distinguishes the kinds, or a language, by registering
+a look per kind with `\flmxDefineVerbatim{<kind>}{<code over #1>}` and
+`\flmxDefineVerbatimBlock{<kind>}{…}{…}`; such a look sets its own font.
 
 ### Tables of cells in the rendered LaTeX
 
-A table of cells ([`cells`](crate::stdcore::features::cells)) is the environment
+A table of cells ([`cells`](crate::stdlib::features::cells)) is the environment
 `flmxCells`, every row of the grid holding every grid position as a column, the positions
 separated by `&`, each row ended by `\\`. A cell's content stands in braces at its
 top-left position, with `\par` between the cell's blocks where it holds several; an empty
@@ -4783,7 +5060,7 @@ with no registration changes nothing. The cells feature registers its four custo
 written as the keys `align`, `header` and `rules` and need no registration. A cell style
 of a host ([extending FLM](crate::guide::extending) shows one) states, for this backend,
 the definition piece that registers its keys
-([`CellStyle::requires`](crate::stdcore::features::cells::CellStyle::requires), with the
+([`CellStyle::requires`](crate::stdlib::features::cells::CellStyle::requires), with the
 backend `latex-rendered`). A template replaces the whole default with
 `\flmxDefineCellsDefault{<begin code>}{<end code>}`, between which the rows stand as
 written (for instance `\begin{tblr}{…}` and `\end{tblr}`, with its own options), and
@@ -4792,19 +5069,19 @@ changes the widest width with
 
 ### Images in the rendered LaTeX
 
-An image ([`graphics`](crate::stdcore::features::graphics)) is written
+An image ([`graphics`](crate::stdlib::features::graphics)) is written
 `\flmxImage[width, height, alt, display, anchor]{<path>}`:
 
 ```latex
 \flmxImage[width=4.5cm, height=3cm, alt={A plot}, display=block]{figures/plot.png}
 ```
 
-The path is the one the `graphics` feature published for this output, under one of two
+The path is the one the `graphics` feature published for this output, under one of three
 strategies ([Images and how an output reaches
-them](#images-and-how-an-output-reaches-them)): `reference`, the default, writes the path
-of the image file as seen from the output's folder, and `copy` writes the name of a copy
-of the file beside the output. The strategy `data-uri` cannot be used for this output. Under
-`reference`, the path must be one LaTeX can read as a file name: a path holding `#` or `%`
+them](#images-and-how-an-output-reaches-them)): `reference`, the default, and `content`
+write the path of the image file as seen from the output's folder, and `copy` writes the
+name of a copy of the file beside the output. The strategy `data-uri` cannot be used for
+this output. Under `reference` and `content`, the path must be one LaTeX can read as a file name: a path holding `#` or `%`
 stops LaTeX, and FLM reports nothing. LuaLaTeX includes PDF, PNG and JPEG files; the `flm`
 program's default conversion rules turn an SVG drawing into a PDF file and a GIF image
 into a PNG image under `copy`.
@@ -4842,10 +5119,10 @@ style `unresolved-reference`, in `flmxMarkColor` by default.
 
 ### References and hyperlinks in the rendered LaTeX
 
-A reference ([`refs`](crate::stdcore::features::refs)) is a link of kind `ref` whose
+A reference ([`refs`](crate::stdlib::features::refs)) is a link of kind `ref` whose
 content is the reference's text as FLM resolved it (`§ 1`, `Eq. (1)`, `Theorem 1`), and
 whose `target` is the anchor of the reference point: `\hyperref[flmx:<target>]{…}` by
-default. A hyperlink ([`href`](crate::stdcore::features::href): `\href`, `\url`,
+default. A hyperlink ([`href`](crate::stdlib::features::href): `\href`, `\url`,
 `\email`) is a link of kind `url`: `\href{<href>}{…}` by default, its content in
 `\flmxUrlFont` where it shows the address (`\url`, `\email`). Both kinds are registered by
 the backend's own link definitions; neither feature has a definition piece. An unresolved
@@ -4854,34 +5131,48 @@ could not be written](#decorations-and-the-marks-of-what-could-not-be-written)).
 
 ### The title, the authors and the date in the rendered LaTeX
 
-The [`meta`](crate::stdcore::features::meta) feature places three pieces before the
-content, each a block of kind token `meta` and of the role of what it shows:
+The [`metadata`](crate::stdlib::features::metadata) feature places three pieces before
+the content, each a block of kind token `metadata` and of the role of what it shows:
 
 ```latex
-\begin{flmxBlock}[role=flm.meta.title, kinds={meta}]
+\begin{flmxBlock}[role=flm.metadata.title, kinds={metadata}]
 On \flmxSpan[style=emph]{flexible} markup and \(x^2\)
 \end{flmxBlock}
 
-\begin{flmxBlock}[role=flm.meta.author, kinds={meta}]
-\flmxSpan[role=flm.meta.author.name]{Ada Lovelace}, \flmxSpan[role=flm.meta.author.name]{Grace \flmxSpan[style=bold]{Hopper}}
+\begin{flmxBlock}[role=flm.metadata.author, kinds={metadata}]
+\begin{flmxLines}
+\flmxLine[indent-left=0\flmxTabWidth, indent-right=0\flmxTabWidth, align=left]{\flmxSpan[role=flm.metadata.author.name]{Ada
+Lovelace}}
+\end{flmxLines}
+\begin{flmxLines}
+\flmxLine[indent-left=0\flmxTabWidth, indent-right=0\flmxTabWidth, align=left]{\flmxSpan[role=flm.metadata.author.name]{Grace
+\flmxSpan[style=bold]{Hopper}}}
+\end{flmxLines}
 \end{flmxBlock}
 
-\begin{flmxBlock}[role=flm.meta.date, kinds={meta}]
+\begin{flmxBlock}[role=flm.metadata.date, kinds={metadata}]
 September 2026
 \end{flmxBlock}
 ```
 
-The meta feature's definition piece sets them as LaTeX's `\maketitle` sets a title block,
-with its spacing: every line centered; the title (`flm.meta.title`) in `\LARGE\bfseries`
-after 2em of space, then 1.5em; the authors (`flm.meta.author`) in `\large`, then 1em; the
-date (`flm.meta.date`) in `\normalsize`, then 1.5em; each author's name
-(`flm.meta.author.name`) as it stands. A template registers each role with
-`\flmxDefineBlock` and `\flmxDefineSpan`; the kind token `meta` is reached only where a role
-has no registration.
+Each author is a group of lines (`flmxLines`): the name, each affiliation, the email
+address (a link to `mailto:` and the address) and each note, each on a line of its own in a
+span of its role, `flm.metadata.author.name`, `flm.metadata.author.affiliation`,
+`flm.metadata.author.email` and `flm.metadata.author.note`.
+
+The metadata feature's definition piece sets them as LaTeX's `\maketitle` sets a title block,
+with its spacing: every line centered; the title (`flm.metadata.title`) in `\LARGE\bfseries`
+after 2em of space, then 1.5em; the authors (`flm.metadata.author`) in `\large`, one below the
+other, .5em apart, then 1em; the date (`flm.metadata.date`) in `\normalsize`, then 1.5em; each
+author's name as it stands, and the affiliations, the email address and the notes in
+`\normalsize`. Inside the authors block, the begin code sets the lines of an author centered,
+as the block's other lines, with `\flmxDefineLinesDefault` and `\flmxDefineLineDefault`. A
+template registers each role with `\flmxDefineBlock` and `\flmxDefineSpan`; the kind token
+`metadata` is reached only where a role has no registration.
 
 ### Defined terms in the rendered LaTeX
 
-A term definition ([`defterm`](crate::stdcore::features::defterm)) is a block of role
+A term definition ([`defterm`](crate::stdlib::features::defterm)) is a block of role
 `flm.defterm`; its lead-in, where one is configured, is a run-in decoration at the start
 of its first paragraph holding a span of role `flm.defterm.leadin`; a term link inside the
 definition of its own term is a span of role `flm.defterm.term`; any other term link is a
@@ -4902,7 +5193,7 @@ kind `term` as the default link.
 
 ### Theorems in the rendered LaTeX
 
-A theorem ([`theorems`](crate::stdcore::features::theorems)) is a block of role
+A theorem ([`theorems`](crate::stdlib::features::theorems)) is a block of role
 `flm.theorems.theorem` whose kind tokens are its theorem class's name, then its theorem
 kind's. Its heading is a run-in decoration at the start of the first paragraph, the kind's
 word and number in a span of role `flm.theorems.name`, the title in a span of role
@@ -4943,7 +5234,7 @@ definitions](#the-librarys-default-definitions)).
 
 ### Quotations in the rendered LaTeX
 
-A quotation ([`quote`](crate::stdcore::features::quote)) is a block of role `flm.quote`
+A quotation ([`quote`](crate::stdlib::features::quote)) is a block of role `flm.quote`
 whose kind token is the environment's name (`quote`, `blockquote`, `address`, or one the
 host configures), holding one block per section of the quotation, of role
 `flm.quote.text` (a passage), `flm.quote.lines` (lines, as `flmxLines`),
@@ -4969,7 +5260,7 @@ registered by their roles (`\flmxDefineBlock{flm.quote.attributed}{…}{…}`).
 
 ### Annotations in the rendered LaTeX
 
-An annotation ([`annotations`](crate::stdcore::features::annotations)) is a span of role
+An annotation ([`annotations`](crate::stdlib::features::annotations)) is a span of role
 `flm.annotations.highlight` (a highlight) or `flm.annotations.comment` (a comment), whose
 kind tokens are the annotator's command name and `annotator-<n>`, `<n>` being the
 annotator's number counted from 0; the annotator's initials stand at the start, in a span
@@ -4993,12 +5284,12 @@ decoration's default. A template changes the colors with `\colorlet` and the loo
 registering the three span roles and the two block roles, in which
 `\flmxAnnotatorColor` expands to the name of the color of the annotator the element's
 kind tokens give. With the render option
-[`AnnotationsRenderOptions::hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden),
+[`AnnotationsRenderOptions::hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden),
 the annotations are not written, as on every backend.
 
 ### Floats in the rendered LaTeX
 
-A float ([`floats`](crate::stdcore::features::floats)) is a block of role
+A float ([`floats`](crate::stdlib::features::floats)) is a block of role
 `flm.floats.float` whose kind tokens are the float type's name (`figure`, `table`, or a
 type the document configures) and `numbered` or `unnumbered`. It holds the content in a
 block of role `flm.floats.float.content` and, where the float is numbered or has a
@@ -5029,7 +5320,7 @@ with the role `flm.floats.float`, and the parts with their roles.
 
 ### Citations in the rendered LaTeX
 
-A citation ([`citations`](crate::stdcore::features::citations)) is a span of role
+A citation ([`citations`](crate::stdlib::features::citations)) is a span of role
 `flm.citations.space` holding a no-break space, then the citation mark, a span of role
 `flm.citations.mark` (kind tokens `attached` or `standalone`, then `in-place` where the
 kind places the entries in the text) holding the delimiters, the join texts and the
@@ -5054,14 +5345,14 @@ the link kind `cite`.
 
 ### User definitions in the rendered LaTeX
 
-Every user definition ([`userdefs`](crate::stdcore::features::userdefs)) is expanded
+Every user definition ([`userdefs`](crate::stdlib::features::userdefs)) is expanded
 before this backend writes anything, as on HTML: the rendered LaTeX holds the result of
 each call, never a LaTeX definition of the author's macro.
 
 ### The style file of the rendered LaTeX
 
 The style file is the artifact `latex-rendered:<stem>.<hash>`, of media type
-`application/x-latex` and extension `sty` ([`style`](crate::stdcore::backends::latex_rendered::style)).
+`application/x-latex` and extension `sty` ([`style`](crate::stdlib::backends::latex_rendered::style)).
 `<stem>` is the render option `style_stem` (`flmx` by default) and `<hash>` eight
 hexadecimal digits of a digest of the file's content, so that two documents that need the
 same definitions share one file name. The program's naming of files may add a prefix: the
@@ -5128,7 +5419,7 @@ an element of the concern:
 | `flm.latex.def.flmx.links` | `\flmxLink`, the kinds `ref` and `url`, `\flmxUrlFont` | the core |
 | `flm.latex.def.flmx.lists` | `flmxList`, `\flmxItem`, `\flmxListKinds`, `\flmxListDepth` | the core |
 | `flm.latex.def.flmx.lines` | `flmxLines`, `\flmxLine` | the core |
-| `flm.latex.def.flmx.verbatim` | `\flmxVerbatim`, `flmxVerbatimBlock`, `\flmxVerbLine`, `\flmxVerbatimFont`, `\flmxVerbatimBlockBegin`, `\flmxVerbatimBlockEnd` | the core |
+| `flm.latex.def.flmx.verbatim` | `\flmxVerbatim`, `flmxVerbatimBlock`, `\flmxVerbLine`, `\flmxDefineVerbatimFont`, `\flmxVerbatimBlockBegin`, `\flmxVerbatimBlockEnd` | the core |
 | `flm.latex.def.flmx.cells` | `flmxCells`, `\flmxCellsMaxWidth` | the core, `tabularray` |
 | `flm.latex.def.flmx.images` | `\flmxImage` | the core, `graphicx` |
 | `flm.latex.def.flmx.marks` | `\flmxDropped`, `\flmxUnsupported`, `\flmxUnknown` | the core |
@@ -5140,7 +5431,7 @@ Mathematics needs no piece of its own, since `amsmath` is always loaded.
 A feature gives its roles and kind tokens their look on this backend through a
 **definition piece**: a unit of LaTeX definitions registered in the LaTeX family's
 service slot `flm.latex.preamble` under an identifier `flm.latex.def.<name>`
-([`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)). The standard
+([`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)). The standard
 features' pieces are named `flm.latex.def.flmx.<feature>` and register their looks with
 the commands of [Registering a look](#registering-a-look).
 
@@ -5151,8 +5442,8 @@ which the same feature registers its stylesheet for the HTML page. Each backend 
 that identifier in its own way: the HTML backend writes the stylesheet; the plain-text
 backend reads no requirement; this backend writes every definition piece that declares it
 **delivers** the identifier
-([`LatexPreambleDef::delivers`](crate::stdcore::backends::latex::LatexPreambleDef::delivers),
-set with [`delivering`](crate::stdcore::backends::latex::LatexPreambleDef::delivering)). A
+([`LatexPreambleDef::delivers`](crate::stdlib::backends::latex::LatexPreambleDef::delivers),
+set with [`delivering`](crate::stdlib::backends::latex::LatexPreambleDef::delivering)). A
 document that holds a theorem therefore holds the theorems piece in its style file, and a
 document without one does not.
 
@@ -5160,12 +5451,12 @@ One feature has nothing to style on the HTML page but a look to give on this bac
 headings feature. It registers an **empty style definition**, `flm.headings.style`, a style
 definition that holds no stylesheet. It exists so that the feature's general rules have an
 identifier to require that each backend's definitions can deliver: the HTML page writes
-nothing for it, and on this backend the feature's piece delivers it. The meta feature's
-identifier, `flm.meta.style`, names its stylesheet on the HTML page and its piece on this
+nothing for it, and on this backend the feature's piece delivers it. The metadata feature's
+identifier, `flm.metadata.style`, names its stylesheet on the HTML page and its piece on this
 backend.
 
 This backend resolves each identifier that a tree, a piece or the emitter requires
-([`resolve`](crate::stdcore::backends::latex_rendered::resolve)):
+([`resolve`](crate::stdlib::backends::latex_rendered::resolve)):
 
 1. `flm.latex.pkg.<name>`, a LaTeX package request, through the family's package slot;
 2. `flm.latex.def.<name>`, a definition piece, through the family's preamble slot, with
@@ -5193,7 +5484,7 @@ nothing.
 
 ### Rendered LaTeX render options
 
-[`LatexRenderedRenderOptions`](crate::stdcore::backends::latex_rendered::LatexRenderedRenderOptions)
+[`LatexRenderedRenderOptions`](crate::stdlib::backends::latex_rendered::LatexRenderedRenderOptions)
 holds the backend's render options. They are declared with
 [`Bind::Render`](crate::model::options::Bind::Render): their values come from the render
 request rather than from the document, and they are part of the plan's identity. The `flm`
@@ -5212,10 +5503,10 @@ Two requests that give one package option two different values are the Error
 is no option for the Unicode handling or for the definitions' names: on this backend the
 font supplies the characters, and the names are those of the contract. Three other
 features' render options also change this output:
-[`AnnotationsRenderOptions::hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden),
+[`AnnotationsRenderOptions::hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden),
 the `graphics` feature's strategy for this output
-([`GraphicsRenderOptions`](crate::stdcore::features::graphics::GraphicsRenderOptions)),
-and [`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions), which
+([`GraphicsRenderOptions`](crate::stdlib::features::graphics::GraphicsRenderOptions)),
+and [`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions), which
 chooses the pieces placed beside the content.
 
 ### The stages, the tables and the artifact set of the rendered LaTeX
@@ -5227,23 +5518,23 @@ For each document, the backend's stages run as follows:
    into `flm.lowered.latex-rendered.pieces`;
 2. the emit stage `flm.latex-rendered.emit`, once per tree, writes each lowered tree's
    LaTeX into `flm.output.latex-rendered`
-   ([`OUTPUT_TABLE`](crate::stdcore::backends::latex_rendered::OUTPUT_TABLE)), together
+   ([`OUTPUT_TABLE`](crate::stdlib::backends::latex_rendered::OUTPUT_TABLE)), together
    with the identifiers it requires and the definitions it staged;
    `flm.latex-rendered.emit-pieces` writes each piece's LaTeX and its words into
    `flm.output.latex-rendered.pieces`
-   ([`PIECES_TABLE`](crate::stdcore::backends::latex_rendered::PIECES_TABLE));
+   ([`PIECES_TABLE`](crate::stdlib::backends::latex_rendered::PIECES_TABLE));
 3. the regions stage `flm.latex-rendered.regions` writes each tree placed inside another
    where it is placed, resolves every requirement, assembles the style file and names it,
    and writes the regions `content`, one region per piece and `style-package` (the style
    file's package name) into `flm.output.latex-rendered.regions`
-   ([`REGIONS`](crate::stdcore::backends::latex_rendered::REGIONS)), and the style file
+   ([`REGIONS`](crate::stdlib::backends::latex_rendered::REGIONS)), and the style file
    into `flm.output.latex-rendered.style`
-   ([`STYLE_FILE`](crate::stdcore::backends::latex_rendered::STYLE_FILE));
+   ([`STYLE_FILE`](crate::stdlib::backends::latex_rendered::STYLE_FILE));
 4. the final stage `flm.latex-rendered.final` writes the document as the entry artifact
    `latex-rendered:document` of `flm.output.latex-rendered.document`
-   ([`DOCUMENT`](crate::stdcore::backends::latex_rendered::DOCUMENT)), followed by the
+   ([`DOCUMENT`](crate::stdlib::backends::latex_rendered::DOCUMENT)), followed by the
    style file and the image copies of `flm.output.latex-rendered.artifacts`
-   ([`ARTIFACTS`](crate::stdcore::backends::latex_rendered::ARTIFACTS)).
+   ([`ARTIFACTS`](crate::stdlib::backends::latex_rendered::ARTIFACTS)).
 
 The final stage writes a fixed skeleton, a complete document of the class `article`; from
 the headings golden test:
@@ -5282,18 +5573,21 @@ the two of the requirements above. Every one is an Error.
 ### Compose templates for the rendered LaTeX, and compiling
 
 The `flm` program ships compose templates for the `latex-rendered` output, which `flm
-render --help` lists under the option `-t`. The default, `simple`,
-is a complete document: the class and its options from the template's settings, the style
-file loaded by its package name, the pieces placed before the content, the content, and the
-pieces placed after it. For a LaTeX file of one's own that loads the style file and includes
-the content, `-t none` gives the content alone.
+render --help` lists under the option `-t`. The template `article` is a complete document:
+the class and its options from the template's settings, the style file loaded by its
+package name, the pieces placed before the content, the content, and the pieces placed
+after it. The default, `simple`, is a complete document of the class `article`, with the
+class options from the template's settings and the same other parts as the template
+`article`. It also sets the page's geometry, its fonts and its colors from the template's
+settings. For a LaTeX file of one's own that loads the style file and includes the
+content, `-t none` gives the content alone.
 
-The `simple` template is written in the template engine `minijinja` with delimiters that
+The `article` template is written in the template engine `minijinja` with delimiters that
 do not collide with LaTeX's braces: statements stand between `<<*` and `*>>`, values between
 `<<<` and `>>>`, comments between `<<!--` and `-->>`:
 
 ```latex
-<<!-- flm latex-rendered: the simple template -->>
+<<!-- flm latex-rendered: the article template -->>
 \documentclass<<* if config.classoptions *>>[<<< config.classoptions >>>]<<* endif *>>{<<< config.documentclass >>>}
 \usepackage{<<< regions["style-package"] >>>}
 \begin{document}
@@ -5309,7 +5603,7 @@ do not collide with LaTeX's braces: statements stand between `<<*` and `*>>`, va
 
 Its settings are `documentclass` (`article` by default) and `classoptions` (empty by
 default), set under the output's name and the template's name: `-O
-'compose.template_config={latex-rendered: {simple: {documentclass: report}}}'`. A
+'compose.template_config={latex-rendered: {article: {documentclass: report}}}'`. A
 template of one's own registers its looks after the line `\usepackage{…}` ([Registering a
 look](#registering-a-look)). With `-o out/`, the program writes `out/index.tex` and the
 style file `out/index-flmx.1a2b3c4d.sty`; with `-o paper.tex`, `paper.tex` and
@@ -5325,7 +5619,7 @@ LaTeX](crate::guide::command_line#pdf-through-latex)).
 ## The recomposed LaTeX backend
 
 The `latex-recomposed` backend
-([`crate::stdcore::backends::latex_recomposed`]) writes a document back as LaTeX source,
+([`crate::stdlib::backends::latex_recomposed`]) writes a document back as LaTeX source,
 close to the way an author would have typed it, and leaves every resolution to LaTeX:
 LaTeX and the author's document class number the headings, the equations and the
 theorems, resolve the cross-references, and build the table of contents. This chapter
@@ -5334,12 +5628,12 @@ output, which writes resolved content for LuaLaTeX, is described in [The rendere
 backend](#the-rendered-latex-backend) above. Where the document
 needs one, the backend also writes a **style file**: a LaTeX package (a `.sty` file) holding
 exactly the definitions that the recomposed LaTeX needs in order to compile
-([`style`](crate::stdcore::backends::latex::style); when it is written: [The stages, the
+([`style`](crate::stdlib::backends::latex::style); when it is written: [The stages, the
 tables and the artifact set](#the-stages-the-tables-and-the-artifact-set)).
 
 A caller asks for the `latex-recomposed` output, or for the `latex-recomposed` workflow,
 and reads the artifact set from the table `flm.output.latex-recomposed.document`
-([`DOCUMENT`](crate::stdcore::backends::latex_recomposed::DOCUMENT)). The entry artifact is
+([`DOCUMENT`](crate::stdlib::backends::latex_recomposed::DOCUMENT)). The entry artifact is
 the recomposed LaTeX; the style file is a second artifact, whose file name the recomposed LaTeX's first line
 gives (the program's naming of files gives it, `paper-flmrecomposed.1a2b3c4d.sty` under
 `-o paper.tex`; without one, `<stem>.<hash>.sty`); image copies, where the output copies images,
@@ -5373,21 +5667,21 @@ and as LaTeX.
 ### What the LaTeX family provides
 
 The backend is built over the **LaTeX family**,
-[`crate::stdcore::backends::latex`], which the `latex` feature
-([`LatexFamily`](crate::stdcore::backends::latex::LatexFamily)) registers. The family holds
+[`crate::stdlib::backends::latex`], which the `latex` feature
+([`LatexFamily`](crate::stdlib::backends::latex::LatexFamily)) registers. The family holds
 what a LaTeX backend needs beside its own stages:
 
 - the four **construct elements** of LaTeX
-  ([`construct`](crate::stdcore::backends::latex::construct)): a macro call, an
+  ([`construct`](crate::stdlib::backends::latex::construct)): a macro call, an
   environment, a raw node (LaTeX text written byte for byte) and a definition, named
   `flm.pres.latex.*`. A construct element is a presentation element that mirrors one
   construct of an output format, so that LaTeX syntax is structured data in the lowered
   tree rather than a string ([backends, lowering and
   outputs](crate::guide::concepts_overview#backends-lowering-and-outputs)). The lowering
   rules of this backend stage construct elements;
-- the escaping of document text ([`escape`](crate::stdcore::backends::latex::escape);
+- the escaping of document text ([`escape`](crate::stdlib::backends::latex::escape);
   [Escaping and the Unicode modes](#escaping-and-the-unicode-modes));
-- the **typed sink** ([`LatexSink`](crate::stdcore::backends::latex::LatexSink)), the only
+- the **typed sink** ([`LatexSink`](crate::stdlib::backends::latex::LatexSink)), the only
   interface through which the emitter writes bytes: document text goes through the
   escaping, byte-exact content (mathematics, verbatim content, raw nodes) is written
   unchanged, and the emitter's own syntax (braces, `\begin`, a comment) is written by
@@ -5399,22 +5693,22 @@ what a LaTeX backend needs beside its own stages:
   A package request is a LaTeX package that a lowering rule or the emitter requires by
   identifier (`flm.latex.pkg.<name>`), resolved through the service slot
   `flm.latex.packages` to a package definition
-  ([`packages`](crate::stdcore::backends::latex::packages)). A definition piece is a unit
+  ([`packages`](crate::stdlib::backends::latex::packages)). A definition piece is a unit
   of LaTeX definitions that a feature registers under an identifier
   `flm.latex.def.<name>`, together with the identifiers it needs in turn
-  ([`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)). A rule
+  ([`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)). A rule
   *requires* a package or a definition piece by recording its identifier as a requirement of the
   lowered tree; the backend's regions stage resolves the requirements and writes the
   style file;
 - the assembly of the style file
-  ([`assemble_style`](crate::stdcore::backends::latex::assemble_style));
+  ([`assemble_style`](crate::stdlib::backends::latex::assemble_style));
 - the names under which user definitions are written
-  ([`names`](crate::stdcore::backends::latex::names)).
+  ([`names`](crate::stdlib::backends::latex::names)).
 
 Two rules of the sink matter to an author of a lowering rule for this backend:
 
 - **A comment ends its own line.** A comment is written only by
-  [`LatexSink::comment`](crate::stdcore::backends::latex::LatexSink::comment), which also
+  [`LatexSink::comment`](crate::stdlib::backends::latex::LatexSink::comment), which also
   writes the newline that ends the comment's line. A comment runs to the end of its line,
   so a comment whose line did not end would turn what is written next into comment text.
   A rule that wants a comment stages a comment node.
@@ -5427,7 +5721,7 @@ Two rules of the sink matter to an author of a lowering rule for this backend:
 ### What the backend writes, and from which tree
 
 The backend's native set
-([`native_elements`](crate::stdcore::backends::latex_recomposed::native_elements)) holds
+([`native_elements`](crate::stdlib::backends::latex_recomposed::native_elements)) holds
 sixteen elements:
 
 - the four construct elements of the family;
@@ -5452,7 +5746,7 @@ because no rule for this backend stages one. Instead, each standard feature regi
 **recomposition rule** for each of its elements: a lowering rule that stages construct
 elements, marked as the default on the `latex-recomposed` backend alone. For instance,
 `\emph` belongs to the `textstyles` feature, and so does the rule that writes it back
-([`textstyles::latex`](crate::stdcore::features::textstyles::latex)). The feature that
+([`textstyles::latex`](crate::stdlib::features::textstyles::latex)). The feature that
 owns a recomposition rule registers none of the things the rule refers to: the backend, the
 construct elements, and the tables of other features that the rule reads. It makes a peer
 declaration ([`PeerName`](crate::core::registry::PeerName)) of each, a forward declaration
@@ -5461,7 +5755,7 @@ has registered. A registry that holds a feature without the LaTeX features there
 builds, with the feature's recomposition rule set aside (excluded from rule selection; see
 [`PeerName`](crate::core::registry::PeerName)) and one build Note per unresolved name. The
 backend's own feature registers two rules only
-([`rules`](mod@crate::stdcore::backends::latex_recomposed::rules)) and depends on no
+([`rules`](mod@crate::stdlib::backends::latex_recomposed::rules)) and depends on no
 content feature.
 
 Several rules read the safe-labels table that the `refs` feature owns, and some of them
@@ -5473,9 +5767,9 @@ labels](#references-and-safe-labels)).
 that the block-structure pass has not processed, with no paragraphs built, no typographic
 substitution, and the author's whitespace and blank lines as parsed. The backend states
 this through the requirements of its two structural rules
-([`rules`](mod@crate::stdcore::backends::latex_recomposed::rules)): the rule for the
+([`rules`](mod@crate::stdlib::backends::latex_recomposed::rules)): the rule for the
 paragraph-break marker and the rule for a paragraph both require the capability
-[`flm.blocks.raw`](crate::stdcore::features::blocks::RAW). The lowering stage requires
+[`flm.blocks.raw`](crate::stdlib::features::blocks::RAW). The lowering stage requires
 what every selected rule requires, so every plan for this backend keeps its trees raw. A
 paragraph-break marker, which stands for one or more blank lines, is written as one blank
 line.
@@ -5493,20 +5787,20 @@ definitions in the recomposed LaTeX](#user-definitions-in-the-recomposed-latex))
 | document text | the text, escaped: `$ & # ^ _ % { } \ ~` as commands (`^` as `\textasciicircum{}`), every other non-ASCII character according to the Unicode mode ([Escaping and the Unicode modes](#escaping-and-the-unicode-modes)) | the emitter |
 | `{…}` | `{…}`, its content recomposed | the emitter |
 | `%% a comment` | the comment as written: its prefix, its text, the newline that ends its line, then the whitespace that followed it in the source minus that newline; nothing at all under the render option `drop_comments` | the emitter |
-| a blank line | one blank line | [`ParbreakRule`](crate::stdcore::backends::latex_recomposed::ParbreakRule) |
-| `\emph{…}`, `\textbf{…}`, `\textit{…}`, `\texttt{…}` | the same command around the recomposed argument | [`textstyles::latex`](crate::stdcore::features::textstyles::latex) |
-| `\%`, `\#`, `\&`, `\$`, `\ `, `\{`, `\}`, `\textbackslash`, `~`, `\@` | the spelling as written, followed by the whitespace that followed a command name | [`literals::latex`](crate::stdcore::features::literals::latex) |
-| `\section*{T}\label{sec:a}` | `\flmHeading[toc=true]`, a newline, `\section*{T}{\flmLabels{\label{ref1}}}`: the heading's LaTeX hook on a line of its own with the heading's `toc` key; the LaTeX command the heading kind maps to ([`HeadingsLatexOptions`](crate::stdcore::features::headings::latex::HeadingsLatexOptions); by default the heading kind's own name), starred when the heading is not numbered (written with a star or with `numbered=false`); the title; a group holding each label under its safe label ([References and safe labels](#references-and-safe-labels)). The heading's bracket of key-values is not written back | [`headings::latex`](crate::stdcore::features::headings::latex), [`refs::latex`](crate::stdcore::features::refs::latex) |
-| `\ref[S,cap=Figure]{sec:a}` | `\flmRef[S,cap={Figure}]{ref1}`: the reference hook around the safe label, the options in FLM's own vocabulary with their text escaped ([The LaTeX hooks](#the-latex-hooks) says how the hook's default translates them) | [`refs::latex`](crate::stdcore::features::refs::latex) |
-| `\(…\)`, `\[…\]`, `$…$`, `\ensuremath{…}` written in text | `\(…\)` or `\[…\]` (`\ensuremath{…}` for `\ensuremath{…}`), the content written from its nodes, byte for byte except where a user definition is used | [`math::latex`](crate::stdcore::features::math::latex) |
-| `\begin{align}…\end{align}` and the other display-math environments | rebuilt line by line: each line's content, its tag as `\tag*{(A)}`, its labels as one group `\flmLabels{\label{ref1}\label{ref2}}`, `\nonumber`, the line's `\\` ([Mathematics in the recomposed LaTeX](#mathematics-in-the-recomposed-latex)) | [`math::latex`](crate::stdcore::features::math::latex) |
-| `\verbcode[python]{…}`, `\verbtext{…}`, `\verba{…}`, `{verbatimtext}` | `\EscVerb[formatcom=\flmFmtVRB{verbcode}]{…}`, the content in the encoding `\EscVerb` reads | [`verbatim::latex`](crate::stdcore::features::verbatim::latex) |
-| `{verbatimcode}[python]` | `\begin{flmVerbatimCode}[python]`, the content on lines of its own, `\end{flmVerbatimCode}`; the brackets are always written, empty where the block gives no language | [`verbatim::latex`](crate::stdcore::features::verbatim::latex) |
-| `\begin{enumerate}[(i)]\item[Tag]\label{item:a} …` | `\begin{enumerate}[label={(\roman*)}]\item[Tag]\flmLabels{\label{ref1}} …` ([Lists in the recomposed LaTeX](#lists-in-the-recomposed-latex)) | [`lists::latex`](crate::stdcore::features::lists::latex) |
-| `\footnote[\label{fn:a}]{…}`, an xnote of any xnote kind | `\flmXNfootnote[{\flmLabels{\label{ref1}}}]{…}` ([Xnotes in the recomposed LaTeX](#xnotes-in-the-recomposed-latex)) | [`xnotes::latex`](crate::stdcore::features::xnotes::latex) |
-| `\begin{lemma}[Key]\label{lem:a}\noproofref …`, `\begin{proof}[*lem:a]` | `\begin{lemma}[Key]\flmLabels{\label{ref1}}\noproofref …`, `\begin{proof}[*ref1]` ([Theorems in the recomposed LaTeX](#theorems-in-the-recomposed-latex)) | [`theorems::latex`](crate::stdcore::features::theorems::latex) |
-| `\hello{World}`, a use site of a `per-plan` user definition | `\flmUDhello{World}`, and `\providecommand\flmUDhello[1]{Hello, #1!}` in the style file, or the expansion where no LaTeX definition can express the definition ([User definitions in the recomposed LaTeX](#user-definitions-in-the-recomposed-latex)) | [`userdefs::kept`](crate::stdcore::features::userdefs::kept) |
-| `\begin{cells}…\end{cells}` | one call `\flmCellsTable{<natural>}{<fitted>}{<options>}{<rows>}` ([Tables of cells in the recomposed LaTeX](#tables-of-cells-in-the-recomposed-latex)) | [`cells::latex`](crate::stdcore::features::cells::latex) |
+| a blank line | one blank line | [`ParbreakRule`](crate::stdlib::backends::latex_recomposed::ParbreakRule) |
+| `\emph{…}`, `\textbf{…}`, `\textit{…}`, `\texttt{…}` | the same command around the recomposed argument | [`textstyles::latex`](crate::stdlib::features::textstyles::latex) |
+| `\%`, `\#`, `\&`, `\$`, `\ `, `\{`, `\}`, `\textbackslash`, `~`, `\@` | the spelling as written, followed by the whitespace that followed a command name | [`literals::latex`](crate::stdlib::features::literals::latex) |
+| `\section*{T}\label{sec:a}` | `\flmHeading[toc=true]`, a newline, `\section*{T}{\flmLabels{\label{ref1}}}`: the heading's LaTeX hook on a line of its own with the heading's `toc` key; the LaTeX command the heading kind maps to ([`HeadingsLatexOptions`](crate::stdlib::features::headings::latex::HeadingsLatexOptions); by default the heading kind's own name), starred when the heading is not numbered (written with a star or with `numbered=false`); the title; a group holding each label under its safe label ([References and safe labels](#references-and-safe-labels)). The heading's bracket of key-values is not written back | [`headings::latex`](crate::stdlib::features::headings::latex), [`refs::latex`](crate::stdlib::features::refs::latex) |
+| `\ref[S,cap=Figure]{sec:a}` | `\flmRef[S,cap={Figure}]{ref1}`: the reference hook around the safe label, the options in FLM's own vocabulary with their text escaped ([The LaTeX hooks](#the-latex-hooks) says how the hook's default translates them) | [`refs::latex`](crate::stdlib::features::refs::latex) |
+| `\(…\)`, `\[…\]`, `$…$`, `\ensuremath{…}` written in text | `\(…\)` or `\[…\]` (`\ensuremath{…}` for `\ensuremath{…}`), the content written from its nodes, byte for byte except where a user definition is used | [`math::latex`](crate::stdlib::features::math::latex) |
+| `\begin{align}…\end{align}` and the other display-math environments | rebuilt line by line: each line's content, its tag as `\tag*{(A)}`, its labels as one group `\flmLabels{\label{ref1}\label{ref2}}`, `\nonumber`, the line's `\\` ([Mathematics in the recomposed LaTeX](#mathematics-in-the-recomposed-latex)) | [`math::latex`](crate::stdlib::features::math::latex) |
+| `\verbcode[python]{…}`, `\verbtext{…}`, `\verba{…}`, `{verbatimtext}` | `\EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbcode}]{…}`, the content in the encoding `\EscVerb` reads | [`verbatim::latex`](crate::stdlib::features::verbatim::latex) |
+| `{verbatimcode}[python]` | `\begin{flmVerbatimCode}[python]`, the content on lines of its own, `\end{flmVerbatimCode}`; the brackets are always written, empty where the block gives no language | [`verbatim::latex`](crate::stdlib::features::verbatim::latex) |
+| `\begin{enumerate}[(i)]\item[Tag]\label{item:a} …` | `\begin{enumerate}[label={(\roman*)}]\item[Tag]\flmLabels{\label{ref1}} …` ([Lists in the recomposed LaTeX](#lists-in-the-recomposed-latex)) | [`lists::latex`](crate::stdlib::features::lists::latex) |
+| `\footnote[\label{fn:a}]{…}`, an xnote of any xnote kind | `\flmXNfootnote[{\flmLabels{\label{ref1}}}]{…}` ([Xnotes in the recomposed LaTeX](#xnotes-in-the-recomposed-latex)) | [`xnotes::latex`](crate::stdlib::features::xnotes::latex) |
+| `\begin{lemma}[Key]\label{lem:a}\noproofref …`, `\begin{proof}[*lem:a]` | `\begin{lemma}[Key]\flmLabels{\label{ref1}}\noproofref …`, `\begin{proof}[*ref1]` ([Theorems in the recomposed LaTeX](#theorems-in-the-recomposed-latex)) | [`theorems::latex`](crate::stdlib::features::theorems::latex) |
+| `\hello{World}`, a use site of a `per-plan` user definition | `\flmUDhello{World}`, and `\providecommand\flmUDhello[1]{Hello, #1!}` in the style file, or the expansion where no LaTeX definition can express the definition ([User definitions in the recomposed LaTeX](#user-definitions-in-the-recomposed-latex)) | [`userdefs::kept`](crate::stdlib::features::userdefs::kept) |
+| `\begin{cells}…\end{cells}` | one call `\flmCellsTable{<natural>}{<fitted>}{<options>}{<rows>}` ([Tables of cells in the recomposed LaTeX](#tables-of-cells-in-the-recomposed-latex)) | [`cells::latex`](crate::stdlib::features::cells::latex) |
 | `\nope`, `\begin{nowhere}…\end{nowhere}`, a macro or environment no feature declares | as written; the parse reports the error | the emitter |
 | an accepted unrenderable element | the comment `% flm: unsupported element <name>` on a line of its own; one Error is reported | the emitter |
 | a dropped mark (`flm.pres.dropped`), such as the stray content of a table of cells | the comment `% flm: dropped <detail>` on a line of its own, for instance `% flm: dropped content outside \cell`. The mark is a comment, so the document compiles and the mark shows in its source | the emitter |
@@ -5530,7 +5824,7 @@ The bytes inside every argument are the document's own.
 
 ### Lists in the recomposed LaTeX
 
-A list ([`lists::latex`](crate::stdcore::features::lists::latex)) is written as its
+A list ([`lists::latex`](crate::stdlib::features::lists::latex)) is written as its
 environment, under the list kind's own name, and each item as `\item`: an item's tag is
 the optional argument of `\item`, and the item's labels follow it inside the labels hook
 `\flmLabels` ([The LaTeX hooks](#the-latex-hooks)).
@@ -5576,10 +5870,10 @@ the render option `extra_preamble` adds to the style file.
 ### Xnotes in the recomposed LaTeX
 
 An xnote is a note set apart from the running text, marked where it belongs and
-shown elsewhere or in place, such as a footnote ([`xnotes`](crate::stdcore::features::xnotes)).
+shown elsewhere or in place, such as a footnote ([`xnotes`](crate::stdlib::features::xnotes)).
 On this backend, an xnote is written as the command of its xnote kind, `\flmXN<kind>`,
 which the style file defines and LaTeX sets where the command is written
-([`xnotes::latex`](crate::stdcore::features::xnotes::latex)):
+([`xnotes::latex`](crate::stdlib::features::xnotes::latex)):
 
 ```latex
 The claim holds in every case.\flmXNfootnote{Except the empty one, which we exclude by convention.} The next sentence goes on.
@@ -5608,7 +5902,7 @@ definition piece, `flm.latex.def.xnotes.<kind>`:
 ```
 
 The default hands the note to the LaTeX command of the xnote kind
-([`XnoteKind::latex_command`](crate::stdcore::features::xnotes::XnoteKind::latex_command),
+([`XnoteKind::latex_command`](crate::stdlib::features::xnotes::XnoteKind::latex_command),
 `footnote` by default), with the labels first inside the command's argument, where LaTeX
 makes a label refer to the footnote: a reference to it prints "footnote 1". The definition
 is guarded with `\ProvideDocumentCommand`, so a definition of the command made before the
@@ -5663,7 +5957,7 @@ lowered as a synthesized value, and the value's catch-up refuses a label, becaus
 a fact about the document, which a synthesized value may not state ([value
 catch-up](crate::guide::concepts_overview#value-catch-up)). A labeled xnote there, like a labeled
 heading there, makes the definition refused with the Error
-[`flm.userdefs.kept-template-declares-point`](crate::stdcore::features::userdefs::kept::KeptTemplateDeclaresPoint),
+[`flm.userdefs.kept-template-declares-point`](crate::stdlib::features::userdefs::kept::KeptTemplateDeclaresPoint),
 reported at each call of the definition. Every call is then written as a comment, and a
 reference to the label is unresolved. The remedy is to mark the definition to be expanded
 in every plan (the expansion policy `always`): its use sites are then expanded in the
@@ -5671,9 +5965,9 @@ document, and each label is the document's own, written once per use site.
 
 ### Hyperlinks in the recomposed LaTeX
 
-The three hyperlink commands of the [`href`](crate::stdcore::features::href) feature are
+The three hyperlink commands of the [`href`](crate::stdlib::features::href) feature are
 written as three LaTeX hooks of their own
-([`href::latex`](crate::stdcore::features::href::latex)):
+([`href::latex`](crate::stdlib::features::href::latex)):
 
 | written | recomposed | what the default definition does |
 |---|---|---|
@@ -5694,7 +5988,7 @@ style file's request.
 Every argument is an ordinary LaTeX argument, so each hook works in a moving argument (a
 heading's title, which LaTeX writes to the table of contents and reads back) and
 contributes only its text or its display to a PDF bookmark. In an address, `#`, `%` and `\`
-are written `\#`, `\%` and `\\` ([`escape_url`](crate::stdcore::backends::latex::escape_url)),
+are written `\#`, `\%` and `\\` ([`escape_url`](crate::stdlib::backends::latex::escape_url)),
 which `\href` reads back as those characters; every other character is written unchanged.
 The text of `\flmHref` is content, written as all content is.
 
@@ -5715,9 +6009,9 @@ than characters there (`\doi{\emph{x}}`) is reported, as on every output.
 ### Defined terms in the recomposed LaTeX
 
 A term definition (the `defterm` environment of the
-[`defterm`](crate::stdcore::features::defterm) feature) is written as the environment the
+[`defterm`](crate::stdlib::features::defterm) feature) is written as the environment the
 author wrote, with the term, written as content, as its one argument
-([`defterm::latex`](crate::stdcore::features::defterm::latex)). The body opens with
+([`defterm::latex`](crate::stdlib::features::defterm::latex)). The body opens with
 `\phantomsection`, `\flmLabelsWithDisplayText{<term>}{<labels>}` and `\ignorespaces`,
 followed by the definition's paragraphs:
 
@@ -5747,7 +6041,7 @@ what LaTeX recorded last.
 
 **The environment's definition.** The style file defines the `defterm` environment from
 the configured lead-in
-([`DeftermConfig::lead_in`](crate::stdcore::features::defterm::DeftermConfig::lead_in)):
+([`DeftermConfig::lead_in`](crate::stdlib::features::defterm::DeftermConfig::lead_in)):
 its begin code is the lead-in template, written through the ordinary rules, with
 `#{term}` written as the environment's parameter `#1`; its end code is empty. The lead-in a
 compiled document shows therefore follows the configuration:
@@ -5796,8 +6090,8 @@ template is written under its safe label, and the template is kept.
 
 ### Theorems in the recomposed LaTeX
 
-A theorem-like environment of the [`theorems`](crate::stdcore::features::theorems) feature
-is written as the author wrote it ([`theorems::latex`](crate::stdcore::features::theorems::latex)):
+A theorem-like environment of the [`theorems`](crate::stdlib::features::theorems) feature
+is written as the author wrote it ([`theorems::latex`](crate::stdlib::features::theorems::latex)):
 the environment of its theorem kind's name, the title as the optional argument (lowered as
 the content it is), the labels inside the labels hook right after the begin line, and
 `\noproofref` where the author wrote it:
@@ -5824,7 +6118,7 @@ default of `\flmProofTitle` depends on the form of back-references, below: "Proo
 **A proof's back-reference** is `[*lem:a]`, which shows the statement in the proof's
 heading, or `[**lem:a]`, which records the relation and shows nothing. It is written in one
 of two forms, which the render option
-[`resolved_proof_refs`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::resolved_proof_refs)
+[`resolved_proof_refs`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::resolved_proof_refs)
 chooses:
 
 | written | `resolved_proof_refs` off (the default) | on |
@@ -5861,8 +6155,8 @@ that definition; to set up a theorem kind differently, define it first.
 | the theorem kind | off | on |
 |---|---|---|
 | the theorem class of a numbered theorem kind, before its first theorem kind | `\newtheoremstyle{theoremlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}` | the same |
-| numbered, in the shared counter | `\phfMakeTheorem[thmstyle=theoremlike,counter=phfthmcounter]{lemma}{Lemma}` | `\begingroup\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\endgroup` |
-| numbered, in a counter of its own, expecting no proof | `\phfMakeTheorem[thmstyle=exerciselike,proofref=false]{exercise}{Exercise}` | `\begingroup\theoremstyle{exerciselike}\newtheorem{exercise}{Exercise}\endgroup` |
+| numbered, in the shared counter | `\phfMakeTheorem[thmstyle=theoremlike,counter=phfthmcounter]{lemma}{Lemma}\expandafter\providecommand\csname phfthm@lemmaautorefname\endcsname{Lemma}` | `\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\thm@style\expandafter{\flm@thm@style}` |
+| numbered, in a counter of its own, expecting no proof | `\phfMakeTheorem[thmstyle=exerciselike,proofref=false]{exercise}{Exercise}` | `\edef\flm@thm@style{\the\thm@style}\theoremstyle{exerciselike}\newtheorem{exercise}{Exercise}\thm@style\expandafter{\flm@thm@style}` |
 | unnumbered | `\phfMakeProofEnv[defaultproofname={Proof}]{proof}` | an environment over `amsthm`'s `proof`, its default title the word |
 
 - A numbered theorem kind is set in the theorem style named after its theorem class, which
@@ -5873,6 +6167,11 @@ that definition; to set up a theorem kind differently, define it first.
   style (an upright body). To set a theorem class's kinds differently, declare a theorem
   style of the class's name before loading the style file.
 - A theorem kind that expects no proof is declared with `proofref=false` for `phfthm`.
+- In the authored form, a theorem kind in the shared counter also provides
+  `\phfthm@<kind>autorefname`, the kind's word, where nothing defined it. Under the LaTeX
+  kernel's first aid for `amsthm` (from TeX Live 2026), the kind's environment steps
+  `phfthm@<kind>`, an alias counter that the first aid makes, and `hyperref`'s `\autoref`
+  names a reference by that counter.
 - The style file requests `phfthm` with the option `thmset=empty`
   (`\RequirePackage[thmset=empty]{phfthm}`), so that the package declares no theorem kind
   of its own and the configuration is the only source of the declared kinds; the package
@@ -5882,9 +6181,11 @@ that definition; to set up a theorem kind differently, define it first.
 - In the resolved form, the shared counter is a LaTeX counter of its own, `flmtheorem`,
   declared once, guarded on its register
   (`\ifcsname c@flmtheorem\endcsname\else\newcounter{flmtheorem}\fi`), and every theorem
-  kind counting in it is declared `[flmtheorem]`, each `\theoremstyle` and `\newtheorem`
-  inside a group so that the theorem style it sets does not apply after the style file. A
-  theorem kind with a counter of its own counts in the counter of its own name.
+  kind counting in it is declared `[flmtheorem]`. Each declaration sets its class's theorem
+  style with `\theoremstyle` and, after its `\newtheorem`, restores the theorem style in
+  effect before it, which `amsthm` holds in `\thm@style`, so that the style it sets does not
+  apply after the style file. A theorem kind with a counter of its own counts in the counter
+  of its own name.
 - A theorem kind that the author defines before the style file counts where that
   definition says: an author's own `\newtheorem{theorem}{Theorem}` numbers theorems apart
   from the theorem kinds the style file declares, in both forms ("Theorem 1", then "Lemma
@@ -5897,7 +6198,7 @@ reference type of its own for `zref-clever`, the LaTeX package with which the re
 hook sets references, with the theorem kind's words:
 `\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},…}`.
 The words map as for every reference type of the family
-([`reference_type_words`](crate::stdcore::features::refs::reference_type_words)):
+([`reference_type_words`](crate::stdlib::features::refs::reference_type_words)):
 
 - the capitalized keys take the kind's `capital` variant where it declares one, and its
   base words otherwise;
@@ -5906,17 +6207,21 @@ The words map as for every reference type of the family
 - the abbreviated keys, capitalized and lowercase alike, take its `abbreviated` variant,
   and are written only where the theorem kind declares that variant.
 
-The declaration also maps the counter that the kind's environment steps to that reference
+The declaration also maps the counters that the kind's environment steps to that reference
 type, inside the environment (on:
 `\AddToHook{env/lemma/begin}{\zcsetup{countertype={flmtheorem=lemma}}}`; off:
-`countertype={lemma=lemma}`), so that a reference to a lemma counting in the shared counter
-reads "lemma 2", and a reference to a theorem kind with a counter of its own reads its number. A
-theorem kind defined before the style file keeps the reference type its own definition
-gives it.
+`countertype={lemma=lemma,phfthm@lemma=lemma}`, the alias counter that `phfthm` creates under
+the kind's name and the alias of it that the environment steps under the LaTeX kernel's first
+aid for `amsthm`), so that a reference to a lemma counting in the shared counter reads
+"lemma 2", and a reference to a theorem kind with a counter of its own reads its number.
+(In the resolved form, under that first aid, the environment steps an alias of
+`flmtheorem` named after the kind, which `zref-clever` takes as the reference type of that
+name without a mapping.) A theorem kind defined before the style file keeps the reference
+type its own definition gives it.
 
 ### Quotations in the recomposed LaTeX
 
-A quotation ([`quote::latex`](crate::stdcore::features::quote::latex)) is written as the
+A quotation ([`quote::latex`](crate::stdlib::features::quote::latex)) is written as the
 environment the author wrote. Inside it, the body is written as the author wrote it (the
 whitespace, blank lines and comments between the quotation sections unchanged, `~` and `\ `
 left out), and each quotation section through the LaTeX hook of its kind:
@@ -5934,10 +6239,10 @@ and `\ ` included, is trimmed, and the lines are joined by `\\\relax` and a line
 The `\relax` ends the `\\` command there, so that a line beginning with `[` or `*` is
 printed as written instead of being read as an argument or a star of `\\`. A line's
 indentation (its leading `\indent` commands, a
-[length](crate::stdcore::backends::pres::Length) of as many tabs) is written
+[length](crate::stdlib::backends::pres::Length) of as many tabs) is written
 `\flmIndent{<length>}` before the line's content. The family writes every length
 the same way
-([`stage_length`](crate::stdcore::backends::latex::preamble::stage_length)): a length in
+([`stage_length`](crate::stdlib::backends::latex::preamble::stage_length)): a length in
 tabs as a multiple of the LaTeX length `\flmTabWidth` (which also requires the definition
 piece that declares `\flmTabWidth`), a point as `bp` (FLM's point is 1/72 inch, which
 LaTeX calls a big point), and an em, a millimeter, a centimeter and an inch unchanged.
@@ -5963,10 +6268,10 @@ style file).
 
 ### Annotations in the recomposed LaTeX
 
-A reviewer's annotations ([`annotations`](crate::stdcore::features::annotations)) are
+A reviewer's annotations ([`annotations`](crate::stdlib::features::annotations)) are
 written as the author wrote them, over the LaTeX package `phfcc`, which defines a
 reviewer's commands with the same three forms
-([`annotations::latex`](crate::stdcore::features::annotations::latex)):
+([`annotations::latex`](crate::stdlib::features::annotations::latex)):
 
 | written | recomposed |
 |---|---|
@@ -6011,7 +6316,7 @@ in the margin itself, so the margin decoration that the HTML output shows is not
 package is not part of every TeX installation.
 
 Under the render option
-[`hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden),
+[`hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden),
 nothing of the package is written: a highlight is written as its passage, and a reviewer's
 comment as nothing but the paragraph breaks it held, so that the text around a comment
 written across a paragraph break stays two paragraphs. The package's own
@@ -6020,9 +6325,9 @@ error, for a final version that must hold none.
 
 ### Images in the recomposed LaTeX
 
-An image ([`graphics`](crate::stdcore::features::graphics)) is written as the LaTeX hook
+An image ([`graphics`](crate::stdlib::features::graphics)) is written as the LaTeX hook
 `\flmIncludeGraphics[<keys>]{<path>}`
-([`graphics::latex`](crate::stdcore::features::graphics::latex)):
+([`graphics::latex`](crate::stdlib::features::graphics::latex)):
 
 | written | recomposed |
 |---|---|
@@ -6054,7 +6359,7 @@ redefine it after, to show images differently.
 
 ### Floats in the recomposed LaTeX
 
-A float ([`floats::latex`](crate::stdcore::features::floats::latex)) is written as the
+A float ([`floats::latex`](crate::stdlib::features::floats::latex)) is written as the
 LaTeX hook environment `flmFloat`, over the float type and the float's **case**: whether it
 is numbered (under its float type's policy and its fields) and whether it has a caption.
 The four cases are `NumCap`, `NumOnly`, `CapOnly` and `Bare`:
@@ -6129,9 +6434,9 @@ it: a float environment whose counter has the float type's name, for instance
 
 ### Tables of cells in the recomposed LaTeX
 
-A table of cells ([`cells::latex`](crate::stdcore::features::cells::latex)) is written as
+A table of cells ([`cells::latex`](crate::stdlib::features::cells::latex)) is written as
 one call of the LaTeX hook `\flmCellsTable`, read from the table's model by the feature's
-reader, [`read_grid`](crate::stdcore::features::cells::read_grid), which every backend uses,
+reader, [`read_grid`](crate::stdlib::features::cells::read_grid), which every backend uses,
 over the LaTeX package `tabularray`:
 
 | written | recomposed |
@@ -6203,10 +6508,10 @@ nested notes ([Xnotes in the recomposed LaTeX](#xnotes-in-the-recomposed-latex))
 
 ### Citations in the recomposed LaTeX
 
-A citation ([`citations`](crate::stdcore::features::citations)) is written as the author
+A citation ([`citations`](crate::stdlib::features::citations)) is written as the author
 wrote it, through three LaTeX hooks that the style file defines with
 `\ProvideDocumentCommand`, so that a definition made first in the author's class or
-preamble is the one used ([`citations::latex`](crate::stdcore::features::citations::latex)).
+preamble is the one used ([`citations::latex`](crate::stdlib::features::citations::latex)).
 The style file requests no LaTeX package for them: loading `natbib` or `biblatex` is the
 author's choice. Nothing is numbered, sorted or compressed here: LaTeX numbers the cited
 works, and sorts and compresses them (or not) as the author's bibliography set-up says.
@@ -6221,7 +6526,7 @@ The configuration's placement and form change nothing on this backend.
 
 `\cite` calls written one after the other, with nothing but whitespace, a single line break
 and comments between them, are read as one *citation chunk*
-([`citations`](crate::stdcore::features::citations)), and `\R` writes the citation chunk
+([`citations`](crate::stdlib::features::citations)), and `\R` writes the citation chunk
 that follows it as a noun of its sentence.
 
 - A citation chunk of `\cite` calls writes one `\flmCitePreSpace`, then one `\flmCite` per
@@ -6273,24 +6578,27 @@ supplies is an Error on this backend too.
 
 The backend places no [piece](#pieces) unless the `pieces` feature's render options list the
 pieces to place on it
-([`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions),
-[`PiecesStage::placing_only_named`](crate::stdcore::backends::pieces::PiecesStage::placing_only_named)),
+([`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions),
+[`PiecesStage::placing_only_named`](crate::stdlib::backends::pieces::PiecesStage::placing_only_named)),
 because where a piece belongs in a LaTeX document (a title in `\title`) is for the LaTeX
 file around the recomposed LaTeX to decide. Each piece listed there is lowered
 by the backend's pieces stage, written by the regions stage as an output region of its own,
 and left out of the entry artifact by the final stage; the caller places it, for instance
 in a template of the LaTeX file. The
-`meta` feature's rules for this backend ([`meta::latex`](crate::stdcore::features::meta::latex))
-write the title and the date as their recomposed content, and the authors as each author's
-recomposed content joined by LaTeX's `\and` (`Ada Lovelace \and Grace Hopper`), which is
-what a LaTeX document hands to `\title`, `\author` and `\date`.
+`metadata` feature's rules for this backend
+([`metadata::latex`](crate::stdlib::features::metadata::latex))
+write the title and the date as their recomposed content, and the authors joined by LaTeX's
+`\and`, each author its name's recomposed content, `\thanks{…}` for each note, then each
+affiliation and the email address after `\\` (`Ada Lovelace\thanks{Corresponding author}
+\\ University of X \and Grace Hopper`), which is what a LaTeX document hands to `\title`,
+`\author` and `\date`.
 
 The table of contents is LaTeX's own on this output. LaTeX builds it from the headings it
 typesets, where the LaTeX file asks for one with `\tableofcontents`; the recomposed LaTeX
 hands each heading's `toc` and `alt` to LaTeX through the heading hook ([The LaTeX
 hooks](#the-latex-hooks) below). The `toc` feature's piece `flm.toc` writes nothing on this
 backend: where a render lists it for this backend, its three elements are lowered by
-rules that write nothing ([`toc::latex`](crate::stdcore::features::toc::latex)), and the
+rules that write nothing ([`toc::latex`](crate::stdlib::features::toc::latex)), and the
 recomposed LaTeX is the same as without it.
 
 ### The LaTeX hooks
@@ -6298,7 +6606,7 @@ recomposed LaTeX is the same as without it.
 A **LaTeX hook** is a macro that the recomposed LaTeX writes and the style file defines
 with a plain default, which a user redefines in the document's preamble to change what the
 recomposed LaTeX does at that point
-([`preamble`](crate::stdcore::backends::latex::preamble)). The LaTeX family defines four
+([`preamble`](crate::stdlib::backends::latex::preamble)). The LaTeX family defines four
 LaTeX hooks of its own, and `\flmLabelsWithDisplayText`, which `\flmHeading` calls. They
 exist because LaTeX alone does not do two things that the recomposed LaTeX needs (give a
 label of an unnumbered heading its title; keep several labels on one line of a
@@ -6341,7 +6649,7 @@ LaTeX](#verbatim-content-in-the-recomposed-latex)), and the three hooks of a cit
 | `flmFloat`, `\flmFloatSetUseConfig<case>`, `\flmFloatPlacementArgs<case>` | around every float: `\begin{flmFloat}{figure}{NumCap}…\end{flmFloat}` | a numbered float in the environment of its float type at `[tbph]`; an unnumbered float in a `center` environment where it is written, its caption through `\caption*`; the content centered | set floats, or one case of them, differently |
 | `\flmCellsTable`, `\flmCellsHeaderFont`, `\flmCellsBeginCenter`, `\flmCellsEndCenter`, `\flmCellsMaxWidth` | for every table of cells: `\flmCellsTable{cc}{X[-1]X[-1]}{hspan=minimal,…}{\toprule …\bottomrule}` | sets the table in `tabularray`'s `tblr` at its natural width, and again with the fitted columns at `\flmCellsMaxWidth` (`0.96\linewidth`) where it is too wide, between `\flmCellsBeginCenter` and `\flmCellsEndCenter` (a `center` environment) except where LaTeX sets a single line; a header cell in `\flmCellsHeaderFont` (`\bfseries`) | set tables differently, or change one of those four commands |
 | `\flmCellsSet{<name>}`, `\flmCellsStyleKeys{<name>}{<keys>}`, `\flmCellsKeys<name>` | at the head of a cell's text, for each custom cell style it carries: `\flmCellsSet{green}Berlin` | applies the `tabularray` cell keys held in `\flmCellsKeys<name>`, which `\flmCellsStyleKeys` registers where none are registered yet; the shipped `green`, `blue`, `yellow` and `red` set the background colors `flmCellsColor<name>` | give a cell style other keys |
-| `\flmFmtVRB<kind>`, `\flmVerbatimCodeSetup` | around every inline verbatim content of that verbatim kind: `\EscVerb[formatcom=\flmFmtVRB{verbcode}]{…}`; at the start of every code block, with its language tag | `\flmFmtVRBverbtext` nothing, `\flmFmtVRBverbcode` `\ttfamily`, `\flmFmtVRBverba` `\itshape`; `\flmVerbatimCodeSetup` nothing | set a verbatim kind, or code blocks, differently |
+| `\flmFmtVRB<kind>`, `\flmVerbatimCodeSetup` | around every inline verbatim content of that verbatim kind: `\EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbcode}]{…}`; at the start of every code block, with its language tag | `\flmFmtVRBverbtext` nothing, `\flmFmtVRBverbcode` `\ttfamily`, `\flmFmtVRBverba` `\itshape`; `\flmVerbatimCodeSetup` nothing | set a verbatim kind, or code blocks, differently |
 | `\flmCite`, `\flmCitePreSpace`, `\flmRefCite` | for every citation: `\flmCitePreSpace\flmCite[Thm 4]{a,b}`, and for a citation used as a noun `\flmRefCite{refs.~}{\flmCite{a,b}}` | `\cite`, with the note where there is one; `\unskip~`; the word, then the citations | cite through another package, show the entries in place, or set superscript citations |
 
 **Why the heading hook.** A LaTeX label records the last thing that was numbered. A
@@ -6354,7 +6662,7 @@ and, where it did not, gives the labels the heading's title instead. A reference
 unnumbered section therefore reads "Introduction". Nothing of LaTeX is patched, and the
 test works on `article`, `report`, `book`, KOMA-Script, `memoir` and `titlesec`, with and
 without `hyperref`
-([`heading_piece`](crate::stdcore::backends::latex::preamble::heading_piece)).
+([`heading_piece`](crate::stdlib::backends::latex::preamble::heading_piece)).
 
 **The heading hook's key-value argument.** `\flmHeading` takes an optional key-value
 argument of its own, written on the hook and never on the sectioning command:
@@ -6415,7 +6723,7 @@ one line per alias is written to the auxiliary file; on the next LaTeX run, afte
 label has been read from that file, each line makes the alias refer to what the first
 label refers to, for LaTeX's own references and for `zref-clever`'s alike. Two LaTeX runs
 resolve the aliases, as two runs resolve any LaTeX label
-([`labels_piece`](crate::stdcore::backends::latex::preamble::labels_piece)).
+([`labels_piece`](crate::stdlib::backends::latex::preamble::labels_piece)).
 
 **Where a link to a label with a display text leads.** With `hyperref`, a link to a label
 made through `\flmLabelsWithDisplayText` leads to the heading's title, as a link to a
@@ -6426,7 +6734,7 @@ only the two things a label needs: `\@currentlabel` (what the label records) and
 `\@currentcounter` (what `zref-clever` reads for the reference type). `\refstepcounter`,
 LaTeX's usual interface, would place a second anchor below the title and send the link
 there
-([`label_display_text_piece`](crate::stdcore::backends::latex::preamble::label_display_text_piece)).
+([`label_display_text_piece`](crate::stdlib::backends::latex::preamble::label_display_text_piece)).
 A place with no sectioning command before it, such as a term definition in running text,
 has no anchor to reuse, so the recomposed LaTeX writes `\phantomsection` there, which is
 `hyperref`'s way of placing an anchor where no sectioning command places one.
@@ -6437,7 +6745,7 @@ name a reference puts before its target's number or title, and a key alone givin
 *prefix variant*, the form of that name to use. `zref-clever` has a vocabulary of its own,
 and no key `noprefix`. The recomposed LaTeX writes the options as the document wrote them,
 and the default of `\flmRef` translates them as it calls `\zcref`
-([`refs_piece`](crate::stdcore::backends::latex::preamble::refs_piece)):
+([`refs_piece`](crate::stdlib::backends::latex::preamble::refs_piece)):
 
 | written in the document | passed to `\zcref` | what it asks for |
 |---|---|---|
@@ -6480,14 +6788,14 @@ plain text and holds no link. To link such references differently (another packa
 footnote with the target's number, no link at all), redefine `\flmHyperref`, before or after
 loading the style file. To have the package loaded for you, request it with the render
 option `extra_packages`
-([`hyperref_piece`](crate::stdcore::backends::latex::preamble::hyperref_piece)).
+([`hyperref_piece`](crate::stdlib::backends::latex::preamble::hyperref_piece)).
 
 **Turning the hooks off.** Two render options, both on by default, control these hooks:
 
-- [`heading_hook`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::heading_hook)
+- [`heading_hook`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::heading_hook)
   off writes the sectioning command on its own, `\section*{Title}`, with the heading's
   labels after it. The hook's test is then not run and nothing replaces it.
-- [`label_hooks`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::label_hooks)
+- [`label_hooks`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::label_hooks)
   off writes bare `\label{ref1}` commands; `\zcref[…]{ref1}` for a reference, requesting
   `zref-clever`; and `\hyperref[ref1]{…}` for a reference showing the author's words,
   requesting `hyperref`. A term definition's labels are written bare after
@@ -6501,22 +6809,22 @@ options, when off, leaves to you.
 ### Escaping and the Unicode modes
 
 Document text goes through the family's escaping
-([`escape`](crate::stdcore::backends::latex::escape)). The text is first composed to
+([`escape`](crate::stdlib::backends::latex::escape)). The text is first composed to
 Unicode's canonical composed form, so that a letter followed by a combining accent is the
 accented letter. The ten special characters `$ & # ^ _ % { } \ ~` become commands. Every
 other non-ASCII character is looked up first in the render option `unicode_overrides`, then in the
 Unicode-to-LaTeX table of [`untechxt`](crate::untechxt), which gives each character a LaTeX
 spelling and states what that spelling needs. What is written then depends on the render
 option
-[`unicode`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::unicode):
+[`unicode`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::unicode):
 
-- [`Declare`](crate::stdcore::backends::latex::UnicodeMode::Declare), the default: the
+- [`Declare`](crate::stdlib::backends::latex::UnicodeMode::Declare), the default: the
   character itself, as UTF-8, and the style file declares it once with
   `\newunicodechar{<char>}{<spelling>}` (requesting `newunicodechar`). The recomposed LaTeX
   keeps the characters the author typed and compiles under pdfLaTeX as well as under the
   Unicode engines (LuaLaTeX, XeLaTeX). `inputenc` is never requested: a LaTeX of 2018 or
   later reads UTF-8 itself.
-- [`Replace`](crate::stdcore::backends::latex::UnicodeMode::Replace): the spelling in place,
+- [`Replace`](crate::stdlib::backends::latex::UnicodeMode::Replace): the spelling in place,
   braced where it would otherwise merge with the letters after it
   (`Caf\'e {\textemdash} na\"ive`).
 
@@ -6546,7 +6854,7 @@ engine](#the-stages-the-tables-and-the-artifact-set)). Every command that a decl
 defines carries untechxt's own prefix, `\UnxT…`, a name space this family does not use.
 
 An override
-([`unicode_overrides`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::unicode_overrides))
+([`unicode_overrides`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::unicode_overrides))
 replaces the spelling of one character in either mode. Its spelling is written as given,
 and **nothing it needs reaches the style file**: the style file requests only what the
 table says its own spellings need, so what an override's spelling needs belongs in the
@@ -6567,9 +6875,9 @@ The recomposed LaTeX writes no anchor and resolves no reference. Every label is 
 a **safe label**: the key the recomposed LaTeX writes for an FLM label, `ref1`, `ref2`, …
 in order of first mention, from one counter for the whole document regardless of the label
 type, so that any label text an author wrote is carried through LaTeX's auxiliary file
-([`SafeLabels`](crate::stdcore::features::refs::SafeLabels)). The document-scope stage
+([`SafeLabels`](crate::stdlib::features::refs::SafeLabels)). The document-scope stage
 `flm.refs.safe-labels` allocates the safe labels, and the rules read them through the table
-[`flm.labels.safe`](crate::stdcore::features::refs::SAFE_LABELS), which holds both
+[`flm.labels.safe`](crate::stdlib::features::refs::SAFE_LABELS), which holds both
 directions of the correspondence. Every rule that writes labels, except the `refs`
 feature's own reference rule, reads that table optionally: in a registry without the `refs`
 feature, where nothing allocates safe labels, each writes the labels as the document wrote
@@ -6618,9 +6926,9 @@ label of the document, the [value catch-up](crate::guide::concepts_overview#valu
 of the expanded use site reports it as the document's own references are reported
 (`flm.refs.unresolved`, or `flm.refs.bad-label` for a target not written `type:label`),
 once per use site. The per-tree stage `flm.refs.value-safe-labels` then gives it a **value
-name** ([`SafeLabels`](crate::stdcore::features::refs::SafeLabels)): the safe label written
+name** ([`SafeLabels`](crate::stdlib::features::refs::SafeLabels)): the safe label written
 for a label inside a synthesized value, `ref-v1`, `ref-v2`, … numbered from one in each use
-site ([`value_name`](crate::stdcore::features::refs::value_name)), which no safe label of
+site ([`value_name`](crate::stdlib::features::refs::value_name)), which no safe label of
 the document takes. A target such as `x%y` or `u\v` therefore never reaches the output as its
 characters. A target that a use site gives and that the document also mentions is written
 under the document's safe label.
@@ -6628,11 +6936,11 @@ under the document's safe label.
 **Validation runs anyway.** The recomposed LaTeX does not depend on whether a reference
 resolves, but the run reports an unresolved reference anyway: the `latex-recomposed`
 workflow, like every rendering workflow, demands the validation collection
-[`flm.validated`](crate::stdcore::VALIDATED) beside its output, so the resolution of the
+[`flm.validated`](crate::stdlib::VALIDATED) beside its output, so the resolution of the
 references and the label check run as under the
-[`check`](crate::stdcore::CHECK_WORKFLOW) workflow.
+[`check`](crate::stdlib::CHECK_WORKFLOW) workflow.
 
-**Options.** [`RefsRecomposeOptions`](crate::stdcore::features::refs::RefsRecomposeOptions)
+**Options.** [`RefsRecomposeOptions`](crate::stdlib::features::refs::RefsRecomposeOptions)
 changes two things:
 
 - `safe_label_types` marks a label type as written raw: `sec:intro` is written as written,
@@ -6657,7 +6965,7 @@ changes two things:
 The rules of `math-passthrough` for this backend
 ([`math_passthrough::latex`](crate::math_passthrough::latex)), built
 from the parts of the `math` feature's library
-([`math::latex`](crate::stdcore::features::math::latex)), write inline and display
+([`math::latex`](crate::stdlib::features::math::latex)), write inline and display
 mathematics as the delimiters around the content written from its nodes: byte for byte,
 except that a use site of a user definition is written as its call, with the definition in
 the style file, or as its expansion ([Definitions used inside
@@ -6665,7 +6973,7 @@ mathematics](#definitions-used-inside-mathematics)).
 
 **Text commands.** One part of a mathematics body is not written byte for byte: the
 argument of a **text command**, such as `\text{…}`, `\textbf{…}` or `\mbox{…}` (the commands
-of [`COMMANDS`](crate::stdcore::features::math::text::COMMANDS), which the `math` feature
+of [`COMMANDS`](crate::stdlib::features::math::text::COMMANDS), which the `math` feature
 declares for mathematics mode with an argument read in text mode). The command is written
 under its own name, and its argument is recomposed as the document text it is: a special
 character escaped (`\text{50\% of it}`), a user definition written as its call beside its
@@ -6682,10 +6990,16 @@ compile; this is one of the two ways the recomposed LaTeX can fail to compile wi
 option at its default ([What the default options aim
 for](#what-the-default-options-aim-for) gives the other). To have the style file request
 such a package, list it once in the render option `extra_packages`, for the whole document.
-The library does not check which commands a mathematics body uses.
+The library does not check which commands a mathematics body uses, and every run of this
+backend under `math-passthrough` reports so with the Warning `flm.run.unchecked-output`,
+once, at its start: "Unchecked output for LaTeX: feature ‘math-passthrough’ writes each
+formula's recomposed LaTeX as is (backend ‘latex-recomposed’)". The `math-techxt`
+extension registers these rules under names of its own, so a document processed by it is
+written here as under `math-passthrough`, and the Warning names the feature
+`math-techxt`.
 
 **Display-math environments** are rebuilt from their equation lines
-([`equation_lines`](crate::stdcore::features::math::lines::equation_lines)). An equation line
+([`equation_lines`](crate::stdlib::features::math::lines::equation_lines)). An equation line
 is one line of a display-math environment, as its body reads between two `\\`: its
 mathematics, its labels, its tag and its no-number mark
 ([equation lines](crate::guide::concepts_overview#equation-lines)). For each line, the rule
@@ -6711,7 +7025,7 @@ package. Numbering is left to LaTeX: the numbers of a compiled document are thos
 document class, not those FLM computed, and LaTeX resolves a reference to an equation line.
 
 **The newline rule** is the `math` library's
-([`normalize_line_newlines`](crate::stdcore::features::math::latex::normalize_line_newlines)),
+([`normalize_line_newlines`](crate::stdlib::features::math::latex::normalize_line_newlines)),
 and every LaTeX writer of an environment's lines applies it, the rendered LaTeX's included:
 a label or a final `\\` removed from a line of its own would otherwise leave a blank line,
 which LaTeX refuses inside mathematics. Inside a line's content, every run of spaces, tabs
@@ -6734,7 +7048,7 @@ comment's line itself, so a line whose content ends in a comment has its tag, la
 `\nonumber` and `\\` on the next line, after that newline and after the indentation the
 source left there. A comment can therefore never hide a line's commands.
 
-[`MathRecomposeOptions`](crate::stdcore::features::math::MathRecomposeOptions) changes two
+[`MathRecomposeOptions`](crate::stdlib::features::math::MathRecomposeOptions) changes two
 things: `surround_display_math` adds LaTeX before and after every displayed formula, the
 display-math environments and the `\[…\]` groups alike, and
 `emit_flm_math_environment_macro` writes every display-math environment
@@ -6776,7 +7090,7 @@ parsing modes it is defined for
   plan;
 - a definition with the expansion policy `per-plan` (the default) is *kept*: its use sites
   stay in the tree, and its `emit-call` rule
-  ([`userdefs::kept`](crate::stdcore::features::userdefs::kept)) writes each use site as a
+  ([`userdefs::kept`](crate::stdlib::features::userdefs::kept)) writes each use site as a
   call of the definition, while the style file holds the definition itself, once per name,
   regardless of the number of use sites and trees. Such a definition is a **kept
   definition**.
@@ -6962,7 +7276,7 @@ expanded early, such as a command with a side effect (which a user definition's 
 meant to have, since a definition stands for content). Where a body holds one, or where the
 words of a definition must be left alone by a case change, list the definition in the
 render option
-[`robust_names`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::robust_names).
+[`robust_names`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::robust_names).
 It is then written through LaTeX's document command interface, with one `+m` per effective
 argument, which makes it a *robust* command (one LaTeX protects from expansion):
 
@@ -7070,7 +7384,7 @@ content gives its text, and a block gives its characters run together, with no l
 #### The names of recomposed definitions
 
 A recomposed definition is never written under the name the document gives it
-([`recomposed_name`](crate::stdcore::backends::latex::names::recomposed_name)):
+([`recomposed_name`](crate::stdlib::backends::latex::names::recomposed_name)):
 
 - a macro whose name is ASCII letters only becomes `\flmUD<name>`: `\hello{World}` is
   written `\flmUDhello{World}`;
@@ -7186,7 +7500,7 @@ fixed number of nested expansions (32 unless configured otherwise) and reports
 `flm.userdefs.recursion-limit` with the definition's name, while LaTeX stops with "TeX
 capacity exceeded" or never finishes. A document rendered only to LaTeX is not expanded, so
 the LaTeX run is where such a definition fails. To learn *which* definition it is, run the
-[`check`](crate::stdcore::CHECK_WORKFLOW) workflow beside the LaTeX render: the check
+[`check`](crate::stdlib::CHECK_WORKFLOW) workflow beside the LaTeX render: the check
 expands the document and reports the definition. The render itself does not require this.
 
 #### Definitions used inside mathematics
@@ -7194,7 +7508,7 @@ expands the document and reports the definition. The render itself does not requ
 Mathematics is recomposed from its nodes, not copied: the rules of `math-passthrough` write every
 mathematics region (`\(…\)`, `\[…\]`, each equation line of a display-math environment)
 through the mathematics writer of
-[`userdefs::kept`](crate::stdcore::features::userdefs::kept::write_math_run), byte for byte
+[`userdefs::kept`](crate::stdlib::features::userdefs::kept::write_math_run), byte for byte
 except where a user definition is used. Nothing inside mathematics is lowered through the
 rules.
 
@@ -7231,7 +7545,7 @@ render option `extra_packages` ([LaTeX render options](#latex-render-options)).
 #### Selecting the rule that instantiates at lowering
 
 For a definition with the expansion policy `per-plan`, the `userdefs` feature registers
-three lowering rules ([`userdefs::kept`](crate::stdcore::features::userdefs::kept)):
+three lowering rules ([`userdefs::kept`](crate::stdlib::features::userdefs::kept)):
 `expand-in-tree`, the default on every backend; `emit-call`, the default on this backend
 alone; and `instantiate-at-lowering`, which is never a default. A plan request can choose
 `instantiate-at-lowering` by name
@@ -7247,12 +7561,20 @@ the expanded alternative, and the two alternatives of `flm.userdefs` exclude eac
 
 Inline verbatim content (the three macros `\verbtext`, `\verbcode`, `\verba` and the
 environment `{verbatimtext}`) is written through the `fvextra` package's `\EscVerb`
-([`verbatim::latex`](crate::stdcore::features::verbatim::latex)). `\EscVerb` reads an
+([`verbatim::latex`](crate::stdlib::features::verbatim::latex)). `\EscVerb` reads an
 ordinary braced argument in which every printable ASCII character that is not a letter or a
 digit is preceded by a backslash (except `@`, which `fvextra` refuses escaped), so the
 content works inside a heading's title or a caption. The verbatim kind's formatting hook
 (`\flmFmtVRBverbtext`, `\flmFmtVRBverbcode`, `\flmFmtVRBverba`) is the LaTeX hook a user
 redefines to change how that verbatim kind is set.
+
+Inline content is written as
+`\EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{<kind>}]{…}`. By default,
+`fancyvrb` sets verbatim content in the typewriter family. The option
+`fontfamily=\flmVRBFamily` makes it keep the font family of the surrounding text, and the
+option `formatcom=\flmFmtVRB{<kind>}` runs the kind's formatting hook. The hook therefore
+alone sets the font of its kind: by default, `\verbtext` content looks like the surrounding
+text, `\verba` content is in italics, and `\verbcode` content is in the typewriter family.
 
 A `{verbatimcode}` block is written as the `flmVerbatimCode` environment, its language tag as
 the optional argument and its content on lines of its own. The brackets are always written,
@@ -7271,7 +7593,7 @@ version.
 ### The stages, the tables and the artifact set
 
 Besides the validation stages that every rendering workflow runs (the workflow demands
-[`flm.validated`](crate::stdcore::VALIDATED)), a plan for this backend schedules:
+[`flm.validated`](crate::stdlib::VALIDATED)), a plan for this backend schedules:
 
 - `flm.blocks.raw`, the stage that marks the trees as raw;
 - `flm.refs.safe-labels`, which allocates the safe labels;
@@ -7283,12 +7605,12 @@ Besides the validation stages that every rendering workflow runs (the workflow d
   `flm.userdefs.expand-always`.
 
 **The emit stage**
-([`LatexRecomposedEmitStage`](crate::stdcore::backends::latex_recomposed::LatexRecomposedEmitStage))
+([`LatexRecomposedEmitStage`](crate::stdlib::backends::latex_recomposed::LatexRecomposedEmitStage))
 runs once per tree. It walks the tree's lowered form, writes every byte through the
 family's typed sink, and writes three tables:
 
 - `flm.output.latex-recomposed`: per tree, a
-  [`LatexFragment`](crate::stdcore::backends::latex_recomposed::LatexFragment) holding the
+  [`LatexFragment`](crate::stdlib::backends::latex_recomposed::LatexFragment) holding the
   recomposed LaTeX, the characters it declares, the preamble chunks their spellings need,
   and the requirement identifiers it needs;
 - `flm.latex-recomposed.packages`: the package identifiers the trees require;
@@ -7296,7 +7618,7 @@ family's typed sink, and writes three tables:
   definitions their definition nodes recomposed.
 
 **The regions stage**
-([`LatexRecomposedRegionsStage`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRegionsStage))
+([`LatexRecomposedRegionsStage`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRegionsStage))
 runs once per document. It emits the pieces the render options list, resolves every
 requirement identifier of the trees and of the pieces through the family's two service
 slots, assembles the style file into the backend's own table
@@ -7308,7 +7630,7 @@ The comment line ends a tree's last line whether or not the tree ended with a ne
 trees never run into one line, and no line ending is added that the author did not write.
 
 **The final stage**
-([`LatexRecomposedFinalStage`](crate::stdcore::backends::latex_recomposed::LatexRecomposedFinalStage))
+([`LatexRecomposedFinalStage`](crate::stdlib::backends::latex_recomposed::LatexRecomposedFinalStage))
 is the backend's final stage ([output regions and the final
 stage](crate::guide::concepts_overview#output-regions-and-the-final-stage)). It assembles
 the entry artifact from the output regions and writes the artifact set
@@ -7324,7 +7646,7 @@ no piece. The artifact set holds:
   (`flmrecomposed` by default), and its hash is computed from the file's content (without
   its `\ProvidesPackage` line), so two documents' style files never clash in one folder,
   and identical documents share one;
-  [`style_artifact`](crate::stdcore::backends::latex_recomposed::stages::style_artifact)
+  [`style_artifact`](crate::stdlib::backends::latex_recomposed::stages::style_artifact)
   finds it in a set. The regions stage asks the host's naming service for the file's
   path and gives the artifact that path as its fixed path: the `flm` program names it
   after the document's file, `paper-flmrecomposed.1a2b3c4d.sty` for `-o paper.tex` and
@@ -7335,7 +7657,7 @@ no piece. The artifact set holds:
   without a host, as in the example below), the path is `<stem>.<hash>.sty`. LaTeX loads
   the file from the document's folder by its name, so a path from the naming service that
   is not a bare file name ending in `.sty` is the Error
-  [`StylePathRefused`](crate::stdcore::backends::latex_recomposed::stages::StylePathRefused)
+  [`StylePathRefused`](crate::stdlib::backends::latex_recomposed::stages::StylePathRefused)
   (`flm.latex-recomposed.style-path`), and the file is then named as without a naming
   service.
 - under the strategy `copy` for this output, `graphics:<stem>-<digest>`, one copy of each
@@ -7381,7 +7703,7 @@ stops the compilation. So every request for one package (from the library's rule
 definition pieces and character spellings, and from the render option `extra_packages`) is
 merged into a single line whose options are the union of the requests' options, each option
 once, in the order first encountered
-([`merge_requests`](crate::stdcore::backends::latex::packages::merge_requests)); the comment
+([`merge_requests`](crate::stdlib::backends::latex::packages::merge_requests)); the comment
 line above it gives every identifier behind it, separated by `, `. An option list is read as
 LaTeX reads one: split at its top-level commas (a comma inside braces belongs to the value
 it is in), each option trimmed, and the option's key is what precedes the first `=`. Where
@@ -7417,11 +7739,11 @@ the block loads no `fontenc`, or loads it without that engine's encoding: the st
 states a default only for a package it requests itself.
 
 **When the style file is written.** Under
-[`StyleFile::WhenNeeded`](crate::stdcore::backends::latex_recomposed::StyleFile::WhenNeeded),
+[`StyleFile::WhenNeeded`](crate::stdlib::backends::latex_recomposed::StyleFile::WhenNeeded),
 the default of the render option `style_file`, a document that requires no package,
 declares no character, needs no definition piece and recomposes no user definition gets no
 style file: the artifact set holds the recomposed LaTeX alone. Under
-[`Always`](crate::stdcore::backends::latex_recomposed::StyleFile::Always) the file is written
+[`Always`](crate::stdlib::backends::latex_recomposed::StyleFile::Always) the file is written
 even when it holds nothing, for a pipeline that expects one beside every recomposed LaTeX.
 In practice:
 
@@ -7456,9 +7778,9 @@ the style file that this library did not write is the three parts of `extra_prea
 
 ### LaTeX render options
 
-[`LatexRecomposedRenderOptions`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions),
-[`RefsRecomposeOptions`](crate::stdcore::features::refs::RefsRecomposeOptions) and
-[`MathRecomposeOptions`](crate::stdcore::features::math::MathRecomposeOptions) are render
+[`LatexRecomposedRenderOptions`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions),
+[`RefsRecomposeOptions`](crate::stdlib::features::refs::RefsRecomposeOptions) and
+[`MathRecomposeOptions`](crate::stdlib::features::math::MathRecomposeOptions) are render
 options ([`Bind::Render`](crate::model::options::Bind::Render)): their values are supplied
 when the plan is built, through [`Overrides`](crate::core::plan::Overrides), and each is
 part of the plan's identity.
@@ -7485,15 +7807,15 @@ part of the plan's identity.
 | `emit_flm_math_environment_macro` | `MathRecomposeOptions` | off | every display-math environment written as `\flmMathEnvironment` |
 
 The `headings` feature adds one more render option,
-[`HeadingsLatexOptions`](crate::stdcore::features::headings::latex::HeadingsLatexOptions),
+[`HeadingsLatexOptions`](crate::stdlib::features::headings::latex::HeadingsLatexOptions),
 which gives the LaTeX sectioning command each heading kind is written as. Three other
 features' render options also change this output:
-[`AnnotationsRenderOptions::hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden)
+[`AnnotationsRenderOptions::hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden)
 ([Annotations in the recomposed LaTeX](#annotations-in-the-recomposed-latex)), the
 `graphics` feature's strategy for this output
-([`GraphicsRenderOptions`](crate::stdcore::features::graphics::GraphicsRenderOptions);
+([`GraphicsRenderOptions`](crate::stdlib::features::graphics::GraphicsRenderOptions);
 [images and how an output reaches them](#images-and-how-an-output-reaches-them)), and
-[`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions) ([Pieces in
+[`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions) ([Pieces in
 the recomposed LaTeX](#pieces-in-the-recomposed-latex)).
 
 #### What the default options aim for
@@ -7563,7 +7885,7 @@ and in their reference documentation, with what you must then provide:
   holds one line for it; two of your requests that give one option key two different values
   are the same Error as anywhere else, and leave the package unrequested.
 - **`extra_packages`. You own this.** Every entry is a
-  [`LatexPackageDef`](crate::stdcore::backends::latex::LatexPackageDef), the type of every
+  [`LatexPackageDef`](crate::stdlib::backends::latex::LatexPackageDef), the type of every
   package request: a package name with the options it is loaded with, built as
   `LatexPackageDef::new("amsmath", "why this document needs it").options(["fleqn"])`. Two of
   its parts are not written into the style file: the description the constructor asks for,
@@ -7663,16 +7985,16 @@ with [`PlanError::Unsatisfiable`](crate::core::plan::PlanError::Unsatisfiable):
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan, PlanError, PlanRequest};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::backends::text::{self, TEXT_DOCUMENT, TEXT_OUTPUT};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::backends::text::{self, TEXT_DOCUMENT, TEXT_OUTPUT};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 

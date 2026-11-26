@@ -11,7 +11,7 @@ use flm_core::model::element::element_of;
 use flm_core::lang::mint::{ArgDef, ArgLayout, ElementDef, SyntaxDef};
 use flm_core::lang::rewrites::blocks::{BlockInInline, BlocksConfig, ParbreakInInline, structure};
 use flm_core::lang::{BuiltLang, Flm, FlmDiagnostics, FlmGroupType};
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::{NodeBuildError, NodeKind, NodeRef, NodeTreeBuilder};
 use techy::core::{Lang, ParsingState, ParsingStateDelta};
 use techy::error::DiagnosticInfo;
@@ -328,7 +328,7 @@ fn an_edge_only_edit_needs_no_source_map() {
 /// `text` parsed by the standard language (a parse with errors is a test
 /// failure), then structured as a fragment laid out as blocks.
 fn standard(text: &str) -> Laid {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     run(registry.lang(), text, FragmentLayout::Blocks)
 }
 

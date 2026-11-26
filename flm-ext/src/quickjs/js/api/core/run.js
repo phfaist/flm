@@ -2,7 +2,7 @@
 // `flm-ext/src/api/core/run.rs`; do not edit.
 //
 // Mirrors `flm_core::core::run`: the context a stage reads through.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // Mirrors `StageCx`: what a running stage reads — its scope, the document's trees, the tables it
 // declared it reads.
@@ -17,7 +17,7 @@ export class StageCx extends Handle {
   frozen_tree(id) { return call(this, "frozen_tree", [id]); }
   // Mirrors `StageCx::my_tree`: the tree a per-tree stage runs on.
   my_tree() { return call(this, "my_tree", []); }
-  // Mirrors `StageCx::trees`: every frozen tree of the document.
+  // Mirrors `StageCx::trees`: every frozen tree of the document, with its id.
   trees() { return call(this, "trees", []); }
   // Mirrors `StageCx::walk`: every node of every tree of the run, in document order (for a per-tree
   // stage too).
@@ -46,8 +46,28 @@ export class StageCx extends Handle {
   // its `host` list, lent for the call — the `files` service as `Files`, any other as a
   // `HostService`.
   host(name) { return call(this, "host", [name]); }
+  // Mirrors `StageCx::progress`: the scope of the stage's row on the progress sheet of the build,
+  // under which the stage declares the rows of its own work and asks whether the build was asked to
+  // stop.
+  progress() { return call(this, "progress", []); }
 }
 register_class("stage_cx", StageCx);
+
+// Mirrors `FrozenWalk`: an iterator over every node of every tree of the run, in document order,
+// with its address.
+export class Walk extends Traversal {
+  // Mirrors `Iterator::filter` on `FrozenWalk`: the entries not taken yet whose node's element has
+  // one of the names `names` (the name `Node::element_name` answers), in their order.
+  elements(names) { return call(this, "elements", [names, this._release()]); }
+  // Mirrors `Iterator::filter` on `FrozenWalk`: the entries not taken yet whose node's kind
+  // (`Node::kind`) is one of `kinds`, in their order.
+  kinds(kinds) { return call(this, "kinds", [kinds, this._release()]); }
+}
+register_class("walk", Walk);
+
+// Mirrors the iterator that `StageCx::trees` answers: trees, each with its id.
+export class Trees extends Traversal {}
+register_class("trees", Trees);
 
 // Mirrors `RewriteCx`: what a rewrite stage's handler reads, lent for one call
 // (`RewriteStage::restage`).

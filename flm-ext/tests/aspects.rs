@@ -2,7 +2,7 @@
 //! `Sectioning` answered by an extension, on its own element and attached to
 //! another feature's (`FeatureBuilder::attach`), the failure of a handler,
 //! and a reference point read from data with every variant of its parts;
-//! the `refs` library (`api::stdcore::features::refs`) through the Rust
+//! the `refs` library (`api::stdlib::features::refs`) through the Rust
 //! façade and the dispatcher.
 
 mod common;
@@ -10,7 +10,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::FlmRegistry;
+use flm_core::core::registry::{BuildError, FlmRegistry};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{parse_fragment, Flm, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::aspects::{
@@ -19,8 +19,9 @@ use flm_core::model::aspects::{
 };
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::names::{Name, RefKind};
-use flm_core::stdcore::features::toc;
+use flm_core::stdlib::features::toc;
 use flm_core::techy::core::node::NodeTree;
+use flm_core::stdlib::backends::latex_recomposed;
 use flm_ext::adapter::aspects::{ref_point_from_value, ref_point_to_core, ref_points_from_value};
 use flm_ext::adapter::dispatch;
 use flm_ext::adapter::handles::{CallTable, Entry};
@@ -32,14 +33,14 @@ use flm_ext::api::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ContentRef, RefPoint, Referenceable, Sectioning,
 };
 use flm_ext::api::model::element::{Aspect, ElementSpec};
-use flm_ext::api::stdcore::features::refs;
+use flm_ext::api::stdlib::features::refs;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
 
 use common::double::Double;
 use common::json_double::{module, JsonDouble};
-use common::{identifiers, latex_of, registry_with, text_of, try_registry_with};
+use common::{assert_only_unchecked_output, identifiers, latex_of, registry_with, text_of, try_registry_with};
 
 // --- the element `\exbox{content}` and its rule -----------------------------------------------
 
@@ -134,7 +135,7 @@ fn a_referenceable_answered_in_rust_gives_ref_its_target() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "Alpha See Alpha.\n");
     let (latex, diagnostics) = latex_of(&registry, REFERENCED);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("Alpha See \\flmRef{ref1}."), "{latex}");
 }
 
@@ -154,9 +155,9 @@ fn a_failing_or_malformed_answer_gives_the_occurrence_no_point() {
     let other = parsed(&plain, "Gamma");
     for answer in [Answer::OtherTree(other), Answer::Fails] {
         let registry = registry_with([boxes(vec![Aspect::Referenceable(Arc::new(Points(answer)))]).package()]);
-        let (_, diagnostics) = text_of(&registry, REFERENCED);
-        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert_eq!(diagnostics, ["flm.refs.unresolved: the reference points at the label `ex:one`, which is not defined"]);
+        let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, REFERENCED);
+        assert_eq!(identifiers(&run), ["flm.refs.unresolved"]);
+        flm_core::dump::diag::expect(run.diagnostics().iter(), "flm.refs.unresolved").data(json!({ "label": "ex:one" })).once();
     }
 }
 
@@ -250,8 +251,11 @@ fn an_attachment_to_an_element_no_feature_declares_fails_the_build() {
     let package = Double::new("ex")
         .feature("outline", |b| b.attach("ex.nothing", Aspect::Sectioning(Arc::new(Section { level: Some(1), listed: true }))))
         .package();
-    let error = try_registry_with([package]).expect_err("an undeclared element").to_string();
-    assert!(error.contains("ex.nothing"), "{error}");
+    let error = try_registry_with([package]).expect_err("an undeclared element");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::Undeclared { name, .. } if *name == "ex.nothing")),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -259,8 +263,11 @@ fn a_second_aspect_of_one_kind_on_an_element_fails_the_build() {
     let package = boxes(vec![Aspect::Sectioning(Arc::new(Section { level: Some(1), listed: true }))])
         .feature("outline", |b| b.attach("ex.box", Aspect::Sectioning(Arc::new(Section { level: Some(2), listed: true }))))
         .package();
-    let error = try_registry_with([package]).expect_err("a collision").to_string();
-    assert!(error.contains("ex.box"), "{error}");
+    let error = try_registry_with([package]).expect_err("a collision");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::AspectCollision { element, .. } if *element == "ex.box")),
+        "{error:?}"
+    );
 }
 
 // --- the refs library --------------------------------------------------------------------------
@@ -283,7 +290,7 @@ impl Lower for WithLabels {
 
 /// A rule's body that places its labels twice, in two groups: the
 /// second group is refused by the lowerer's placement check.
-struct LabelsTwice(Arc<std::sync::Mutex<Vec<String>>>);
+struct LabelsTwice(Arc<std::sync::Mutex<Vec<ExtError>>>);
 
 impl Lower for LabelsTwice {
     fn lower<'c>(&self, node: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
@@ -293,7 +300,7 @@ impl Lower for LabelsTwice {
             labels.push(refs::stage_label(cx, lw, &use_.text, use_.label.clone())?);
         }
         out.extend(refs::stage_label_group(cx, lw, labels.clone(), false)?);
-        let refused = refs::stage_label_group(cx, lw, labels, false).err().map(|error| error.to_string());
+        let refused = refs::stage_label_group(cx, lw, labels, false).err();
         self.0.lock().expect("the lock").extend(refused);
         Ok(Lowering::Emit(out))
     }
@@ -317,8 +324,12 @@ fn a_label_placed_in_two_groups_is_refused_by_the_placement_check() {
         .package();
     let registry = registry_with([package]);
     let (_, diagnostics) = latex_of(&registry, REFERENCED);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(*refused.lock().expect("the lock"), ["`stage_label_group`: a node may be placed only once"]);
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
+    let refused = refused.lock().expect("the lock");
+    assert!(
+        matches!(refused.as_slice(), [ExtError::Argument { method, .. }] if method == "stage_label_group"),
+        "{refused:?}"
+    );
 }
 
 #[test]
@@ -337,7 +348,7 @@ fn a_rule_writes_the_labels_of_an_occurrence_in_the_recomposed_latex() {
         .package();
     let registry = registry_with([package]);
     let (latex, diagnostics) = latex_of(&registry, REFERENCED);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("Alpha\\flmLabels{\\label{ref1}} See \\flmRef{ref1}."), "{latex}");
 }
 
@@ -385,7 +396,7 @@ fn ask(table: &mut CallTable<'_>, target: &Value, method: &str, args: Value) -> 
 
 /// The points of a script: the labels read through the module `refs`.
 fn scripted_points(table: &mut CallTable<'_>, node: &Value) -> Result<Value, ExtError> {
-    let refs_module = module("stdcore/features/refs");
+    let refs_module = module("stdlib/features/refs");
     let uses = ask(table, &refs_module, "label_uses", json!([node]))?;
     let pair = ask(table, &refs_module, "point_labels", json!([uses]))?;
     Ok(json!([{
@@ -400,7 +411,7 @@ fn scripted_points(table: &mut CallTable<'_>, node: &Value) -> Result<Value, Ext
 #[test]
 fn a_scripted_feature_declares_and_attaches_through_the_dispatcher() {
     let elements = JsonDouble::new("ex").feature("boxes", |js, b| {
-        let refs_module = module("stdcore/features/refs");
+        let refs_module = module("stdlib/features/refs");
         let fields = js.call(&refs_module, "label_fields_arg", json!([]))?;
         let element = json!({
             "names": ["exbox"],
@@ -434,7 +445,7 @@ fn a_scripted_answer_of_a_bad_shape_gives_no_point() {
     let registry = registry_with([boxes(vec![Aspect::Referenceable(Arc::new(JsonPoints(Box::new(bad))))]).package()]);
     let (_, diagnostics) = text_of(&registry, REFERENCED);
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    let ids = identifiers(&common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, REFERENCED));
+    let ids = identifiers(&common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, REFERENCED));
     assert_eq!(ids, ["flm.refs.unresolved"]);
 }
 
@@ -510,19 +521,19 @@ fn a_reference_point_from_data_reads_back_with_every_variant() {
     // The shape's failures, each in the readers' form.
     let error = ref_point_from_value(&mut table, &json!({ "kind": "exbox", "anchor": "from_first_label", "computed": -1 }))
         .err()
-        .map(|error| error.to_string());
-    assert_eq!(error.as_deref(), Some("the field `computed` of a reference point must be a number from 0 up, not `-1`"));
-    let missing = ref_point_from_value(&mut table, &json!({ "kind": "exbox" })).err().map(|error| error.to_string());
-    assert_eq!(missing.as_deref(), Some("a reference point must have the field `anchor`"));
+        .map(|error| error.kind());
+    assert_eq!(error, Some("value"));
+    let missing = ref_point_from_value(&mut table, &json!({ "kind": "exbox" })).err().map(|error| error.kind());
+    assert_eq!(missing, Some("value"));
     // A node of another tree, a span past the source: each the handler's
     // failure.
     let other = handle_to_value(table.lend(Entry::Node(Box::new(NodeFacade::shared(Arc::clone(&synthesized), synthesized.root().id())))));
     let point = ref_point_from_value(&mut table, &json!({ "kind": "exbox", "anchor": "from_first_label", "content": { "node": other } }))
         .expect("a point");
-    let error = ref_point_to_core(point, &node).err().map(|error| error.to_string());
-    assert_eq!(
-        error.as_deref(),
-        Some("`Referenceable::points`: the content of a reference point must be a node of the tree the point's node is in")
+    let error = ref_point_to_core(point, &node).err();
+    assert!(
+        matches!(&error, Some(ExtError::Argument { method, .. }) if method == "Referenceable::points"),
+        "{error:?}"
     );
     let far = json!({ "kind": "exbox", "anchor": "from_first_label", "malformed": [{ "text": "x", "span": { "start": 0, "end": 999 }, "position": 0 }] });
     let point = ref_point_from_value(&mut table, &far).expect("a point");
@@ -534,22 +545,22 @@ fn stage_label_and_stage_label_group_through_the_dispatcher() {
     // The arms `stage_label` and `stage_label_group`, driven through the
     // JSON double, write what the Rust rule above writes.
     let package = JsonDouble::new("ex").feature("boxes", |js, b| {
-        let refs_module = module("stdcore/features/refs");
+        let refs_module = module("stdlib/features/refs");
         let fields = js.call(&refs_module, "label_fields_arg", json!([]))?;
         let element = json!({ "names": ["exbox"], "syntax": { "macro": { "args": ["{", fields] } }, "element": { "name": "ex.box" } });
         js.call(b, "element", json!([element]))?;
         let points = js.lend(Entry::Referenceable(Arc::new(Points(Answer::Good))));
         js.call(b, "attach", json!(["ex.box", { "Referenceable": points }]))?;
         let body = js.lend_lower(|js, node, cx, lw| {
-            let refs_module = module("stdcore/features/refs");
-            let mut emit: Vec<Value> = js.call(lw, "lower_arg", json!([cx, node, 0]))?.as_array().cloned().unwrap_or_default();
+            let refs_module = module("stdlib/features/refs");
+            let mut emit: Vec<Value> = vec![js.call(lw, "lower_arg", json!([cx, node, 0]))?];
             let uses = js.call(&refs_module, "label_uses", json!([node]))?;
             let mut staged = Vec::new();
             for use_ in uses.as_array().cloned().unwrap_or_default() {
                 staged.push(js.call(&refs_module, "stage_label", json!([cx, lw, use_["text"], use_["label"]]))?);
             }
             let group = js.call(&refs_module, "stage_label_group", json!([cx, lw, staged, false]))?;
-            emit.extend(group.as_array().cloned().unwrap_or_default());
+            emit.push(group);
             Ok(json!({ "emit": emit }))
         });
         let decl = json!({
@@ -563,6 +574,6 @@ fn stage_label_and_stage_label_group_through_the_dispatcher() {
     });
     let registry = registry_with([package.package()]);
     let (latex, diagnostics) = latex_of(&registry, REFERENCED);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("Alpha\\flmLabels{\\label{ref1}} See \\flmRef{ref1}."), "{latex}");
 }

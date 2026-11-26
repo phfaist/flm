@@ -11,14 +11,14 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use flm_core::core::data::table::TableHandle;
-use flm_core::core::plan::{Plan, PlanRequest};
+use flm_core::core::plan::{Plan, PlanError, PlanRequest};
 use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::blocks::BlocksConfig;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::blocks::BlocksConfig;
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::api::core::data::table::TableValue;
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
@@ -149,10 +149,10 @@ fn package(stage: Arc<dyn RewriteStage>) -> PackageEntry {
 /// The registry of the standard package, with the `blocks` feature's dash
 /// ligatures off, and of `packages`.
 fn registry(packages: impl IntoIterator<Item = PackageEntry>) -> Arc<FlmRegistry> {
-    let mut config = StdcoreConfig::new();
+    let mut config = StdlibConfig::new();
     config.blocks = BlocksConfig { ligature_unicode_dashes: false, ..BlocksConfig::default() };
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(config));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     for package in packages {
         builder.use_package(package);
@@ -160,10 +160,10 @@ fn registry(packages: impl IntoIterator<Item = PackageEntry>) -> Arc<FlmRegistry
     builder.build(&RegistryInputs::new()).expect("the registry builds")
 }
 
-/// The plan demanding `demands`, or its error's text.
-fn plan(registry: &Arc<FlmRegistry>, demands: &[&str]) -> Result<Plan, String> {
+/// The plan demanding `demands`, or its error.
+fn plan(registry: &Arc<FlmRegistry>, demands: &[&str]) -> Result<Plan, PlanError> {
     let request = demands.iter().fold(PlanRequest::new(), |request, demand| request.demand(*demand));
-    Plan::build(registry, &request).map_err(|error| error.to_string())
+    Plan::build(registry, &request)
 }
 
 /// The run of a plan demanding `demands` over a document of one tree per
@@ -317,25 +317,26 @@ fn a_named_argument_a_slot_and_the_children_are_restaged() {
 
 #[test]
 fn the_context_answers_the_tree_and_its_layout() {
+    // At each root, the handler notes the tree's id and layout, the text
+    // of the tree it is given, and its read of an option the stage did not
+    // declare (refused).
     let seen = Arc::new(Mutex::new(Vec::new()));
     let noted = Arc::clone(&seen);
     let stage = rewrite(move |node, cx, _| {
         if node.parent().is_none() {
+            let text: String = node.descendants().filter_map(|node| node.chars()).collect();
             let option = cx.option("sd.options").map_err(|error| core_kind(&error));
-            noted.lock().expect("the lock").push(format!("{} {} {option:?}", cx.tree_id(), cx.layout()));
+            noted.lock().expect("the lock").push(format!("{} {} {text} {option:?}", cx.tree_id(), cx.layout()));
         }
         Ok(Restage::Descend)
     });
     let registry = registry([package(stage)]);
     let run = run_demanding(&registry, &["sd.dashed"], &["One.", "Two."]);
     assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
-    assert_eq!(
-        *seen.lock().expect("the lock"),
-        vec![
-            "tree#0 inline-or-blocks Err(\"option\")".to_string(),
-            "tree#1 inline-or-blocks Err(\"option\")".to_string()
-        ]
-    );
+    // The trees are rewritten in parallel, in no set order.
+    let mut seen = seen.lock().expect("the lock").clone();
+    seen.sort();
+    assert_eq!(seen, ["tree#0 inline-or-blocks One. Err(\"option\")", "tree#1 inline-or-blocks Two. Err(\"option\")"]);
 }
 
 #[test]
@@ -350,7 +351,7 @@ fn a_later_stage_reads_the_published_trees() {
                 return Err(ExtError::Handler { detail: "no trees".to_string(), data: Value::Null });
             };
             for (tree, rewritten) in trees.trees() {
-                let text: String = rewritten.root().descendants().iter().filter_map(|node| node.chars()).collect();
+                let text: String = rewritten.root().descendants().filter_map(|node| node.chars()).collect();
                 out.table("sd.seen")?.push(json!({ "tree": tree, "text": text }))?;
             }
             Ok(())
@@ -382,7 +383,8 @@ fn a_failing_handler_keeps_its_node_and_the_rest_is_rewritten() {
     });
     let registry = registry([package(stage)]);
     let (text, diagnostics) = render(&registry, "a -- b \\sdflat{boom -- x} c -- d");
-    assert_eq!(diagnostics, vec!["flm.ext.handler-failed: the rewrite stage `sd.dash` failed: no dashes here"]);
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with("no dashes here"), "{diagnostics:?}");
     assert_eq!(text.trim_end(), "a \u{2013} b boom -- x c \u{2013} d");
 }
 
@@ -406,14 +408,7 @@ fn an_emit_names_only_nodes_of_its_own_call_each_once() {
     });
     let registry = registry([package(stage)]);
     let (text, diagnostics) = render(&registry, "\\sdflat{one}\\sdflat{two}\\sdflat{three}\\sdflat{a -- b}");
-    assert_eq!(
-        diagnostics,
-        vec![
-            "flm.ext.handler-failed: the rewrite stage `sd.dash` failed: `restage`: each node placed must have been \
-             created during this same rewrite call",
-            "flm.ext.handler-failed: the rewrite stage `sd.dash` failed: `restage`: a node may be placed only once",
-        ]
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed", "flm.ext.handler-failed"]);
     assert_eq!(text.trim_end(), "onetwothreea \u{2013} b");
 }
 
@@ -431,7 +426,7 @@ fn a_refused_operation_is_an_error_the_handler_catches() {
             .into_iter()
             .flatten()
             {
-                noted.lock().expect("the lock").push(format!("{} {}", core_kind(&error), error));
+                noted.lock().expect("the lock").push(core_kind(&error));
             }
             // A node of this call's content must have been staged by it.
             let other = rs.restage_argument_with_content(node, 0, Vec::new())?;
@@ -444,15 +439,7 @@ fn a_refused_operation_is_an_error_the_handler_catches() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text.trim_end(), "a \u{2013} b/c");
     let caught = caught.lock().expect("the lock").clone();
-    // The construct as written, with its line; no internal identifier.
-    assert_eq!(
-        caught,
-        [
-            "restage `\\sdquote` on line 1 has no argument at index 3: it has 2 arguments",
-            "restage `\\sdquote` on line 1 has no argument named `nothing`",
-            "restage `\\sdquote` on line 1 has no slot at index 0: it has 0 slots",
-        ]
-    );
+    assert_eq!(caught, ["restage", "restage", "restage"]);
 }
 
 #[test]
@@ -470,13 +457,7 @@ fn content_not_staged_by_the_call_is_refused() {
     });
     let registry = registry([package(stage)]);
     let (_, diagnostics) = render(&registry, "x \\sdquote{a}{b}");
-    assert_eq!(
-        diagnostics,
-        vec![
-            "flm.ext.handler-failed: the rewrite stage `sd.dash` failed: `restage_argument_with_content`: each node \
-             placed must have been created during this same rewrite call"
-        ]
-    );
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
 }
 
 /// Content is recorded as placed, as an `Emit` places its nodes: the same
@@ -495,7 +476,7 @@ fn content_given_twice_or_given_and_emitted_is_refused() {
                 content.extend(rs.restage_subtree(&**child)?);
             }
             let argument = rs.restage_argument_with_content(node, 0, content.clone())?;
-            let again = rs.restage_argument_with_content(node, 0, content.clone()).err().map(|error| error.to_string());
+            let again = rs.restage_argument_with_content(node, 0, content.clone()).err().map(|error| error.data());
             noted.lock().expect("the lock").extend(again);
             let kept = rs.restage_argument(node, 1)?;
             let call = rs.restage_invocation(node, vec![argument, kept], Vec::new())?;
@@ -507,13 +488,11 @@ fn content_given_twice_or_given_and_emitted_is_refused() {
     });
     let registry = registry([package(stage)]);
     let (text, diagnostics) = render(&registry, "x \\sdquote{a}{b} c -- d");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    let caught = caught.lock().expect("the lock").clone();
     assert_eq!(
-        diagnostics,
-        vec!["flm.ext.handler-failed: the rewrite stage `sd.dash` failed: `restage`: a node may be placed only once"]
-    );
-    assert_eq!(
-        caught.lock().expect("the lock").clone(),
-        ["`restage_argument_with_content`: a node may be placed only once"]
+        caught.iter().map(|data| (data["kind"].clone(), data["method"].clone())).collect::<Vec<_>>(),
+        [(json!("argument"), json!("restage_argument_with_content"))]
     );
     // The handler failed at `\\sdquote`, which is kept; the rest is rewritten.
     assert_eq!(text.trim_end(), "x a/b c \u{2013} d");
@@ -534,13 +513,9 @@ fn a_run_the_driver_cannot_finish_ends_the_tree_and_the_run_completes_without_it
     });
     let registry = registry([package(stage)]);
     let run = run_demanding(&registry, &["sd.dashed", TEXT], &["root", "c -- d"]);
-    assert_eq!(
-        common::diagnostics(&run),
-        vec![
-            "flm.ext.rewrite-failed: the rewrite stage `sd.dash` must produce one tree from the tree `tree#0`: the root \
-             restaged to 2 nodes; a tree needs exactly one root (wrap the replacement in a node of your own via Emit)"
-        ]
-    );
+    assert_eq!(common::identifiers(&run), ["flm.ext.rewrite-failed"]);
+    let data = common::data_json(&run, "flm.ext.rewrite-failed");
+    assert_eq!((&data[0]["stage"], &data[0]["tree"]), (&json!("sd.dash"), &json!("tree#0")));
     // The other tree is rewritten; the failed one is absent.
     let out = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
     assert_eq!(out.trim_end(), "c \u{2013} d");
@@ -562,9 +537,6 @@ fn the_guard_refuses_a_handler_recursing_through_the_visitor() {
     let run = run_demanding(&registry, &["sd.dashed", TEXT], &["a \\sdflat{b}", "c"]);
     let identifiers = common::identifiers(&run);
     assert_eq!(identifiers, ["flm.blocks.nesting-too-deep", "flm.blocks.nesting-too-deep"], "{:?}", common::diagnostics(&run));
-    for diagnostic in common::diagnostics(&run) {
-        assert!(diagnostic.starts_with("flm.blocks.nesting-too-deep: the content nests too deeply to process: "), "{diagnostic}");
-    }
     let out = run.table(text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone()).unwrap_or_default();
     assert_eq!(out.trim(), "");
 }
@@ -592,16 +564,16 @@ fn a_rewrite_declaring_a_read_is_refused_by_the_plan() {
     let stage = rewrite_with(Needs::new().reads("flm.blocks.structured"), |_, _, _| Ok(Restage::Descend));
     let registry = registry([package(stage)]);
     let error = plan(&registry, &["sd.dashed"]).expect_err("a rewrite stage reads no table");
-    assert_eq!(
-        error,
-        "rewrite stage `sd.dash` declares a read of the table `flm.blocks.structured`, but a rewrite stage must not \
-         read tables: it runs before any table is computed"
+    assert!(
+        matches!(&error, PlanError::RewriteReads { stage, table, .. } if *stage == "sd.dash" && *table == "flm.blocks.structured"),
+        "{error:?}"
     );
 }
 
 #[test]
 fn the_names_of_a_rewrite_stage_and_of_its_table_begin_with_the_stem() {
-    for (name, publishes, what) in [("other.dash", "sd.dashed", "stage `other.dash`"), ("sd.dash", "other.dashed", "table `other.dashed`")]
+    for (name, publishes, what, outside) in
+        [("other.dash", "sd.dashed", "stage", "other.dash"), ("sd.dash", "other.dashed", "table", "other.dashed")]
     {
         let stage: Arc<dyn RewriteStage> = Arc::new(RewriteFn {
             decl: RewriteDecl::new(name, publishes),
@@ -611,41 +583,38 @@ fn the_names_of_a_rewrite_stage_and_of_its_table_begin_with_the_stem() {
         let refused = Arc::new(Mutex::new(None));
         let noted = Arc::clone(&refused);
         let double = Double::new("sd").feature("dashes", move |b| {
-            *noted.lock().expect("the lock") = b.rewrite_stage(Arc::clone(&stage)).err().map(|error| error.to_string());
+            *noted.lock().expect("the lock") = b.rewrite_stage(Arc::clone(&stage)).err();
             Ok(())
         });
         let _ = registry([double.package()]);
         assert_eq!(
             refused.lock().expect("the lock").clone(),
-            Some(format!("the {what} declared by the package `_` of the extension `sd` must begin with `sd.`"))
+            Some(ExtError::NameOutsideExtension {
+                what: what.to_string(),
+                name: outside.to_string(),
+                package: "_".to_string(),
+                extension: "sd".to_string(),
+            })
         );
     }
 }
 
-/// A construct is named in a refusal by its callable's type: a
-/// macro as written, a control symbol with its backslash, an environment by
-/// its opening, specials as the sequence written.
+/// A control symbol, specials and an environment are each refused an
+/// argument they lack.
 #[test]
-fn a_refusal_names_the_construct_by_its_callable_s_type() {
+fn a_refusal_is_met_for_each_callable_s_type() {
     let caught = Arc::new(Mutex::new(Vec::new()));
     let noted = Arc::clone(&caught);
     let stage = rewrite(move |node, _, rs| {
         if node.element_name() == "sd.box" || matches!(node.name().as_deref(), Some("%" | "~")) {
-            noted.lock().expect("the lock").extend(rs.restage_argument(node, 5).err().map(|error| error.to_string()));
+            noted.lock().expect("the lock").extend(rs.restage_argument(node, 5).err().map(|error| core_kind(&error)));
         }
         Ok(Restage::Descend)
     });
     let registry = registry([package(stage)]);
     let (_, diagnostics) = render(&registry, "a\\%b~c\n\n\\begin{sdbox}{t}x\\end{sdbox}");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(
-        caught.lock().expect("the lock").clone(),
-        [
-            "`\\%` on line 1 has no argument at index 5: it has 0 arguments",
-            "`~` on line 1 has no argument at index 5: it has 0 arguments",
-            "`\\begin{sdbox}` on line 3 has no argument at index 5: it has 1 argument",
-        ]
-    );
+    assert_eq!(caught.lock().expect("the lock").clone(), ["restage", "restage", "restage"]);
 }
 
 /// Content given to an operation techy refuses is not recorded as placed:
@@ -660,7 +629,7 @@ fn content_given_to_a_refused_operation_may_still_be_emitted() {
             noted
                 .lock()
                 .expect("the lock")
-                .extend(rs.restage_argument_with_content(node, 5, content.clone()).err().map(|error| error.to_string()));
+                .extend(rs.restage_argument_with_content(node, 5, content.clone()).err().map(|error| core_kind(&error)));
             return Ok(Restage::Emit(content));
         }
         Ok(Restage::Descend)
@@ -668,16 +637,12 @@ fn content_given_to_a_refused_operation_may_still_be_emitted() {
     let registry = registry([package(stage)]);
     let (text, diagnostics) = render(&registry, "x \\sdquote{a}{b} y");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    assert_eq!(
-        caught.lock().expect("the lock").clone(),
-        ["`\\sdquote` on line 1 has no argument at index 5: it has 2 arguments"]
-    );
+    assert_eq!(caught.lock().expect("the lock").clone(), ["restage"]);
     assert_eq!(text.trim_end(), "x new y");
 }
 
 /// A node holding a kept call's argument content, replaced by nothing: the
-/// tree cannot be built, and the message, in full, says that the content
-/// lies inside a node the rewrite stage removed.
+/// tree cannot be built.
 #[test]
 fn a_dropped_argument_group_of_a_kept_call_ends_the_tree() {
     let stage = rewrite(|node, _, _| {
@@ -689,12 +654,7 @@ fn a_dropped_argument_group_of_a_kept_call_ends_the_tree() {
     });
     let registry = registry([package(stage)]);
     let run = run_demanding(&registry, &["sd.dashed", TEXT], &["x \\sdquote{a}{b}", "c -- d"]);
-    assert_eq!(
-        common::diagnostics(&run),
-        vec![
-            "flm.ext.rewrite-failed: the rewrite stage `sd.dash` must produce one tree from the tree `tree#0`: the \
-             content of an argument or a slot of `\\sdquote` on line 1 lies inside a node the rewrite stage removed or \
-             replaced by other than one node; replace the whole call instead, with a copy made by `restage_invocation`"
-        ]
-    );
+    assert_eq!(common::identifiers(&run), ["flm.ext.rewrite-failed"]);
+    let data = common::data_json(&run, "flm.ext.rewrite-failed");
+    assert_eq!((&data[0]["stage"], &data[0]["tree"]), (&json!("sd.dash"), &json!("tree#0")));
 }

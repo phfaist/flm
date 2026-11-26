@@ -14,6 +14,7 @@
 use std::fmt;
 
 use flm_core::core::registry::FeatureChain;
+use flm_core::core::settings::ENABLED_KEY;
 use flm_core::lang::FlmParsing;
 use serde_json::{Map, Value};
 
@@ -31,7 +32,7 @@ const PARSING_KEYS: [&str; 3] = ["comments", "comment_prefix", "dollar_math"];
 pub struct Block {
     /// `use`: one entry or a list, each parsed by [`UseEntry::parse`].
     pub uses: Vec<UseEntry>,
-    /// `features`: each feature's name with its settings map, or `false`.
+    /// `features`: each feature's name with what the block writes for it.
     pub features: Vec<(String, FeatureBlock)>,
     /// `parsing`: the keys written, checked as
     /// [`FlmParsing`] reads them; `None` when not written.
@@ -46,14 +47,35 @@ pub struct Block {
     pub other: Vec<(String, Value)>,
 }
 
-/// What a block writes for one feature.
+/// What a block writes for one feature: whether it switches the feature on or
+/// off, and its settings.
+///
+/// A feature's entry is a map of its settings that may hold the key
+/// [`ENABLED_KEY`] (`enabled`), a boolean: `enabled: false` switches the
+/// feature off, `enabled: true` switches it on, as an entry without the key
+/// does. `FEATURE: false` is the shorthand of `FEATURE: {enabled: false}`,
+/// and an entry with no value is an empty map: each reads as the same
+/// [`FeatureBlock`] as its long form.
 #[derive(Debug, Clone, PartialEq)]
-pub enum FeatureBlock {
-    /// `false`: the feature is switched off.
-    Off,
-    /// The feature's settings (an empty map for an entry with no value): the
-    /// feature is switched on.
-    Settings(Map<String, Value>),
+pub struct FeatureBlock {
+    /// Whether the block switches the feature on (`true`) or off.
+    pub enabled: bool,
+    /// The entry's keys other than `enabled`: the settings this block gives
+    /// the feature, whether it switches the feature on or off.
+    pub settings: Map<String, Value>,
+}
+
+impl FeatureBlock {
+    /// An entry that switches the feature on, with the settings `settings`.
+    pub fn on(settings: Map<String, Value>) -> FeatureBlock {
+        FeatureBlock { enabled: true, settings }
+    }
+
+    /// An entry that switches the feature off, with no settings
+    /// (`FEATURE: false`).
+    pub fn off() -> FeatureBlock {
+        FeatureBlock { enabled: false, settings: Map::new() }
+    }
 }
 
 /// One workflow a block declares.
@@ -120,12 +142,14 @@ fn error(path: impl Into<String>, detail: impl Into<String>) -> BlockError {
 /// Every problem found: a block that is not a map; a `use` that is neither
 /// an entry nor a list of entries, an item that is not a text or breaks the
 /// entry grammar; a `features` that is not a map, a feature's value that is
-/// neither a map, nor empty, nor `false`; a `parsing` that is not a map, holds
-/// another key than `comments`, `comment_prefix` and `dollar_math`, or a value
-/// of the wrong type; a `workflows` that is not a map, a workflow that is not
-/// a map, an unknown field or a field of the wrong shape, a workflow's
-/// settings switching a feature off; a `feature_order` that is neither a
-/// chain nor a list of chains, an item that is not a text or is not a chain
+/// neither a map, nor empty, nor `false`, a key `enabled` that is not a
+/// boolean; a `parsing` that is not a map, holds another key than
+/// `comments`, `comment_prefix` and `dollar_math`, or a value of the wrong
+/// type; a `workflows` that is not a map, a workflow that is not a map, an
+/// unknown field or a field of the wrong shape, a workflow's settings
+/// switching a feature off or writing the key `enabled`; a `feature_order`
+/// that is neither a chain nor a list of chains, an item that is not a text
+/// or is not a chain
 /// ([`FeatureChain::parse`]: the form `NAME < NAME < … < NAME`, each name once).
 pub fn read(value: &Value) -> Result<Block, Vec<BlockError>> {
     let mut block = Block::default();
@@ -199,9 +223,9 @@ fn read_feature_order(value: &Value, errors: &mut Vec<BlockError>) -> Vec<ChainB
     chains
 }
 
-/// A map from a feature's name to its settings, at `path` (`features`, or a
+/// A map from a feature's name to its entry, at `path` (`features`, or a
 /// workflow's `settings`): null reads as nothing, an entry with no value as
-/// an empty map.
+/// an empty map, `false` as `{enabled: false}` ([`FeatureBlock`]).
 fn read_features(path: &str, value: &Value, errors: &mut Vec<BlockError>) -> Vec<(String, FeatureBlock)> {
     let entries = match value {
         Value::Null => return Vec::new(),
@@ -214,12 +238,26 @@ fn read_features(path: &str, value: &Value, errors: &mut Vec<BlockError>) -> Vec
     let mut features = Vec::new();
     for (name, value) in entries {
         match value {
-            Value::Object(map) => features.push((name.clone(), FeatureBlock::Settings(map.clone()))),
-            Value::Null => features.push((name.clone(), FeatureBlock::Settings(Map::new()))),
-            Value::Bool(false) => features.push((name.clone(), FeatureBlock::Off)),
+            Value::Object(map) => {
+                let mut settings = map.clone();
+                let enabled = match settings.remove(ENABLED_KEY) {
+                    None => true,
+                    Some(Value::Bool(enabled)) => enabled,
+                    Some(_) => {
+                        errors.push(error(
+                            format!("{path}.{name}.{ENABLED_KEY}"),
+                            format!("invalid value for key ‘{ENABLED_KEY}’ of feature ‘{name}’ (expected ‘true’ or ‘false’)"),
+                        ));
+                        continue;
+                    }
+                };
+                features.push((name.clone(), FeatureBlock { enabled, settings }));
+            }
+            Value::Null => features.push((name.clone(), FeatureBlock::on(Map::new()))),
+            Value::Bool(false) => features.push((name.clone(), FeatureBlock::off())),
             _ => errors.push(error(
                 format!("{path}.{name}"),
-                format!("the settings of the feature `{name}` (`{path}.{name}`) must be a map, or `false` to switch it off"),
+                format!("invalid settings for feature ‘{name}’: the settings must be a map, or ‘false’ to switch the feature off"),
             )),
         }
     }
@@ -276,12 +314,25 @@ fn read_workflows(value: &Value, errors: &mut Vec<BlockError>) -> Vec<WorkflowBl
                 "outputs" | "demands" | "prefer" => names(),
                 "settings" => {
                     for (feature, entry) in read_features(&path, value, errors) {
-                        match entry {
-                            FeatureBlock::Settings(map) => workflow.settings.push((feature, map)),
-                            FeatureBlock::Off => errors.push(error(
+                        let written = &value[feature.as_str()];
+                        if *written == Value::Bool(false) {
+                            errors.push(error(
                                 format!("{path}.{feature}"),
-                                format!("the settings of the workflow `{name}` must not switch the feature `{feature}` off"),
-                            )),
+                                format!(
+                                    "invalid value ‘false’ for feature ‘{feature}’ in the settings of workflow ‘{name}’: \
+                                     a workflow may not switch a feature on or off"
+                                ),
+                            ));
+                        } else if written.get(ENABLED_KEY).is_some() {
+                            errors.push(error(
+                                format!("{path}.{feature}.{ENABLED_KEY}"),
+                                format!(
+                                    "invalid key ‘{ENABLED_KEY}’ for feature ‘{feature}’ in the settings of workflow ‘{name}’: \
+                                     a workflow may not switch a feature on or off"
+                                ),
+                            ));
+                        } else {
+                            workflow.settings.push((feature, entry.settings));
                         }
                     }
                     continue;
@@ -314,31 +365,22 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn problems(value: Value) -> Vec<(String, String)> {
-        read(&value).expect_err("refused").into_iter().map(|e| (e.path, e.detail)).collect()
-    }
-
-    fn pair(path: &str, detail: &str) -> (String, String) {
-        (path.to_string(), detail.to_string())
+    /// The key paths of the problems found in `value`, in order.
+    fn problems(value: Value) -> Vec<String> {
+        read(&value).expect_err("refused").into_iter().map(|e| e.path).collect()
     }
 
     #[test]
     fn use_is_one_entry_a_list_or_null() {
         assert_eq!(read(&json!({ "use": "myext" })).unwrap().uses, [UseEntry::parse("myext").unwrap()]);
         assert_eq!(
-            read(&json!({ "use": ["stdcore", "myext#core"] })).unwrap().uses,
-            [UseEntry::parse("stdcore").unwrap(), UseEntry::parse("myext#core").unwrap()]
+            read(&json!({ "use": ["phfpack", "myext#core"] })).unwrap().uses,
+            [UseEntry::parse("phfpack").unwrap(), UseEntry::parse("myext#core").unwrap()]
         );
         assert_eq!(read(&json!({ "use": null })).unwrap().uses, []);
         assert_eq!(read(&Value::Null).unwrap(), Block::default());
-        assert_eq!(problems(json!({ "use": 3 })), [pair("use", "`use` must be an entry or a list of entries")]);
-        assert_eq!(
-            problems(json!({ "use": ["a", 2, "./b"] })),
-            [
-                pair("use[1]", "`use[1]` must be an entry, written as a text"),
-                pair("use[2]", &UseEntry::parse("./b").unwrap_err().detail),
-            ]
-        );
+        assert_eq!(problems(json!({ "use": 3 })), ["use"]);
+        assert_eq!(problems(json!({ "use": ["a", 2, "./b"] })), ["use[1]", "use[2]"]);
     }
 
     #[test]
@@ -347,39 +389,44 @@ mod tests {
         assert_eq!(
             block.features,
             [
-                ("text".to_string(), FeatureBlock::Settings(json!({ "width": 60 }).as_object().unwrap().clone())),
-                ("toc".to_string(), FeatureBlock::Off),
-                ("compose".to_string(), FeatureBlock::Settings(Map::new())),
+                ("text".to_string(), FeatureBlock::on(json!({ "width": 60 }).as_object().unwrap().clone())),
+                ("toc".to_string(), FeatureBlock::off()),
+                ("compose".to_string(), FeatureBlock::on(Map::new())),
             ]
         );
         assert_eq!(read(&json!({ "features": null })).unwrap().features, []);
+        assert_eq!(problems(json!({ "features": [1] })), ["features"]);
+        assert_eq!(problems(json!({ "features": { "toc": true } })), ["features.toc"]);
+    }
+
+    #[test]
+    fn the_key_enabled_switches_a_feature_and_keeps_its_settings() {
+        let features = |value: Value| read(&json!({ "features": value })).unwrap().features;
+        let settings = json!({ "mark": "superscript" }).as_object().unwrap().clone();
         assert_eq!(
-            problems(json!({ "features": [1] })),
-            [pair("features", "`features` must be a map from a feature's name to its settings")]
+            features(json!({ "citations": { "enabled": false, "mark": "superscript" } })),
+            [("citations".to_string(), FeatureBlock { enabled: false, settings: settings.clone() })]
         );
         assert_eq!(
-            problems(json!({ "features": { "toc": true } })),
-            [pair("features.toc", "the settings of the feature `toc` (`features.toc`) must be a map, or `false` to switch it off")]
+            features(json!({ "citations": { "enabled": true, "mark": "superscript" } })),
+            features(json!({ "citations": { "mark": "superscript" } }))
         );
+        assert_eq!(features(json!({ "toc": false })), features(json!({ "toc": { "enabled": false } })));
+        assert_eq!(features(json!({ "toc": null })), features(json!({ "toc": { "enabled": true } })));
+        assert_eq!(problems(json!({ "features": { "toc": { "enabled": "no" } } })), ["features.toc.enabled"]);
     }
 
     #[test]
     fn parsing_checks_its_three_keys_and_their_types() {
         let block = read(&json!({ "parsing": { "dollar_math": true } })).unwrap();
         assert_eq!(block.parsing, Some(json!({ "dollar_math": true }).as_object().unwrap().clone()));
-        assert_eq!(problems(json!({ "parsing": 1 })), [pair("parsing", "`parsing` must be a map")]);
-        assert_eq!(
-            problems(json!({ "parsing": { "dollars": true } })),
-            [pair("parsing.dollars", "`parsing.dollars` must be one of `comments`, `comment_prefix` and `dollar_math`")]
-        );
-        let found = problems(json!({ "parsing": { "dollar_math": "yes" } }));
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].0, "parsing");
-        assert!(found[0].1.starts_with("each setting under `parsing` must hold a value of its type: "), "{}", found[0].1);
+        assert_eq!(problems(json!({ "parsing": 1 })), ["parsing"]);
+        assert_eq!(problems(json!({ "parsing": { "dollars": true } })), ["parsing.dollars"]);
+        assert_eq!(problems(json!({ "parsing": { "dollar_math": "yes" } })), ["parsing"]);
     }
 
     #[test]
-    fn workflows_check_their_fields_and_refuse_switching_a_feature_off() {
+    fn workflows_check_their_fields_and_refuse_switching_a_feature_on_or_off() {
         let block = read(&json!({ "workflows": { "draft": {
             "extends": "html", "outputs": ["html"], "docs": "A draft.",
             "settings": { "html": { "x": 1 }, "toc": null },
@@ -402,24 +449,20 @@ mod tests {
         );
         assert_eq!(
             problems(json!({ "workflows": { "draft": {
-                "colour": 1, "extends": 2, "prefer": "x", "settings": { "toc": false },
+                "colour": 1, "extends": 2, "prefer": "x",
+                "settings": { "toc": false, "html": { "enabled": true, "x": 1 }, "text": { "enabled": false } },
             }, "bad": 3 } })),
             [
-                pair(
-                    "workflows.draft.colour",
-                    "`colour`, in the workflow `draft`, must be one of the fields of a workflow: `extends`, `outputs`, \
-                     `demands`, `prefer`, `settings` and `docs`"
-                ),
-                pair("workflows.draft.extends", "the field `extends` of the workflow `draft` must be a text"),
-                pair("workflows.draft.prefer", "the field `prefer` of the workflow `draft` must be a list of names"),
-                pair("workflows.draft.settings.toc", "the settings of the workflow `draft` must not switch the feature `toc` off"),
-                pair("workflows.bad", "the workflow `bad` (`workflows.bad`) must be a map of its fields"),
+                "workflows.draft.colour",
+                "workflows.draft.extends",
+                "workflows.draft.prefer",
+                "workflows.draft.settings.toc",
+                "workflows.draft.settings.html.enabled",
+                "workflows.draft.settings.text.enabled",
+                "workflows.bad",
             ]
         );
-        assert_eq!(
-            problems(json!({ "workflows": [] })),
-            [pair("workflows", "`workflows` must be a map from a workflow's name to its fields")]
-        );
+        assert_eq!(problems(json!({ "workflows": [] })), ["workflows"]);
     }
 
     #[test]
@@ -445,21 +488,11 @@ mod tests {
 
     #[test]
     fn feature_order_refuses_what_is_not_a_chain_each_at_its_key() {
-        assert_eq!(
-            problems(json!({ "feature_order": { "a": "b" } })),
-            [pair("feature_order", "`feature_order` must be a chain or a list of chains")]
-        );
-        assert_eq!(
-            problems(json!({ "feature_order": "a > b" })),
-            [pair("feature_order", "the chain `a > b` must have the form `NAME < NAME < … < NAME`, with two or more feature names")]
-        );
+        assert_eq!(problems(json!({ "feature_order": { "a": "b" } })), ["feature_order"]);
+        assert_eq!(problems(json!({ "feature_order": "a > b" })), ["feature_order"]);
         assert_eq!(
             problems(json!({ "feature_order": ["a < b", 3, "a", "a < b < a"] })),
-            [
-                pair("feature_order[1]", "`feature_order[1]` must be a chain, written as a text"),
-                pair("feature_order[2]", "the chain `a` must have the form `NAME < NAME < … < NAME`, with two or more feature names"),
-                pair("feature_order[3]", "each feature must appear only once in the chain `a < b < a`, but `a` appears more than once"),
-            ]
+            ["feature_order[1]", "feature_order[2]", "feature_order[3]"]
         );
     }
 
@@ -467,11 +500,7 @@ mod tests {
     fn a_workflow_does_not_take_feature_order() {
         assert_eq!(
             problems(json!({ "workflows": { "draft": { "feature_order": ["a < b"] } } })),
-            [pair(
-                "workflows.draft.feature_order",
-                "`feature_order`, in the workflow `draft`, must be one of the fields of a workflow: `extends`, \
-                 `outputs`, `demands`, `prefer`, `settings` and `docs`"
-            )]
+            ["workflows.draft.feature_order"]
         );
     }
 
@@ -490,20 +519,13 @@ mod tests {
 
     #[test]
     fn each_error_carries_its_key_path() {
-        let paths: Vec<String> = problems(json!({
+        let paths = problems(json!({
             "use": ["ok", 1],
             "features": { "text": 3 },
             "parsing": { "nope": 1 },
             "workflows": { "draft": { "settings": { "html": 2 } } },
-        }))
-        .into_iter()
-        .map(|(path, _)| path)
-        .collect();
+        }));
         assert_eq!(paths, ["use[1]", "features.text", "parsing.nope", "workflows.draft.settings.html"]);
-        assert_eq!(
-            problems(json!({ "workflows": { "draft": { "settings": { "html": 2 } } } }))[0].1,
-            "the settings of the feature `html` (`workflows.draft.settings.html`) must be a map, or `false` to switch it off"
-        );
-        assert_eq!(problems(json!("x")), [pair("", "the block must be a map")]);
+        assert_eq!(problems(json!("x")), [""]);
     }
 }

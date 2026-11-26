@@ -2,6 +2,6 @@
 // `flm-ext/src/api/techy/error.rs`; do not edit.
 //
 // Mirrors techy's diagnostics, reached as `flm_core::techy::error`: what a handler reports.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 export const Severity = Object.freeze({ Error: "error", Warning: "warning", Note: "note" });

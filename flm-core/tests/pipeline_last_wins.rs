@@ -15,8 +15,8 @@ use flm_core::core::services::Arity;
 use flm_core::lang::FlmDiagnostics;
 use flm_core::lang::mint::{ElementDef, SyntaxDef};
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::latex::preamble::{self, LatexPreambleDef, SLOT};
-use flm_core::stdcore::backends::latex_rendered::{self, LatexRenderedRenderOptions};
+use flm_core::stdlib::backends::latex::preamble::{self, LatexPreambleDef, SLOT};
+use flm_core::stdlib::backends::latex_rendered::{self, LatexRenderedRenderOptions};
 
 use common::element;
 use common::pipeline::feature;

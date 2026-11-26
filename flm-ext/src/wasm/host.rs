@@ -1,11 +1,13 @@
 //! The engine host of the `wasm` binding: the settings every instance of a
-//! module is created with, and where `console` output goes.
+//! module is created with, and the log sink their `console` output goes to.
 
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
-use crate::host::ConsoleSink;
+use flm_core::progress::LogSink;
+
+use crate::host::Console;
 use crate::manifest::WasmLimits;
 
 /// The settings every instance of a host's modules is created with.
@@ -53,7 +55,7 @@ impl Default for WasmSettings {
     }
 }
 
-/// The engine host of the `wasm` binding: the settings and the console sink.
+/// The engine host of the `wasm` binding: the settings and the log sink.
 /// Cheap to clone (an `Arc` inside); every clone is the same host, and the
 /// instances are keyed by it.
 #[derive(Clone)]
@@ -66,7 +68,18 @@ struct HostInner {
     /// The settings.
     settings: WasmSettings,
     /// Where `console` output goes.
-    console: ConsoleSink,
+    console: Console,
+}
+
+/// A handle on a [`WasmHost`] that does not keep it ([`WasmHost::downgrade`]).
+#[derive(Clone)]
+pub(crate) struct WeakHost(Weak<HostInner>);
+
+impl WeakHost {
+    /// Whether the host still exists.
+    pub(crate) fn exists(&self) -> bool {
+        self.0.strong_count() > 0
+    }
 }
 
 /// The process-wide counter of hosts: two hosts never share instances, even
@@ -74,30 +87,32 @@ struct HostInner {
 static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
 
 impl WasmHost {
-    /// A host with `settings`, and `console` written to standard error as
-    /// `[wasm <level>] <text>`.
+    /// A host with `settings` and no log sink: the `console` output of its
+    /// extensions goes nowhere.
     pub fn new(settings: WasmSettings) -> WasmHost {
         WasmHost(Arc::new(HostInner {
             id: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
             settings,
-            console: Arc::new(|level, text| eprintln!("[wasm {level}] {text}")),
+            console: Console::default(),
         }))
     }
 
-    /// Routes `console` output to `sink`. When no other clone of this host
+    /// Writes the `console` output of the host's extensions to `sink`, each
+    /// line with the extension's stem as its source (the [table of
+    /// levels](crate::host#console-output)). When no other clone of this host
     /// exists, the identity is kept; otherwise the result is a new host, with
     /// an identity of its own, so that the clone and the result never share
     /// instances.
-    pub fn with_console(self, sink: ConsoleSink) -> WasmHost {
+    pub fn with_log_sink(self, sink: Arc<dyn LogSink>) -> WasmHost {
         let mut inner = match Arc::try_unwrap(self.0) {
             Ok(inner) => inner,
             Err(shared) => HostInner {
                 id: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
                 settings: shared.settings.clone(),
-                console: Arc::clone(&shared.console),
+                console: shared.console.clone(),
             },
         };
-        inner.console = sink;
+        inner.console = Console::to_sink(sink);
         WasmHost(Arc::new(inner))
     }
 
@@ -124,8 +139,14 @@ impl WasmHost {
         self.0.id
     }
 
-    /// The console sink.
-    pub(crate) fn console(&self) -> &ConsoleSink {
+    /// A handle that tells whether this host (any clone of it) still exists,
+    /// without keeping it.
+    pub(crate) fn downgrade(&self) -> WeakHost {
+        WeakHost(Arc::downgrade(&self.0))
+    }
+
+    /// Where the `console` output of the host's extensions goes.
+    pub(crate) fn console(&self) -> &Console {
         &self.0.console
     }
 }

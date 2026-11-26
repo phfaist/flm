@@ -14,7 +14,8 @@
 //! 4. **Load once per identity**: the manifest read, checked and kept
 //!    ([`ExtensionLoader::manifest`]), the engine picked, [`Engine::load`]
 //!    called, each reported package's `host` list checked against the host
-//!    services the loader offers, each reported package turned into a factory
+//!    services the loader offers, each package checked by each service it
+//!    declares ([`HostService::check_package`]), each reported package turned into a factory
 //!    ([`package_factory`]). A failed extension answers its problems to every
 //!    entry that reaches it. A problem of the manifest is placed in the
 //!    manifest's file, at the line and column the source's place resolver
@@ -25,7 +26,11 @@
 //! the manifest's canonical JSON, then for each package in the order
 //! reported its name and its `host` list (each item followed by a NUL byte),
 //! then the engine's bytes ([`ExtRuntime::digest_input`](crate::ExtRuntime::digest_input)).
-//! 5. **Answer** the factory of the package the entry names.
+//! The caches the packages declare are not in it: a cache changes no output.
+//! 5. **Register** the extension's files under the locator, its use name
+//!    ([`with_extensions_by_name`](ExtensionLoader::with_extensions_by_name)),
+//!    when the locator is first asked and the extension is loaded.
+//! 6. **Answer** the factory of the package the entry names.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -42,6 +47,7 @@ use crate::engine::{Engine, ExtensionIdentity, LoadError};
 use crate::entry::{Locator, UseEntry};
 use crate::manifest::{Manifest, FLM_VERSION};
 use crate::host::{HostCaller, HostService};
+use crate::paths::{ExtensionsByName, SharedFiles};
 use crate::source::{ExtensionFiles, ExtensionSource, PlaceOf};
 
 /// A loaded package's block, for the host's cascade: the factory's name (the
@@ -65,6 +71,8 @@ struct LoadedExtension {
     /// The package names in the order reported.
     packages: Vec<String>,
     blocks: Vec<LoadedBlock>,
+    /// The extension's files, shared.
+    files: SharedFiles,
 }
 
 /// What the loader has found and loaded so far.
@@ -82,12 +90,14 @@ struct LoaderState {
 
 /// The resolver of extension packages: the host's sources asked in order, the
 /// engines by name, the host services by name, a cache of loaded extensions
-/// by identity. Implements [`PackageResolver`]; a host adds it to its catalog
-/// and keeps an `Arc` for [`blocks`](ExtensionLoader::blocks).
+/// by identity, and the table of the files of the loaded extensions by use
+/// name. Implements [`PackageResolver`]; a host adds it to its catalog and keeps
+/// an `Arc` for [`blocks`](ExtensionLoader::blocks).
 pub struct ExtensionLoader {
     sources: Vec<Arc<dyn ExtensionSource>>,
     engines: BTreeMap<String, Arc<dyn Engine>>,
     host_services: BTreeMap<String, Arc<dyn HostService>>,
+    by_name: ExtensionsByName,
     state: Mutex<LoaderState>,
 }
 
@@ -98,6 +108,7 @@ impl ExtensionLoader {
             sources,
             engines: BTreeMap::new(),
             host_services: BTreeMap::new(),
+            by_name: ExtensionsByName::new(),
             state: Mutex::new(LoaderState::default()),
         };
         loader.with_engine(Arc::new(DataEngine))
@@ -106,6 +117,18 @@ impl ExtensionLoader {
     /// Adds `engine` under its name (replacing one of that name).
     pub fn with_engine(mut self, engine: Arc<dyn Engine>) -> ExtensionLoader {
         self.engines.insert(engine.name().to_string(), engine);
+        self
+    }
+
+    /// Registers the shared files of each extension it loads in `by_name`,
+    /// under each use name that reached the extension (a locator, as written):
+    /// the table that the root `ext+NAME` reads ([`crate::paths`]). The
+    /// loader's own `files` service reads the root `ext+NAME` of an
+    /// extension's code from this table ([`DeclaredServices`]). A host gives
+    /// its own handle when it also reads `ext+NAME` itself (a template
+    /// engine).
+    pub fn with_extensions_by_name(mut self, by_name: ExtensionsByName) -> ExtensionLoader {
+        self.by_name = by_name;
         self
     }
 
@@ -151,6 +174,23 @@ impl ExtensionLoader {
             .collect()
     }
 
+    /// The refusals of the package `report` by the host services it
+    /// declares ([`HostService::check_package`]), one per refusing service;
+    /// `caller` is the package's.
+    fn refused(&self, report: &crate::engine::PackageReport, caller: &HostCaller) -> Vec<ResolveError> {
+        report
+            .host
+            .iter()
+            .filter_map(|name| {
+                let refusal = self.host_services.get(name)?.check_package(caller).err()?;
+                Some(ResolveError::new(format!(
+                    "the host service ‘{name}’ refuses the package ‘{}’ of the extension ‘{}’: {refusal}",
+                    report.name, caller.extension.stem
+                )))
+            })
+            .collect()
+    }
+
     /// Every loaded package's block: the extensions in the order they were
     /// first reached, and each extension's packages in the order its engine
     /// reported them.
@@ -180,18 +220,20 @@ impl ExtensionLoader {
         Some(state.loaded.get(identity)?.as_ref().ok()?.manifest.clone())
     }
 
-    /// Loads the extension `identity` reached as `stem`, from its manifest
-    /// value and its files, placing a problem of the manifest with
-    /// `place_of`.
+    /// Loads the extension `identity` reached by the use name `name`, whose
+    /// last segment is `stem`, from its manifest value and its files, placing
+    /// a problem of the manifest with `place_of`.
     fn load(
         &self,
         identity: &str,
+        name: &str,
         stem: &str,
         value: &Value,
         files: Box<dyn ExtensionFiles>,
         place_of: Option<&PlaceOf>,
     ) -> Result<Arc<LoadedExtension>, Vec<ResolveError>> {
-        let extension = ExtensionIdentity { identity: identity.to_string(), stem: stem.to_string() };
+        let extension =
+            ExtensionIdentity { identity: identity.to_string(), stem: stem.to_string(), name: name.to_string() };
         let in_manifest = |detail: String, path: &str| {
             let error = ResolveError::new(detail).in_file(identity);
             match place_of.and_then(|place_of| place_of(path)) {
@@ -224,7 +266,7 @@ impl ExtensionLoader {
                 "extension.engine",
             )]);
         };
-        // The handle the `extension` scope of the `files` host service reads
+        // The handle the root `self` of the `files` host service reads
         // through, taken before the engine owns the files.
         let shared = files.shared();
         let loaded = engine.load(&extension, &manifest, files).map_err(|errors| {
@@ -249,6 +291,8 @@ impl ExtensionLoader {
         if !errors.is_empty() {
             return Err(errors);
         }
+        // The digest holds what can change the output of a build: the
+        // packages' caches are left out.
         let mut digest = serde_json::to_vec(&canonical(value)).unwrap_or_default();
         for report in &loaded.packages {
             for item in std::iter::once(&report.name).chain(&report.host) {
@@ -258,18 +302,38 @@ impl ExtensionLoader {
         }
         digest.extend(loaded.runtime.digest_input());
         let digest: Arc<[u8]> = Arc::from(digest);
+        let callers: Vec<HostCaller> = loaded
+            .packages
+            .iter()
+            .map(|report| HostCaller {
+                extension: extension.clone(),
+                package: report.name.clone(),
+                caches: report.caches.clone(),
+                digest_input: Arc::clone(&digest),
+            })
+            .collect();
+        for (report, caller) in loaded.packages.iter().zip(&callers) {
+            errors.extend(self.refused(report, caller));
+        }
+        if !errors.is_empty() {
+            return Err(errors);
+        }
         let description = manifest.description.as_deref().unwrap_or_default();
         let mut result = LoadedExtension {
             manifest: manifest.clone(),
             factories: BTreeMap::new(),
             packages: Vec::new(),
             blocks: Vec::new(),
+            files: Arc::clone(&shared),
         };
-        for report in &loaded.packages {
-            let caller =
-                HostCaller { extension: extension.clone(), package: report.name.clone(), digest_input: Arc::clone(&digest) };
-            let services =
-                Arc::new(DeclaredServices::new(caller, &self.host_services, &report.host, Arc::clone(&shared)));
+        for (report, caller) in loaded.packages.iter().zip(callers) {
+            let services = Arc::new(DeclaredServices::new(
+                caller,
+                &self.host_services,
+                &report.host,
+                Arc::clone(&shared),
+                self.by_name.clone(),
+            ));
             let runtime = Arc::clone(&loaded.runtime);
             match package_factory(&extension, report, runtime, Arc::clone(&digest), description, services) {
                 Ok(factory) => {
@@ -331,7 +395,7 @@ impl PackageResolver for ExtensionLoader {
                     if !state.loaded.contains_key(&identity) {
                         let stem = entry.stem().unwrap_or_default();
                         let place_of = extension.place_of.as_ref();
-                        let result = self.load(&identity, stem, &extension.manifest, extension.files, place_of);
+                        let result = self.load(&identity, locator, stem, &extension.manifest, extension.files, place_of);
                         if let Ok(loaded) = &result {
                             for factory in loaded.factories.values() {
                                 state.factories.insert(factory.name().to_string(), factory.clone());
@@ -339,6 +403,9 @@ impl PackageResolver for ExtensionLoader {
                         }
                         state.loaded.insert(identity.clone(), result);
                         state.order.push(identity.clone());
+                    }
+                    if let Some(Ok(loaded)) = state.loaded.get(&identity) {
+                        self.by_name.register(locator, Arc::clone(&loaded.files));
                     }
                     found = Some(identity);
                     break;
@@ -356,7 +423,8 @@ impl PackageResolver for ExtensionLoader {
             Some(factory) => Ok(Some(factory.clone())),
             None => {
                 let extension = loaded.blocks.first().map(|block| block.extension.clone()).unwrap_or_else(|| {
-                    ExtensionIdentity { identity: identity.clone(), stem: entry.stem().unwrap_or_default().to_string() }
+                    let stem = entry.stem().unwrap_or_default().to_string();
+                    ExtensionIdentity { identity: identity.clone(), stem, name: locator.clone() }
                 });
                 let provided: Vec<String> = loaded.packages.iter().map(|package| format!("`{package}`")).collect();
                 Err(vec![ResolveError::new(format!(

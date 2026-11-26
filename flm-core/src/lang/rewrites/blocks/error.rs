@@ -23,7 +23,7 @@
 //! rewrite stages, because the pass is a
 //! plain function that can be called with no stage around it, and
 //! `RewriteError` belongs to the stages. The rewrite stage of the `blocks`
-//! feature ([`crate::stdcore::features::blocks`]) converts one into the other
+//! feature ([`crate::stdlib::features::blocks`]) converts one into the other
 //! with [`StructureError::diagnostic`].
 
 use std::fmt;
@@ -53,7 +53,7 @@ use crate::lang::origin::FlmDiagnostic;
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.block-in-inline",
-    message = "‘{element}’ is a block-level construct and must not appear inside inline content"
+    message = "Block-level element ‘{element}’ may not be placed inside inline content"
 )]
 pub struct BlockInInline {
     /// The stable name of the node's element.
@@ -71,8 +71,7 @@ pub struct BlockInInline {
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.parbreak-in-inline",
-    message = "a paragraph break (a blank line) must not appear inside inline content, such \
-               as a `{{…}}` group or an argument or body laid out inline"
+    message = "Paragraph breaks may not be placed inside inline content"
 )]
 pub struct ParbreakInInline {
     /// The kind of content region the paragraph break was found in: `group`,
@@ -97,8 +96,7 @@ pub struct ParbreakInInline {
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.decorator-without-home",
-    message = "the block-structure hook of ‘{hook}’ must place every node it creates, \
-               and it did not place its node of ‘{element}’"
+    message = "Misconfigured block-structure hook ‘{hook}’: The hook failed to place a node for ‘{element}’"
 )]
 pub struct DecoratorWithoutHome {
     /// The stable name of the created node's element.
@@ -122,7 +120,7 @@ pub struct DecoratorWithoutHome {
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.structure-failed",
-    message = "dividing the content into paragraphs and blocks failed: {detail}"
+    message = "Block and paragraph structure processing failed: {detail}"
 )]
 pub struct StructureFailed {
     /// What failed, as text: the [`Display`](fmt::Display) text of the
@@ -143,8 +141,7 @@ pub struct StructureFailed {
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.blocks.worker-thread-unavailable",
-    message = "dividing the content into paragraphs and blocks needs a thread with a large \
-               stack, and the operating system could not create one: {detail}"
+    message = "Failed to create a thread with a sufficiently large stack: {detail}"
 )]
 pub struct NoWorkerThread {
     /// The operating system's error.
@@ -208,7 +205,9 @@ pub enum StructureError {
     /// programming error in the hook. The diagnostic carries
     /// [`StructureFailed`].
     NoBody {
-        /// The element whose hook asked for the body.
+        /// The element of the node that has no body slot: the node the hook
+        /// passed to `body_run` or `with_body`, which is not always the node
+        /// the hook is attached to.
         element: ElementName,
     },
     /// An element's [`BlockTransparent`](super::transparent::BlockTransparent)
@@ -276,27 +275,26 @@ impl fmt::Display for StructureError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             StructureError::NestingTooDeep { detail } => {
-                write!(f, "the content is nested too deeply: {detail}")
+                write!(f, "Content too deeply nested: {detail}")
             }
             StructureError::WorkerThread { detail } => {
-                write!(f, "the operating system could not create a thread with a large stack: {detail}")
+                write!(f, "The operating system failed to create a thread with a sufficiently large stack: {detail}")
             }
-            StructureError::Restage(error) => write!(f, "rebuilding the tree failed: {error}"),
+            StructureError::Restage(error) => write!(f, "Tree restaging failed: {error}"),
             StructureError::Hook { element, detail } => {
                 write!(
                     f,
-                    "the block-structure hook of ‘{element}’ failed: {detail}"
+                    "The block-structure hook of ‘{element}’ failed: {detail}"
                 )
             }
             StructureError::NoBody { element } => {
                 write!(
                     f,
-                    "the block-structure hook of ‘{element}’ asked for the body of a node \
-                           that has no body"
+                    "Misconfigured block-structure hook: ‘{element}’ has no body"
                 )
             }
             StructureError::Cut { element, detail } => {
-                write!(f, "dividing ‘{element}’ at the paragraph breaks and blocks of its content failed: {detail}")
+                write!(f, "Block and paragraph structure processing failed for ‘{element}’: {detail}")
             }
         }
     }
@@ -313,7 +311,7 @@ impl From<RestageError<StructureError>> for StructureError {
     fn from(error: RestageError<StructureError>) -> StructureError {
         match error {
             RestageError::Visitor(error) => error,
-            RestageError::DescentLimitExceeded { detail } => {
+            RestageError::DescentLimitExceeded { detail, .. } => {
                 StructureError::NestingTooDeep { detail }
             }
             other => StructureError::Restage(Box::new(other)),

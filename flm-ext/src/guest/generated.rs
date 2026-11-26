@@ -30,7 +30,7 @@ mod prelude {
     #[cfg(feature = "native")]
     pub(crate) use crate::adapter::typed::{FromApi, IntoApi};
     #[cfg(feature = "native")]
-    pub(crate) use crate::adapter::values::mismatch;
+    pub(crate) use crate::adapter::values::{mismatch, Group};
 }
 
 /// The guest's side of the modules under `flm:core`.
@@ -177,8 +177,8 @@ pub mod core {
             }
 
             impl ExtTableRead {
-                /// The items the table's writers pushed, in traversal order.
-                pub fn items(&self) -> Result<Vec<Value>, ExtError> {
+                /// No flm-core counterpart: the items the table's writers pushed, in the order they were pushed, as the sequence `Rows`, which shares them with the table.
+                pub fn items(&self) -> Result<Rows, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
                         let reply = abi::call(self.handle, "items", vec![])?;
@@ -194,6 +194,78 @@ pub mod core {
                     }
                 }
             }
+
+            /// No flm-core counterpart: the rows of an extension's own table, in the order its writers pushed them, as `ExtTableRead::items` answers them.
+            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+            pub struct Rows {
+                /// The handle the host lent for it.
+                pub(crate) handle: Handle,
+                /// The number of its items, which crossed with the handle.
+                pub(crate) len: usize,
+            }
+
+            impl JsonForm for Rows {
+                fn to_value(&self) -> Value {
+                    handle_to_value(self.handle)
+                }
+
+                fn from_value(value: &Value) -> Result<Self, ExtError> {
+                    let (handle, len) = abi::sequence_of(value, HandleKind::Rows)?;
+                    Ok(Rows { handle, len })
+                }
+            }
+
+            impl Rows {
+                /// The number of items, with no crossing.
+                pub fn len(&self) -> usize {
+                    self.len
+                }
+
+                /// Whether it has no item, with no crossing.
+                pub fn is_empty(&self) -> bool {
+                    self.len == 0
+                }
+
+                /// The items, in order, pulled from the host in groups: an item is a `Result`, since a pull crosses.
+                pub fn iter(&self) -> impl Iterator<Item = Result<Value, ExtError>> {
+                    let handle = self.handle;
+                    abi::Paged::new(self.len, move |from| {
+                        #[cfg(not(feature = "native"))]
+                        {
+                            let reply = abi::call(handle, "pull", vec![ToArg::arg(&from), ToArg::arg(&abi::PULL_GROUP), ToArg::arg(&abi::PULL_BYTES)])?;
+                            JsonForm::from_value(&reply)
+                        }
+                        #[cfg(feature = "native")]
+                        {
+                            abi::typed("pull", |table| {
+                                let this = entry!(table, handle, Rows, Rows);
+                                let answer = this.group(from, abi::PULL_GROUP, abi::PULL_BYTES);
+                                FromApi::from_api(Group(answer), table)
+                            })
+                        }
+                    })
+                }
+            }
+
+            impl Rows {
+                /// The row at the index `i`, copied, or `None` past the last row.
+                pub fn get(&self, i: usize) -> Result<Option<Value>, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "get", vec![ToArg::arg(&i)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("get", |table| {
+                            let a0 = IntoApi::into_api(i, table)?;
+                            let this = entry!(table, self.handle, Rows, Rows);
+                            let answer = this.get(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
+                }
+            }
         }
     }
 
@@ -203,15 +275,17 @@ pub mod core {
         use crate::guest::lang::BuiltLang;
         use crate::guest::techy::error::Diagnostic;
         use crate::guest::techy::node::Node;
+        use crate::guest::techy::node::Nodes;
+        use crate::guest::lang::rewrites::userdefs::StagedNodes;
         use crate::guest::core::data::table::TableValue;
         use crate::guest::techy::node::Tree;
 
-        pub use crate::api::core::lowering::{DefaultMark, LoweringDecl};
+        pub use crate::api::core::lowering::{DefaultMark, LoweringDecl, UncheckedOutputDecl};
         pub use crate::guest::hand::core_lowering::{Lower, Lowering, PresTree, NodeAddr};
         pub use crate::guest::lang::rewrites::userdefs::Staged;
 
         /// Mirrors `chars_at_lowering`: the characters of `nodes`, or the node that is not characters.
-        pub fn chars_at_lowering(nodes: &[Node]) -> Result<String, ExtError> {
+        pub fn chars_at_lowering(nodes: &Nodes) -> Result<String, ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 let reply = abi::call_module("core/lowering", "chars_at_lowering", vec![ToArg::arg(nodes)])?;
@@ -228,7 +302,7 @@ pub mod core {
         }
 
         /// Mirrors `spelling_at_lowering`: whether a rule may compute on the spelling of `nodes` (the content as written, markup included): no placeholder of a definition's template stands in it.
-        pub fn spelling_at_lowering(nodes: &[Node]) -> Result<(), ExtError> {
+        pub fn spelling_at_lowering(nodes: &Nodes) -> Result<(), ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 abi::call_module("core/lowering", "spelling_at_lowering", vec![ToArg::arg(nodes)])?;
@@ -506,7 +580,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::lower_children`.
-            pub fn lower_children(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn lower_children(&mut self, cx: &mut LowerCx, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "lower_children", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
@@ -527,7 +601,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::lower_body`.
-            pub fn lower_body(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn lower_body(&mut self, cx: &mut LowerCx, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "lower_body", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
@@ -548,7 +622,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::lower_arg`.
-            pub fn lower_arg(&mut self, cx: &mut LowerCx, node: &Node, index: usize) -> Result<Vec<Staged>, ExtError> {
+            pub fn lower_arg(&mut self, cx: &mut LowerCx, node: &Node, index: usize) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "lower_arg", vec![ToArg::arg(&*cx), ToArg::arg(node), ToArg::arg(&index)])?;
@@ -570,7 +644,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::lower_arg_named`.
-            pub fn lower_arg_named(&mut self, cx: &mut LowerCx, node: &Node, name: &str) -> Result<Vec<Staged>, ExtError> {
+            pub fn lower_arg_named(&mut self, cx: &mut LowerCx, node: &Node, name: &str) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "lower_arg_named", vec![ToArg::arg(&*cx), ToArg::arg(node), ToArg::arg(name)])?;
@@ -592,7 +666,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::lower_nodes`.
-            pub fn lower_nodes(&mut self, cx: &mut LowerCx, nodes: &[Node]) -> Result<Vec<Staged>, ExtError> {
+            pub fn lower_nodes(&mut self, cx: &mut LowerCx, nodes: &Nodes) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "lower_nodes", vec![ToArg::arg(&*cx), ToArg::arg(nodes)])?;
@@ -613,7 +687,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::default`.
-            pub fn default(&mut self, cx: &mut LowerCx, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn default(&mut self, cx: &mut LowerCx, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "default", vec![ToArg::arg(&*cx), ToArg::arg(node)])?;
@@ -634,7 +708,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::pres`: stages a node of the presentation element `element` carrying the payload `payload` and holding `children`.
-            pub fn pres(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, children: Vec<Staged>) -> Result<Staged, ExtError> {
+            pub fn pres(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, children: StagedNodes) -> Result<Staged, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "pres", vec![ToArg::arg(&*cx), ToArg::arg(element), ToArg::arg(payload), ToArg::arg(&children)])?;
@@ -645,7 +719,7 @@ pub mod core {
                     abi::typed("pres", |table| {
                         let a1 = IntoApi::into_api(element, table)?;
                         let a2 = IntoApi::into_api(payload, table)?;
-                        let a3 = IntoApi::into_api(children, table)?;
+                        let a3 = IntoApi::into_api(&children, table)?;
                         let answer = match table.entries_mut("pres", [self.handle, cx.handle])? {
                             [Entry::Lowerer(this), Entry::LowerCx(a0)] => this.pres(&mut **a0, a1, a2, a3),
                             [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
@@ -657,7 +731,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::pres_slots`.
-            pub fn pres_slots(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, slots: Vec<(String, Vec<Staged>)>) -> Result<Staged, ExtError> {
+            pub fn pres_slots(&mut self, cx: &mut LowerCx, element: &str, payload: &Value, slots: Vec<(String, StagedNodes)>) -> Result<Staged, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "pres_slots", vec![ToArg::arg(&*cx), ToArg::arg(element), ToArg::arg(payload), ToArg::arg(&slots)])?;
@@ -701,7 +775,7 @@ pub mod core {
             }
 
             /// Mirrors `Lowerer::splice`.
-            pub fn splice(&mut self, cx: &mut LowerCx, value: &Tree) -> Result<Vec<Staged>, ExtError> {
+            pub fn splice(&mut self, cx: &mut LowerCx, value: &Tree) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "splice", vec![ToArg::arg(&*cx), ToArg::arg(value)])?;
@@ -774,13 +848,13 @@ pub mod core {
             }
 
             /// a stub-only convenience forwarding to the free function `pres_tree` (a method of the guest client only).
-            pub fn pres_tree(&mut self, cx: &mut LowerCx, tree: &PresTree) -> Result<Staged, ExtError> {
+            pub fn pres_tree(&mut self, cx: &mut LowerCx, tree: &PresTree) -> Result<StagedNodes, ExtError> {
                 pres_tree(self, cx, tree)
             }
         }
 
-        /// No `flm-core` counterpart: stages the tree `tree` in one call, through `Lowerer::pres` and `Lowerer::text`, children first, and answers the staged root.
-        pub fn pres_tree(lw: &mut Lowerer, cx: &mut LowerCx, tree: &PresTree) -> Result<Staged, ExtError> {
+        /// No `flm-core` counterpart: stages the tree `tree` in one call, through `Lowerer::pres` and `Lowerer::text`, children first, and returns the tree's staged nodes: the one node staged for a `PresTree::Node` or a `PresTree::Text`, and the staged nodes of a `PresTree::Build` as they are.
+        pub fn pres_tree(lw: &mut Lowerer, cx: &mut LowerCx, tree: &PresTree) -> Result<StagedNodes, ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 let reply = abi::call_module("core/lowering", "pres_tree", vec![ToArg::arg(&*lw), ToArg::arg(&*cx), ToArg::arg(tree)])?;
@@ -865,6 +939,26 @@ pub mod core {
                         let a0 = IntoApi::into_api(&def, table)?;
                         let this = entry!(table, handle, Builder, FeatureBuilder);
                         this.element(a0)?;
+                        Ok(())
+                    })
+                }
+            }
+
+            /// Mirrors `FeatureBuilder::element_type_text`: gives the element type `name`, which this feature declares, its documentation text: what the nodes of that type mean, whatever their element value.
+            pub fn element_type_text(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
+                let Some(handle) = self.handle else { return Ok(()) };
+                #[cfg(not(feature = "native"))]
+                {
+                    abi::call(handle, "element_type_text", vec![ToArg::arg(name), ToArg::arg(docs)])?;
+                    Ok(())
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("element_type_text", |table| {
+                        let a0 = IntoApi::into_api(name, table)?;
+                        let a1 = IntoApi::into_api(docs, table)?;
+                        let this = entry!(table, handle, Builder, FeatureBuilder);
+                        this.element_type_text(a0, a1)?;
                         Ok(())
                     })
                 }
@@ -1333,6 +1427,8 @@ pub mod core {
         use crate::guest::host::HostHandle;
         use crate::guest::techy::node::Node;
         use crate::guest::core::lowering::NodeAddr;
+        use crate::guest::techy::node::NodeKindName;
+        use crate::guest::progress::ProgressScope;
         use crate::guest::core::stage::Scope;
         use crate::guest::core::data::table::TableValue;
         use crate::guest::techy::node::Tree;
@@ -1444,8 +1540,8 @@ pub mod core {
                 }
             }
 
-            /// Mirrors `StageCx::trees`: every frozen tree of the document.
-            pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+            /// Mirrors `StageCx::trees`: every frozen tree of the document, with its id.
+            pub fn trees(&self) -> Result<Trees, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "trees", vec![])?;
@@ -1462,7 +1558,7 @@ pub mod core {
             }
 
             /// Mirrors `StageCx::walk`: every node of every tree of the run, in document order (for a per-tree stage too).
-            pub fn walk(&self) -> Result<Vec<WalkEntry>, ExtError> {
+            pub fn walk(&self) -> Result<Walk, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "walk", vec![])?;
@@ -1603,6 +1699,148 @@ pub mod core {
                     })
                 }
             }
+
+            /// Mirrors `StageCx::progress`: the scope of the stage's row on the progress sheet of the build, under which the stage declares the rows of its own work and asks whether the build was asked to stop.
+            pub fn progress(&self) -> Result<ProgressScope, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "progress", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("progress", |table| {
+                        let this = *entry!(table, self.handle, StageCx, StageCx);
+                        let answer = this.progress();
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+        }
+
+        /// Mirrors `FrozenWalk`: an iterator over every node of every tree of the run, in document order, with its address.
+        #[derive(Debug)]
+        pub struct Walk {
+            /// The handle the host lent for it.
+            pub(crate) handle: Handle,
+            /// The items pulled and not handed over yet.
+            pub(crate) pulled: abi::Pulled<WalkEntry>,
+        }
+
+        impl JsonForm for Walk {
+            fn to_value(&self) -> Value {
+                handle_to_value(self.handle)
+            }
+
+            fn from_value(value: &Value) -> Result<Self, ExtError> {
+                Ok(Walk { handle: abi::handle_of(value, HandleKind::Walk)?, pulled: abi::Pulled::default() })
+            }
+        }
+
+        impl Iterator for Walk {
+            type Item = Result<WalkEntry, ExtError>;
+
+            fn next(&mut self) -> Option<Result<WalkEntry, ExtError>> {
+                let handle = self.handle;
+                self.pulled.next(|max| {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(handle, "pull", vec![ToArg::arg(&max)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("pull", |table| {
+                            let this = entry!(table, handle, Walk, Walk);
+                            let answer = this.pull(max);
+                            FromApi::from_api(Group(answer), table)
+                        })
+                    }
+                })
+            }
+        }
+
+        impl Walk {
+            /// Mirrors `Iterator::filter` on `FrozenWalk`: the entries not taken yet whose node's element has one of the names `names` (the name `Node::element_name` answers), in their order.
+            pub fn elements(self, names: impl IntoIterator<Item = impl Into<String>>) -> Result<Walk, ExtError> {
+                let unhanded = self.pulled.held();
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "elements", vec![ToArg::arg(&names.into_iter().map(Into::into).collect::<Vec<String>>()), ToArg::arg(&unhanded)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    let names = names.into_iter().map(Into::into).collect::<Vec<String>>();
+                    abi::typed("elements", |table| {
+                        let a0 = IntoApi::into_api(names, table)?;
+                        let this = entry!(table, self.handle, Walk, Walk).rest(unhanded);
+                        let answer = this.elements(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+
+            /// Mirrors `Iterator::filter` on `FrozenWalk`: the entries not taken yet whose node's kind (`Node::kind`) is one of `kinds`, in their order.
+            pub fn kinds(self, kinds: &[NodeKindName]) -> Result<Walk, ExtError> {
+                let unhanded = self.pulled.held();
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "kinds", vec![ToArg::arg(kinds), ToArg::arg(&unhanded)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("kinds", |table| {
+                        let a0 = IntoApi::into_api(kinds, table)?;
+                        let this = entry!(table, self.handle, Walk, Walk).rest(unhanded);
+                        let answer = this.kinds(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+        }
+
+        /// Mirrors the iterator that `StageCx::trees` answers: trees, each with its id.
+        #[derive(Debug)]
+        pub struct Trees {
+            /// The handle the host lent for it.
+            pub(crate) handle: Handle,
+            /// The items pulled and not handed over yet.
+            pub(crate) pulled: abi::Pulled<(String, Tree)>,
+        }
+
+        impl JsonForm for Trees {
+            fn to_value(&self) -> Value {
+                handle_to_value(self.handle)
+            }
+
+            fn from_value(value: &Value) -> Result<Self, ExtError> {
+                Ok(Trees { handle: abi::handle_of(value, HandleKind::Trees)?, pulled: abi::Pulled::default() })
+            }
+        }
+
+        impl Iterator for Trees {
+            type Item = Result<(String, Tree), ExtError>;
+
+            fn next(&mut self) -> Option<Result<(String, Tree), ExtError>> {
+                let handle = self.handle;
+                self.pulled.next(|max| {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(handle, "pull", vec![ToArg::arg(&max)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("pull", |table| {
+                            let this = entry!(table, handle, Trees, Trees);
+                            let answer = this.pull(max);
+                            FromApi::from_api(Group(answer), table)
+                        })
+                    }
+                })
+            }
         }
 
         /// Mirrors `RewriteCx`: what a rewrite stage's handler reads, lent for one call (`RewriteStage::restage`).
@@ -1691,6 +1929,7 @@ pub mod core {
     pub mod stage {
         use crate::guest::generated::prelude::*;
         use crate::guest::techy::node::Tree;
+        use crate::guest::core::run::Trees;
 
         pub use crate::api::core::stage::{Effect, Scope, StageDecl, Needs, RewriteDecl};
         pub use crate::guest::hand::core_stage::{Stage, RewriteStage};
@@ -1715,7 +1954,7 @@ pub mod core {
 
         impl TreesTable {
             /// The table's trees, by id, in id order.
-            pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+            pub fn trees(&self) -> Result<Trees, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "trees", vec![])?;
@@ -1756,7 +1995,6 @@ pub mod core {
 pub mod host {
     use crate::guest::generated::prelude::*;
 
-    pub use crate::api::host::FilesScope;
     pub use crate::guest::hand::host::HostHandle;
 
     /// No `flm-core` counterpart: a host service the package declared, as a handler calls it (`crate::host::HostService` behind it).
@@ -1832,20 +2070,19 @@ pub mod host {
     }
 
     impl Files {
-        /// The text of the file at `path` in the root `scope`, or `None` (`null` to a script) when nothing is there.
-        pub fn read_text(&self, scope: FilesScope, path: &str) -> Result<Option<String>, ExtError> {
+        /// The text of the file at `path`, or `None` (`null` to a script) when nothing is there.
+        pub fn read_text(&self, path: &str) -> Result<Option<String>, ExtError> {
             #[cfg(not(feature = "native"))]
             {
-                let reply = abi::call(self.handle, "read_text", vec![ToArg::arg(&scope), ToArg::arg(path)])?;
+                let reply = abi::call(self.handle, "read_text", vec![ToArg::arg(path)])?;
                 JsonForm::from_value(&reply)
             }
             #[cfg(feature = "native")]
             {
                 abi::typed("read_text", |table| {
-                    let a0 = IntoApi::into_api(scope, table)?;
-                    let a1 = IntoApi::into_api(path, table)?;
+                    let a0 = IntoApi::into_api(path, table)?;
                     let this = &**entry!(table, self.handle, Files, Files);
-                    let answer = this.read_text(a0, a1)?;
+                    let answer = this.read_text(a0)?;
                     FromApi::from_api(answer, table)
                 })
             }
@@ -1853,7 +2090,7 @@ pub mod host {
     }
 }
 
-/// The guest's side of `flm:lang`. Mirrors `flm_core::lang`: declarations, the text readers, the rewrites, the names of the structural elements, and the built language and its diagnostics, which a late-initialization hook is lent.
+/// The guest's side of `flm:lang`. Mirrors `flm_core::lang`: declarations, the text readers, the value of a key-value entry as pieces of the document, the rewrites, the names of the structural elements, and the built language and its diagnostics, which a late-initialization hook is lent.
 pub mod lang {
     use crate::guest::generated::prelude::*;
     use crate::guest::techy::error::Diagnostic;
@@ -1912,6 +2149,11 @@ pub mod lang {
         }
     }
 
+    /// The guest's side of `flm:lang/copy`. Mirrors `flm_core::lang::copy`: the value of a key-value entry as pieces of the document it was read from.
+    pub mod copy {
+        pub use crate::guest::hand::lang_copy::WrittenPiece;
+    }
+
     /// The guest's side of `flm:lang/mint`. Mirrors `flm_core::lang::mint`: the declarations of elements and fallbacks, and the argument and body definitions they carry.
     pub mod mint {
         pub use crate::api::lang::mint::{ArgLayout, BodyDef, BodyLayout, FallbackKind, Mode};
@@ -1955,7 +2197,7 @@ pub mod lang {
             use crate::guest::techy::node::Tree;
 
             pub use crate::api::lang::rewrites::userdefs::{DefinitionKind, DefinitionModes, ExpandPolicy, PlaceholderTarget, PlaceholderVocabulary, PlaceholderRef, TemplateSpec};
-            pub use crate::guest::hand::lang_rewrites_userdefs::{Definition, Expand, Expansion, CompiledTemplate, TemplateLanguage, ExtraValues};
+            pub use crate::guest::hand::lang_rewrites_userdefs::{Definition, Expand, Expansion, CompiledTemplate, TemplateLanguage, ExtraValues, StagedNodes};
 
             /// Mirrors techy's `BuildId`: a node staged during one call of an expansion hook, or of a lowering rule's body (`Lower`).
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2042,7 +2284,7 @@ pub mod lang {
                 }
 
                 /// Mirrors `Expander::instantiate`: stages `template` with `bindings` at the use site `site`.
-                pub fn instantiate(&mut self, cx: &mut ExpandCx, site: &Node, template: &CompiledTemplate, bindings: &PlaceholderBindings) -> Result<Vec<Staged>, ExtError> {
+                pub fn instantiate(&mut self, cx: &mut ExpandCx, site: &Node, template: &CompiledTemplate, bindings: &PlaceholderBindings) -> Result<StagedNodes, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
                         let reply = abi::call(self.handle, "instantiate", vec![ToArg::arg(&*cx), ToArg::arg(site), ToArg::arg(template), ToArg::arg(bindings)])?;
@@ -2059,7 +2301,7 @@ pub mod lang {
                 }
 
                 /// Mirrors `Expander::recover`: reports `diagnostic` and stages the use site's literal text.
-                pub fn recover(&mut self, cx: &mut ExpandCx, site: &Node, diagnostic: Diagnostic) -> Result<Vec<Staged>, ExtError> {
+                pub fn recover(&mut self, cx: &mut ExpandCx, site: &Node, diagnostic: Diagnostic) -> Result<StagedNodes, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
                         let reply = abi::call(self.handle, "recover", vec![ToArg::arg(&*cx), ToArg::arg(site), ToArg::arg(&diagnostic)])?;
@@ -2437,12 +2679,12 @@ pub mod lang {
     /// The guest's side of `flm:lang/text`. Mirrors `flm_core::lang::text`: reading the characters of a run of nodes.
     pub mod text {
         use crate::guest::generated::prelude::*;
-        use crate::guest::techy::node::Node;
+        use crate::guest::techy::node::Nodes;
 
         pub use crate::api::lang::text::CharsContent;
 
         /// Mirrors `chars_text`: the characters of `nodes`, or `None` when they hold anything but characters.
-        pub fn chars_text(nodes: &[Node]) -> Result<Option<String>, ExtError> {
+        pub fn chars_text(nodes: &Nodes) -> Result<Option<String>, ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 let reply = abi::call_module("lang/text", "chars_text", vec![ToArg::arg(nodes)])?;
@@ -2459,7 +2701,7 @@ pub mod lang {
         }
 
         /// Mirrors `read_chars`: the characters of `nodes`, placeholders included.
-        pub fn read_chars(nodes: &[Node]) -> Result<CharsContent, ExtError> {
+        pub fn read_chars(nodes: &Nodes) -> Result<CharsContent, ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 let reply = abi::call_module("lang/text", "read_chars", vec![ToArg::arg(nodes)])?;
@@ -2470,6 +2712,91 @@ pub mod lang {
                 abi::typed("read_chars", |table| {
                     let a0 = IntoApi::into_api(nodes, table)?;
                     let answer = crate::api::lang::text::read_chars(&a0);
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+    }
+}
+
+/// The guest's side of `flm:math_passthrough`. Mirrors `flm_core::math_passthrough`: the formula rules of the `math-passthrough` feature that write a formula as LaTeX, which another feature that processes mathematics registers under rule names of its own (the rules of the `latex-recomposed` backend are in `latex`).
+pub mod math_passthrough {
+    use crate::guest::generated::prelude::*;
+
+    pub use crate::guest::core::lowering::DefaultMark;
+    pub use crate::guest::core::lowering::LoweringRule;
+
+    /// Mirrors `math_rule_named`: the library's rule of `flm.math` that stages `flm.pres.math-passthrough`, under the rule name `name` and the default mark `mark`.
+    pub fn math_rule_named(name: &str, mark: DefaultMark) -> Result<LoweringRule, ExtError> {
+        #[cfg(not(feature = "native"))]
+        {
+            let reply = abi::call_module("math_passthrough", "math_rule_named", vec![ToArg::arg(name), ToArg::arg(&mark)])?;
+            JsonForm::from_value(&reply)
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::typed("math_rule_named", |table| {
+                let a0 = IntoApi::into_api(name, table)?;
+                let a1 = IntoApi::into_api(mark, table)?;
+                let answer = crate::api::math_passthrough::math_rule_named(a0, a1);
+                FromApi::from_api(answer, table)
+            })
+        }
+    }
+
+    /// Mirrors `environment_rule_named`: the library's rule of `flm.math.environment` that stages `flm.pres.math-passthrough`, under the rule name `name` and the default mark `mark`.
+    pub fn environment_rule_named(name: &str, mark: DefaultMark) -> Result<LoweringRule, ExtError> {
+        #[cfg(not(feature = "native"))]
+        {
+            let reply = abi::call_module("math_passthrough", "environment_rule_named", vec![ToArg::arg(name), ToArg::arg(&mark)])?;
+            JsonForm::from_value(&reply)
+        }
+        #[cfg(feature = "native")]
+        {
+            abi::typed("environment_rule_named", |table| {
+                let a0 = IntoApi::into_api(name, table)?;
+                let a1 = IntoApi::into_api(mark, table)?;
+                let answer = crate::api::math_passthrough::environment_rule_named(a0, a1);
+                FromApi::from_api(answer, table)
+            })
+        }
+    }
+
+    /// The guest's side of `flm:math_passthrough/latex`. Mirrors `flm_core::math_passthrough::latex`: the formula rules of the `math-passthrough` feature for the `latex-recomposed` backend, which another feature that processes mathematics registers under rule names of its own.
+    pub mod latex {
+        use crate::guest::generated::prelude::*;
+
+        pub use crate::guest::core::lowering::LoweringRule;
+
+        /// Mirrors `math_rule_named`: the library's rule of `flm.math` for the `latex-recomposed` backend, under the rule name `name`.
+        pub fn math_rule_named(name: &str) -> Result<LoweringRule, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("math_passthrough/latex", "math_rule_named", vec![ToArg::arg(name)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("math_rule_named", |table| {
+                    let a0 = IntoApi::into_api(name, table)?;
+                    let answer = crate::api::math_passthrough::latex::math_rule_named(a0);
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+
+        /// Mirrors `environment_rule_named`: the library's rule of `flm.math.environment` for the `latex-recomposed` backend, under the rule name `name`.
+        pub fn environment_rule_named(name: &str) -> Result<LoweringRule, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call_module("math_passthrough/latex", "environment_rule_named", vec![ToArg::arg(name)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("environment_rule_named", |table| {
+                    let a0 = IntoApi::into_api(name, table)?;
+                    let answer = crate::api::math_passthrough::latex::environment_rule_named(a0);
                     FromApi::from_api(answer, table)
                 })
             }
@@ -2491,63 +2818,305 @@ pub mod model {
     }
 }
 
-/// The guest's side of the modules under `flm:stdcore`.
-pub mod stdcore {
-    /// The guest's side of the modules under `flm:stdcore/backends`.
-    pub mod backends {
-        /// The guest's side of `flm:stdcore/backends/html`. Mirrors `flm_core::stdcore::backends::html::construct`: the HTML backend's construct, which a rule's body on the `html` backend stages as any presentation element, and declares with `LoweringDecl::produces`.
-        pub mod html {
-            pub use crate::api::stdcore::backends::html::TAG;
+/// The guest's side of `flm:progress`. Mirrors `flm_core::progress`: the handles through which a handler reports its work on the progress sheet of a build and asks whether the build was asked to stop.
+pub mod progress {
+    use crate::guest::generated::prelude::*;
+
+    pub use crate::api::progress::Unit;
+
+    /// Mirrors `Scope`: lent to the code that works under a running row, to declare rows under it and to ask whether the build was asked to stop.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ProgressScope {
+        /// The handle the host lent for it.
+        pub(crate) handle: Handle,
+    }
+
+    impl JsonForm for ProgressScope {
+        fn to_value(&self) -> Value {
+            handle_to_value(self.handle)
         }
 
-        /// The guest's side of `flm:stdcore/backends/latex`. Mirrors `flm_core::stdcore::backends::latex`: the LaTeX family's construct elements, which a rule on the recomposed LaTeX backend stages, their payloads, and the two service slots of the style file (`preamble`, `packages`).
-        pub mod latex {
-            pub use crate::api::stdcore::backends::latex::{MACRO, ENVIRONMENT, RAW, DEFINITION, ALL, ARG_SLOT, BEGIN_SLOT, END_SLOT, RECOMPOSED_BACKEND, LatexArgShape, LatexDefinitionKind, LatexDefinitionPayload, LatexEnvironmentPayload, LatexMacroPayload, LatexRawPayload};
-            pub use crate::guest::stdcore::backends::latex::preamble::LatexPreambleDef;
-            pub use crate::guest::stdcore::backends::latex::packages::LatexPackageDef;
+        fn from_value(value: &Value) -> Result<Self, ExtError> {
+            Ok(ProgressScope { handle: abi::handle_of(value, HandleKind::ProgressScope)? })
+        }
+    }
 
-            /// The guest's side of `flm:stdcore/backends/latex/packages`. Mirrors `flm_core::stdcore::backends::latex::packages`: the service slot of the style file's package requests, the identifiers of the family's standard packages, and the request a feature contributes.
+    impl ProgressScope {
+        /// Mirrors `Scope::child`: declares a row of the kind named `kind`, of title `title`, labeled `label`, under this scope's row, and returns it, not started.
+        pub fn child(&self, kind: &str, title: Option<String>, label: Option<String>) -> Result<Pending, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "child", vec![ToArg::arg(kind), ToArg::arg(&title), ToArg::arg(&label)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("child", |table| {
+                    let a0 = IntoApi::into_api(kind, table)?;
+                    let a1 = IntoApi::into_api(title, table)?;
+                    let a2 = IntoApi::into_api(label, table)?;
+                    let this = &**entry!(table, self.handle, ProgressScope, ProgressScope);
+                    let answer = this.child(a0, a1, a2);
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+
+        /// Mirrors `Scope::cancelled`: whether the build was asked to stop.
+        pub fn cancelled(&self) -> Result<bool, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "cancelled", vec![])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("cancelled", |table| {
+                    let this = &**entry!(table, self.handle, ProgressScope, ProgressScope);
+                    let answer = this.cancelled();
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+    }
+
+    /// Mirrors `Pending`: a declared row, not started.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Pending {
+        /// The handle the host lent for it.
+        pub(crate) handle: Handle,
+    }
+
+    impl JsonForm for Pending {
+        fn to_value(&self) -> Value {
+            handle_to_value(self.handle)
+        }
+
+        fn from_value(value: &Value) -> Result<Self, ExtError> {
+            Ok(Pending { handle: abi::handle_of(value, HandleKind::Pending)? })
+        }
+    }
+
+    impl Pending {
+        /// Mirrors `Pending::start`: starts the row, with nothing to count.
+        pub fn start(&self) -> Result<Task, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "start", vec![])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("start", |table| {
+                    let this = &**entry!(table, self.handle, Pending, Pending);
+                    let answer = this.start();
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+
+        /// Mirrors `Pending::start_counted`: starts the row with a count of `total` units of `unit`.
+        pub fn start_counted(&self, unit: Unit, total: u64) -> Result<Counted, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "start_counted", vec![ToArg::arg(&unit), ToArg::arg(&total)])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("start_counted", |table| {
+                    let a0 = IntoApi::into_api(unit, table)?;
+                    let a1 = IntoApi::into_api(total, table)?;
+                    let this = &**entry!(table, self.handle, Pending, Pending);
+                    let answer = this.start_counted(a0, a1);
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+    }
+
+    /// Mirrors `Task`: a running row with nothing to count.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Task {
+        /// The handle the host lent for it.
+        pub(crate) handle: Handle,
+    }
+
+    impl JsonForm for Task {
+        fn to_value(&self) -> Value {
+            handle_to_value(self.handle)
+        }
+
+        fn from_value(value: &Value) -> Result<Self, ExtError> {
+            Ok(Task { handle: abi::handle_of(value, HandleKind::Task)? })
+        }
+    }
+
+    impl Task {
+        /// Mirrors `Task::scope`: the scope of the row, for the work under it.
+        pub fn scope(&self) -> Result<ProgressScope, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "scope", vec![])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("scope", |table| {
+                    let this = &**entry!(table, self.handle, Task, Task);
+                    let answer = this.scope();
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+
+        /// Mirrors `Task::finish`: ends the row as finished.
+        pub fn finish(&self) -> Result<(), ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                abi::call(self.handle, "finish", vec![])?;
+                Ok(())
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("finish", |table| {
+                    let this = &**entry!(table, self.handle, Task, Task);
+                    this.finish();
+                    Ok(())
+                })
+            }
+        }
+    }
+
+    /// Mirrors `Counted`: a running row with a count.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Counted {
+        /// The handle the host lent for it.
+        pub(crate) handle: Handle,
+    }
+
+    impl JsonForm for Counted {
+        fn to_value(&self) -> Value {
+            handle_to_value(self.handle)
+        }
+
+        fn from_value(value: &Value) -> Result<Self, ExtError> {
+            Ok(Counted { handle: abi::handle_of(value, HandleKind::Counted)? })
+        }
+    }
+
+    impl Counted {
+        /// Mirrors `Counted::advance`: adds `n` to the number done, which never goes past the total.
+        pub fn advance(&self, n: u64) -> Result<(), ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                abi::call(self.handle, "advance", vec![ToArg::arg(&n)])?;
+                Ok(())
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("advance", |table| {
+                    let a0 = IntoApi::into_api(n, table)?;
+                    let this = &**entry!(table, self.handle, Counted, Counted);
+                    this.advance(a0);
+                    Ok(())
+                })
+            }
+        }
+
+        /// Mirrors `Counted::scope`: the scope of the row, for the work under it.
+        pub fn scope(&self) -> Result<ProgressScope, ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                let reply = abi::call(self.handle, "scope", vec![])?;
+                JsonForm::from_value(&reply)
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("scope", |table| {
+                    let this = &**entry!(table, self.handle, Counted, Counted);
+                    let answer = this.scope();
+                    FromApi::from_api(answer, table)
+                })
+            }
+        }
+
+        /// Mirrors `Counted::finish`: ends the row as finished.
+        pub fn finish(&self) -> Result<(), ExtError> {
+            #[cfg(not(feature = "native"))]
+            {
+                abi::call(self.handle, "finish", vec![])?;
+                Ok(())
+            }
+            #[cfg(feature = "native")]
+            {
+                abi::typed("finish", |table| {
+                    let this = &**entry!(table, self.handle, Counted, Counted);
+                    this.finish();
+                    Ok(())
+                })
+            }
+        }
+    }
+}
+
+/// The guest's side of the modules under `flm:stdlib`.
+pub mod stdlib {
+    /// The guest's side of the modules under `flm:stdlib/backends`.
+    pub mod backends {
+        /// The guest's side of `flm:stdlib/backends/html`. Mirrors `flm_core::stdlib::backends::html::construct`: the HTML backend's construct, which a rule's body on the `html` backend stages as any presentation element, and declares with `LoweringDecl::produces`.
+        pub mod html {
+            pub use crate::api::stdlib::backends::html::TAG;
+        }
+
+        /// The guest's side of `flm:stdlib/backends/latex`. Mirrors `flm_core::stdlib::backends::latex`: the LaTeX family's construct elements, which a rule on the recomposed LaTeX backend stages, their payloads, and the two service slots of the style file (`preamble`, `packages`).
+        pub mod latex {
+            pub use crate::api::stdlib::backends::latex::{MACRO, ENVIRONMENT, RAW, DEFINITION, ALL, ARG_SLOT, BEGIN_SLOT, END_SLOT, RECOMPOSED_BACKEND, LatexArgShape, LatexDefinitionKind, LatexDefinitionPayload, LatexEnvironmentPayload, LatexMacroPayload, LatexRawPayload};
+            pub use crate::guest::stdlib::backends::latex::preamble::LatexPreambleDef;
+            pub use crate::guest::stdlib::backends::latex::packages::LatexPackageDef;
+
+            /// The guest's side of `flm:stdlib/backends/latex/packages`. Mirrors `flm_core::stdlib::backends::latex::packages`: the service slot of the style file's package requests, the identifiers of the family's standard packages, and the request a feature contributes.
             pub mod packages {
                 use crate::guest::generated::prelude::*;
 
-                pub use crate::api::stdcore::backends::latex::packages::{SLOT, ID_PREFIX, AMSMATH, ZREF_CLEVER, TEXTCASE, HYPERREF, FVEXTRA, NEWUNICODECHAR, ENUMITEM, AMSTHM, PHFTHM, PHFCC, GRAPHICX, ADJUSTBOX, CAPTION, TABULARRAY, XCOLOR, LatexPackageDef};
+                pub use crate::api::stdlib::backends::latex::packages::{SLOT, ID_PREFIX, AMSMATH, ZREF_CLEVER, TEXTCASE, HYPERREF, FVEXTRA, NEWUNICODECHAR, ENUMITEM, AMSTHM, PHFTHM, PHFCC, GRAPHICX, ADJUSTBOX, CAPTION, TABULARRAY, XCOLOR, LatexPackageDef};
 
                 /// Mirrors `package_id`: the identifier of the package `name`, `ID_PREFIX` followed by `name`.
                 pub fn package_id(name: &str) -> Result<String, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
-                        let reply = abi::call_module("stdcore/backends/latex/packages", "package_id", vec![ToArg::arg(name)])?;
+                        let reply = abi::call_module("stdlib/backends/latex/packages", "package_id", vec![ToArg::arg(name)])?;
                         JsonForm::from_value(&reply)
                     }
                     #[cfg(feature = "native")]
                     {
                         abi::typed("package_id", |table| {
                             let a0 = IntoApi::into_api(name, table)?;
-                            let answer = crate::api::stdcore::backends::latex::packages::package_id(a0);
+                            let answer = crate::api::stdlib::backends::latex::packages::package_id(a0);
                             FromApi::from_api(answer, table)
                         })
                     }
                 }
             }
 
-            /// The guest's side of `flm:stdcore/backends/latex/preamble`. Mirrors `flm_core::stdcore::backends::latex::preamble`: the service slot of the style file's definition pieces, the identifiers of the family's own pieces, and the piece a feature contributes.
+            /// The guest's side of `flm:stdlib/backends/latex/preamble`. Mirrors `flm_core::stdlib::backends::latex::preamble`: the service slot of the style file's definition pieces, the identifiers of the family's own pieces, and the piece a feature contributes.
             pub mod preamble {
                 use crate::guest::generated::prelude::*;
 
-                pub use crate::api::stdcore::backends::latex::preamble::{SLOT, ID_PREFIX, REFS, HYPERREF, LABEL_DISPLAY_TEXT, ZREF_CLEVER_TYPE, LABELS, HEADING, VERBATIM, MATH_ENVIRONMENT, IF_BLANK, USER_ARGS, TAB_WIDTH, LatexPreambleDef};
+                pub use crate::api::stdlib::backends::latex::preamble::{SLOT, ID_PREFIX, REFS, HYPERREF, LABEL_DISPLAY_TEXT, ZREF_CLEVER_TYPE, LABELS, HEADING, VERBATIM, MATH_ENVIRONMENT, IF_BLANK, USER_ARGS, TAB_WIDTH, LatexPreambleDef};
 
                 /// Mirrors `piece_id`: the identifier of the piece `name`, `ID_PREFIX` followed by `name`.
                 pub fn piece_id(name: &str) -> Result<String, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
-                        let reply = abi::call_module("stdcore/backends/latex/preamble", "piece_id", vec![ToArg::arg(name)])?;
+                        let reply = abi::call_module("stdlib/backends/latex/preamble", "piece_id", vec![ToArg::arg(name)])?;
                         JsonForm::from_value(&reply)
                     }
                     #[cfg(feature = "native")]
                     {
                         abi::typed("piece_id", |table| {
                             let a0 = IntoApi::into_api(name, table)?;
-                            let answer = crate::api::stdcore::backends::latex::preamble::piece_id(a0);
+                            let answer = crate::api::stdlib::backends::latex::preamble::piece_id(a0);
                             FromApi::from_api(answer, table)
                         })
                     }
@@ -2555,11 +3124,17 @@ pub mod stdcore {
             }
         }
 
-        /// The guest's side of `flm:stdcore/backends/lowering`. Mirrors `flm_core::stdcore::backends::lowering`: the library's lowering stage, which a backend declares as its own (`BackendDef`), the name of the table it writes, and what it writes, read by the backend's emit stage.
+        /// The guest's side of `flm:stdlib/backends/lowering`. Mirrors `flm_core::stdlib::backends::lowering`: the library's lowering stage, which a backend declares as its own (`BackendDef`), the name of the table it writes, and what it writes, read by the backend's emit stage; and the blank test and the trimmed staging of the content a rule cuts out of a longer run itself.
         pub mod lowering {
             use crate::guest::generated::prelude::*;
             use crate::guest::core::registry::LibraryStage;
+            use crate::guest::core::lowering::LowerCx;
+            use crate::guest::core::lowering::Lowerer;
+            use crate::guest::techy::node::Node;
+            use crate::guest::techy::node::Nodes;
+            use crate::guest::lang::rewrites::userdefs::StagedNodes;
             use crate::guest::techy::node::Tree;
+            use crate::guest::core::run::Trees;
 
             /// Mirrors `LoweredTrees`: the lowered trees of one backend, the table `flm.lowered.<backend>`, each with the fields of its `LoweredTree`.
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2580,7 +3155,7 @@ pub mod stdcore {
 
             impl LoweredTrees {
                 /// Mirrors the field `LoweredTrees::trees`: every lowered tree, by the id of the document tree it was lowered from, in id order.
-                pub fn trees(&self) -> Result<Vec<(String, Tree)>, ExtError> {
+                pub fn trees(&self) -> Result<Trees, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
                         let reply = abi::call(self.handle, "trees", vec![])?;
@@ -2649,6 +3224,24 @@ pub mod stdcore {
                         })
                     }
                 }
+
+                /// Mirrors `LoweredAddr::resolve`: the node at the address `addr` of a lowered tree, looked up in these trees.
+                pub fn node_at(&self, addr: &str) -> Result<Option<Node>, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "node_at", vec![ToArg::arg(addr)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("node_at", |table| {
+                            let a0 = IntoApi::into_api(addr, table)?;
+                            let this = &**entry!(table, self.handle, LoweredTrees, LoweredTrees);
+                            let answer = this.node_at(a0);
+                            FromApi::from_api(answer, table)
+                        })
+                    }
+                }
             }
 
             /// Mirrors `LoweringStage`: the library's lowering stage for one backend, `flm.<backend>.lower`, a stage computing per tree that lowers every frozen tree with the rules the plan selected for the backend and writes the table `flm.lowered.<backend>` (`lowered_table_name`).
@@ -2661,14 +3254,14 @@ pub mod stdcore {
                 pub fn new(backend: &str) -> Result<LibraryStage, ExtError> {
                     #[cfg(not(feature = "native"))]
                     {
-                        let reply = abi::call_module("stdcore/backends/lowering", "LoweringStage::new", vec![ToArg::arg(backend)])?;
+                        let reply = abi::call_module("stdlib/backends/lowering", "LoweringStage::new", vec![ToArg::arg(backend)])?;
                         JsonForm::from_value(&reply)
                     }
                     #[cfg(feature = "native")]
                     {
                         abi::typed("LoweringStage::new", |table| {
                             let a0 = IntoApi::into_api(backend, table)?;
-                            let answer = crate::api::stdcore::backends::lowering::LoweringStage::new(a0);
+                            let answer = crate::api::stdlib::backends::lowering::LoweringStage::new(a0);
                             FromApi::from_api(answer, table)
                         })
                     }
@@ -2679,35 +3272,74 @@ pub mod stdcore {
             pub fn lowered_table_name(backend: &str) -> Result<String, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/backends/lowering", "lowered_table_name", vec![ToArg::arg(backend)])?;
+                    let reply = abi::call_module("stdlib/backends/lowering", "lowered_table_name", vec![ToArg::arg(backend)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("lowered_table_name", |table| {
                         let a0 = IntoApi::into_api(backend, table)?;
-                        let answer = crate::api::stdcore::backends::lowering::lowered_table_name(a0);
+                        let answer = crate::api::stdlib::backends::lowering::lowered_table_name(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+
+            /// Mirrors `is_blank`: whether `node` is blank, a node that is whitespace, such as `~` and `\ `, or text made of whitespace alone (the space, the tab, the carriage return and the line feed); the one blank test of every reader of FLM content.
+            pub fn is_blank(node: &Node) -> Result<bool, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdlib/backends/lowering", "is_blank", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("is_blank", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdlib::backends::lowering::is_blank(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+
+            /// Mirrors `stage_trimmed`: stages `content`, inline content that the rule cuts out of a longer run itself, without the whitespace at its edges: the blank nodes (`is_blank`) and the comments before its first content and after its last are left out, and the text at either edge is staged without its leading or its trailing whitespace.
+            pub fn stage_trimmed(cx: &mut LowerCx, lw: &mut Lowerer, content: &Nodes) -> Result<StagedNodes, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdlib/backends/lowering", "stage_trimmed", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(content)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("stage_trimmed", |table| {
+                        let a2 = IntoApi::into_api(content, table)?;
+                        let answer = match table.entries_mut("stage_trimmed", [cx.handle, lw.handle])? {
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::backends::lowering::stage_trimmed(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                            [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+                        }?;
                         FromApi::from_api(answer, table)
                     })
                 }
             }
         }
 
-        /// The guest's side of `flm:stdcore/backends/pres`. Mirrors `flm_core::stdcore::backends::pres::names`: the names of the standard presentation elements and of their content slots, which a rule's body stages with `Lowerer::pres`, `Lowerer::pres_slots` or `pres_tree`, and declares with `LoweringDecl::produces`.
+        /// The guest's side of `flm:stdlib/backends/pres`. Mirrors `flm_core::stdlib::backends::pres::names`: the names of the standard presentation elements and of their content slots, which a rule's body stages with `Lowerer::pres`, `Lowerer::pres_slots` or `pres_tree`, and declares with `LoweringDecl::produces`.
         pub mod pres {
-            pub use crate::api::stdcore::backends::pres::{PAR, BLOCK, BLOCK_HEADING, RUNIN_HEADING, SPAN, LIST, CELLS, LINES, LINE, VERBATIM, MATH_PASSTHROUGH, MATH_TEXT, LINK, IMAGE, UNSUPPORTED, DROPPED, UNKNOWN, DECO_RUNIN, DECO_FINAL, DECO_MARGIN, DECO_MARK, SUBTREE, ALL, BODY_SLOT, LABEL_SLOT, ITEM_SLOT, CELL_SLOT};
+            pub use crate::api::stdlib::backends::pres::{PAR, BLOCK, BLOCK_HEADING, RUNIN_HEADING, SPAN, LIST, CELLS, LINES, LINE, VERBATIM, MATH_PASSTHROUGH, MATH_TEXT, LINK, IMAGE, UNSUPPORTED, DROPPED, UNKNOWN, DECO_RUNIN, DECO_FINAL, DECO_MARGIN, DECO_MARK, SUBTREE, ALL, BODY_SLOT, LABEL_SLOT, ITEM_SLOT, CELL_SLOT};
         }
     }
 
-    /// The guest's side of the modules under `flm:stdcore/features`.
+    /// The guest's side of the modules under `flm:stdlib/features`.
     pub mod features {
-        /// The guest's side of `flm:stdcore/features/citations`. Mirrors `flm_core::stdcore::features::citations`: the citation provider as an extension writes one, contributed to `PROVIDERS_SLOT`, and the context the retrieve stage lends it (`ProviderCx`).
+        /// The guest's side of `flm:stdlib/features/citations`. Mirrors `flm_core::stdlib::features::citations`: the citation provider as an extension writes one, contributed to `PROVIDERS_SLOT`, and the context the retrieve stage lends it (`ProviderCx`).
         pub mod citations {
             use crate::guest::generated::prelude::*;
             use crate::guest::host::HostHandle;
+            use crate::guest::progress::ProgressScope;
 
-            pub use crate::api::stdcore::features::citations::{CitationProviderError, PROVIDERS_SLOT, EntryPiece};
-            pub use crate::guest::hand::stdcore_features_citations::{CitationRequest, CitationProvider, CitationAnswer, CitationResult};
+            pub use crate::api::stdlib::features::citations::{CitationProviderError, PROVIDERS_SLOT, EntryPiece};
+            pub use crate::guest::hand::stdlib_features_citations::{CitationRequest, CitationProvider, CitationAnswer, CitationResult};
 
             /// Mirrors `CitationEntry`: the entry of one cited work.
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2798,16 +3430,33 @@ pub mod stdcore {
                         })
                     }
                 }
+
+                /// Mirrors `ProviderCx::progress`: the scope that the retrieve stage received, under which the provider declares the rows of its slow work (a fetch) and asks whether the build was asked to stop.
+                pub fn progress(&self) -> Result<ProgressScope, ExtError> {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(self.handle, "progress", vec![])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("progress", |table| {
+                            let this = *entry!(table, self.handle, ProviderCx, ProviderCx);
+                            let answer = this.progress();
+                            FromApi::from_api(answer, table)
+                        })
+                    }
+                }
             }
         }
 
-        /// The guest's side of `flm:stdcore/features/compose`. Mirrors `flm_core::stdcore::features::compose`: a compose template written as a module (`TemplateModule`), which describes itself, chooses the files it ships when it is applied, and renders the page.
+        /// The guest's side of `flm:stdlib/features/compose`. Mirrors `flm_core::stdlib::features::compose`: a compose template written as a module (`TemplateModule`), which describes itself, chooses the files it ships when it is applied, and renders the page.
         pub mod compose {
             use crate::guest::generated::prelude::*;
             use crate::guest::host::HostHandle;
 
-            pub use crate::api::stdcore::features::compose::{Accepts, PieceValue, TemplateContext, TEMPLATES_SLOT, ENGINES_SLOT, TemplateDescription, TemplateFile};
-            pub use crate::guest::hand::stdcore_features_compose::TemplateModule;
+            pub use crate::api::stdlib::features::compose::{Accepts, PieceValue, TemplateContext, TEMPLATES_SLOT, ENGINES_SLOT, TemplateDescription, TemplateFile};
+            pub use crate::guest::hand::stdlib_features_compose::TemplateModule;
 
             /// No `flm-core` counterpart: the context a template module's `files` and `render` receive beside the data, valid for the call.
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2847,31 +3496,51 @@ pub mod stdcore {
             }
         }
 
-        /// The guest's side of `flm:stdcore/features/math`. Mirrors `flm_core::stdcore::features::math`: the names of the `math` feature and the library a processing feature builds its stages and rules with (`frame`, `latex`, `equation_lines`).
+        /// The guest's side of `flm:stdlib/features/math`. Mirrors `flm_core::stdlib::features::math`: the names of the `math` feature and the library a processing feature builds its stages and rules with (`frame`, `latex`, `equation_lines`, `tex`).
         pub mod math {
             use crate::guest::generated::prelude::*;
             use crate::guest::core::lowering::LowerCx;
             use crate::guest::core::lowering::Lowerer;
             use crate::guest::techy::node::Node;
-            use crate::guest::core::lowering::Staged;
+            use crate::guest::techy::node::Nodes;
+            use crate::guest::lang::rewrites::userdefs::StagedNodes;
 
-            pub use crate::api::stdcore::features::math::{MATH, ENVIRONMENT, ENVIRONMENTS, CONTENT, RENDERED, KIND, COUNTER, LINES_PACKAGE, LINEBREAK_COMMAND, TAG_COMMAND, NONUMBER_COMMAND, TEXT, TEXT_COMMANDS, ENSUREMATH, NormalizedLine};
-            pub use crate::guest::hand::stdcore_features_math::{Tag, LineBreak, EquationLine, LineFrame, LineShows, FrameReader};
-            pub use crate::guest::stdcore::features::refs::ANCHORS;
-            pub use crate::guest::stdcore::features::numbering::COUNTERS;
+            pub use crate::api::stdlib::features::math::{MATH, ENVIRONMENT, ENVIRONMENTS, CONTENT, RENDERED, KIND, COUNTER, LINES_PACKAGE, LINEBREAK_COMMAND, TAG_COMMAND, NONUMBER_COMMAND, TEXT, TEXT_COMMANDS, ENSUREMATH, FORMULA_ROLE, NormalizedLine};
+            pub use crate::guest::hand::stdlib_features_math::{Tag, LineBreak, EquationLine, LineFrame, LineShows, FrameReader, TexPart, TextHole, LineTex};
+            pub use crate::guest::stdlib::features::refs::ANCHORS;
+            pub use crate::guest::stdlib::features::numbering::COUNTERS;
+
+            /// Mirrors `formula_attributes`: the attributes that mark the outermost element of a formula written as HTML tags: `class`, holding `classes` followed by `flm-math-formula`; `data-flm-display`; and `data-flm-env` when `env` names the display-math environment.
+            pub fn formula_attributes(classes: &str, displayed: bool, env: Option<String>) -> Result<Vec<(String, String)>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdlib/features/math", "formula_attributes", vec![ToArg::arg(classes), ToArg::arg(&displayed), ToArg::arg(&env)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("formula_attributes", |table| {
+                        let a0 = IntoApi::into_api(classes, table)?;
+                        let a1 = IntoApi::into_api(displayed, table)?;
+                        let a2 = IntoApi::into_api(env, table)?;
+                        let answer = crate::api::stdlib::features::math::formula_attributes(a0, a1, a2);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
 
             /// Mirrors `equation_lines`: the equation lines of the display-math environment `node`, in order (none for another node).
             pub fn equation_lines(node: &Node) -> Result<Vec<EquationLine>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "equation_lines", vec![ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "equation_lines", vec![ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("equation_lines", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
-                        let answer = crate::api::stdcore::features::math::equation_lines(&*a0);
+                        let answer = crate::api::stdlib::features::math::equation_lines(&*a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -2881,14 +3550,14 @@ pub mod stdcore {
             pub fn formula_display(node: &Node) -> Result<bool, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "formula_display", vec![ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "formula_display", vec![ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("formula_display", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
-                        let answer = crate::api::stdcore::features::math::formula_display(&*a0);
+                        let answer = crate::api::stdlib::features::math::formula_display(&*a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -2898,14 +3567,14 @@ pub mod stdcore {
             pub fn environment_numbered(node: &Node) -> Result<bool, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "environment_numbered", vec![ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "environment_numbered", vec![ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("environment_numbered", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
-                        let answer = crate::api::stdcore::features::math::environment_numbered(&*a0);
+                        let answer = crate::api::stdlib::features::math::environment_numbered(&*a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -2915,7 +3584,7 @@ pub mod stdcore {
             pub fn line_frames(reader: FrameReader, anchors: bool, counters: bool, node: &Node) -> Result<Vec<LineFrame>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "line_frames", vec![ToArg::arg(&reader), ToArg::arg(&anchors), ToArg::arg(&counters), ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "line_frames", vec![ToArg::arg(&reader), ToArg::arg(&anchors), ToArg::arg(&counters), ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -2932,24 +3601,24 @@ pub mod stdcore {
             pub fn number_text(frame: &LineFrame) -> Result<Option<String>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "number_text", vec![ToArg::arg(frame)])?;
+                    let reply = abi::call_module("stdlib/features/math", "number_text", vec![ToArg::arg(frame)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("number_text", |table| {
                         let a0 = IntoApi::into_api(frame, table)?;
-                        let answer = crate::api::stdcore::features::math::number_text(&a0);
+                        let answer = crate::api::stdlib::features::math::number_text(&a0);
                         FromApi::from_api(answer, table)
                     })
                 }
             }
 
             /// Mirrors `stage_tag_content`: stages what an equation line shows at its tag's place (the number's segments spliced; the tag lowered, between `(` and `)` when unstarred; nothing) and answers the nodes to emit.
-            pub fn stage_tag_content(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<Vec<Staged>, ExtError> {
+            pub fn stage_tag_content(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "stage_tag_content", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
+                    let reply = abi::call_module("stdlib/features/math", "stage_tag_content", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -2957,7 +3626,7 @@ pub mod stdcore {
                     abi::typed("stage_tag_content", |table| {
                         let a2 = IntoApi::into_api(frame, table)?;
                         let answer = match table.entries_mut("stage_tag_content", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_tag_content(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::stage_tag_content(&mut **a0, &mut **a1, &a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -2967,10 +3636,10 @@ pub mod stdcore {
             }
 
             /// Mirrors `environment_opening`: the opening part of a display-math environment in the recomposed LaTeX.
-            pub fn environment_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn environment_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "environment_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "environment_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -2978,7 +3647,7 @@ pub mod stdcore {
                     abi::typed("environment_opening", |table| {
                         let a2 = IntoApi::into_api(node, table)?;
                         let answer = match table.entries_mut("environment_opening", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_opening(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::environment_opening(&mut **a0, &mut **a1, &*a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -2988,10 +3657,10 @@ pub mod stdcore {
             }
 
             /// Mirrors `line_closing`: the closing part of an equation line in the recomposed LaTeX.
-            pub fn line_closing(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<Vec<Staged>, ExtError> {
+            pub fn line_closing(cx: &mut LowerCx, lw: &mut Lowerer, frame: &LineFrame) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "line_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
+                    let reply = abi::call_module("stdlib/features/math", "line_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frame)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -2999,7 +3668,7 @@ pub mod stdcore {
                     abi::typed("line_closing", |table| {
                         let a2 = IntoApi::into_api(frame, table)?;
                         let answer = match table.entries_mut("line_closing", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::line_closing(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::line_closing(&mut **a0, &mut **a1, &a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3009,10 +3678,10 @@ pub mod stdcore {
             }
 
             /// Mirrors `stage_lines`: stages the equation lines of a display-math environment in the recomposed LaTeX as they were written: for each line, its content written by the mathematics writer of the `userdefs` feature under the newline rule, its closing part (`line_closing`), and the run of whitespace the rule took off the content's end.
-            pub fn stage_lines(cx: &mut LowerCx, lw: &mut Lowerer, frames: &[LineFrame]) -> Result<Vec<Staged>, ExtError> {
+            pub fn stage_lines(cx: &mut LowerCx, lw: &mut Lowerer, frames: &[LineFrame]) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "stage_lines", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frames)])?;
+                    let reply = abi::call_module("stdlib/features/math", "stage_lines", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(frames)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3020,7 +3689,7 @@ pub mod stdcore {
                     abi::typed("stage_lines", |table| {
                         let a2 = IntoApi::into_api(frames, table)?;
                         let answer = match table.entries_mut("stage_lines", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_lines(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::stage_lines(&mut **a0, &mut **a1, &a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3033,7 +3702,7 @@ pub mod stdcore {
             pub fn normalize_line_newlines(content: &str, after_line_end: bool, inner: bool) -> Result<NormalizedLine, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "normalize_line_newlines", vec![ToArg::arg(content), ToArg::arg(&after_line_end), ToArg::arg(&inner)])?;
+                    let reply = abi::call_module("stdlib/features/math", "normalize_line_newlines", vec![ToArg::arg(content), ToArg::arg(&after_line_end), ToArg::arg(&inner)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3042,17 +3711,17 @@ pub mod stdcore {
                         let a0 = IntoApi::into_api(content, table)?;
                         let a1 = IntoApi::into_api(after_line_end, table)?;
                         let a2 = IntoApi::into_api(inner, table)?;
-                        let answer = crate::api::stdcore::features::math::normalize_line_newlines(a0, a1, a2);
+                        let answer = crate::api::stdlib::features::math::normalize_line_newlines(a0, a1, a2);
                         FromApi::from_api(answer, table)
                     })
                 }
             }
 
             /// Mirrors `environment_closing`: the closing part of a display-math environment in the recomposed LaTeX.
-            pub fn environment_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn environment_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "environment_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "environment_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3060,7 +3729,7 @@ pub mod stdcore {
                     abi::typed("environment_closing", |table| {
                         let a2 = IntoApi::into_api(node, table)?;
                         let answer = match table.entries_mut("environment_closing", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_closing(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::environment_closing(&mut **a0, &mut **a1, &*a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3070,10 +3739,10 @@ pub mod stdcore {
             }
 
             /// Mirrors `group_opening`: the opening part of a math group in the recomposed LaTeX.
-            pub fn group_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn group_opening(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "group_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "group_opening", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3081,7 +3750,7 @@ pub mod stdcore {
                     abi::typed("group_opening", |table| {
                         let a2 = IntoApi::into_api(node, table)?;
                         let answer = match table.entries_mut("group_opening", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_opening(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::group_opening(&mut **a0, &mut **a1, &*a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3091,10 +3760,10 @@ pub mod stdcore {
             }
 
             /// Mirrors `group_closing`: the closing part of a math group in the recomposed LaTeX.
-            pub fn group_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn group_closing(cx: &mut LowerCx, lw: &mut Lowerer, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/math", "group_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/math", "group_closing", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3102,7 +3771,7 @@ pub mod stdcore {
                     abi::typed("group_closing", |table| {
                         let a2 = IntoApi::into_api(node, table)?;
                         let answer = match table.entries_mut("group_closing", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_closing(&mut **a0, &mut **a1, &*a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::group_closing(&mut **a0, &mut **a1, &*a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3110,15 +3779,50 @@ pub mod stdcore {
                     })
                 }
             }
+
+            /// Mirrors `group_tex`: the TeX of the math group `node` (a node of `MATH`): its content, without its delimiters, each text command a hole, at any depth.
+            pub fn group_tex(node: &Node) -> Result<Vec<TexPart>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdlib/features/math", "group_tex", vec![ToArg::arg(node)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("group_tex", |table| {
+                        let a0 = IntoApi::into_api(node, table)?;
+                        let answer = crate::api::stdlib::features::math::group_tex(&*a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+
+            /// Mirrors `line_tex`: the TeX of an equation line's content `content`, each text command a hole, each TeX part under the newline rule (`normalize_line_newlines`), and the run of whitespace that ended the content.
+            pub fn line_tex(content: &Nodes, after_line_end: bool) -> Result<LineTex, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call_module("stdlib/features/math", "line_tex", vec![ToArg::arg(content), ToArg::arg(&after_line_end)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("line_tex", |table| {
+                        let a0 = IntoApi::into_api(content, table)?;
+                        let a1 = IntoApi::into_api(after_line_end, table)?;
+                        let answer = crate::api::stdlib::features::math::line_tex(&a0, a1);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
         }
 
-        /// The guest's side of `flm:stdcore/features/numbering`. Mirrors `flm_core::stdcore::features::numbering`: the names of the numbering feature, the declarations a feature contributes to it as data, and the `Counters` façade over the table of the points' numbers.
+        /// The guest's side of `flm:stdlib/features/numbering`. Mirrors `flm_core::stdlib::features::numbering`: the names of the numbering feature, the declarations a feature contributes to it as data, and the `Counters` façade over the table of the points' numbers.
         pub mod numbering {
             use crate::guest::generated::prelude::*;
             use crate::guest::model::aspects::PointId;
 
-            pub use crate::api::stdcore::features::numbering::{COUNTERS, COUNTERS_SLOT, STYLES_SLOT, WITHIN_JOINERS_SLOT, NUMBER_WRITERS_SLOT, PARENT_SETS_SLOT, CounterDecl, CounterStyleDecl, Delimiters, FormatOptions, NumberTemplate, ParentSetDecl, Parents, PluralWords, PrefixWords, Within, WithinJoinerSpec};
-            pub use crate::guest::hand::stdcore_features_numbering::{CounterRecord, NumberSegment};
+            pub use crate::api::stdlib::features::numbering::{COUNTERS, COUNTERS_SLOT, STYLES_SLOT, WITHIN_JOINERS_SLOT, NUMBER_WRITERS_SLOT, PARENT_SETS_SLOT, CounterDecl, CounterStyleDecl, Delimiters, FormatOptions, NumberTemplate, ParentSetDecl, Parents, PluralWords, PrefixWords, Within, WithinJoinerSpec};
+            pub use crate::guest::hand::stdlib_features_numbering::{CounterRecord, NumberSegment};
 
             /// Mirrors `Counters`: the table of the points' numbers, as a stage's context or a rule's lowerer answers it for `COUNTERS` (`TableValue::Counters`).
             #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3174,7 +3878,7 @@ pub mod stdcore {
             }
         }
 
-        /// The guest's side of `flm:stdcore/features/refs`. Mirrors `flm_core::stdcore::features::refs`: the names of the references feature and the parts a referenceable construct of an extension declares and lowers its labels with.
+        /// The guest's side of `flm:stdlib/features/refs`. Mirrors `flm_core::stdlib::features::refs`: the names of the references feature and the parts a referenceable construct of an extension declares and lowers its labels with.
         pub mod refs {
             use crate::guest::generated::prelude::*;
             use crate::guest::lang::mint::ArgDef;
@@ -3185,20 +3889,21 @@ pub mod stdcore {
             use crate::guest::techy::node::Node;
             use crate::guest::model::aspects::PointId;
             use crate::guest::core::lowering::Staged;
+            use crate::guest::lang::rewrites::userdefs::StagedNodes;
 
-            pub use crate::api::stdcore::features::refs::{ANCHORS, SAFE_LABELS, LABELS, REF_RESOLUTIONS, FIELDS_ARG, LABEL_FIELD, TARGET_ARG, LABEL_PACKAGE, TARGET_ARG_ROLE, DEFINED_LABEL_ARG_ROLE, LabelUse};
+            pub use crate::api::stdlib::features::refs::{ANCHORS, SAFE_LABELS, LABELS, REF_RESOLUTIONS, FIELDS_ARG, LABEL_FIELD, TARGET_ARG, LABEL_PACKAGE, TARGET_ARG_ROLE, DEFINED_LABEL_ARG_ROLE, LabelUse};
 
             /// Mirrors `label_fields_arg`: the argument that reads the `\label{…}` fields written after a construct, named `FIELDS_ARG`, to place last in the construct's argument list.
             pub fn label_fields_arg() -> Result<ArgDef, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/refs", "label_fields_arg", vec![])?;
+                    let reply = abi::call_module("stdlib/features/refs", "label_fields_arg", vec![])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("label_fields_arg", |table| {
-                        let answer = crate::api::stdcore::features::refs::label_fields_arg();
+                        let answer = crate::api::stdlib::features::refs::label_fields_arg();
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -3208,14 +3913,14 @@ pub mod stdcore {
             pub fn label_uses(node: &Node) -> Result<Vec<LabelUse>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/refs", "label_uses", vec![ToArg::arg(node)])?;
+                    let reply = abi::call_module("stdlib/features/refs", "label_uses", vec![ToArg::arg(node)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("label_uses", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
-                        let answer = crate::api::stdcore::features::refs::label_uses(&*a0);
+                        let answer = crate::api::stdlib::features::refs::label_uses(&*a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -3225,14 +3930,14 @@ pub mod stdcore {
             pub fn point_labels(uses: &[LabelUse]) -> Result<(Vec<Label>, Vec<MalformedLabel>), ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/refs", "point_labels", vec![ToArg::arg(uses)])?;
+                    let reply = abi::call_module("stdlib/features/refs", "point_labels", vec![ToArg::arg(uses)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("point_labels", |table| {
                         let a0 = IntoApi::into_api(uses, table)?;
-                        let answer = crate::api::stdcore::features::refs::point_labels(a0);
+                        let answer = crate::api::stdlib::features::refs::point_labels(a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -3242,7 +3947,7 @@ pub mod stdcore {
             pub fn stage_label(cx: &mut LowerCx, lw: &mut Lowerer, text: &str, label: Option<Label>) -> Result<Staged, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/refs", "stage_label", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(text), ToArg::arg(&label)])?;
+                    let reply = abi::call_module("stdlib/features/refs", "stage_label", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(text), ToArg::arg(&label)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3251,7 +3956,7 @@ pub mod stdcore {
                         let a2 = IntoApi::into_api(text, table)?;
                         let a3 = IntoApi::into_api(label, table)?;
                         let answer = match table.entries_mut("stage_label", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label(&mut **a0, &mut **a1, a2, a3),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::refs::stage_label(&mut **a0, &mut **a1, a2, a3),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3261,19 +3966,19 @@ pub mod stdcore {
             }
 
             /// Mirrors `stage_label_group`: the nodes to emit for the labels `labels` of a construct on the recomposed LaTeX backend: the labels themselves, or, when the document's options ask for the label hooks, the labels inside the group that the hooks read (with `empty_group`, a group even when there is no label).
-            pub fn stage_label_group(cx: &mut LowerCx, lw: &mut Lowerer, labels: Vec<Staged>, empty_group: bool) -> Result<Vec<Staged>, ExtError> {
+            pub fn stage_label_group(cx: &mut LowerCx, lw: &mut Lowerer, labels: StagedNodes, empty_group: bool) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/refs", "stage_label_group", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(&labels), ToArg::arg(&empty_group)])?;
+                    let reply = abi::call_module("stdlib/features/refs", "stage_label_group", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(&labels), ToArg::arg(&empty_group)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
                 {
                     abi::typed("stage_label_group", |table| {
-                        let a2 = IntoApi::into_api(labels, table)?;
+                        let a2 = IntoApi::into_api(&labels, table)?;
                         let a3 = IntoApi::into_api(empty_group, table)?;
                         let answer = match table.entries_mut("stage_label_group", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label_group(&mut **a0, &mut **a1, a2, a3),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::refs::stage_label_group(&mut **a0, &mut **a1, a2, a3),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3318,14 +4023,14 @@ pub mod stdcore {
             }
         }
 
-        /// The guest's side of `flm:stdcore/features/userdefs`. Mirrors `flm_core::stdcore::features::userdefs`: the helpers of the user-definitions feature an extension declares definitions with.
+        /// The guest's side of `flm:stdlib/features/userdefs`. Mirrors `flm_core::stdlib::features::userdefs`: the helpers of the user-definitions feature an extension declares definitions with.
         pub mod userdefs {
             use crate::guest::generated::prelude::*;
             use crate::guest::lang::rewrites::userdefs::Definition;
             use crate::guest::core::lowering::LowerCx;
             use crate::guest::core::lowering::Lowerer;
-            use crate::guest::techy::node::Node;
-            use crate::guest::core::lowering::Staged;
+            use crate::guest::techy::node::Nodes;
+            use crate::guest::lang::rewrites::userdefs::StagedNodes;
 
             pub use crate::guest::core::lowering::LoweringRule;
 
@@ -3333,7 +4038,7 @@ pub mod stdcore {
             pub fn element_name_under(prefix: &str, definition: &Definition) -> Result<String, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/userdefs", "element_name_under", vec![ToArg::arg(prefix), ToArg::arg(definition)])?;
+                    let reply = abi::call_module("stdlib/features/userdefs", "element_name_under", vec![ToArg::arg(prefix), ToArg::arg(definition)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3341,7 +4046,7 @@ pub mod stdcore {
                     abi::typed("element_name_under", |table| {
                         let a0 = IntoApi::into_api(prefix, table)?;
                         let a1 = IntoApi::into_api(definition, table)?;
-                        let answer = crate::api::stdcore::features::userdefs::element_name_under(a0, &a1);
+                        let answer = crate::api::stdlib::features::userdefs::element_name_under(a0, &a1);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -3351,7 +4056,7 @@ pub mod stdcore {
             pub fn expand_in_tree_rule_for(element: &str, definition: &Definition) -> Result<LoweringRule, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/userdefs", "expand_in_tree_rule_for", vec![ToArg::arg(element), ToArg::arg(definition)])?;
+                    let reply = abi::call_module("stdlib/features/userdefs", "expand_in_tree_rule_for", vec![ToArg::arg(element), ToArg::arg(definition)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3359,17 +4064,17 @@ pub mod stdcore {
                     abi::typed("expand_in_tree_rule_for", |table| {
                         let a0 = IntoApi::into_api(element, table)?;
                         let a1 = IntoApi::into_api(definition, table)?;
-                        let answer = crate::api::stdcore::features::userdefs::expand_in_tree_rule_for(a0, &a1);
+                        let answer = crate::api::stdlib::features::userdefs::expand_in_tree_rule_for(a0, &a1);
                         FromApi::from_api(answer, table)
                     })
                 }
             }
 
             /// Mirrors `write_math_run`: writes a run of nodes in mathematics mode for the recomposed LaTeX, the mathematics writer of the `userdefs` feature (the source byte for byte, a use of a user definition written as its call or its expansion, a text command and a comment lowered through the rules), the content writer of a processing feature's rules on that backend.
-            pub fn write_math_run(cx: &mut LowerCx, lw: &mut Lowerer, nodes: &[Node]) -> Result<Vec<Staged>, ExtError> {
+            pub fn write_math_run(cx: &mut LowerCx, lw: &mut Lowerer, nodes: &Nodes) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
-                    let reply = abi::call_module("stdcore/features/userdefs", "write_math_run", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(nodes)])?;
+                    let reply = abi::call_module("stdlib/features/userdefs", "write_math_run", vec![ToArg::arg(&*cx), ToArg::arg(&*lw), ToArg::arg(nodes)])?;
                     JsonForm::from_value(&reply)
                 }
                 #[cfg(feature = "native")]
@@ -3377,7 +4082,7 @@ pub mod stdcore {
                     abi::typed("write_math_run", |table| {
                         let a2 = IntoApi::into_api(nodes, table)?;
                         let answer = match table.entries_mut("write_math_run", [cx.handle, lw.handle])? {
-                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::userdefs::write_math_run(&mut **a0, &mut **a1, &a2),
+                            [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::userdefs::write_math_run(&mut **a0, &mut **a1, &a2),
                             [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                             [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                         }?;
@@ -3400,10 +4105,11 @@ pub mod techy {
     /// The guest's side of `flm:techy/extract`. Mirrors techy's extraction helpers, reached as `flm_core::techy::extract`: key-value lists.
     pub mod extract {
         use crate::guest::generated::prelude::*;
-        use crate::guest::techy::node::Node;
+        use crate::guest::techy::node::Nodes;
+        use crate::guest::lang::copy::WrittenPiece;
 
         /// Mirrors `parse_keyval_drop_annotations`: reads `nodes` as a key-value list.
-        pub fn parse_keyval_drop_annotations(nodes: &[Node]) -> Result<KeyVals, ExtError> {
+        pub fn parse_keyval_drop_annotations(nodes: &Nodes) -> Result<KeyVals, ExtError> {
             #[cfg(not(feature = "native"))]
             {
                 let reply = abi::call_module("techy/extract", "parse_keyval_drop_annotations", vec![ToArg::arg(nodes)])?;
@@ -3561,7 +4267,7 @@ pub mod techy {
             }
 
             /// Mirrors `KeyValEntry::value`.
-            pub fn value(&self) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn value(&self) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "value", vec![])?;
@@ -3578,7 +4284,7 @@ pub mod techy {
             }
 
             /// Mirrors `KeyValEntry::value_content`.
-            pub fn value_content(&self) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn value_content(&self) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "value_content", vec![])?;
@@ -3593,6 +4299,23 @@ pub mod techy {
                     })
                 }
             }
+
+            /// Mirrors `key_value_pieces` of `flm_core::lang::copy`, called with the bracket the list was read from and this entry's value: the value as pieces of the document, whitespace at either end dropped.
+            pub fn value_pieces(&self) -> Result<Option<Vec<WrittenPiece>>, ExtError> {
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "value_pieces", vec![])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("value_pieces", |table| {
+                        let this = &**entry!(table, self.handle, KeyValEntry, KeyValEntry);
+                        let answer = this.value_pieces();
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
         }
     }
 
@@ -3602,6 +4325,7 @@ pub mod techy {
         use crate::guest::lang::mint::Mode;
 
         pub use crate::api::techy::node::{NodeKindName, Span};
+        pub use crate::guest::hand::techy_node::Nodes;
 
         /// Mirrors `NodeRef` over the FLM language: a node of a tree, and its relatives.
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -3810,7 +4534,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::children`.
-            pub fn children(&self) -> Result<Vec<Node>, ExtError> {
+            pub fn children(&self) -> Result<Nodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "children", vec![])?;
@@ -3827,7 +4551,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::descendants`.
-            pub fn descendants(&self) -> Result<Vec<Node>, ExtError> {
+            pub fn descendants(&self) -> Result<Descendants, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "descendants", vec![])?;
@@ -3895,7 +4619,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::argument_nodes`.
-            pub fn argument_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn argument_nodes(&self, i: usize) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "argument_nodes", vec![ToArg::arg(&i)])?;
@@ -3913,7 +4637,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::argument_content_nodes`.
-            pub fn argument_content_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn argument_content_nodes(&self, i: usize) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "argument_content_nodes", vec![ToArg::arg(&i)])?;
@@ -3931,7 +4655,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::argument_nodes_named`.
-            pub fn argument_nodes_named(&self, name: &str) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn argument_nodes_named(&self, name: &str) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "argument_nodes_named", vec![ToArg::arg(name)])?;
@@ -3949,7 +4673,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::argument_content_nodes_named`.
-            pub fn argument_content_nodes_named(&self, name: &str) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn argument_content_nodes_named(&self, name: &str) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "argument_content_nodes_named", vec![ToArg::arg(name)])?;
@@ -3985,7 +4709,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::body`.
-            pub fn body(&self) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn body(&self) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "body", vec![])?;
@@ -4002,7 +4726,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::slot_content_nodes_named`.
-            pub fn slot_content_nodes_named(&self, name: &str) -> Result<Vec<Node>, ExtError> {
+            pub fn slot_content_nodes_named(&self, name: &str) -> Result<Nodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "slot_content_nodes_named", vec![ToArg::arg(name)])?;
@@ -4123,7 +4847,7 @@ pub mod techy {
             }
 
             /// Mirrors `NodeRef::slot_content_nodes`: the content of the slot at index `i`, or `None` for an index past the last.
-            pub fn slot_content_nodes(&self, i: usize) -> Result<Option<Vec<Node>>, ExtError> {
+            pub fn slot_content_nodes(&self, i: usize) -> Result<Option<Nodes>, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "slot_content_nodes", vec![ToArg::arg(&i)])?;
@@ -4135,6 +4859,89 @@ pub mod techy {
                         let a0 = IntoApi::into_api(i, table)?;
                         let this = &**entry!(table, self.handle, Node, Node);
                         let answer = this.slot_content_nodes(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+        }
+
+        /// Mirrors techy's `Descendants`: an iterator over the descendants of a node, in document order, the node itself excluded.
+        #[derive(Debug)]
+        pub struct Descendants {
+            /// The handle the host lent for it.
+            pub(crate) handle: Handle,
+            /// The items pulled and not handed over yet.
+            pub(crate) pulled: abi::Pulled<Node>,
+        }
+
+        impl JsonForm for Descendants {
+            fn to_value(&self) -> Value {
+                handle_to_value(self.handle)
+            }
+
+            fn from_value(value: &Value) -> Result<Self, ExtError> {
+                Ok(Descendants { handle: abi::handle_of(value, HandleKind::Descendants)?, pulled: abi::Pulled::default() })
+            }
+        }
+
+        impl Iterator for Descendants {
+            type Item = Result<Node, ExtError>;
+
+            fn next(&mut self) -> Option<Result<Node, ExtError>> {
+                let handle = self.handle;
+                self.pulled.next(|max| {
+                    #[cfg(not(feature = "native"))]
+                    {
+                        let reply = abi::call(handle, "pull", vec![ToArg::arg(&max)])?;
+                        JsonForm::from_value(&reply)
+                    }
+                    #[cfg(feature = "native")]
+                    {
+                        abi::typed("pull", |table| {
+                            let this = entry!(table, handle, Descendants, Descendants);
+                            let answer = this.pull(max);
+                            FromApi::from_api(Group(answer), table)
+                        })
+                    }
+                })
+            }
+        }
+
+        impl Descendants {
+            /// Mirrors `Iterator::filter` on techy's `Descendants`: the nodes not taken yet whose element has one of the names `names` (the name `Node::element_name` answers), in their order; the descendants of a node that does not match are still visited.
+            pub fn elements(self, names: impl IntoIterator<Item = impl Into<String>>) -> Result<Descendants, ExtError> {
+                let unhanded = self.pulled.held();
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "elements", vec![ToArg::arg(&names.into_iter().map(Into::into).collect::<Vec<String>>()), ToArg::arg(&unhanded)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    let names = names.into_iter().map(Into::into).collect::<Vec<String>>();
+                    abi::typed("elements", |table| {
+                        let a0 = IntoApi::into_api(names, table)?;
+                        let this = entry!(table, self.handle, Descendants, Descendants).rest(unhanded);
+                        let answer = this.elements(a0);
+                        FromApi::from_api(answer, table)
+                    })
+                }
+            }
+
+            /// Mirrors `Iterator::filter` on techy's `Descendants`: the nodes not taken yet whose kind (`Node::kind`) is one of `kinds`, in their order.
+            pub fn kinds(self, kinds: &[NodeKindName]) -> Result<Descendants, ExtError> {
+                let unhanded = self.pulled.held();
+                #[cfg(not(feature = "native"))]
+                {
+                    let reply = abi::call(self.handle, "kinds", vec![ToArg::arg(kinds), ToArg::arg(&unhanded)])?;
+                    JsonForm::from_value(&reply)
+                }
+                #[cfg(feature = "native")]
+                {
+                    abi::typed("kinds", |table| {
+                        let a0 = IntoApi::into_api(kinds, table)?;
+                        let this = entry!(table, self.handle, Descendants, Descendants).rest(unhanded);
+                        let answer = this.kinds(a0);
                         FromApi::from_api(answer, table)
                     })
                 }
@@ -4183,6 +4990,7 @@ pub mod techy {
         use crate::guest::generated::prelude::*;
         use crate::guest::techy::error::Diagnostic;
         use crate::guest::techy::node::Node;
+        use crate::guest::lang::rewrites::userdefs::StagedNodes;
 
         pub use crate::guest::hand::techy_transform::Restage;
         pub use crate::guest::lang::rewrites::userdefs::Staged;
@@ -4206,7 +5014,7 @@ pub mod techy {
 
         impl Restager {
             /// Mirrors techy's `RestageContext::restage_subtree`: restages `node` and its whole subtree through the handler, and answers the nodes that replace `node`.
-            pub fn restage_subtree(&mut self, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn restage_subtree(&mut self, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "restage_subtree", vec![ToArg::arg(node)])?;
@@ -4224,7 +5032,7 @@ pub mod techy {
             }
 
             /// Mirrors techy's `RestageContext::restage_children`: restages every child subtree of `node`, the node itself excluded, and answers their replacements concatenated.
-            pub fn restage_children(&mut self, node: &Node) -> Result<Vec<Staged>, ExtError> {
+            pub fn restage_children(&mut self, node: &Node) -> Result<StagedNodes, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "restage_children", vec![ToArg::arg(node)])?;
@@ -4319,7 +5127,7 @@ pub mod techy {
             }
 
             /// Mirrors techy's `RestageContext::restage_argument_with_content`: restages argument `index` of the callable `node` with its content replaced by `content`, its surroundings copied unchanged.
-            pub fn restage_argument_with_content(&mut self, node: &Node, index: usize, content: Vec<Staged>) -> Result<RestagedArgument, ExtError> {
+            pub fn restage_argument_with_content(&mut self, node: &Node, index: usize, content: StagedNodes) -> Result<RestagedArgument, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "restage_argument_with_content", vec![ToArg::arg(node), ToArg::arg(&index), ToArg::arg(&content)])?;
@@ -4330,7 +5138,7 @@ pub mod techy {
                     abi::typed("restage_argument_with_content", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
                         let a1 = IntoApi::into_api(index, table)?;
-                        let a2 = IntoApi::into_api(content, table)?;
+                        let a2 = IntoApi::into_api(&content, table)?;
                         let this = entry!(table, self.handle, Restager, Restager);
                         let answer = this.restage_argument_with_content(&*a0, a1, a2)?;
                         FromApi::from_api(answer, table)
@@ -4339,7 +5147,7 @@ pub mod techy {
             }
 
             /// Mirrors techy's `RestageContext::restage_slot_with_content`: restages slot `index` of the callable `node` with its content replaced by `content`, its surroundings copied unchanged.
-            pub fn restage_slot_with_content(&mut self, node: &Node, index: usize, content: Vec<Staged>) -> Result<RestagedSlot, ExtError> {
+            pub fn restage_slot_with_content(&mut self, node: &Node, index: usize, content: StagedNodes) -> Result<RestagedSlot, ExtError> {
                 #[cfg(not(feature = "native"))]
                 {
                     let reply = abi::call(self.handle, "restage_slot_with_content", vec![ToArg::arg(node), ToArg::arg(&index), ToArg::arg(&content)])?;
@@ -4350,7 +5158,7 @@ pub mod techy {
                     abi::typed("restage_slot_with_content", |table| {
                         let a0 = IntoApi::into_api(node, table)?;
                         let a1 = IntoApi::into_api(index, table)?;
-                        let a2 = IntoApi::into_api(content, table)?;
+                        let a2 = IntoApi::into_api(&content, table)?;
                         let this = entry!(table, self.handle, Restager, Restager);
                         let answer = this.restage_slot_with_content(&*a0, a1, a2)?;
                         FromApi::from_api(answer, table)
@@ -4483,9 +5291,9 @@ mod assertions {
     use crate::guest::model::element::Aspect;
     use crate::guest::core::registry::BackendDef;
     use crate::guest::lang::BuiltLang;
-    use crate::guest::stdcore::features::citations::CitationProvider;
-    use crate::guest::stdcore::features::citations::CitationRequest;
-    use crate::guest::stdcore::features::citations::CitationResult;
+    use crate::guest::stdlib::features::citations::CitationProvider;
+    use crate::guest::stdlib::features::citations::CitationRequest;
+    use crate::guest::stdlib::features::citations::CitationResult;
     use crate::guest::model::aspects::ContentRef;
     use crate::guest::core::registry::Contributed;
     use crate::guest::core::lowering::DefaultMark;
@@ -4508,7 +5316,7 @@ mod assertions {
     use crate::guest::core::lowering::LoweringRule;
     use crate::guest::core::stage::Needs;
     use crate::guest::techy::node::Node;
-    use crate::guest::stdcore::features::citations::ProviderCx;
+    use crate::guest::stdlib::features::citations::ProviderCx;
     use crate::guest::model::aspects::RefPoint;
     use crate::guest::model::aspects::Referenceable;
     use crate::guest::techy::transform::Restage;
@@ -4521,11 +5329,11 @@ mod assertions {
     use crate::guest::core::run::StageCx;
     use crate::guest::core::stage::StageDecl;
     use crate::guest::core::data::store::StageOut;
-    use crate::guest::stdcore::features::compose::TemplateContext;
-    use crate::guest::stdcore::features::compose::TemplateCx;
-    use crate::guest::stdcore::features::compose::TemplateDescription;
-    use crate::guest::stdcore::features::compose::TemplateFile;
-    use crate::guest::stdcore::features::compose::TemplateModule;
+    use crate::guest::stdlib::features::compose::TemplateContext;
+    use crate::guest::stdlib::features::compose::TemplateCx;
+    use crate::guest::stdlib::features::compose::TemplateDescription;
+    use crate::guest::stdlib::features::compose::TemplateFile;
+    use crate::guest::stdlib::features::compose::TemplateModule;
     use crate::guest::lang::rewrites::userdefs::UserDefinition;
 
     /// The record-and-lend items (`GUEST_HAND`).

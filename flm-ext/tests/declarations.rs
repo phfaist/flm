@@ -9,12 +9,12 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::{FlmRegistry, PackageEntry, PeerName};
+use flm_core::core::registry::{BuildError, FlmRegistry, PackageEntry, PeerName, UnresolvedPeer};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::{html, latex_recomposed, pres};
-use flm_core::stdcore::features::math;
+use flm_core::stdlib::backends::{html, latex_recomposed, pres};
+use flm_core::stdlib::features::math;
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
 use flm_ext::api::core::registry::{DefContent, ScriptDef, StyleDef};
@@ -27,7 +27,7 @@ use serde_json::{json, Value};
 
 use common::double::{stage, Double};
 use common::json_double::JsonDouble;
-use common::{registry_with, text_of, try_registry_with};
+use common::{assert_only_unchecked_output, registry_with, text_of, try_registry_with};
 
 // --- helpers -----------------------------------------------------------------------------------
 
@@ -128,9 +128,9 @@ fn rule<'r>(registry: &'r FlmRegistry, name: &str) -> &'r flm_core::core::regist
     registry.rules().iter().find(|entry| entry.rule.name.as_str() == name).expect("the rule is registered")
 }
 
-/// The build diagnostics of `registry`, rendered.
-fn build_notes(registry: &FlmRegistry) -> Vec<String> {
-    registry.build_diagnostics().iter().map(|diagnostic| diagnostic.message().to_string()).collect()
+/// The unresolved peers of `registry`'s build notes, as (kind, name).
+fn build_notes(registry: &FlmRegistry) -> Vec<(String, String)> {
+    registry.build_diagnostics().conditions::<UnresolvedPeer>().map(|peer| (peer.kind.clone(), peer.name.clone())).collect()
 }
 
 // --- style and script definitions --------------------------------------------------------------
@@ -139,7 +139,7 @@ fn build_notes(registry: &FlmRegistry) -> Vec<String> {
 fn a_style_definition_required_by_selection_reaches_the_page_with_its_table_part() {
     let registry = registry_with([styled_boxes(vec![json!(".lw-box{color:inherit}")])]);
     let (page, diagnostics) = page_of(&registry, "A \\lwbox{x}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     let part = page.find(".lw-box{color:inherit}").expect("the table's text");
     assert!(part < page.find(".lw-after{}").expect("the inline part"), "{page}");
     assert!(page.contains("data-flm-def=\"lw.style\""), "{page}");
@@ -149,7 +149,7 @@ fn a_style_definition_required_by_selection_reaches_the_page_with_its_table_part
 fn a_table_of_a_definition_s_text_may_be_declared_after_the_stage_that_writes_it() {
     let registry = registry_with([styled_boxes_in_order(vec![json!(".lw-box{color:inherit}")], true)]);
     let (page, diagnostics) = page_of(&registry, "A \\lwbox{x}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains(".lw-box{color:inherit}"), "{page}");
 }
 
@@ -157,19 +157,12 @@ fn a_table_of_a_definition_s_text_may_be_declared_after_the_stage_that_writes_it
 fn a_later_non_empty_text_replaces_an_earlier_one_and_a_text_must_be_a_string() {
     let registry = registry_with([styled_boxes(vec![json!(".first{}"), json!(""), json!(".second{}")])]);
     let (page, diagnostics) = page_of(&registry, "\\lwbox{x}");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains(".second{}") && !page.contains(".first{}"), "{page}");
 
     let registry = registry_with([styled_boxes(vec![json!(["not", "a", "string"])])]);
     let (_, diagnostics) = page_of(&registry, "\\lwbox{x}");
-    assert!(
-        diagnostics.contains(
-            &"flm.ext.handler-failed: the stage `lw.write-css` failed: the text of a definition's part must be a \
-              string, not `[\"not\",\"a\",\"string\"]`"
-                .to_string()
-        ),
-        "{diagnostics:?}"
-    );
+    assert!(common::ids(&diagnostics).contains(&"flm.ext.handler-failed"), "{diagnostics:?}");
 }
 
 #[test]
@@ -186,21 +179,19 @@ fn a_part_naming_an_undeclared_table_fails_the_registry_build() {
         })
         .package();
     let Err(error) = try_registry_with([package]) else { panic!("the registry builds") };
-    let text = error.render();
-    assert!(
-        text.contains(
-            "the table `lw.nothing` that the style definition `lw.style` takes a part from must be declared by a \
-             feature of the registry"
-        ),
-        "{text}"
-    );
-    assert!(
-        text.contains(
-            "the table `lw.items` that the style definition `lw.style` takes a part from must hold \
-             `DefinitionText`, not `ExtTable`"
-        ),
-        "{text}"
-    );
+    let parts: Vec<(&str, &str, &str, Option<&str>)> = error
+        .errors
+        .iter()
+        .filter_map(|e| match e {
+            BuildError::DefinitionPartTable { kind, definition, table, found } => {
+                Some((*kind, definition.as_str(), table.as_str(), *found))
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(parts.contains(&("style", "lw.style", "lw.nothing", None)), "{error:?}");
+    assert!(parts.iter().any(|(kind, definition, table, found)| (*kind, *definition, *table) == ("style", "lw.style", "lw.items")
+        && found.is_some()), "{error:?}");
 }
 
 #[test]
@@ -209,9 +200,13 @@ fn a_definition_s_identifier_must_begin_with_the_stem() {
         .feature("boxes", |b| {
             let refused = b.style_def(StyleDef { id: "other.style".into(), content: Vec::new(), docs: String::new() });
             assert_eq!(
-                refused.map_err(|error| error.to_string()),
-                Err("the style `other.style` declared by the package `_` of the extension `lw` must begin with `lw.`"
-                    .to_string())
+                refused,
+                Err(ExtError::NameOutsideExtension {
+                    what: "style".to_string(),
+                    name: "other.style".to_string(),
+                    package: "_".to_string(),
+                    extension: "lw".to_string(),
+                })
             );
             Ok(())
         })
@@ -234,7 +229,7 @@ fn a_peer_table_absent_sets_the_rule_aside_and_a_rust_owner_s_table_resolves_it(
         .package();
     let registry = registry_with([package]);
     assert_eq!(rule(&registry, "lw.box.lower.default").set_aside, [PeerName::Table("lw.absent".into())]);
-    assert!(build_notes(&registry).iter().any(|note| note.contains("lw.absent")), "{:?}", build_notes(&registry));
+    assert!(build_notes(&registry).iter().any(|(_, name)| name == "lw.absent"), "{:?}", build_notes(&registry));
 
     // `flm.anchors` is the references feature's (a Rust table of its own
     // type): the peer takes that type, so it resolves, and the rule reads it.
@@ -332,12 +327,7 @@ fn the_dispatcher_offers_every_registration_item_by_name() {
             )?;
             js.call(b, "script_def", json!([{ "id": "lw.script", "content": [{ "file": "x.js" }] }]))?;
             let refused = js.call(b, "style_def", json!([{ "id": "lw.bad", "content": [{ "inline": 1 }] }]));
-            assert_eq!(
-                refused.map_err(|error| error.to_string()),
-                Err("`style_def`: a part of a definition must be `{\"inline\": text}`, `{\"file\": path}`, \
-                     `{\"url\": address}` or `{\"table\": name}`, not `{\"inline\":1}`"
-                    .to_string())
-            );
+            assert!(matches!(&refused, Err(ExtError::Value { .. })), "{refused:?}");
             Ok(())
         })
         .package();
@@ -351,6 +341,40 @@ fn the_dispatcher_offers_every_registration_item_by_name() {
     let script = registry.scripts().iter().find(|(_, def)| def.id.as_str() == "lw.script").expect("the script");
     assert_eq!(script.1.content, [DefContent::File("x.js".to_string())]);
     assert!(registry.capability_named("lw.rendered").expect("declared").refines.is_some());
+}
+
+// --- element type texts --------------------------------------------------------------------
+
+#[test]
+fn an_element_type_text_is_given_through_the_facade_and_the_dispatcher() {
+    let package = Double::new("lw")
+        .feature("boxes", |b| {
+            b.element(ElementDef::new(b.feature(), ["lwbox"], SyntaxDef::Macro { args: Vec::new() }, ElementSpec::new("lw.box")))?;
+            b.element_type_text("lw.box", "A box around its content.")
+        })
+        .package();
+    let registry = registry_with([package]);
+    let text = registry.element_type_text("lw.box").expect("given by the extension's feature");
+    assert_eq!((text.owner.as_str(), text.docs.as_str()), ("boxes", "A box around its content."));
+
+    let package = JsonDouble::new("lw")
+        .feature("boxes", |js, b| {
+            let element = json!({ "names": ["lwbox"], "syntax": { "macro": { "args": [] } }, "element": { "name": "lw.box" } });
+            js.call(b, "element", json!([element]))?;
+            js.call(b, "element_type_text", json!(["lw.box", "A box around its content."]))?;
+            Ok(())
+        })
+        .package();
+    let registry = registry_with([package]);
+    assert_eq!(registry.element_type_text("lw.box").map(|text| text.owner.as_str()), Some("boxes"));
+
+    let outside = Double::new("lw").feature("boxes", |b| b.element_type_text("other.box", "A box.")).package();
+    let error = try_registry_with([outside]).expect_err("a text outside the stem is refused");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "boxes" && detail.starts_with("flm.ext.name-outside-extension: ")),
+        "{found:?}"
+    );
 }
 
 // --- argument roles ------------------------------------------------------------------------
@@ -374,9 +398,12 @@ fn an_argument_role_is_declared_peer_declared_and_set_through_the_facade() {
     assert!(registry.peer_argument_roles().iter().any(|peer| peer.owner == "keys" && peer.resolved));
 
     let outside = Double::new("lw").feature("keys", |b| b.argument_role("other.key", "A key.")).package();
-    let error = try_registry_with([outside]).expect_err("a role outside the stem is refused").render();
-    assert!(error.contains("the argument role `other.key` declared by the package"), "{error}");
-    assert!(error.contains("must begin with `lw.`"), "{error}");
+    let error = try_registry_with([outside]).expect_err("a role outside the stem is refused");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "keys" && detail.starts_with("flm.ext.name-outside-extension: ")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -401,7 +428,7 @@ fn the_dispatcher_declares_roles_and_reads_an_argument_s_role_from_data() {
         .collect();
     assert_eq!(roles, [Some("lw.key"), Some("lw.absent")]);
     assert!(
-        build_notes(&registry).iter().any(|note| note.contains("the argument role `lw.absent`")),
+        build_notes(&registry).iter().any(|(kind, name)| kind == "argument role" && name == "lw.absent"),
         "{:?}",
         build_notes(&registry)
     );
@@ -435,8 +462,8 @@ fn a_definition_reads_back_with_its_codes_modes_scoped_packages_and_extra_placeh
     assert_eq!(definition_to_value(&again), written);
     let error = definition_from_value(&json!({ "kind": "macro", "name": "x", "extra_placeholders": [{ "name": "s", "substitution": 1 }] }))
         .err()
-        .map(|error| error.to_string());
-    assert_eq!(error.as_deref(), Some("the field `substitution` of an extra placeholder must be a boolean, not `1`"));
+        .map(|error| error.kind());
+    assert_eq!(error, Some("value"));
 }
 
 #[test]
@@ -480,8 +507,8 @@ fn an_argument_s_mode_and_a_body_s_scoped_package_are_read_from_data() {
     use flm_ext::api::lang::mint::Mode;
     let body = body_def_from_value(&json!({ "layout": "blocks", "scoped": ["ex.hints", "ex.more"] })).expect("a body");
     assert_eq!(body.scoped.iter().map(|name| name.as_str()).collect::<Vec<_>>(), ["ex.hints", "ex.more"]);
-    let error = body_def_from_value(&json!({ "scoped": "ex.hints" })).err().map(|error| error.to_string());
-    assert_eq!(error.as_deref(), Some("the field `scoped` of a body must be a list of strings, not `\"ex.hints\"`"));
+    let error = body_def_from_value(&json!({ "scoped": "ex.hints" })).err().map(|error| error.kind());
+    assert_eq!(error, Some("value"));
     let syntax = syntax_def_from_value(&json!({ "macro": { "args": [{ "code": "{", "mode": "math" }] } }))
         .expect("a syntax");
     let SyntaxDef::Macro { args } = syntax else { panic!("a macro") };

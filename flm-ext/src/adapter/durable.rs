@@ -8,7 +8,14 @@
 //! it at every use, on whichever thread runs the use. The adapter keeps such
 //! objects in a [`DurableTable`], one per feature per registration, and a
 //! handler names one by its [`DurableToken`] `{ kind, table, index }`, valid on
-//! every thread and in every later call for the life of the table.
+//! every thread and in every later call for the life of the registry.
+//!
+//! **Who owns the objects.** The objects refer to the registry's language,
+//! and the table is reached from elements of that language (an element's
+//! expansion hook carries the table of its registration). The language
+//! therefore owns the objects, and the table reads them through
+//! [`LangOwned`] cells: a table that owned them would keep the language
+//! allocated after the registry is dropped.
 //!
 //! **What makes a token stale.** A token is resolved against the table of the
 //! running call's feature ([`DurableTable::get`]). A token of another table (a
@@ -34,7 +41,7 @@ use flm_core::lang::rewrites::userdefs::{
     compile_template_with, CompiledTemplate as CoreCompiledTemplate, PlaceholderVocabulary, TemplateLanguage,
     TemplateSpec,
 };
-use flm_core::lang::BuiltLang;
+use flm_core::lang::{BuiltLang, LangOwned};
 use serde_json::Value;
 use flm_core::techy::latexlike::Mode;
 
@@ -84,6 +91,28 @@ pub struct DurableToken {
     pub table: u64,
     /// Its position in that table.
     pub index: u32,
+}
+
+/// An entry as a [`DurableTable`] stores it: the cell of an object that the
+/// registry's language owns (the [module documentation](self), "Who owns the
+/// objects").
+#[derive(Debug)]
+enum Kept {
+    /// The feature's template language.
+    TemplateLanguage(LangOwned<TemplateLanguage>),
+    /// A compiled template.
+    CompiledTemplate(LangOwned<CoreCompiledTemplate>),
+}
+
+impl Kept {
+    /// The entry's object, shared; `None` once the language that owns it is
+    /// dropped.
+    fn entry(&self) -> Option<DurableEntry> {
+        match self {
+            Kept::TemplateLanguage(language) => language.get().map(DurableEntry::TemplateLanguage),
+            Kept::CompiledTemplate(template) => template.get().map(DurableEntry::CompiledTemplate),
+        }
+    }
 }
 
 /// An entry of a [`DurableTable`]: the object, shared.
@@ -164,7 +193,7 @@ static NEXT_TABLE: AtomicU64 = AtomicU64::new(1);
 #[derive(Debug, Default)]
 struct Entries {
     /// The entries, by index; none is ever removed.
-    list: Vec<DurableEntry>,
+    list: Vec<Kept>,
     /// The index of the template language, once built.
     language: Option<u32>,
     /// The index of each compiled template, by its key.
@@ -176,7 +205,9 @@ struct Entries {
 /// the stale token's error).
 ///
 /// The table lives as long as the handler objects of its registration hold
-/// it, and dies with the registry; no entry is ever removed. Nothing durable
+/// it, and dies with the registry; no entry is ever removed. The registry's
+/// language owns the objects of the entries, so an entry has no object once
+/// the registry is dropped. Nothing durable
 /// enters the registry digest (the [module documentation](self) says why).
 #[derive(Debug)]
 pub struct DurableTable {
@@ -221,15 +252,16 @@ impl DurableTable {
     pub fn language(&self, lang: &BuiltLang) -> Result<(DurableToken, Arc<TemplateLanguage>), ExtError> {
         let mut entries = self.lock();
         if let Some(index) = entries.language
-            && let Some(DurableEntry::TemplateLanguage(language)) = entries.list.get(index as usize)
+            && let Some(Kept::TemplateLanguage(language)) = entries.list.get(index as usize)
+            && let Some(language) = language.get()
         {
-            return Ok((self.token(DurableKind::TemplateLanguage, index), Arc::clone(language)));
+            return Ok((self.token(DurableKind::TemplateLanguage, index), language));
         }
         let language = TemplateLanguage::new(lang).map_err(|errors| {
             failure("template_language", errors.iter().map(ToString::to_string).collect())
         })?;
-        let language = Arc::new(language);
-        let index = push(&mut entries, DurableEntry::TemplateLanguage(Arc::clone(&language)));
+        let (kept, language) = LangOwned::with_value(lang, language);
+        let index = push(&mut entries, Kept::TemplateLanguage(kept));
         entries.language = Some(index);
         Ok((self.token(DurableKind::TemplateLanguage, index), language))
     }
@@ -259,15 +291,16 @@ impl DurableTable {
         let key = TemplateKey::of(spec);
         let mut entries = self.lock();
         if let Some(&index) = entries.templates.get(&key)
-            && let Some(DurableEntry::CompiledTemplate(template)) = entries.list.get(index as usize)
+            && let Some(Kept::CompiledTemplate(template)) = entries.list.get(index as usize)
+            && let Some(template) = template.get()
         {
-            return Ok((self.token(DurableKind::CompiledTemplate, index), Arc::clone(template)));
+            return Ok((self.token(DurableKind::CompiledTemplate, index), template));
         }
         let template = compile_template_with(spec, lang, &language).map_err(|diagnostics| {
             failure("compile_template", diagnostics.iter().map(|diagnostic| diagnostic.message()).collect())
         })?;
-        let template = Arc::new(template);
-        let index = push(&mut entries, DurableEntry::CompiledTemplate(Arc::clone(&template)));
+        let (kept, template) = LangOwned::with_value(lang, template);
+        let index = push(&mut entries, Kept::CompiledTemplate(kept));
         entries.templates.insert(key, index);
         Ok((self.token(DurableKind::CompiledTemplate, index), template))
     }
@@ -287,14 +320,16 @@ impl DurableTable {
     /// # Errors
     ///
     /// [`ExtError::StaleDurable`] when the token is of another table, names an
-    /// index the table does not hold, or names an entry of another kind.
+    /// index the table does not hold, or names an entry of another kind; also
+    /// once the registry of the table's registration is dropped.
     pub fn get(&self, token: DurableToken) -> Result<DurableEntry, ExtError> {
         let entries = self.lock();
         let entry = (token.table == self.number)
             .then(|| entries.list.get(token.index as usize))
             .flatten()
+            .and_then(Kept::entry)
             .filter(|entry| entry.kind() == token.kind);
-        entry.cloned().ok_or_else(|| self.stale(token))
+        entry.ok_or_else(|| self.stale(token))
     }
 
     /// The compiled template `token` names, as the extension API's façade,
@@ -357,7 +392,7 @@ fn failure(kind: &str, texts: Vec<String>) -> ExtError {
 }
 
 /// Pushes `entry` and answers its index.
-fn push(entries: &mut Entries, entry: DurableEntry) -> u32 {
+fn push(entries: &mut Entries, entry: Kept) -> u32 {
     // A table holds far fewer than `u32::MAX` entries: one per distinct
     // template a feature compiles.
     let index = u32::try_from(entries.list.len()).unwrap_or(u32::MAX);
@@ -425,9 +460,15 @@ mod tests {
         let token = DurableToken { kind: DurableKind::CompiledTemplate, table: table.number(), index: 0 };
         let error = table.get(token).expect_err("stale");
         assert_eq!(
-            error.to_string(),
-            "the `compiled_template` object 0 must be one the feature `count` of the package `core` of the \
-             extension `wc` made under the registry in use"
+            error,
+            ExtError::StaleDurable {
+                kind: DurableKind::CompiledTemplate,
+                table: table.number(),
+                index: 0,
+                feature: "count".to_string(),
+                package: "core".to_string(),
+                extension: "wc".to_string(),
+            }
         );
     }
 }

@@ -42,7 +42,7 @@ use flm_core::techy::source::SourceSpan;
 use crate::adapter::handles::CallTable;
 use crate::adapter::names::Owner;
 use crate::adapter::node::NodeFacade;
-use crate::adapter::values::{field, fields, handle_from_value, label_from_value, node_from_table, required_text, tree_from_table};
+use crate::adapter::values::{field, fields, handle_from_value, label_from_value, node_from_table, nodes_from_value, required_text, tree_from_table};
 use crate::api::model::aspects::{
     AcceptedRefTypes, AnchorPolicy, ContentRef, MalformedLabel, NumberSource, RefPoint, Referenceable, Sectioning,
 };
@@ -322,16 +322,17 @@ fn anchor_policy_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Res
     }
 }
 
-/// A number source: `{"counter", "instances": [node, …], "style", "advance":
-/// [level, …], "number_format": text | null}`; `counter`, `style` and
-/// `advance` required.
+/// A number source: `{"counter", "instances": nodes, "style", "advance":
+/// [level, …], "number_format": text | null}`, `nodes` several nodes as
+/// [`nodes_from_value`] reads them; `counter`, `style` and `advance`
+/// required.
 fn number_source_from_value<'c>(table: &mut CallTable<'c>, value: &Value) -> Result<NumberSource<'c>, ExtError> {
     const WHAT: &str = "a number source";
     let map = fields(WHAT, value, &["counter", "instances", "style", "advance", "number_format"])?;
-    let instances = list_field(WHAT, &map, "instances")?
-        .iter()
-        .map(|item| node_from_table(table, handle_from_value(item)?))
-        .collect::<Result<_, _>>()?;
+    let instances = match field(&map, "instances") {
+        Value::Null => Vec::new(),
+        nodes => nodes_from_value(table, nodes)?,
+    };
     let advance = match field(&map, "advance") {
         Value::Null => return Err(ExtError::Value { detail: format!("{WHAT} must have the field `advance`") }),
         Value::Array(levels) => levels

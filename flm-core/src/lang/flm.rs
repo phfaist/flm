@@ -93,7 +93,7 @@ pub enum FlmGroupType {
     /// written: on a theorem kind whose class reads back-references, such as
     /// a proof, the title's reader places one around a title that begins with
     /// a star
-    /// ([`theorems`](crate::stdcore::features::theorems::elements#a-starred-title-is-kept-as-typed)).
+    /// ([`theorems`](crate::stdlib::features::theorems::elements#a-starred-title-is-kept-as-typed)).
     /// The block-structure pass ([`crate::lang::rewrites::blocks`]) carries
     /// its content over untouched: no whitespace is collapsed and no
     /// typographic substitution is made inside it, so the element that

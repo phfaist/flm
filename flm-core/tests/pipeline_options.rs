@@ -141,13 +141,7 @@ fn document_only_feature(render: OptionValues) -> Arc<dyn flm_core::core::regist
 fn a_workflows_render_value_at_a_document_only_binding_names_the_workflow() {
     // Set by the workflow itself: the registry build refuses it.
     let error = registry_error(vec![document_only_feature(OptionValues::new().with(Depth(4)))]);
-    assert!(
-        error.to_string().contains(
-            "a value is set on the render request of workflow `report` for the option type \
-             `Depth` of feature `t`, but feature `t` declares that values of this option type may be set only on the document"
-        ),
-        "{error}"
-    );
+    assert_eq!(common::stdlib::refusing_features(&error), ["t"], "{error}");
     // Set by the caller's overrides of the workflow: the plan build refuses it.
     let registry = registry(vec![document_only_feature(OptionValues::new())]);
     let overrides =
@@ -159,20 +153,13 @@ fn a_workflows_render_value_at_a_document_only_binding_names_the_workflow() {
         }
         other => panic!("unexpected error: {other:?}"),
     }
-    assert!(
-        error.to_string().starts_with(
-            "a value is set on the render request of workflow `report` for the option type \
-             `Depth` of feature `t`, but"
-        ),
-        "{error}"
-    );
-    // A hand-built request keeps the place as the subject.
+    // A hand-built request names no workflow.
     let request =
         PlanRequest::new().demand("t.x").render_options(OptionValues::new().with(Depth(4)));
     let error = Plan::build(&registry, &request).expect_err("document-bound");
     assert!(
-        error.to_string().starts_with("a value is set on the render request for the option type"),
-        "{error}"
+        matches!(&error, PlanError::RenderOption(OptionError::BindingRefused { workflow: None, .. })),
+        "{error:?}"
     );
 }
 

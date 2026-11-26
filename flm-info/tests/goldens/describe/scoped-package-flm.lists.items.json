@@ -1,8 +1,6 @@
 {
   "name": "flm.lists.items",
   "owner": "lists",
-  "docs": "The command recognized inside a list environment's body: `\\item`, which begins an item.",
-  "summary": "The command recognized inside a list environment's body: `\\item`, which begins an item.",
   "commands": {
     "macros": [
       {
@@ -14,22 +12,16 @@
         "modes": [
           "text"
         ],
-        "docs": "`\\item[tag]\\label{item:…}`: begins an item; the optional tag is its label.",
-        "summary": "`\\item[tag]\\label{item:…}`: begins an item; the optional tag is its label.",
         "arguments": [
           {
-            "form": "an optional `[key=value,…]` group",
             "syntax": {
               "syntax": "key-vals"
             },
             "written": "[options]",
             "name": "options",
-            "layout": "inline",
-            "docs": "The item's tag, `tag={…}`, or the tag whole where no `=` is written.",
-            "summary": "The item's tag, `tag={…}`, or the tag whole where no `=` is written."
+            "layout": "inline"
           },
           {
-            "form": "the fields `\\label` written after the command",
             "syntax": {
               "syntax": "tack-on",
               "fields": [
@@ -41,39 +33,30 @@
                       "name": "target",
                       "layout": "inline",
                       "opaque_wrapper": false,
-                      "docs": "The label, written `type:label` (`sec:intro`).",
                       "mode": null,
                       "scoped": [],
                       "role": "flm.refs.defined-label"
                     }
                   ],
-                  "repeatable": true,
-                  "docs": "Attaches a label to the construct, which a reference can point at; may be repeated."
+                  "repeatable": true
                 }
               ]
             },
             "written": "\\label{target}",
             "name": "fields",
             "layout": "inline",
-            "docs": "`\\label{…}` fields written after the construct, each attaching a label to it.",
-            "summary": "`\\label{…}` fields written after the construct, each attaching a label to it.",
             "fields": [
               {
                 "name": "label",
                 "repeatable": true,
-                "docs": "Attaches a label to the construct, which a reference can point at; may be repeated.",
-                "summary": "Attaches a label to the construct, which a reference can point at; may be repeated.",
                 "arguments": [
                   {
-                    "form": "a `{…}` group read as plain characters, kept as written",
                     "syntax": {
                       "syntax": "chars-group"
                     },
                     "written": "{target}",
                     "name": "target",
                     "layout": "inline",
-                    "docs": "The label, written `type:label` (`sec:intro`).",
-                    "summary": "The label, written `type:label` (`sec:intro`).",
                     "role": "flm.refs.defined-label"
                   }
                 ]
@@ -83,13 +66,11 @@
         ],
         "element": {
           "name": "flm.lists.item",
-          "docs": "`\\item`: begins an item of the list in whose body it is written.",
-          "summary": "`\\item`: begins an item of the list in whose body it is written.",
           "aspects": [
             "flm_core::model::aspects::BlockRoleAspect",
             "flm_core::model::aspects::Referenceable"
           ],
-          "number": 110
+          "number": 114
         },
         "within": "flm.lists.items",
         "available_in": [

@@ -1,5 +1,5 @@
 //! The content features on the `html` backend
-//! (`flm_core::stdcore::backends::html`), from FLM source through the whole
+//! (`flm_core::stdlib::backends::html`), from FLM source through the whole
 //! pipeline to the HTML of a fragment: one golden per property, each named for
 //! the property it pins.
 //!
@@ -26,7 +26,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{BuildError, FeatureBuilder, FlmFeature, FlmRegistry};
+use flm_core::core::registry::{BuildError, FeatureBuilder, FlmFeature, FlmRegistry, PackageEntry};
 use flm_core::core::run::Run;
 use flm_core::dump::diag::expect;
 use flm_core::lang::mint::ArgDef;
@@ -34,16 +34,16 @@ use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::names::{BackendName, ElementName};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::features::blocks::BlocksConfig;
-use flm_core::stdcore::features::headings::HeadingsConfig;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::features::blocks::BlocksConfig;
+use flm_core::stdlib::features::headings::HeadingsConfig;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use techy::error::Severity;
 
 use common::html::{assert_golden, fragment, run_one_fragment_under};
 use common::macro_def;
-use common::stdcore::{registry, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, registry, run_workflow};
 
 // ============================================================================
 // the fixtures every area uses
@@ -51,7 +51,7 @@ use common::stdcore::{registry, run_workflow};
 
 /// The registry of the standard package under its default configuration.
 fn std_registry() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 /// Runs the documents `texts`, one tree each, under the `html` workflow of
@@ -61,20 +61,14 @@ fn render_over(registry: &Arc<FlmRegistry>, texts: &[&str]) -> Run {
 }
 
 /// The HTML of the documents `texts` under the standard package, with no
-/// diagnostic reported at all.
-///
-/// A diagnostic here is a test failure printing the run's whole report, since
-/// every property this suite pins is a property of a document the library
+/// diagnostic reported but the Warnings of its plan's unchecked output. Any
+/// other diagnostic here is a test failure printing the run's whole report,
+/// since every property this suite pins is a property of a document the library
 /// accepts without complaint.
 fn clean(texts: &[&str]) -> String {
     let run = render_over(&std_registry(), texts);
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     fragment(&run)
-}
-
-/// Fails, printing the whole report, when the run reported anything.
-fn assert_clean(run: &Run) {
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
 }
 
 // ============================================================================
@@ -156,7 +150,7 @@ fn a_fragments_declared_layout_decides_whether_a_paragraph_is_written() {
     let registry = std_registry();
     let under = |layout| {
         let run = run_one_fragment_under(&registry, layout, one_run);
-        assert_clean(&run);
+        assert_only_unchecked_output(&run);
         fragment(&run)
     };
     let inline = under(FragmentLayout::Inline);
@@ -242,12 +236,12 @@ fn a_run_in_heading_is_a_decoration_at_the_start_of_its_paragraph() {
     // shows exactly what the setting changes and nothing else. A run-in
     // heading with nothing after it on its own side of a blank line makes a
     // paragraph holding the decoration alone; that is block structure, the
-    // same on every backend, and `tests/stdcore_headings_runin.rs` pins it.
+    // same on every backend, and `tests/stdlib_headings_runin.rs` pins it.
     let run_in = registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
     );
     let run = render_over(&run_in, &[EVERY_LEVEL]);
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(html.contains("<span class=\"flm-pres-deco-runin\">"), "{html}");
     // The first three levels are untouched; the last two are decorations
@@ -272,7 +266,7 @@ fn a_run_in_title_that_already_ends_in_punctuation_takes_no_second_stop() {
     // Each heading is followed by the text it introduces on the same
     // paragraph, since that is where a stop and the gap after it are read.
     let run_in = registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
     );
     let run = render_over(
         &run_in,
@@ -282,7 +276,7 @@ fn a_run_in_title_that_already_ends_in_punctuation_takes_no_second_stop() {
              \\paragraph{Done.}\\label{sec:done} Finished.\n",
         ],
     );
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert_eq!(html.matches("flm-pres-deco-runin").count(), 3, "{html}");
     // `Why?` and `Done.` end in punctuation of their own and take nothing;
@@ -299,7 +293,7 @@ fn a_run_in_title_ending_in_emphasis_is_read_through_to_its_last_character() {
     // decoration's own last child, so a title whose last element is an
     // emphasized word is judged by the characters inside that element.
     let run_in = registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
     );
     let run = render_over(
         &run_in,
@@ -308,7 +302,7 @@ fn a_run_in_title_ending_in_emphasis_is_read_through_to_its_last_character() {
              \\paragraph{See \\emph{that!}} More.\n",
         ],
     );
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(html.contains("this</em></span>.</span>Text."), "{html}");
     assert!(html.contains("that!</em></span></span>More."), "{html}");
@@ -323,13 +317,13 @@ fn a_run_in_heading_with_no_title_takes_no_stop() {
     // case; a title that is a non-breaking space is not, since that space is
     // text the author asked for.
     let run_in = registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
     );
     let run = render_over(
         &run_in,
         &["\\paragraph{} Some content.\n\n\\paragraph{ } More content.\n"],
     );
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert_eq!(html.matches("flm-pres-deco-runin").count(), 2, "{html}");
     assert!(!html.contains("</span>.</span>"), "{html}");
@@ -341,7 +335,7 @@ fn the_stop_after_a_run_in_heading_is_a_render_option() {
     // gets one, and the empty text writes no stop at all. The option has the
     // same name and the same meaning on the text backend.
     let run_in = registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4])),
     );
     let document = "\\paragraph{Note} Some content.\n";
     let under = |stop: &str| {
@@ -353,7 +347,7 @@ fn the_stop_after_a_run_in_heading_is_a_render_option() {
             ..Overrides::none()
         };
         let run = run_workflow(&run_in, html::WORKFLOW, &[document], &overrides);
-        assert_clean(&run);
+        assert_only_unchecked_output(&run);
         fragment(&run)
     };
     let colon = under(":");
@@ -523,7 +517,7 @@ fn an_element_the_caller_accepted_as_unrendered_is_an_empty_span_naming_it() {
     // could not be rendered never reaches the page: it stays in the
     // diagnostic.
     let mut builder = flm_core::core::registry::RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(StdcoreConfig::new()));
+    builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(hole_feature());
     let registry = builder
@@ -556,13 +550,13 @@ fn a_user_definition_used_in_text_reaches_the_page_expanded() {
     // general expansion rewrite runs and the emitter never sees the use site:
     // what reaches the page is the definition's content, styled and escaped
     // like any other content.
-    let registry = registry(StdcoreConfig::new().userdefs(
+    let registry = registry(StdlibConfig::new().userdefs(
         UserdefsConfig::new().definitions(vec![
             Definition::macro_("libname", Vec::new()).text("\\textbf{FLM}"),
         ]),
     ));
     let run = render_over(&registry, &["The \\libname{} language.\n"]);
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(!html.contains("libname"), "{html}");
     assert!(html.contains("data-flm-style=\"bold\""), "{html}");
@@ -574,7 +568,7 @@ fn a_user_definition_taking_arguments_reaches_the_page_with_them_substituted() {
     // An argument written at the use site is substituted into the definition's
     // content, and an argument the author left out takes the declared default.
     // Both are settled before lowering, so the page shows only the result.
-    let registry = registry(StdcoreConfig::new().userdefs(
+    let registry = registry(StdlibConfig::new().userdefs(
         UserdefsConfig::new().definitions(vec![
             Definition::macro_(
                 "greet",
@@ -585,7 +579,7 @@ fn a_user_definition_taking_arguments_reaches_the_page_with_them_substituted() {
         ]),
     ));
     let run = render_over(&registry, &["\\greet[Bonjour]{world} And \\greet{world}\n"]);
-    assert_clean(&run);
+    assert_only_unchecked_output(&run);
     let html = fragment(&run);
     assert!(html.contains("Bonjour"), "{html}");
     assert!(html.contains("Hello"), "{html}");
@@ -711,7 +705,7 @@ fn a_straight_double_quote_reaching_an_attribute_value_is_escaped() {
     // document alone, and for this one byte: a document that closed an
     // attribute early could write markup of its own, which is exactly what an
     // attribute value's escaping prevents.
-    let plain = registry(StdcoreConfig::new().blocks(BlocksConfig::no_typography()));
+    let plain = registry(StdlibConfig::new().blocks(BlocksConfig::no_typography()));
     let html = fragment(&render_over(&plain, &["\\verbcode[la\"ng]+a \" b+\n"]));
     assert!(html.contains("data-flm-lang=\"la&quot;ng\""), "{html}");
     // In element content a double quote closes nothing, so it stays the byte

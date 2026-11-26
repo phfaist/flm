@@ -1,0 +1,63 @@
+/* flm.metadata.style */
+/* The document's title, authors and date, as the pieces flm.metadata.title,
+   flm.metadata.author and flm.metadata.date hold them: the title large and bold,
+   the authors and the date indented under the title, each author a group of
+   lines one below the other: the name, then the affiliations, the email address
+   and the notes in a smaller size.  It applies wherever a page places the
+   pieces, whatever the compose template; a page that wants another
+   presentation adds a stylesheet of its own. */
+@layer flm {
+  :root {
+    /* The title's size, its line height, and the space below it.  The space
+       between the title and the line under it is the larger of this space
+       and the space above that line. */
+    --flm-metadata-title-size: 2rem;
+    --flm-metadata-title-line-height: 1.3em;
+    --flm-metadata-title-space-below: 0.8em;
+    /* The size of the authors and of the date, their line height, their
+       indentation under the title, and the space above each, and between two
+       authors. */
+    --flm-metadata-line-size: 1.1rem;
+    --flm-metadata-line-height: 1.3;
+    --flm-metadata-line-indent: 2em;
+    --flm-metadata-line-space: 0.5em;
+    /* The size of an author's affiliations, email address and notes, against
+       the author's name. */
+    --flm-metadata-author-detail-size: 0.85em;
+  }
+
+  /* The title. */
+  .flm-pres-block.flm-metadata-title[data-flm-kind~="metadata"] {
+    margin-block-end: var(--flm-metadata-title-space-below);
+    font-size: var(--flm-metadata-title-size);
+    font-weight: bold;
+    line-height: var(--flm-metadata-title-line-height);
+  }
+
+  /* The authors and the date: indented, with a small space above each. */
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"],
+  .flm-pres-block.flm-metadata-date[data-flm-kind~="metadata"] {
+    margin-inline-start: var(--flm-metadata-line-indent);
+    margin-block-start: var(--flm-metadata-line-space);
+    font-size: var(--flm-metadata-line-size);
+    line-height: var(--flm-metadata-line-height);
+  }
+  .flm-pres-block.flm-metadata-date[data-flm-kind~="metadata"] > .flm-pres-par {
+    margin: 0;
+  }
+
+  /* Each author: its lines, with a small space between two authors. */
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"] > .flm-pres-lines {
+    margin: 0;
+  }
+  .flm-pres-block.flm-metadata-author[data-flm-kind~="metadata"] > .flm-pres-lines + .flm-pres-lines {
+    margin-block-start: var(--flm-metadata-line-space);
+  }
+
+  /* An author's affiliations, email address and notes. */
+  .flm-pres-span.flm-metadata-author-affiliation,
+  .flm-pres-span.flm-metadata-author-email,
+  .flm-pres-span.flm-metadata-author-note {
+    font-size: var(--flm-metadata-author-detail-size);
+  }
+}

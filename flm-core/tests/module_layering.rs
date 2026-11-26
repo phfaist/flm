@@ -4,7 +4,7 @@
 //! The rule stated in the crate documentation is
 //!
 //! ```text
-//! {model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+//! {model, lang} < core < dump < stdlib < math_passthrough        layout, progress standalone
 //! ```
 //!
 //! and it is meant literally: a module names another module of this crate only
@@ -31,16 +31,19 @@ use std::path::{Path, PathBuf};
 const ALLOWED: &[(&str, &[&str])] = &[
     ("model", &["model", "lang"]),
     ("lang", &["model", "lang"]),
-    ("core", &["model", "lang", "core"]),
+    ("core", &["model", "lang", "core", "progress"]),
     ("dump", &["model", "lang", "core", "dump"]),
-    ("stdcore", &["model", "lang", "core", "dump", "stdcore", "layout"]),
-    // The package `math-passthrough` uses the standard package `stdcore`.
-    ("math_passthrough", &["model", "lang", "core", "dump", "stdcore", "math_passthrough"]),
+    ("stdlib", &["model", "lang", "core", "dump", "stdlib", "layout", "progress"]),
+    // The feature `math-passthrough` builds on the standard features.
+    ("math_passthrough", &["model", "lang", "core", "dump", "stdlib", "math_passthrough"]),
     // The layout engine stands apart: it names no other module of the crate,
     // which is what would make extracting it into a crate of its own a move —
     // as was done with the Unicode-to-LaTeX encoder, now the published crate
     // `untechxt`.
     ("layout", &["layout"]),
+    // The progress sheet stands apart too: the runner and the standard
+    // features report on it, and it names nothing of theirs.
+    ("progress", &["progress"]),
 ];
 
 /// The path of the crate's source directory.
@@ -134,7 +137,7 @@ fn no_module_names_a_module_above_its_own_level() {
 
     assert!(
         violations.is_empty(),
-        "the module layering `{{model, lang}} < core < dump < stdcore < math_passthrough` is broken by:\n{}",
+        "the module layering `{{model, lang}} < core < dump < stdlib < math_passthrough` is broken by:\n{}",
         violations.join("\n")
     );
 }

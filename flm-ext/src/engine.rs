@@ -8,10 +8,11 @@
 //! [`Engine::load`] once per extension, and turns each reported package into
 //! a factory ([`package_factory`](crate::adapter::package_factory)).
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
-use flm_core::stdcore::features::compose::Template;
+use flm_core::stdlib::features::compose::Template;
 use serde_json::{Map, Value};
 
 use crate::block::Block;
@@ -31,6 +32,11 @@ pub struct ExtensionIdentity {
     /// The last segment of the locator that first reached it; the declared
     /// names' prefix.
     pub stem: String,
+    /// The use name that first reached it: the locator, without its
+    /// `#PACKAGE` part (`journals/aps`, `@acme/style`). The program writes it
+    /// in the root `ext+NAME` of a file of the extension
+    /// ([`crate::paths`]).
+    pub name: String,
 }
 
 impl ExtensionIdentity {
@@ -90,8 +96,7 @@ pub struct PackageReport {
     /// Its block (the data engine: the manifest's `flm`; the js engine: the
     /// package object's `flm`, with `uses` outside it).
     pub block: Block,
-    /// The compose templates it ships, each read from its description,
-    /// `templates/OUTPUT/NAME.yaml` or `templates/OUTPUT/NAME/flmtemplate.yaml`
+    /// The compose templates it ships, each read from its description
     /// ([`templates::read`](crate::templates::read)), `package` set to the
     /// factory name.
     pub templates: Vec<Template>,
@@ -105,6 +110,13 @@ pub struct PackageReport {
     /// extension's digest; a handler reaches a declared service alone
     /// ([`StageCx::host`](crate::api::core::run::StageCx::host)).
     pub host: Vec<String>,
+    /// The caches it declares for its handlers, by name (the js engine:
+    /// the package object's key `caches`; the data engine: none), each read
+    /// when the report is read ([`CacheDeclaration`](crate::host::CacheDeclaration)).
+    /// A host service that keeps caches checks them when the package loads
+    /// ([`HostService::check_package`](crate::host::HostService::check_package));
+    /// they are not fed into the extension's digest.
+    pub caches: crate::host::CacheDeclarations,
 }
 
 /// One scripted feature: the fields of
@@ -128,10 +140,52 @@ pub struct FeatureReport {
     /// The settings it declares, if any.
     #[serde(default)]
     pub settings: Option<SettingsReport>,
+    /// The template modules it contributes
+    /// ([`TemplateModule`](crate::api::stdlib::features::compose::TemplateModule)),
+    /// by the module's name: the feature object's key `templates`. The
+    /// feature's settings declaration declares the settings of each as the
+    /// entry `template_config.OUTPUT.NAME` of the feature `compose`; a module
+    /// that the feature contributes and does not list here fails its
+    /// registration.
+    #[serde(default)]
+    pub templates: BTreeMap<String, ModuleReport>,
+}
+
+/// One template module that a feature contributes, as its feature object
+/// declares it under `templates`.
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ModuleReport {
+    /// The name of the output that the module serves (`html`).
+    pub output: String,
+    /// The JSON Schema of the module's settings: an object schema, each of
+    /// whose `properties` is one setting, with its type, its `description`
+    /// and its marks (`x-flm-marks`), and no `default`: the module's
+    /// [`describe`](crate::api::stdlib::features::compose::TemplateModule::describe)
+    /// gives the defaults. Absent, a schema with no setting.
+    ///
+    /// For a setting marked `merge-object-key-values`, the values that the
+    /// sources write are combined key by key; at present the default that
+    /// `describe` gives for it takes no part in that combining: it is the
+    /// setting's value when no source writes the setting, and a source that
+    /// writes the setting replaces it whole.
+    #[serde(default = "no_module_settings")]
+    pub settings: Value,
+}
+
+/// The schema of a module that declares no setting.
+fn no_module_settings() -> Value {
+    serde_json::json!({ "type": "object", "properties": {} })
 }
 
 /// A feature's settings declared as data, turned into a
 /// [`SettingsDecl`](flm_core::core::settings::SettingsDecl) by the adapter.
+///
+/// The marks of the settings are written on the nodes of the schemas, each
+/// node's list `x-flm-marks` of mark names
+/// ([`Mark`](flm_core::core::settings::Mark)): an object combined key by key
+/// carries `merge-object-key-values`, its default entries as the `default` of
+/// its node, and a text of FLM markup carries `markup`.
 #[derive(Debug, Clone, PartialEq, Default, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SettingsReport {
@@ -143,15 +197,6 @@ pub struct SettingsReport {
     /// its key path).
     #[serde(default)]
     pub options: Map<String, Value>,
-    /// `merge_entries`: key → its default entries (a map).
-    #[serde(default)]
-    pub merge_entries: Map<String, Value>,
-    /// The keys whose values are markup.
-    #[serde(default)]
-    pub markup: Vec<String>,
-    /// The keys whose values are paths.
-    #[serde(default)]
-    pub path: Vec<String>,
     /// `read`: whether the feature reads its configuration whenever a
     /// document's settings are read and do not switch the feature off, with
     /// its configuration reader (the entry `read_settings`,

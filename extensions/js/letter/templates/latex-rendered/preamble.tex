@@ -1,0 +1,104 @@
+\usepackage[top=@@margin_top@@,bottom=@@margin_bottom@@,left=@@margin_left@@,right=@@margin_right@@]{geometry}
+\usepackage{fontspec}
+\setmainfont{@@font_family@@}
+\usepackage{graphicx}
+\usepackage{etoolbox}
+\usepackage{microtype}
+\newcommand{\flmxLetterLinkFont}{\fontfamily{\familydefault}\itshape}
+% The links component is present only when the document contains links.
+\ifdefined\flmxUrlFont
+  \RenewDocumentCommand{\flmxUrlFont}{}{\flmxLetterLinkFont}
+  \ExplSyntaxOn
+  \flmxDefineLink{url}
+    { \exp_args:Ne \href { \flmxKey { href } } { { \flmxLetterLinkFont #1 } } }
+  \ExplSyntaxOff
+\fi
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\setlength{\topskip}{0pt}
+\setlength{\emergencystretch}{2em}
+\raggedbottom
+\clubpenalty=3000
+\widowpenalty=3000
+% Field-local styles leave ordinary quotations in the body unchanged.
+\newcommand{\flmxLetterFieldStyle}{\flmxDefineBlock{flm.quote}{\par}{\par}}
+\newcommand{\flmxLetterPlainField}[1]{\begingroup\flmxLetterFieldStyle #1\par\endgroup}
+\newcommand{\flmxLetterGap}[1]{\par\addvspace{#1}}
+\newcommand{\flmxLetterAddressFont}{\fontsize{@@address_font_pt@@}{@@address_baseline_pt@@}\selectfont}
+\newcommand{\flmxLetterRightLines}[1]{\begingroup\flmxLetterFieldStyle\raggedleft\flmxDefineLineDefault{\par{\raggedleft ##1\par}}#1\par\endgroup}
+\newcommand{\flmxLetterAddress}[1]{\noindent\begin{minipage}[t]{\linewidth}\raggedright\flmxLetterPlainField{#1}\end{minipage}\par}
+\newif\ifflmxLetterUS
+\csname flmxLetterUS@@us_tex@@\endcsname
+\newif\ifflmxLetterHasLogo
+\csname flmxLetterHasLogo@@show_logo@@\endcsname
+\newif\ifflmxLetterColumns
+\def\flmxLetterMode{@@logo_mode_tex@@}
+\ifdefstring{\flmxLetterMode}{columns}{\flmxLetterColumnstrue}{\flmxLetterColumnsfalse}
+\newlength{\flmxLetterColumn}
+\setlength{\flmxLetterColumn}{\dimexpr(\textwidth-8mm)/2\relax}
+\newif\ifflmxLetterHead
+\newif\ifflmxLetterRow
+% A page-width letterhead extends horizontally across the margins. Its height
+% remains part of normal flow, and the body retains the configured text width.
+\newcommand{\flmxLetterWideLogo}{%
+  \noindent\makebox[\textwidth][l]{%
+    \ifdefstring{\flmxLetterMode}{page-width}{\hspace*{-@@margin_left@@}}{}%
+    \flmxLetterLogo}\par
+}
+\NewDocumentCommand{\flmxLetterHeader}{+m +m +m}{%
+  \flmxLetterHeadfalse
+  \ifflmxLetterHasLogo\ifflmxLetterColumns\else
+    \flmxLetterWideLogo\flmxLetterHeadtrue
+  \fi\fi
+  \flmxLetterRowfalse
+  \ifstrempty{#1}{}{\flmxLetterRowtrue}%
+  \ifflmxLetterUS\ifstrempty{#3}{}{\flmxLetterRowtrue}\fi
+  \ifflmxLetterHasLogo\ifflmxLetterColumns\flmxLetterRowtrue\fi\fi
+  \ifflmxLetterRow
+    \ifflmxLetterHead\flmxLetterGap{@@header_gap@@}\fi
+    \noindent
+    \ifflmxLetterUS
+      \begin{minipage}[t]{\flmxLetterColumn}\vspace{0pt}%
+        \ifflmxLetterHasLogo\ifflmxLetterColumns\flmxLetterLogo\fi\fi
+      \end{minipage}\hfill
+      \begin{minipage}[t]{\flmxLetterColumn}\vspace{0pt}\raggedright
+        \ifstrempty{#1}{}{{\flmxLetterAddressFont\flmxLetterPlainField{#1}}}%
+        \ifstrempty{#3}{}{\ifstrempty{#1}{}{\flmxLetterGap{5mm}}\flmxLetterPlainField{#3}}%
+      \end{minipage}%
+    \else
+      \begin{minipage}[t]{\ifflmxLetterHasLogo\ifflmxLetterColumns\dimexpr\linewidth-@@logo_width@@-8mm\relax\else\linewidth\fi\else\linewidth\fi}%
+        \vspace{0pt}\raggedright\flmxLetterAddressFont\flmxLetterPlainField{#1}%
+      \end{minipage}%
+      \ifflmxLetterHasLogo\ifflmxLetterColumns
+        \hfill\begin{minipage}[t]{@@logo_width@@}\vspace{0pt}\raggedleft\flmxLetterLogo\end{minipage}%
+      \fi\fi
+    \fi\par
+    \flmxLetterHeadtrue
+  \fi
+  \ifstrempty{#2}{}{\ifflmxLetterHead\flmxLetterGap{@@header_gap@@}\fi\flmxLetterAddress{#2}}%
+  \ifflmxLetterUS
+    \ifstrempty{#2}{\ifflmxLetterHead\flmxLetterGap{@@header_gap@@}\fi}{\flmxLetterGap{5mm}}%
+  \else
+    \ifstrempty{#3}{%
+      \ifstrempty{#2}{\ifflmxLetterHead\flmxLetterGap{@@header_gap@@}\fi}{\flmxLetterGap{5mm}}%
+    }{%
+      \ifstrempty{#2}{\ifflmxLetterHead\flmxLetterGap{@@header_gap@@}\fi}{\flmxLetterGap{5mm}}%
+      \flmxLetterRightLines{#3}\flmxLetterGap{7mm}%
+    }%
+  \fi
+}
+\NewDocumentCommand{\flmxLetterSubject}{+m}{\flmxLetterAddress{\bfseries #1}\nopagebreak\flmxLetterGap{7mm}\nopagebreak}
+\NewDocumentCommand{\flmxLetterSalutation}{+m}{\flmxLetterAddress{#1}\nopagebreak\flmxLetterGap{3mm}\nopagebreak}
+\newenvironment{flmxLetterBody}{%
+  \par\setlength{\parindent}{@@paragraph_indent@@}\setlength{\parskip}{@@paragraph_spacing@@}%
+}{\par}
+\NewDocumentCommand{\flmxLetterSignoff}{+m +m}{%
+  \flmxLetterGap{7mm}\noindent
+  \ifflmxLetterUS\hspace*{\dimexpr\textwidth-\flmxLetterColumn\relax}\fi
+  \begin{minipage}[t]{\ifflmxLetterUS\flmxLetterColumn\else\linewidth\fi}\raggedright
+    \ifstrempty{#1}{}{\flmxLetterPlainField{#1}}%
+    \ifstrempty{#2}{}{\ifstrempty{#1}{}{\flmxLetterGap{@@signature_gap@@}}\flmxLetterPlainField{#2}}%
+  \end{minipage}\par
+}
+\NewDocumentCommand{\flmxLetterEnclosed}{+m}{\flmxLetterGap{6mm}\flmxLetterAddress{#1}}

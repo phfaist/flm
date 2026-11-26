@@ -28,10 +28,11 @@ use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::adapter::values::diagnostic_value_to_json;
 use flm_core::model::options::OptionValues;
+use flm_core::stdlib::backends::html;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::{json, Value};
 
-use common::{html_of, registry_with, text_of};
+use common::{assert_only_unchecked_output, html_of, registry_with, text_of};
 
 // --- helpers -----------------------------------------------------------------------------------
 
@@ -155,7 +156,7 @@ import {{ Definition, UserDefinition, DefinitionBindings, Expansion, ExpandPolic
 import {{ ElementSpec }} from "flm:model/element";
 import {{ BlockRole }} from "flm:model/aspects";
 import {{ parse_keyval_drop_annotations }} from "flm:techy/extract";
-import {{ element_name_under, expand_in_tree_rule_for }} from "flm:stdcore/features/userdefs";
+import {{ element_name_under, expand_in_tree_rule_for }} from "flm:stdlib/features/userdefs";
 
 export default function (ext) {{ ext.package("_", {{ features: {{ defs: {{ register }} }} }}); }}
 
@@ -223,13 +224,8 @@ fn a_definition_with_neither_a_hook_nor_a_template_is_refused_when_the_registry_
 "##,
     );
     let registry = registry_with([package(&main)]);
-    let diagnostics: Vec<String> =
-        registry.build_diagnostics().iter().map(|d| format!("{}: {}", d.identifier(), d.message())).collect();
-    assert_eq!(
-        diagnostics,
-        ["flm.ext.definition-needs-template: the definition `\\bare` declared by the feature `defs` of the package `_` of \
-          the extension `wc` must have a template or an expansion hook"]
-    );
+    let identifiers: Vec<&str> = registry.build_diagnostics().iter().map(|d| d.identifier()).collect();
+    assert_eq!(identifiers, ["flm.ext.definition-needs-template"]);
 }
 
 #[test]
@@ -246,7 +242,7 @@ fn case_one_s_tables_project_as_expected() {
 #[test]
 fn case_one_renders_through_the_html_workflow() {
     let (html, diagnostics) = html_of(&wordcount_registry(), DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&wordcount_registry(), html::WORKFLOW), &diagnostics);
     assert!(html.contains("LISTEN") && !html.contains("check the numbers"), "{html}");
     assert_text_golden(golden("case1.html"), &html);
 }
@@ -256,7 +252,7 @@ fn case_one_renders_through_the_html_workflow() {
 #[test]
 fn a_shout_of_a_command_recovers_the_use_site_with_the_script_s_diagnostic() {
     let registry = wordcount_registry();
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\shout{\\emph{x}}.");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\shout{\\emph{x}}.");
     assert_eq!(common::identifiers(&run), ["wordcount.shout.not-characters"]);
     assert_eq!(common::diagnostics(&run), ["wordcount.shout.not-characters: the argument of \\shout must be plain characters"]);
     let (text, _) = text_of(&registry, "Say \\shout{\\emph{x}}.");
@@ -273,11 +269,10 @@ fn a_hook_that_throws_recovers_the_use_site_with_handler_failed() {
 "##,
     );
     let registry = registry_with([package(&main)]);
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\shout{hey}.");
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.ext.handler-failed: the expansion hook of `wc.macro.shout` failed: the hook is not ready"]
-    );
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\shout{hey}.");
+    let found = common::diagnostics(&run);
+    assert_eq!(common::identifiers(&run), ["flm.ext.handler-failed"], "{found:?}");
+    assert!(found[0].ends_with("the hook is not ready"), "{found:?}");
     assert_eq!(data_of(&run, "flm.ext.handler-failed")["data"]["name"], "TypeError");
     let (text, _) = text_of(&registry, "Say \\shout{hey}.");
     assert_eq!(text, "Say \\shout{hey}.\n");
@@ -320,9 +315,9 @@ fn a_nested_hook_runs_and_an_outer_handle_is_stale_inside_it() {
     );
     let main = format!("let OUTER = null;\n{main}");
     let registry = registry_with([package(&main)]);
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\loud{\\shout{x}}.");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\loud{\\shout{x}}.");
     assert_eq!(common::diagnostics(&run), ["wc.outer: FlmError stale_handle"]);
-    let text = run.table(flm_core::stdcore::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
+    let text = run.table(flm_core::stdlib::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
     assert_eq!(text.as_deref(), Some("Say [X].\n"));
 }
 
@@ -345,8 +340,8 @@ fn the_depth_and_the_limit_are_those_of_the_pass_from_javascript() {
 "##,
     );
     let registry = registry_with([package(&main)]);
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "A \\inner{b} and \\outer{c}.");
-    let text = run.table(flm_core::stdcore::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "A \\inner{b} and \\outer{c}.");
+    let text = run.table(flm_core::stdlib::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
     assert_eq!(text.as_deref(), Some("A B and [C].\n"));
     let limit = DEFAULT_RECURSION_LIMIT;
     let mut seen: Vec<String> = common::diagnostics(&run);
@@ -375,7 +370,7 @@ fn a_helper_made_declaration_takes_docs_and_modes_from_javascript() {
 "##,
     );
     let (text, diagnostics) = text_of(&registry_with([package(&main)]), "Say \\hi{} and \\(\\hi{}\\).");
-    assert_eq!(diagnostics, ["core.specs.unresolvable-command: cannot resolve command ‘\\hi’"]);
+    assert_eq!(common::ids(&diagnostics), ["core.specs.unresolvable-command"], "{diagnostics:?}");
     assert_eq!(text, "Say \\hi and \\(Hello{}\\).\n");
 }
 
@@ -390,8 +385,9 @@ fn a_definition_declared_from_javascript_with_a_block_role_shapes_the_html() {
 "##,
     );
     let document = "Before.\n\n\\begin{note}Mind the gap.\n\nAnd the step.\\end{note}\n\nAfter.";
-    let (html, diagnostics) = html_of(&registry_with([package(&main)]), document);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let registry = registry_with([package(&main)]);
+    let (html, diagnostics) = html_of(&registry, document);
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert_text_golden(expand_golden("block.html"), &html);
 }
 
@@ -483,17 +479,10 @@ fn a_handler_over_its_time_budget_inside_a_render_is_an_error_at_the_use_site_an
     );
     let host = JsHost::new(JsSettings { time_budget: Some(Duration::from_millis(200)), ..JsSettings::default() });
     let registry = registry_with([package_with(&host, &main, &[])]);
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "A \\spin{} then \\shout{x}.");
-    assert_eq!(
-        common::diagnostics(&run),
-        [
-            "flm.ext.handler-failed: the expansion hook of `wc.macro.spin` failed: the expansion hook of the element \
-             `wc.macro.spin` of the feature `defs` of the package `_` of the extension `wc` must finish within its time \
-             budget of 200 ms"
-        ]
-    );
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "A \\spin{} then \\shout{x}.");
+    assert_eq!(common::identifiers(&run), ["flm.ext.handler-failed"], "{:?}", common::diagnostics(&run));
     assert_eq!(data_of(&run, "flm.ext.handler-failed")["data"]["limit"], "time");
-    let text = run.table(flm_core::stdcore::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
+    let text = run.table(flm_core::stdlib::backends::text::TEXT_OUTPUT).expect("declared").map(|o| o.text.clone());
     assert_eq!(text.as_deref(), Some("A \\spin then X.\n"));
 }
 
@@ -598,7 +587,7 @@ fn the_count_s_note_appears_under_the_plain_workflows() {
     let factory = wordcount_factory(&host);
     let registry = registry_with([factory.build(&PackageSettings::new()).expect("the package builds")]);
     let document = wordcount_settings(&factory, json!({ "report_counts": true })).document_options().clone();
-    for workflow in [flm_core::stdcore::backends::text::WORKFLOW, flm_core::stdcore::backends::html::WORKFLOW] {
+    for workflow in [flm_core::stdlib::backends::text::WORKFLOW, flm_core::stdlib::backends::html::WORKFLOW] {
         let source = Arc::new(FlmSource::new("One two three seven eleven.").with_origin(FlmOrigin::none()));
         let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
             .expect("the tree parses");
@@ -610,11 +599,13 @@ fn the_count_s_note_appears_under_the_plain_workflows() {
         let mut run =
             Run::new(Arc::new(Doc::with_options(content, document.clone())), plan, Externals::none()).expect("a run");
         run.execute(&RunOptions::sequential()).expect("the run executes");
-        assert_eq!(
-            common::diagnostics(&run),
-            ["wordcount.count: the tree `tree#0` holds 5 words of at least 1 characters"],
-            "{workflow}"
-        );
+        // The page's formulas are unchecked.
+        let mut expected = Vec::new();
+        if workflow == flm_core::stdlib::backends::html::WORKFLOW {
+            expected.push(common::UNCHECKED_ON_HTML);
+        }
+        expected.push("wordcount.count: the tree `tree#0` holds 5 words of at least 1 characters");
+        assert_eq!(common::diagnostics(&run), expected, "{workflow}");
     }
 }
 

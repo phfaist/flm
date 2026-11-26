@@ -1,5 +1,5 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.37670e41.sty
+% flm: style file flmrecomposed.66b564de.sty
 \begin{theorem}\flmLabels{\label{ref1}}
 A theorem no proof refers back to.
 \end{theorem}
@@ -11,9 +11,9 @@ A back-reference whose text is no label: its title is shown as written.
 \begin{proof}[{\flmProofTitle{\flmRef{ref2}}}]
 A back-reference naming nothing.
 \end{proof}%%
-% ===== latex-recomposed:style flmrecomposed.37670e41.sty =====
+% ===== latex-recomposed:style flmrecomposed.66b564de.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.37670e41}
+\ProvidesPackage{flmrecomposed.66b564de}
 % --- packages ---
 % flm.latex.pkg.amsthm
 \RequirePackage{amsthm}
@@ -141,7 +141,7 @@ A back-reference naming nothing.
 % th@theoremlike (the theorems feature's, written from its configuration): declared unless \th@theoremlike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@theoremlike\endcsname\else\newtheoremstyle{theoremlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % theorem (the theorems feature's, written from its configuration): declared unless \theorem is already defined, so a definition made earlier under that name is kept
-\ifcsname theorem\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{theorem}[flmtheorem]{Theorem}\endgroup\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems},Name-sg-ab={Thm.},name-sg-ab={Thm.},Name-pl-ab={Thms.},name-pl-ab={Thms.}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={flmtheorem=theorem}}}\fi
+\ifcsname theorem\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{theorem}[flmtheorem]{Theorem}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems},Name-sg-ab={Thm.},name-sg-ab={Thm.},Name-pl-ab={Thms.},name-pl-ab={Thms.}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={flmtheorem=theorem}}}\fi
 % proof (the theorems feature's, written from its configuration): declared unless \proof is already defined, so a definition made earlier under that name is kept
 \ifcsname proof\endcsname\else\newenvironment{proof}[1][{Proof}]{\begin{proof}[{#1}]}{\end{proof}}\fi
 \endinput

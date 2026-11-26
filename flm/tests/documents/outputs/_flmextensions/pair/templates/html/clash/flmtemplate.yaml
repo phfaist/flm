@@ -1,0 +1,7 @@
+name: clash
+output: html
+engine: minijinja
+main: clash.html
+accepts: all
+artifacts:
+  shared: {file: ../../../shared.css}

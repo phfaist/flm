@@ -1,4 +1,0 @@
-# The body the library makes, with nothing around it.
-output: latex-recomposed
-engine: content-only
-accepts: []

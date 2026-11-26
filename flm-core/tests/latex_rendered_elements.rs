@@ -23,7 +23,7 @@ use flm_core::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::Run;
 use flm_core::dump::diag::expect;
 use flm_core::dump::golden::assert_text_golden;
@@ -32,27 +32,28 @@ use flm_core::lang::mint::{ElementDef, SyntaxDef};
 use flm_core::model::element::ElementSpec;
 use flm_core::model::names::ElementName;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::latex_rendered::{
+use flm_core::stdlib::backends::latex_rendered::{
     BACKEND, DOCUMENT, LatexRenderedRenderOptions, LatexSegment, WORKFLOW, emit_tree, style_artifact,
 };
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::backends::pres::{
     self, ImageDisplay, ImagePayload, Length, LineAlign, LinePayload, LinesPayload, ParPayload,
 };
-use flm_core::stdcore::features::graphics::{
+use flm_core::stdlib::features::graphics::{
     self, GraphicsConfig, GraphicsRenderOptions, GraphicsResolveError, GraphicsResolveRequest,
     GraphicsResolver, ImageFile, RESOLVER_SLOT, Strategy,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::core::node::NodeRef;
 
 use common::lowering::PresSite;
+use common::stdlib::assert_only_unchecked_output;
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The standard package, `\includegraphics` an ordinary command.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().graphics(GraphicsConfig::new().global(true)))
+    common::stdlib::registry(StdlibConfig::new().graphics(GraphicsConfig::new().global(true)))
 }
 
 /// The render request with `options` set.
@@ -64,10 +65,10 @@ fn overrides(options: OptionValues) -> Overrides {
 }
 
 /// Runs the workflow over `text` with `registry` and `overrides`, asserting
-/// that nothing was reported.
+/// that it reported nothing but the Warnings of its plan's unchecked output.
 fn render_with(registry: &Arc<FlmRegistry>, text: &str, overrides: &Overrides) -> Run {
-    let run = common::stdcore::run_workflow(registry, WORKFLOW, &[text], overrides);
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(registry, WORKFLOW, &[text], overrides);
+    assert_only_unchecked_output(&run);
     run
 }
 
@@ -75,7 +76,7 @@ fn render_with(registry: &Arc<FlmRegistry>, text: &str, overrides: &Overrides) -
 /// that no Error was reported: an image given a width or a height is
 /// reported as a Warning (an image file should be prepared at its size).
 fn render_images(registry: &Arc<FlmRegistry>, text: &str, overrides: &Overrides) -> Run {
-    let run = common::stdcore::run_workflow(registry, WORKFLOW, &[text], overrides);
+    let run = common::stdlib::run_workflow(registry, WORKFLOW, &[text], overrides);
     assert!(!run.diagnostics().has_errors(), "{}", run.diagnostics().render_all());
     run
 }
@@ -375,7 +376,10 @@ fn files_registry() -> Arc<FlmRegistry> {
     files.files.insert(String::from("figures/plot.png"), ("image/png", b"PNG-plot".to_vec()));
     files.files.insert(String::from("icon.png"), ("image/png", b"PNG-icon".to_vec()));
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().graphics(GraphicsConfig::new().global(true))));
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().graphics(GraphicsConfig::new().global(true)),
+    ));
     builder.use_package(flm_core::math_passthrough::package());
     builder.contribute_to(RESOLVER_SLOT, Arc::new(files) as Arc<dyn GraphicsResolver>);
     builder.contribute_to(NAMER_SLOT, Arc::new(FolderNamer) as Arc<dyn ArtifactNamer>);
@@ -422,7 +426,7 @@ fn images_by_copy_write_the_copy_s_path_and_the_output_holds_the_copies() {
 
 #[test]
 fn an_image_by_data_uri_is_refused_for_this_output() {
-    let run = common::stdcore::run_workflow(&files_registry(), WORKFLOW, &[IMAGES], &strategy(Strategy::DataUri));
+    let run = common::stdlib::run_workflow(&files_registry(), WORKFLOW, &[IMAGES], &strategy(Strategy::DataUri));
     expect(run.diagnostics().iter(), "flm.graphics.data-uri-not-shown");
     assert!(content(&run).contains("]{figures/plot.png}"), "published by reference");
 }

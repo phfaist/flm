@@ -1,4 +1,4 @@
-//! The `check` workflow of `flm_core::stdcore` over whole documents: validation
+//! The `check` workflow of `flm_core::stdlib` over whole documents: validation
 //! with no output — a clean document reports nothing, a duplicate label is an
 //! error, and an unresolved reference is a warning (a check plan renders
 //! nothing, so a reference only might fail to resolve) — each condition is
@@ -9,15 +9,15 @@ mod common;
 
 use flm_core::core::plan::Overrides;
 use flm_core::dump::diag::expect;
-use flm_core::stdcore::CHECK_WORKFLOW;
-use flm_core::stdcore::backends::text::TEXT_OUTPUT;
-use flm_core::stdcore::features::blocks::CONTRACT_CHECK;
+use flm_core::stdlib::CHECK_WORKFLOW;
+use flm_core::stdlib::backends::text::TEXT_OUTPUT;
+use flm_core::stdlib::features::blocks::CONTRACT_CHECK;
 use flm_core::math_passthrough::CHECK as MATH_CHECK;
-use flm_core::stdcore::features::refs::CHECK_LABELS;
+use flm_core::stdlib::features::refs::CHECK_LABELS;
 use techy::error::Severity;
 
 use common::spine::{FEATURES_DOCUMENT, SESSION06_DOCUMENT, registry};
-use common::stdcore::{identifiers, plan, run_workflow};
+use common::stdlib::{identifiers, plan, run_workflow};
 
 /// A document declaring one label twice.
 const DUPLICATE: &str = "\\section{A}\\label{sec:a}\n\nText.\n\n\\section{B}\\label{sec:a}\n";

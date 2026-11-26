@@ -16,7 +16,7 @@
 //! block-transparent element never becomes a block of its own: a paragraph
 //! break inside its content is a paragraph break of the content around it, and
 //! a list inside its content is a block of the content around it. A mark that an author places over a passage is the typical case
-//! (the `annotations` feature's highlight, [`crate::stdcore::features::annotations`]):
+//! (the `annotations` feature's highlight, [`crate::stdlib::features::annotations`]):
 //! the passage may cross a paragraph boundary, and the mark continues across
 //! it.
 //!

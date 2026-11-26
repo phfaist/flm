@@ -2,12 +2,21 @@
 // `flm-ext/src/api/core/data/table.rs`; do not edit.
 //
 // Mirrors `flm_core::core::data::table`: reading a table.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // No flm-core counterpart: an extension's own table, read by a stage (the method `items` of the
 // adapter's `ExtTable`, a table type of this crate).
 export class ExtTableRead extends Handle {
-  // The items the table's writers pushed, in traversal order.
+  // No flm-core counterpart: the items the table's writers pushed, in the order they were pushed,
+  // as the sequence `Rows`, which shares them with the table.
   items() { return call(this, "items", []); }
 }
 register_class("ext_table_read", ExtTableRead);
+
+// No flm-core counterpart: the rows of an extension's own table, in the order its writers pushed
+// them, as `ExtTableRead::items` answers them.
+export class Rows extends Sequence {
+  // The row at the index `i`, copied, or `None` past the last row.
+  get(i) { return call(this, "get", [i]); }
+}
+register_class("rows", Rows);

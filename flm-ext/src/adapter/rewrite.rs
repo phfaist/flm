@@ -144,7 +144,7 @@ impl ExtRewriteStage {
         at: FlmSpan,
     ) -> RewriteError {
         match error {
-            RestageError::DescentLimitExceeded { detail } => {
+            RestageError::DescentLimitExceeded { detail, .. } => {
                 RewriteError::NestingTooDeep(FlmDiagnostic::error(NestingTooDeep::new(detail), at))
             }
             other => {
@@ -711,12 +711,14 @@ mod tests {
 
     #[test]
     fn the_guard_s_refusal_is_the_nesting_condition_even_from_a_nested_call() {
-        let refusal = RestageError::DescentLimitExceeded { detail: "too deep".to_string() };
+        let limit = flm_core::techy::core::DescentLimit::Depth { levels: 1 };
+        let refusal = RestageError::DescentLimitExceeded { detail: "too deep".to_string(), limit };
         let nested = RestageError::Visitor(RewriteFailure(Box::new(refusal)));
         let error = dash().failure(flatten(nested), None, TreeId::tree(0), nowhere());
         let RewriteError::NestingTooDeep(diagnostic) = error else { panic!("{error:?}") };
         assert_eq!(diagnostic.identifier(), "flm.blocks.nesting-too-deep");
-        assert_eq!(diagnostic.message(), "the content nests too deeply to process: too deep");
+        let condition = diagnostic.data().downcast_ref::<NestingTooDeep>().expect("the condition");
+        assert_eq!(condition.detail, "too deep");
     }
 
     #[test]
@@ -724,16 +726,22 @@ mod tests {
         let error = dash().failure(RestageError::RootNotSingular { count: 2 }, None, TreeId::tree(3), nowhere());
         let RewriteError::Failed(diagnostic) = error else { panic!("{error:?}") };
         assert_eq!(diagnostic.identifier(), "flm.ext.rewrite-failed");
-        assert!(
-            diagnostic.message().starts_with("the rewrite stage `sd.dash` must produce one tree from the tree `tree#3`: "),
-            "{}",
-            diagnostic.message()
-        );
+        let flm_core::techy::error::DiagnosticValue::Map(fields) = diagnostic.data().serializable_data() else {
+            panic!("the condition's data is a map")
+        };
+        let text = |key: &str| {
+            fields.iter().find(|(name, _)| name == key).and_then(|(_, value)| match value {
+                flm_core::techy::error::DiagnosticValue::Str(text) => Some(text.clone()),
+                _ => None,
+            })
+        };
+        assert_eq!((text("stage"), text("tree")), (Some("sd.dash".to_string()), Some("tree#3".to_string())));
     }
 
     #[test]
     fn only_the_refusals_of_an_operation_s_arguments_leave_the_run_going() {
-        assert!(ends_the_run(&RestageError::DescentLimitExceeded { detail: String::new() }));
+        let limit = flm_core::techy::core::DescentLimit::Depth { levels: 1 };
+        assert!(ends_the_run(&RestageError::DescentLimitExceeded { detail: String::new(), limit }));
         assert!(ends_the_run(&RestageError::RootNotSingular { count: 0 }));
     }
 }

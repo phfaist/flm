@@ -15,3 +15,15 @@ rustdocflags = ["--html-in-header", "docs/rustdoc-header.html"]
 # was previously run without it, delete `target/doc` once to drop the stale
 # dependency pages (rustdoc merges new output into what is already there).
 docs = "doc --workspace --no-deps"
+
+[env]
+# Every program that cargo runs from this checkout (the tests of the crate flm, in
+# process and as the `flm` binary, and `cargo run`) keeps the `flm` program's
+# cache in `target/flm-cache` of the checkout, not in the user's folder of
+# caches. The tests therefore write nothing outside the checkout and do not
+# depend on the machine's cache folder. A value of `FLM_CACHE_DIR` already set
+# in the environment is kept, and `--cache-dir` still comes first. `cargo clean`,
+# or deleting the folder, empties this cache. To use the user's own cache with a
+# development build, run the built program directly (for example
+# `target/debug/flm`).
+FLM_CACHE_DIR = { value = "target/flm-cache", relative = true }

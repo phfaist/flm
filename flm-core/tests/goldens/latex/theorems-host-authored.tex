@@ -1,5 +1,5 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.95f9bfed.sty
+% flm: style file flmrecomposed.0610a3fd.sty
 \begin{lemma}\flmLabels{\label{ref1}}\noproofref A lemma.
 \end{lemma}
 
@@ -13,9 +13,9 @@ Another.
 
 See \flmRef{ref1} and \flmRef{ref3}.
 %%
-% ===== latex-recomposed:style flmrecomposed.95f9bfed.sty =====
+% ===== latex-recomposed:style flmrecomposed.0610a3fd.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.95f9bfed}
+\ProvidesPackage{flmrecomposed.0610a3fd}
 % --- packages ---
 % flm.latex.pkg.phfthm
 \RequirePackage[thmset=empty]{phfthm}
@@ -140,7 +140,7 @@ See \flmRef{ref1} and \flmRef{ref3}.
 % th@theoremlike (the theorems feature's, written from its configuration): declared unless \th@theoremlike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@theoremlike\endcsname\else\newtheoremstyle{theoremlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % lemma (the theorems feature's, written from its configuration): declared unless \lemma is already defined, so a definition made earlier under that name is kept
-\ifcsname lemma\endcsname\else\phfMakeTheorem[thmstyle=theoremlike,counter=phfthmcounter]{lemma}{Lemma}\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={lemma=lemma}}}\fi
+\ifcsname lemma\endcsname\else\phfMakeTheorem[thmstyle=theoremlike,counter=phfthmcounter]{lemma}{Lemma}\expandafter\providecommand\csname phfthm@lemmaautorefname\endcsname{Lemma}\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={lemma=lemma,phfthm@lemma=lemma}}}\fi
 % th@exerciselike (the theorems feature's, written from its configuration): declared unless \th@exerciselike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@exerciselike\endcsname\else\newtheoremstyle{exerciselike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % exercise (the theorems feature's, written from its configuration): declared unless \exercise is already defined, so a definition made earlier under that name is kept

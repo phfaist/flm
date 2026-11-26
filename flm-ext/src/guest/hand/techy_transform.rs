@@ -11,7 +11,7 @@ use crate::adapter::typed::IntoApi;
 #[cfg(feature = "native")]
 use crate::api;
 use crate::adapter::values::JsonForm;
-use crate::guest::lang::rewrites::userdefs::Staged;
+use crate::guest::lang::rewrites::userdefs::StagedNodes;
 use crate::runtime::ExtError;
 
 /// Mirrors [`Restage`](crate::api::techy::transform::Restage): what a rewrite
@@ -21,10 +21,10 @@ pub enum Restage {
     /// The rewrite descends into the node.
     Descend,
     /// The node is replaced by these staged nodes.
-    Emit(Vec<Staged>),
+    Emit(StagedNodes),
 }
 
-/// `"descend"` or `{"emit": [staged, …]}`; the host's `restage_from_value`
+/// `"descend"` or `{"emit": staged}`; the host's `restage_from_value`
 /// and `restage_to_value`.
 impl JsonForm for Restage {
     fn to_value(&self) -> Value {

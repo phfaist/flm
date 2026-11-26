@@ -1,5 +1,5 @@
 //! Term definitions on the `latex-rendered` backend, end to end over the
-//! standard package: the documents `tests/stdcore_defterm_backends.rs`
+//! standard package: the documents `tests/stdlib_defterm_backends.rs`
 //! renders (a definition with its lead-in, term links to it, a term link
 //! inside its own definition and inside another link's text, a richer
 //! lead-in, no lead-in), each a golden under `tests/goldens/latex-rendered/`
@@ -15,15 +15,15 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::defterm::DeftermConfig;
-use flm_core::stdcore::features::defterm::latex_rendered::PIECE;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::defterm::DeftermConfig;
+use flm_core::stdlib::features::defterm::latex_rendered::PIECE;
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// A definition with a label and an alias, using its own term; term links to
@@ -58,13 +58,13 @@ fn a_definition_and_term_links_and_the_style_file_holds_the_piece() {
 
 #[test]
 fn a_richer_lead_in_and_none() {
-    let richer = common::stdcore::registry(StdcoreConfig::new().defterm(
+    let richer = common::stdlib::registry(StdlibConfig::new().defterm(
         DeftermConfig::new().lead_in(Some(String::from("\\textbf{Definition} (\\emph{#{term}}): "))),
     ));
     let run = render(&richer, &[&definition_of("Entropy")], &Overrides::none());
     assert!(document(&run).contains("[role=flm.defterm.leadin]"), "{}", document(&run));
     assert_golden("defterm-lead-in-richer.tex", &run);
-    let none = common::stdcore::registry(StdcoreConfig::new().defterm(DeftermConfig::new().lead_in(None)));
+    let none = common::stdlib::registry(StdlibConfig::new().defterm(DeftermConfig::new().lead_in(None)));
     let run = render(&none, &[&definition_of("Entropy")], &Overrides::none());
     assert!(!document(&run).contains("flm.defterm.leadin"), "{}", document(&run));
     assert_golden("defterm-lead-in-none.tex", &run);

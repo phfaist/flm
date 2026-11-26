@@ -9,7 +9,9 @@
 //!
 //! In a fixed order, so that the borrows of the call's table work: the
 //! arity; every value argument read into a local `a<i>` through `FromArg`,
-//! in parameter order (a node copied out of the table); the receiver and the
+//! in parameter order (a node copied out of the table); for a method of a
+//! traversal, the trailing count `unhanded` read the same way (the items its
+//! binding pulled and has not handed over, [`ArmPlan::unhanded`]); the receiver and the
 //! borrowed façade arguments taken together through `entries_mut`, each
 //! mismatch reported by position (or the one of them alone through
 //! `entry!`, in the line of its kind's receiver mode); the call, `?` applied
@@ -116,7 +118,12 @@ fn param(ty: &str, i: usize, site: &Site<'_>) -> Param {
         return Param::Value { ty: owned_form(inner, site), pass: local };
     }
     if let Some(item) = ty.strip_prefix("impl IntoIterator<Item = ").and_then(|rest| rest.strip_suffix('>')) {
-        return Param::Value { ty: owned_form(&format!("Vec<{item}>"), site), pass: local };
+        // An item `impl Into<T>` is read as `T`; a list with no row of its
+        // own is read as a slice of its items is.
+        let item = item.strip_prefix("impl Into<").and_then(|rest| rest.strip_suffix('>')).unwrap_or(item);
+        let list = format!("Vec<{item}>");
+        let list = if mapping::row(&list).is_some() { list } else { format!("[{item}]") };
+        return Param::Value { ty: owned_form(&list, site), pass: local };
     }
     Param::Value { ty: owned_form(ty, site), pass: local }
 }
@@ -238,6 +245,12 @@ pub struct ArmPlan {
     pub unit: bool,
     /// Whether the call is an override that needs the sealed token.
     pub token: bool,
+    /// Whether the receiver is a traversal ([`Receiver::Pulled`]): the
+    /// request then takes one more trailing argument, the count `unhanded`
+    /// of the items its binding pulled and has not handed over, and the
+    /// receiver is the traversal made of those items and the ones not pulled
+    /// yet (`TraversalEntry::rest`).
+    pub unhanded: bool,
 }
 
 /// The plan of the arm for `function`, a method of `owner` (or a free
@@ -265,11 +278,14 @@ pub fn plan(owner: Option<&str>, function: &Function, file: &str, target: &Targe
         }
     }
     let mut token = false;
+    let unhanded = matches!(target, Target::Method { kind, .. } if matches!(kind.receiver, Receiver::Pulled(_)));
     let (callee, overridden) = match target {
         Target::Method { kind, receiver } => {
             let overridden = mapping::CALL_OVERRIDES.iter().find(|entry| entry.kind == kind.kind && entry.method == function.name);
             let consumes = matches!(*receiver, "self" | "mut self") && taken.len() > 1;
             assert!(!consumes, "the method `{display}` (`{file}`) must take its receiver by reference, since it also takes a borrowed façade");
+            let traversal = matches!(kind.receiver, Receiver::Pulled(_));
+            assert!(!traversal || *receiver == "self", "the method `{display}` (`{file}`) of a traversal must take it by value");
             match overridden {
                 Some(entry) => {
                     token = entry.call.contains("Token::");
@@ -284,7 +300,7 @@ pub fn plan(owner: Option<&str>, function: &Function, file: &str, target: &Targe
         Some(inner) => (true, inner),
         None => (false, function.output.as_str()),
     };
-    ArmPlan { params, taken, callee, overridden, passed, fallible, unit: inner == "()", token }
+    ArmPlan { params, taken, callee, overridden, passed, fallible, unit: inner == "()", token, unhanded }
 }
 
 impl ArmPlan {
@@ -314,6 +330,10 @@ impl ArmPlan {
                         Receiver::LentRef => format!("*{taken}"),
                         Receiver::Boxed => format!("&**{taken}"),
                         Receiver::Cloned => format!("{taken}.clone()"),
+                        // A traversal's method consumes it: the items its
+                        // binding has not handed over, then those not pulled
+                        // yet; the entry is left with none.
+                        Receiver::Pulled(_) => format!("{taken}.rest(unhanded)"),
                         _ => taken,
                     }
                 } else {
@@ -358,7 +378,7 @@ impl Emitter<'_> {
     fn arm(&mut self, owner: Option<&str>, function: &Function, file: &str, target: &Target<'_>) -> Vec<String> {
         let plan = plan(owner, function, file, target);
         self.token |= plan.token;
-        let mut lines = vec![format!("args.arity({})?;", plan.params.len())];
+        let mut lines = vec![format!("args.arity({})?;", plan.params.len() + usize::from(plan.unhanded))];
         for (i, param) in plan.params.iter().enumerate() {
             if let Param::Value { ty, .. } = param {
                 for name in identifiers(ty) {
@@ -366,6 +386,9 @@ impl Emitter<'_> {
                 }
                 lines.push(format!("let a{i} = <{} as FromArg>::from_arg(table, args, {i})?;", with_lifetime(ty, self.inventory)));
             }
+        }
+        if plan.unhanded {
+            lines.push(format!("let unhanded = <usize as FromArg>::from_arg(table, args, {})?;", plan.params.len()));
         }
         lines.extend(plan.take_and_call(
             |source| match source {
@@ -408,6 +431,46 @@ fn dispatched<'i>(item: &'i Item, kind: &str) -> Vec<&'i Function> {
         .collect()
 }
 
+/// The parameters of the arm `pull` of the kind `row`: `max` for a
+/// traversal; `from`, `max` and `bytes` for a sequence.
+pub fn pull_params(row: &KindRow) -> &'static [&'static str] {
+    match row.receiver {
+        Receiver::Indexed(_) => &["from", "max", "bytes"],
+        _ => &["max"],
+    }
+}
+
+/// The lines of the arm `pull` of the kind `row` that bind to `answer` the
+/// next items of the handle `handle`, its arguments the expressions `args`
+/// (in the order of [`pull_params`]): a traversal advanced by at most `max`
+/// items, a copy of which its entry keeps (`TraversalEntry::pull`), a
+/// sequence's group from `from` (its type's `group`). The
+/// dispatcher's arm and the guest's typed body share them.
+pub fn pull_lines(row: &KindRow, handle: &str, args: &[&str]) -> Vec<String> {
+    let variant = row.entry.expect("a pulled kind has an entry");
+    let take = format!("let this = entry!(table, {handle}, {variant}, {});", camel(row.kind));
+    match (row.receiver, args) {
+        (Receiver::Indexed(_), [from, max, bytes]) => vec![take, format!("let answer = this.group({from}, {max}, {bytes});")],
+        (Receiver::Pulled(_), [max]) => vec![take, format!("let answer = this.pull({max});")],
+        _ => panic!("the arm `pull` of the kind `{}` takes {:?}", row.kind, pull_params(row)),
+    }
+}
+
+/// Appends the arm `pull` of the kind `row` to `out`: its arguments read,
+/// the group answered as a list of its items ([`pull_lines`], `Group`).
+fn push_pull_arm(out: &mut String, row: &KindRow) {
+    let params = pull_params(row);
+    let mut lines = vec![format!("args.arity({})?;", params.len())];
+    let locals: Vec<String> = (0..params.len()).map(|i| format!("a{i}")).collect();
+    for (i, local) in locals.iter().enumerate() {
+        lines.push(format!("let {local} = <usize as FromArg>::from_arg(table, args, {i})?;"));
+    }
+    let locals: Vec<&str> = locals.iter().map(String::as_str).collect();
+    lines.extend(pull_lines(row, "handle", &locals));
+    lines.push("Group(answer).into_reply(table)".to_string());
+    push_arm(out, "\"pull\"", &lines);
+}
+
 /// Appends an arm keyed `key` with the body `lines` to `out`.
 fn push_arm(out: &mut String, key: &str, lines: &[String]) {
     let _ = writeln!(out, "        {key} => {{");
@@ -428,12 +491,46 @@ pub fn emit(inventory: &Inventory) -> String {
     let mut no_methods: Vec<String> = Vec::new();
     for row in mapping::KINDS {
         let variant = camel(row.kind);
+        if let Some(list) = mapping::list_of_kind(row.kind) {
+            dispatch_arms.push(format!("        HandleKind::{variant} => {}(table, handle, method, args),", row.kind));
+            let _ = writeln!(kinds, "/// The methods of the kind `{}` (`{}`, the sequence of a `{}`).", row.kind, list.class(), list.list());
+            let _ = writeln!(
+                kinds,
+                "fn {}<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {{",
+                row.kind
+            );
+            kinds.push_str("    match method {\n");
+            push_pull_arm(&mut kinds, row);
+            let entry = row.entry.expect("a sequence has an entry");
+            let lines = [
+                "args.arity(1)?;".to_string(),
+                "let a0 = <usize as FromArg>::from_arg(table, args, 0)?;".to_string(),
+                format!("let this = entry!(table, handle, {entry}, {variant});"),
+                "let answer = this.get(a0);".to_string(),
+                "answer.into_reply(table)".to_string(),
+            ];
+            push_arm(&mut kinds, "\"get\"", &lines);
+            let _ = writeln!(kinds, "        _ => Err(no_method(HandleKind::{variant}, method)),");
+            kinds.push_str("    }\n}\n\n");
+            continue;
+        }
         let item = row
             .rust
-            .filter(|_| matches!(row.receiver, Receiver::LentRef | Receiver::LentMut | Receiver::Boxed | Receiver::Cloned | Receiver::Recorded))
+            .filter(|_| {
+                matches!(
+                    row.receiver,
+                    Receiver::LentRef
+                        | Receiver::LentMut
+                        | Receiver::Boxed
+                        | Receiver::Cloned
+                        | Receiver::Recorded
+                        | Receiver::Pulled(_)
+                        | Receiver::Indexed(_)
+                )
+            })
             .and_then(|rust| inventory.definition(rust));
         let methods = item.map(|(_, item)| dispatched(item, row.kind)).unwrap_or_default();
-        if methods.is_empty() {
+        if methods.is_empty() && row.pulls().is_none() {
             if has_extras(row.kind) {
                 dispatch_arms.push(format!("        HandleKind::{variant} => extra::{}(table, handle, method, args),", row.kind));
             } else {
@@ -450,6 +547,9 @@ pub fn emit(inventory: &Inventory) -> String {
             row.kind
         );
         kinds.push_str("    match method {\n");
+        if row.pulls().is_some() {
+            push_pull_arm(&mut kinds, row);
+        }
         for method in methods {
             let receiver = method.receiver.as_deref().unwrap_or("&self");
             let lines = emitter.arm(Some(&item.name), method, &module.file, &Target::Method { kind: row, receiver });
@@ -513,7 +613,7 @@ pub fn emit(inventory: &Inventory) -> String {
     let mut uses: BTreeSet<String> = emitter.names.iter().filter_map(|name| emitter.use_line(name)).collect();
     uses.insert("use crate::adapter::dispatch::{entry, extra, no_method};".to_string());
     uses.insert("use crate::adapter::handles::{CallTable, Entry, Handle, HandleKind};".to_string());
-    uses.insert("use crate::adapter::values::{mismatch, Args, FromArg, IntoReply};".to_string());
+    uses.insert("use crate::adapter::values::{mismatch, Args, FromArg, Group, IntoReply};".to_string());
     uses.insert("use crate::runtime::ExtError;".to_string());
     if emitter.token {
         uses.insert("use crate::sealed::Token;".to_string());

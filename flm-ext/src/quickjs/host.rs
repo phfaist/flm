@@ -1,5 +1,6 @@
 //! The engine host: the settings every engine is created with, the modules the
-//! program offers to every extension, and where `console` output goes.
+//! program offers to every extension, and the log sink their `console` output
+//! goes to.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -7,7 +8,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::host::ConsoleSink;
+use flm_core::progress::LogSink;
+
+use crate::host::Console;
 
 
 /// The settings every engine of a host is created with.
@@ -84,7 +87,7 @@ impl Default for JsSettings {
 }
 
 /// The engine host: the settings, the modules the program offers to every
-/// extension, the console sink. Cheap to clone (an `Arc` inside); every clone
+/// extension, the log sink. Cheap to clone (an `Arc` inside); every clone
 /// is the same host, and the engines are keyed by it.
 #[derive(Clone)]
 pub struct JsHost(Arc<HostInner>);
@@ -93,7 +96,7 @@ struct HostInner {
     id: u64,
     settings: JsSettings,
     modules: BTreeMap<String, Arc<str>>,
-    console: ConsoleSink,
+    console: Console,
 }
 
 /// The process-wide counter of hosts: two hosts never share engines, even with
@@ -101,14 +104,14 @@ struct HostInner {
 static NEXT_HOST: AtomicU64 = AtomicU64::new(1);
 
 impl JsHost {
-    /// A host with `settings`, no modules, and `console` written to standard
-    /// error as `[js <level>] <text>`.
+    /// A host with `settings`, no modules, and no log sink: the `console`
+    /// output of its extensions goes nowhere.
     pub fn new(settings: JsSettings) -> JsHost {
         JsHost(Arc::new(HostInner {
             id: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
             settings,
             modules: BTreeMap::new(),
-            console: Arc::new(|level, text| eprintln!("[js {level}] {text}")),
+            console: Console::default(),
         }))
     }
 
@@ -120,14 +123,14 @@ impl JsHost {
     /// # Errors
     ///
     /// [`HostModuleError`] for a name that is empty, holds a NUL character,
-    /// begins with `.`, `/` or a backslash (a path), holds `:` (which marks the
-    /// extension API, `flm:`, and other schemes), or is already offered.
+    /// begins with `.` or `/` (a path), holds `:` (which marks the extension
+    /// API, `flm:`, and other schemes), or is already offered.
     pub fn with_module(self, name: &str, source: &str) -> Result<JsHost, HostModuleError> {
         let detail = if name.is_empty() {
             Some("the name of a module this program offers must not be empty".to_string())
         } else if name.contains('\0') {
             Some(format!("the module name `{}` this program offers must not hold a NUL character", name.escape_debug()))
-        } else if name.starts_with('.') || name.starts_with('/') || name.starts_with('\\') {
+        } else if name.starts_with('.') || name.starts_with('/') {
             Some(format!("the module name `{name}` this program offers must be a bare name, not a path"))
         } else if name.contains(':') {
             Some(format!(
@@ -147,9 +150,11 @@ impl JsHost {
         }))
     }
 
-    /// Routes `console` output to `sink`.
-    pub fn with_console(self, sink: ConsoleSink) -> JsHost {
-        self.rebuild(|inner| inner.console = sink)
+    /// Writes the `console` output of the host's extensions to `sink`, each
+    /// line with the extension's stem as its source (the [table of
+    /// levels](crate::host#console-output)).
+    pub fn with_log_sink(self, sink: Arc<dyn LogSink>) -> JsHost {
+        self.rebuild(|inner| inner.console = Console::to_sink(sink))
     }
 
     /// The settings every engine of this host is created with.
@@ -181,8 +186,8 @@ impl JsHost {
         self.0.id
     }
 
-    /// The console sink.
-    pub(crate) fn console(&self) -> &ConsoleSink {
+    /// Where the `console` output of the host's extensions goes.
+    pub(crate) fn console(&self) -> &Console {
         &self.0.console
     }
 
@@ -205,7 +210,7 @@ impl JsHost {
                 id: NEXT_HOST.fetch_add(1, Ordering::Relaxed),
                 settings: shared.settings.clone(),
                 modules: shared.modules.clone(),
-                console: Arc::clone(&shared.console),
+                console: shared.console.clone(),
             },
         };
         change(&mut inner);

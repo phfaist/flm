@@ -1,8 +1,6 @@
 {
   "name": "text",
   "owner": "text",
-  "docs": "render the document as plain text, running every check",
-  "summary": "render the document as plain text, running every check",
   "chain": [
     "text"
   ],
@@ -17,8 +15,7 @@
     ],
     "prefer": [],
     "lowering": {},
-    "unsupported": {},
-    "docs": "render the document as plain text, running every check"
+    "unsupported": {}
   },
   "combined": {
     "name": "text",
@@ -31,8 +28,7 @@
     ],
     "prefer": [],
     "lowering": {},
-    "unsupported": {},
-    "docs": "render the document as plain text, running every check"
+    "unsupported": {}
   },
   "plan": {
     "workflow": "text",
@@ -42,7 +38,7 @@
       "flm.floats.check-handlers",
       "flm.input.spliced",
       "flm.math.content",
-      "flm.meta.read",
+      "flm.metadata.read",
       "flm.output.text.document",
       "flm.refs.check-labels",
       "flm.theorems.check-proofs"
@@ -363,6 +359,7 @@
           }
         ],
         "writes": [
+          "flm.graphics.content.text",
           "flm.graphics.published.text"
         ],
         "requires": [
@@ -471,14 +468,14 @@
         "options": []
       },
       {
-        "name": "flm.meta.build",
-        "owner": "meta",
+        "name": "flm.metadata.build",
+        "owner": "metadata",
         "batch": 9,
         "reads": [],
         "writes": [
-          "flm.meta.author",
-          "flm.meta.date",
-          "flm.meta.title"
+          "flm.metadata.author",
+          "flm.metadata.date",
+          "flm.metadata.title"
         ],
         "requires": [],
         "options": [
@@ -519,16 +516,16 @@
             "writer": "flm.graphics.publish.text"
           },
           {
-            "table": "flm.meta.author",
-            "writer": "flm.meta.build"
+            "table": "flm.metadata.author",
+            "writer": "flm.metadata.build"
           },
           {
-            "table": "flm.meta.date",
-            "writer": "flm.meta.build"
+            "table": "flm.metadata.date",
+            "writer": "flm.metadata.build"
           },
           {
-            "table": "flm.meta.title",
-            "writer": "flm.meta.build"
+            "table": "flm.metadata.title",
+            "writer": "flm.metadata.build"
           },
           {
             "table": "flm.refs.resolutions",
@@ -559,9 +556,9 @@
           "flm.citations",
           "flm.citations.entries",
           "flm.citations.bibliography",
-          "flm.meta.title",
-          "flm.meta.author",
-          "flm.meta.date"
+          "flm.metadata.title",
+          "flm.metadata.author",
+          "flm.metadata.date"
         ],
         "options": [
           "GraphicsRenderOptions",
@@ -705,7 +702,7 @@
       "flm.floats.check-handlers",
       "flm.input.splice",
       "flm.math-passthrough.check",
-      "flm.meta.build",
+      "flm.metadata.build",
       "flm.text.final",
       "flm.text.regions",
       "flm.text.emit",
@@ -869,20 +866,36 @@
             "rule": "flm.math.text.lower.default"
           },
           {
-            "element": "flm.meta.author",
-            "rule": "flm.meta.author.lower.default"
+            "element": "flm.metadata.author",
+            "rule": "flm.metadata.author.lower.default"
           },
           {
-            "element": "flm.meta.author.name",
-            "rule": "flm.meta.author.name.lower.default"
+            "element": "flm.metadata.author.affiliation",
+            "rule": "flm.metadata.author.affiliation.lower.default"
           },
           {
-            "element": "flm.meta.date",
-            "rule": "flm.meta.date.lower.default"
+            "element": "flm.metadata.author.email",
+            "rule": "flm.metadata.author.email.lower.default"
           },
           {
-            "element": "flm.meta.title",
-            "rule": "flm.meta.title.lower.default"
+            "element": "flm.metadata.author.entry",
+            "rule": "flm.metadata.author.entry.lower.default"
+          },
+          {
+            "element": "flm.metadata.author.name",
+            "rule": "flm.metadata.author.name.lower.default"
+          },
+          {
+            "element": "flm.metadata.author.note",
+            "rule": "flm.metadata.author.note.lower.default"
+          },
+          {
+            "element": "flm.metadata.date",
+            "rule": "flm.metadata.date.lower.default"
+          },
+          {
+            "element": "flm.metadata.title",
+            "rule": "flm.metadata.title.lower.default"
           },
           {
             "element": "flm.paragraph",

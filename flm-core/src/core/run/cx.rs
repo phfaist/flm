@@ -31,7 +31,10 @@
 //!   document, else the type's default ([`StageCx::option`]);
 //! - the services the registry holds ([`StageCx::service`]);
 //! - node addresses, by which computed data is keyed ([`StageCx::addr`]);
-//! - value catch-up ([`StageCx::resolve_value`]), described below.
+//! - value catch-up ([`StageCx::resolve_value`]), described below;
+//! - the [`Scope`](crate::progress::Scope) of the stage's row on the progress
+//!   sheet ([`StageCx::progress`]), under which the stage declares the rows of
+//!   its own slow work and asks whether the build was cancelled.
 //!
 //! A stage writes nothing through its context: it writes what it produces into
 //! the [`StageOut`] that it receives together with the context.
@@ -96,6 +99,11 @@
 //!
 //! During value catch-up, [`StageCx::walk`] still walks the document's trees,
 //! not the synthesized value.
+//!
+//! The stages run during value catch-up report nothing on the progress sheet:
+//! they receive the calling stage's scope with the depth limit 0, so they
+//! declare no row, and they still see the cancellation and still write log
+//! lines ([`StageCx::progress`]).
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
@@ -113,7 +121,7 @@ use crate::model::names::{CapName, ElementName, StageName};
 use crate::model::options::{OptionError, Options, ResolvedOptions};
 use serde_json::Value;
 use crate::core::plan::Plan;
-use crate::core::plan::build::request_subject;
+use crate::core::plan::build::{request_subject, unchecked_output_message};
 use crate::core::registry::StageKind;
 use crate::core::registry::frozen::{FlmRegistry, StageIdx};
 use crate::core::services::Services;
@@ -125,6 +133,7 @@ use crate::core::data::table::{SingletonTable, TableKey};
 use crate::core::run::order::{DocPosition, RunOrder};
 use crate::lang::structural::StructuralElements;
 use crate::lang::{Flm, FlmDiagnostic, FlmDiagnostics, FlmSpan};
+use crate::progress;
 
 /// Diagnostic condition `flm.run.missing-entry`, reported at Error severity: a
 /// table holds no entry for a node inside a synthesized value, where a node of
@@ -292,6 +301,43 @@ impl fmt::Display for PreferredRuleNotCandidate {
     }
 }
 
+/// Diagnostic condition `flm.run.unchecked-output`, reported at Warning
+/// severity: lowering rules of one feature write output on one backend that
+/// nothing checks before the program reading it does.
+///
+/// A rule declares such output in
+/// [`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output).
+/// The run reports this condition once per backend and feature, before any
+/// other diagnostic of the run. It is the run-time counterpart of
+/// [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput).
+#[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
+#[diagnostic(id = "flm.run.unchecked-output")]
+pub struct UncheckedOutput {
+    /// The name of the feature that registered the rules.
+    pub feature: String,
+    /// The name of the backend whose output holds what the rules write.
+    pub backend: String,
+    /// What the rules write, as the rule declares it.
+    pub written: String,
+    /// What reads the output, as the rule declares it.
+    pub reader: String,
+    /// The name of the workflow the plan request was made from, or `None` for
+    /// a request built by hand
+    /// ([`PlanRequest::workflow`](crate::core::plan::PlanRequest::workflow)).
+    pub workflow: Option<String>,
+}
+
+impl fmt::Display for UncheckedOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&unchecked_output_message(
+            &self.feature,
+            &self.backend,
+            &self.written,
+            &self.reader,
+        ))
+    }
+}
+
 /// The reason why value catch-up could not bring a synthesized value up to
 /// date.
 ///
@@ -429,7 +475,7 @@ impl CaughtUp {
     ///
     /// A table present in the catch-up store is read whole from it; see
     /// [`ComputedView::with_overlay`]. The lowering stage of a backend
-    /// ([`crate::stdcore::backends::lowering`]) does not read through this
+    /// ([`crate::stdlib::backends::lowering`]) does not read through this
     /// view: it keeps each synthesized value's catch-up store by
     /// the value's identifier and reads it only for an address inside that
     /// value, so that content of another tree, lowered while the value is
@@ -470,6 +516,9 @@ pub struct StageCx<'a> {
     value_tree: Option<Arc<NodeTree<Flm>>>,
     view: ComputedView<'a>,
     values: Rc<ValueSpace>,
+    /// The scope of the stage's row on the progress sheet; past the depth
+    /// limit 0 during value catch-up.
+    progress: progress::Scope,
 }
 
 impl<'a> StageCx<'a> {
@@ -478,6 +527,7 @@ impl<'a> StageCx<'a> {
         stage: StageIdx,
         tree: Option<TreeId>,
         view: ComputedView<'a>,
+        progress: progress::Scope,
     ) -> StageCx<'a> {
         StageCx {
             run,
@@ -486,6 +536,7 @@ impl<'a> StageCx<'a> {
             value_tree: None,
             view,
             values: Rc::new(ValueSpace { next: Cell::new(0), trees: RefCell::new(Vec::new()) }),
+            progress,
         }
     }
 
@@ -512,6 +563,28 @@ impl<'a> StageCx<'a> {
     /// The stage's scope: once per tree, or once for the whole document.
     pub fn scope(&self) -> Scope {
         self.run.registry.stage(self.stage).decl.scope
+    }
+
+    /// The scope of the stage's row on the progress sheet of the build.
+    ///
+    /// The runner owns the row, one for each scheduled stage, and the per-tree
+    /// calls of one stage share it. A stage reports its own slow work in rows
+    /// it declares under this scope ([`Scope::child`](progress::Scope::child)):
+    /// a document-scope stage one row for its items; a per-tree call one row
+    /// for the items of its tree, labeled with the tree's source, which then
+    /// stands for that tree in the count of the stage's row. Where the work
+    /// has units (a tree, an image, a formula), the stage asks
+    /// [`cancelled`](progress::Scope::cancelled) once per unit and returns as
+    /// soon as it can when the build was cancelled: what a cancelled step
+    /// produced is discarded whole, so what it returns need not be
+    /// meaningful.
+    ///
+    /// A run that reports nowhere gives [`Scope::none`](progress::Scope::none),
+    /// whose methods do nothing; the stage calls them all the same. During
+    /// value catch-up the scope is past the depth limit 0: it declares no row,
+    /// and still answers `cancelled` and still writes log lines.
+    pub fn progress(&self) -> &progress::Scope {
+        &self.progress
     }
 
     /// The identifier of the tree that this call is for (a tree of the run, or
@@ -890,6 +963,8 @@ impl<'a> StageCx<'a> {
             Arc::clone(&current),
         ));
         let mut scratch = Computed::new();
+        // The stages run over the value add no row to the sheet.
+        let progress = self.progress.with_depth_limit(0);
         for idx in run.plan.per_tree_closure(self.stage) {
             let entry = run.registry.stage(idx);
             let StageKind::Pipeline(stage) = &entry.kind else { continue };
@@ -905,6 +980,7 @@ impl<'a> StageCx<'a> {
                     value_tree: Some(Arc::clone(&current)),
                     view,
                     values: Rc::clone(&self.values),
+                    progress: progress.clone(),
                 };
                 stage.run(&cx, &mut out);
             }

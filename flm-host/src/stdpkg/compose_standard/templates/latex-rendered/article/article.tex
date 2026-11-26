@@ -1,0 +1,26 @@
+<<!-- flm latex-rendered: the article template -->>
+\documentclass<<* if config.classoptions *>>[<<< config.classoptions >>>]<<* endif *>>{<<< config.documentclass >>>}
+
+\usepackage{<<< regions["style-package"] >>>}
+
+<<* if config.use_geometry *>>
+\usepackage[<<< config.geometry >>>]{geometry}
+<<* endif *>>
+
+% Only override verbatim hooks when the generated package provides them:
+% a document without code does not necessarily load this FLM component.
+\ifdefined\flmxDefineVerbatimFont
+  \flmxDefineVerbatimFont{code}{\ttfamily\small}
+  \renewcommand{\flmxVerbatimBlockBegin}{\vspace{2ex}}
+  \renewcommand{\flmxVerbatimBlockEnd}{\vspace{2ex}}
+\fi
+
+\begin{document}
+<<* for name, piece in pieces|items if piece.place == "before-content" *>>
+<<< piece.text >>>
+<<* endfor *>>
+<<< regions.content >>>
+<<* for name, piece in pieces|items if piece.place == "after-content" *>>
+<<< piece.text >>>
+<<* endfor *>>
+\end{document}

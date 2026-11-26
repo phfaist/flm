@@ -1,3 +1,4 @@
+name: lecturenotes
 output: html
 engine: minijinja
 main: lecturenotes.html
@@ -8,11 +9,35 @@ delimiters:
   block: ["{%", "%}"]
   variable: ["{{", "}}"]
   comment: ["{#", "#}"]
-config:
-  chapter_level: 1
-  font_family: 'Georgia, "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", serif'
-  stylesheets: []
-  links: []
+settings:
+  type: object
+  properties:
+    navigation_heading_level:
+      type: integer
+      minimum: 0
+      default: 1
+      description: "The navigation level: the level of the headings that begin the navigation units, the document's units of reading."
+    top_heading_level:
+      type: integer
+      minimum: 0
+      default: 1
+      description: "The top heading level: the level of the document's outermost headings; 0 in a document with parts."
+    font_family:
+      type: string
+      default: 'Georgia, "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", serif'
+      description: "The family of the page's text, a CSS font-family list."
+    css:
+      type: string
+      default: ''
+      description: "The document's own stylesheet, applied as a template and written in the page's head after the template's stylesheet; empty for none."
+    links:
+      type: array
+      items:
+        type: object
+        properties: {text: {type: string}, href: {type: string}}
+        required: [text, href]
+      default: []
+      description: "The links shown in the bar after the buttons, each a map with its text and its address (href)."
 artifacts:
   style: {file: style.css, template: true}
   script: {file: script.js, template: true}

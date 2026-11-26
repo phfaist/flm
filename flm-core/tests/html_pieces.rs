@@ -1,7 +1,7 @@
 //! Pieces over the HTML backend: where the page places them, what their
 //! content requires, and what a piece may not hold.
 //!
-//! The tests build a registry from the `stdcore` package plus the test
+//! The tests build a registry from the standard features plus the test
 //! feature of `common::pieces`, which declares each piece it is given — a
 //! table, a builder stage, a declaration — and the command `\tpplace`, whose
 //! rule stages a node placing the document's first tree.
@@ -15,11 +15,11 @@ use techy::error::Severity;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::backends::html::{self, DEFINITIONS_TABLE, PIECES_TABLE};
+use flm_core::stdlib::backends::html::{self, DEFINITIONS_TABLE, PIECES_TABLE};
 
 use common::html::{assert_golden, page};
 use common::pieces::{Content, TestPiece, registry};
-use common::stdcore::{reports, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, reports, run_workflow};
 
 /// An `html` run of one tree per text.
 fn render(registry: &Arc<FlmRegistry>, texts: &[&str]) -> Run {
@@ -41,7 +41,7 @@ fn the_page_places_a_piece_after_the_trees_inside_main_as_block_markup() {
         TestPiece::before("title", Content::Source("A title.")),
     ]);
     let run = render(&registry, &["First tree.", "Second tree."]);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let page = page(&run);
     let main = main_of(&page);
     let at = |text: &str| main.find(text).unwrap_or_else(|| panic!("{text} in {main}"));
@@ -90,10 +90,18 @@ fn a_subtree_node_inside_a_piece_writes_nothing_and_is_reported() {
     let registry =
         registry(vec![TestPiece::after("notes", Content::Source("Before.\n\n\\tpplace"))]);
     let run = render(&registry, &["Body."]);
-    assert_eq!(reports(&run), [("flm.html.piece-placement".to_string(), Severity::Error)]);
+    assert_eq!(
+        reports(&run),
+        [(UNCHECKED_OUTPUT.to_string(), Severity::Warning), ("flm.html.piece-placement".to_string(), Severity::Error)]
+    );
     // The report points at the placing command, on the value's third line.
-    let rendered = run.diagnostics().render_all();
-    assert!(rendered.contains("synthesized from @ (line 3, col 1)"), "{rendered}");
+    let reported = flm_core::dump::diag::expect(run.diagnostics().iter(), "flm.html.piece-placement").once();
+    let techy::source::SourceProvenance::Synthesized { triggered_at, .. } = reported.span().source().provenance()
+    else {
+        panic!("the report stands in a synthesized source")
+    };
+    let mut lines = techy::source::LineIndexCache::<flm_core::lang::FlmOrigin>::new();
+    assert_eq!(lines.line_col(triggered_at.source(), triggered_at.start()), Some((3, 1)));
     let page = page(&run);
     // The first tree is written once, where it stands.
     assert_eq!(main_of(&page).matches("Body.").count(), 1);

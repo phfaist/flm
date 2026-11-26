@@ -33,9 +33,9 @@
 //! One kind of node is neither characters nor refused: the **placeholder** of a
 //! [user definition](crate::lang::rewrites::userdefs::Definition)'s template
 //! (`#1`, `#{name}`, `#[…]{ref}`). A template that is lowered unexpanded (the
-//! template of a [kept definition](crate::stdcore::features::userdefs::kept),
+//! template of a [kept definition](crate::stdlib::features::userdefs::kept),
 //! which the [recomposed LaTeX
-//! backend](crate::stdcore::backends::latex_recomposed) writes back as a LaTeX
+//! backend](crate::stdlib::backends::latex_recomposed) writes back as a LaTeX
 //! definition) still holds its placeholders when a label or a target inside it
 //! is read. [`read_chars`] therefore returns the content as
 //! [segments](CharsSegment), in order: runs of characters and placeholder
@@ -66,7 +66,7 @@
 //! the tab, the carriage return and the line feed. Every reader of parsed FLM
 //! content (a document, a template) counts whitespace this way: the
 //! block-structure pass, the lowering helpers' blank test
-//! ([`is_blank`](crate::stdcore::backends::lowering::is_blank)), and each
+//! ([`is_blank`](crate::stdlib::backends::lowering::is_blank)), and each
 //! feature's reader where it trims what it reads, splits it at whitespace or
 //! tests whether content is blank. Content is blank when it is text made of
 //! whitespace alone, or a node whose element carries the
@@ -98,6 +98,16 @@ use crate::model::aspects::{apart_from_text_of, is_whitespace_of, ContentRef};
 /// it ([`apart_from_text_of`]), with its descendants. The nodes may belong to
 /// different trees. See the [module documentation](self#plain-text).
 pub fn plain_text_of<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> String {
+    text_of(nodes, "")
+}
+
+/// Returns the text of a run of nodes as [`plain_text_of`] reads it, with
+/// `whitespace_node` written for each node whose element is whitespace
+/// ([`is_whitespace_of`]: `~`, `\ `) and that no element set apart.
+pub(crate) fn text_of<'t>(
+    nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>,
+    whitespace_node: &str,
+) -> String {
     let mut out = String::new();
     // Document order without recursion: the nodes still to read, the next one
     // last; the ones an element set apart are passed over whole.
@@ -108,6 +118,9 @@ pub fn plain_text_of<'t>(nodes: impl IntoIterator<Item = NodeRef<'t, Flm>>) -> S
     while let Some(node) = pending.pop() {
         if apart.contains(&key(&node)) {
             continue;
+        }
+        if is_whitespace_of(&node) {
+            out.push_str(whitespace_node);
         }
         if let Some(text) = node.chars() {
             out.push_str(text);
@@ -170,7 +183,7 @@ pub(crate) fn is_blank(node: &NodeRef<'_, Flm>) -> bool {
 /// Returns `text` with every run of whitespace ([`is_space`]) made one space
 /// and the whitespace at both ends removed: the rule by which two written
 /// texts are the same however their whitespace is laid out.
-/// [`spelling_identity`](crate::stdcore::backends::pres::spelling_identity)
+/// [`spelling_identity`](crate::stdlib::backends::pres::spelling_identity)
 /// reads a citation key and a term's identity with it, and
 /// [`Label::parse`](crate::model::aspects::Label::parse) each part of a label.
 pub(crate) fn collapse_whitespace(text: &str) -> String {
@@ -288,14 +301,14 @@ impl std::error::Error for NotCharacters {}
 ///
 /// ```
 /// use std::sync::Arc;
-/// use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+/// use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 /// use flm_core::lang::text::read_chars;
 /// use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 /// use flm_core::model::doc::FragmentLayout;
-/// use flm_core::stdcore::{self, StdcoreConfig};
+/// use flm_core::stdlib::{self, StdlibConfig};
 ///
 /// let mut builder = RegistryBuilder::new();
-/// builder.use_package(stdcore::package(StdcoreConfig::new()));
+/// builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 /// builder.use_package(flm_core::math_passthrough::package());
 /// let registry = builder.build(&RegistryInputs::new())?;
 /// let source = FlmSource::new(r"See \ref{sec:{intro}}.");

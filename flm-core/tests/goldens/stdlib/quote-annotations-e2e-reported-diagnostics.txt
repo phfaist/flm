@@ -1,0 +1,32 @@
+===== check =====
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage its environment ends\n` — in a frame at `` — in a frame at `\phf ` — in a frame at `\begin` — in a frame at `\begin`
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage the input ends` — in a frame at `` — in a frame at `\phf `
+Error flm.blocks.parbreak-in-inline {"context":"argument"} — at `\n\n`
+===== text =====
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage its environment ends\n` — in a frame at `` — in a frame at `\phf ` — in a frame at `\begin` — in a frame at `\begin`
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage the input ends` — in a frame at `` — in a frame at `\phf `
+Error flm.blocks.parbreak-in-inline {"context":"argument"} — at `\n\n`
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section {"section":"text"} — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line {} — at `\indent `
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\phf{\text{x}}`
+Error flm.quote.nested-section {"section":"text"} — at `\text{x}`
+===== html =====
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage its environment ends\n` — in a frame at `` — in a frame at `\phf ` — in a frame at `\begin` — in a frame at `\begin`
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage the input ends` — in a frame at `` — in a frame at `\phf `
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.blocks.parbreak-in-inline {"context":"argument"} — at `\n\n`
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section {"section":"text"} — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line {} — at `\indent `
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\phf{\text{x}}`
+Error flm.quote.nested-section {"section":"text"} — at `\text{x}`
+===== latex-recomposed =====
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage its environment ends\n` — in a frame at `` — in a frame at `\phf ` — in a frame at `\begin` — in a frame at `\begin`
+Error flm.annotations.unterminated {"command":"phf","end_command":"endphf"} — at `a passage the input ends` — in a frame at `` — in a frame at `\phf `
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\nBare content in a quote.\n`
+Error flm.quote.nested-section {"section":"text"} — at `\text{section inside a section}`
+Error flm.quote.indent-mid-line {} — at `\indent `
+Error flm.quote.bare-content {"environment":"quote","sections":"‘\\text’, ‘\\lines’, ‘\\attributed’ or ‘\\block’"} — at `\phf{\text{x}}`
+Error flm.quote.nested-section {"section":"text"} — at `\text{x}`

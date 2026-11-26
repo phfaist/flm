@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 
-use flm_core::core::plan::{Overrides, Plan};
+use flm_core::core::plan::{Overrides, Plan, PlanWarning};
 use flm_core::core::registry::{
     FlmRegistry, PackageEntry, PackageFactory, PackageResolver, RegistryBuildError, RegistryBuilder, RegistryInputs,
 };
@@ -19,9 +19,10 @@ use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::{self, StdcoreConfig};
-use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::{self, StdlibConfig};
+use flm_ext::guest::NamedExtension;
+use flm_ext::native::NativeEngine;
 use flm_ext::{ExtensionLoader, MemoryFiles, MemorySource};
 use serde_json::{json, Value};
 
@@ -37,14 +38,10 @@ pub const PACKAGE: &str = "phfpack#_";
 /// `phfqit`.
 pub const FEATURE: &str = "phfqit";
 
-/// The loader of the extension: the engine `native` holding this crate, and a
+/// The loader of the extension: the engine `native` holding this module, and a
 /// source answering the stem `phfpack` with the manifest `engine: native`.
 pub fn loader() -> Arc<ExtensionLoader> {
-    let engine = NativeEngine::new([NativeExtension {
-        stem: STEM,
-        manifest: include_str!("../../flmextension.yaml"),
-        compiled: &phfpack::FLM_EXTENSION,
-    }]);
+    let engine = NativeEngine::new([NamedExtension { stem: STEM, compiled: &flm_extensions::phfpack::FLM_EXTENSION }]);
     let manifest = json!({ "extension": { "engine": "native" } });
     let source = MemorySource::new().with(STEM, STEM, manifest, MemoryFiles::new());
     Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine)))
@@ -84,7 +81,7 @@ pub fn package() -> PackageEntry {
 /// error.
 pub fn try_registry_with(settings: Value) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.use_package(package_with(settings));
     builder.build(&RegistryInputs::new())
@@ -109,7 +106,7 @@ pub fn run(registry: &Arc<FlmRegistry>, workflow: &str, text: &str) -> Run {
         .expect("the document parses");
     let mut content = DocContent::new();
     content.place(Arc::new(fragment));
-    let plan = Arc::new(Plan::for_workflow(registry, workflow, &Overrides::none()).expect("a plan"));
+    let plan = Arc::new(workflow_plan(registry, workflow));
     let mut run = Run::new(Arc::new(Doc::new(content)), plan, Externals::none()).expect("a run");
     run.execute(&RunOptions::new()).expect("the run executes");
     run
@@ -118,6 +115,35 @@ pub fn run(registry: &Arc<FlmRegistry>, workflow: &str, text: &str) -> Run {
 /// The diagnostics of a run, rendered, one per line.
 pub fn diagnostics(run: &Run) -> Vec<String> {
     run.diagnostics().iter().map(|d| format!("{}: {}", d.identifier(), d.message())).collect()
+}
+
+/// The identifier of the Warning a run reports, before its own diagnostics,
+/// for each output its plan keeps as unchecked
+/// ([`PlanWarning::UncheckedOutput`]): `math-passthrough`, which the registry
+/// holds, declares its formulas unchecked on `html`, `latex-rendered` and
+/// `latex-recomposed`.
+pub const UNCHECKED_OUTPUT: &str = "flm.run.unchecked-output";
+
+/// The plan of `workflow` under `registry`, with no overrides: the plan
+/// [`run`] and the renderings below run.
+pub fn workflow_plan(registry: &Arc<FlmRegistry>, workflow: &str) -> Plan {
+    Plan::for_workflow(registry, workflow, &Overrides::none()).expect("a plan")
+}
+
+/// Asserts that `diagnostics`, those of a run of `plan` as [`diagnostics`]
+/// renders them, are exactly the Warnings [`UNCHECKED_OUTPUT`] of the
+/// unchecked outputs the plan keeps, one per such plan warning and with its
+/// message, and nothing else: what a test whose subject is not the plan
+/// asserts of a run that reports nothing of its own.
+#[track_caller]
+pub fn assert_only_unchecked_output(plan: &Plan, diagnostics: &[String]) {
+    let expected: Vec<String> = plan
+        .warnings()
+        .iter()
+        .filter(|warning| matches!(warning, PlanWarning::UncheckedOutput { .. }))
+        .map(|warning| format!("{UNCHECKED_OUTPUT}: {warning}"))
+        .collect();
+    assert_eq!(diagnostics, expected);
 }
 
 /// The identifiers of a run's diagnostics.

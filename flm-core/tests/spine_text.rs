@@ -1,11 +1,11 @@
 //! The whole pipeline through the `text` workflow, over a registry built from
-//! `flm_core::stdcore::package` alone: the text output at width 80 and at width
+//! the standard features (`flm_core::stdlib::add_features`) alone: the text output at width 80 and at width
 //! 40 of a document exercising every standard feature, as goldens, and,
 //! property by property, headings, paragraphs, the formatting commands,
 //! typography, math, the user definitions, a reference resolved to a link
 //! showing its target's title, an unresolved reference reported as an error or
 //! as a warning, and the verbatim callables printed byte for byte (the
-//! `verbatim` feature's own suite is `stdcore_verbatim.rs`).
+//! `verbatim` feature's own suite is `stdlib_verbatim.rs`).
 
 mod common;
 
@@ -13,8 +13,8 @@ use flm_core::model::element::element_of;
 use flm_core::dump::diag::expect;
 use flm_core::dump::golden::{assert_json_golden, assert_text_golden};
 use flm_core::lang::Flm;
-use flm_core::stdcore::backends::pres::{self, LinkPayload, SpanPayload, SpanStyle, payload_of};
-use flm_core::stdcore::features::refs::UnresolvedRefs;
+use flm_core::stdlib::backends::pres::{self, LinkPayload, SpanPayload, SpanStyle, payload_of};
+use flm_core::stdlib::features::refs::UnresolvedRefs;
 use techy::core::node::{NodeRef, NodeTree};
 use techy::error::Severity;
 
@@ -24,7 +24,7 @@ use common::spine::{
     FEATURES_DOCUMENT, SESSION06_DOCUMENT, golden_path, overrides, registry, render,
     tables_projection, text_at,
 };
-use common::stdcore::identifiers;
+use common::stdlib::identifiers;
 
 /// The lowered form of the features document, tolerating its unresolved
 /// reference.
@@ -305,7 +305,7 @@ fn the_text_plan_over_the_package_schedules_every_stage_of_the_spine() {
             "flm.citations.retrieve",
             "flm.citations.check",
             "flm.citations.build-bibliography",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.text.pieces",
             "flm.text.lower",
             "flm.text.emit",

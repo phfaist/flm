@@ -12,8 +12,11 @@
 //! object of its static constructors and the union of the mapping table's
 //! row; a data struct with a class in the stub a class; a data type with a
 //! row an interface or a type; a constant its literal type; a hand-written
-//! export the hand list's text. Each item carries the first sentence of its
-//! rustdoc as JSDoc, intra-doc links reduced to their text.
+//! export the hand list's text; last, the class of each list sequence of the
+//! module (`mapping::LISTS`). A parameter that takes several items of a list
+//! sequence is the sequence or an array of items and sequences. Each item
+//! carries the first sentence of its rustdoc as JSDoc, intra-doc links
+//! reduced to their text.
 //!
 //! A type the mapping table writes as an interface (`interface NodeAddr
 //! {…}`) that no module of the inventory defines is declared in the first
@@ -26,7 +29,7 @@ use serde_json::Value;
 
 use crate::inventory::{FirstStatement, Function, Inventory, Item, ItemClass, ItemKind, Module};
 use crate::js_out::{defined_elsewhere, plain};
-use crate::mapping::{self, Shape, Ts, TypeRow};
+use crate::mapping::{self, Receiver, Shape, Ts, TypeRow};
 
 /// The generated declarations, from the crate's root.
 pub const FLM_D_TS: &str = "flm.d.ts";
@@ -148,6 +151,25 @@ fn jsdoc(doc: &str, indent: &str) -> String {
     if doc.is_empty() { String::new() } else { format!("{indent}/** {} */\n", plain(doc).replace("*/", "*\\/")) }
 }
 
+/// The members every sequence class declares, `items` the type of its
+/// items: `len()`, `is_empty()`, `get(i)` and the iteration, each documented
+/// in the terms of JavaScript, the same for every sequence.
+fn sequence_members(items: &str) -> String {
+    let mut out = String::new();
+    out.push_str(&jsdoc("Returns the number of items. The length crosses with the sequence, so this method makes no call into Rust.", "    "));
+    let _ = writeln!(out, "    len(): number;");
+    out.push_str(&jsdoc("Returns whether the sequence has no item, without a call into Rust.", "    "));
+    let _ = writeln!(out, "    is_empty(): boolean;");
+    out.push_str(&jsdoc("Returns the item at the index `i`, or `null` past the last item.", "    "));
+    let _ = writeln!(out, "    get(i: number): {items} | null;");
+    out.push_str(&jsdoc(
+        "Iterates the items in order, pulling them from Rust in groups; the sequence can be iterated again.",
+        "    ",
+    ));
+    let _ = writeln!(out, "    [Symbol.iterator](): Iterator<{items}>;");
+    out
+}
+
 /// The TypeScript literal type of the constant's value; `top` for the
 /// outermost list, which is `readonly`.
 fn literal_type(value: &Value, top: bool) -> String {
@@ -215,8 +237,28 @@ impl Emitter<'_> {
 
     /// A method's or a function's signature: `name(p: T): R`.
     fn signature(&self, function: &Function, output: &str) -> String {
-        let params: Vec<String> = function.params.iter().map(|param| format!("{}: {}", param.name, self.ts(&param.ty))).collect();
+        let params: Vec<String> = function.params.iter().map(|param| format!("{}: {}", param.name, self.param_ts(&param.ty))).collect();
         format!("{}({}): {output}", function.name, params.join(", "))
+    }
+
+    /// The TypeScript type of a parameter of the Rust type `ty`: as
+    /// [`ts`](Emitter::ts) writes it, but for the type with which the typed
+    /// API takes several items of a list sequence ([`mapping::ListRow`]),
+    /// which is the sequence or an array of items and sequences.
+    fn param_ts(&self, ty: &str) -> String {
+        let owned = match mapping::shape(ty) {
+            Shape::Ref { inner, .. } => inner,
+            _ => ty.to_string(),
+        };
+        match mapping::LISTS.iter().find(|list| list.taken == owned) {
+            Some(list) => format!("{0} | ({1} | {0})[]", list.class(), self.list_items(list)),
+            None => self.ts(ty),
+        }
+    }
+
+    /// The TypeScript type of the items of a list sequence.
+    fn list_items(&self, list: &mapping::ListRow) -> String {
+        self.ts(list.items())
     }
 
     /// The declarations of one module.
@@ -237,10 +279,23 @@ impl Emitter<'_> {
                 block.body.push(text);
             }
         }
+        for list in mapping::LISTS.iter().filter(|list| list.module == module.path) {
+            block.body.push(self.list_class(list));
+            self.declared.insert(list.class().to_string(), module.path.clone());
+        }
         for name in self.inventory.submodules(&module.path) {
             block.reexports.push(format!("export * as {name} from \"flm:{}/{name}\";", module.path));
         }
         block
+    }
+
+    /// The class of a list sequence: an iterable of its items with a
+    /// length and `get(i)`.
+    fn list_class(&self, list: &mapping::ListRow) -> String {
+        let items = self.list_items(list);
+        let mut body = String::from("    private constructor();\n");
+        body.push_str(&sequence_members(&items));
+        format!("{}  export class {} implements Iterable<{items}> {{\n{body}  }}\n", jsdoc(list.doc, "  "), list.class())
     }
 
     /// The declaration of one item (empty when it has none).
@@ -322,7 +377,13 @@ impl Emitter<'_> {
             None if mapping::is_extended_by_hand(&item.name) => body.push_str("    protected constructor();\n"),
             None => body.push_str("    private constructor();\n"),
         }
-        for method in methods.iter().filter(|method| !method.is_constructor() && !mapping::is_excluded(&item.name, &method.name)) {
+        // A sequence's `get` is declared with its `len` and `is_empty`
+        // (`sequence_members`).
+        let indexed = matches!(kind.receiver, Receiver::Indexed(_));
+        let declared = |method: &&Function| {
+            !method.is_constructor() && !mapping::is_excluded(&item.name, &method.name) && !(indexed && method.name == "get")
+        };
+        for method in methods.iter().filter(declared) {
             match mapping::EXTRA_METHODS.iter().find(|extra| extra.owner == kind.kind && extra.name == method.name) {
                 Some(extra) => {
                     body.push_str(&jsdoc(&method.doc, "    "));
@@ -336,6 +397,19 @@ impl Emitter<'_> {
                 let _ = writeln!(body, "    {};", extra.ts);
             }
         }
+        // A sequence is an iterable of its items with a length; a
+        // traversal an iterable iterator of its items, pulled once.
+        if let Receiver::Indexed(items) = kind.receiver {
+            let items = self.ts(items);
+            body.push_str(&sequence_members(&items));
+            return format!("  export class {} implements Iterable<{items}> {{\n{body}  }}\n", item.name);
+        }
+        if let Receiver::Pulled(items) = kind.receiver {
+            let items = self.ts(items);
+            let _ = writeln!(body, "    next(): IteratorResult<{items}, undefined>;");
+            let _ = writeln!(body, "    [Symbol.iterator](): this;");
+            return format!("  export class {} implements IterableIterator<{items}> {{\n{body}  }}\n", item.name);
+        }
         format!("  export class {} {{\n{body}  }}\n", item.name)
     }
 
@@ -347,7 +421,7 @@ impl Emitter<'_> {
         if let Some(hand) = mapping::HAND_WRITTEN.iter().find(|hand| hand.module == module.path && hand.item == key) {
             return format!("{doc}{}", indented(hand.ts, "    "));
         }
-        let params: Vec<String> = method.params.iter().map(|param| format!("{}: {}", param.name, self.ts(&param.ty))).collect();
+        let params: Vec<String> = method.params.iter().map(|param| format!("{}: {}", param.name, self.param_ts(&param.ty))).collect();
         if name == "constructor" {
             format!("{doc}    constructor({});\n", params.join(", "))
         } else {

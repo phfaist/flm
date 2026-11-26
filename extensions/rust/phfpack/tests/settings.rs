@@ -6,30 +6,43 @@ mod common;
 
 use std::sync::Arc;
 
-use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::backends::text;
+use flm_core::core::registry::{BuildError, FlmRegistry};
+use flm_core::lang::mint::MintError;
+use flm_core::lang::LangBuildError;
+use flm_core::stdlib::backends::text;
 use flm_core::techy::error::Severity;
 
 use common::{registry_with, run, text_of, try_registry_with};
 
-/// The error of the registry built with the settings `data`, rendered: the
-/// feature reads its settings when the registry is built.
-fn refusal(data: serde_json::Value) -> String {
-    match try_registry_with(data) {
+/// The clashes of names that refuse the registry built with the settings
+/// `data` (the feature reads its settings when the registry is built): each
+/// the name, and the features that declare it.
+fn clashes(data: serde_json::Value) -> Vec<(String, Vec<String>)> {
+    let error = match try_registry_with(data) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.render(),
-    }
+        Err(error) => error,
+    };
+    error
+        .errors
+        .iter()
+        .filter_map(|error| match error {
+            BuildError::Lang(LangBuildError::Mint(MintError::Clash { symbol, owners, .. })) => {
+                Some((symbol.name.clone(), owners.iter().map(|owner| owner.as_str().to_string()).collect()))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// The problems of reading the settings `data` with the feature's declaration,
-/// each its path and its message: the feature's configuration reader reads them
-/// when the settings are read.
-fn read_problems(data: serde_json::Value) -> Vec<(String, String)> {
+/// each by its path: the feature's configuration reader reads them when the
+/// settings are read.
+fn read_problems(data: serde_json::Value) -> Vec<String> {
     let factory = common::factory();
     let decl = factory.settings(common::FEATURE).expect("the feature declares settings");
     match decl.read(data.as_object().expect("the settings are a map")) {
         Ok(_) => panic!("the settings read"),
-        Err(errors) => errors.into_iter().map(|error| (error.path, error.detail)).collect(),
+        Err(errors) => errors.into_iter().map(|error| error.path).collect(),
     }
 }
 
@@ -139,15 +152,11 @@ fn a_declaration_with_a_code_that_is_not_one_is_refused_when_the_settings_are_re
     let problems = read_problems(serde_json::json!({
         "macro_definitions": { "w": { "args": ["q"], "content": "x" } }
     }));
-    let [(path, detail)] = &problems[..] else { panic!("one problem: {problems:?}") };
-    assert_eq!(path, "phfqit.macro_definitions.w.args");
-    assert!(detail.starts_with("the value of `phfqit.macro_definitions.w.args` is invalid: argument 1: "), "{detail}");
-    assert!(detail.contains("`q` is not an argument code"), "{detail}");
+    assert_eq!(problems, ["phfqit.macro_definitions.w.args"]);
     let problems = read_problems(serde_json::json!({
         "macro_definitions": { "w": { "args": "{", "delimited_args": "{", "content": "x" } }
     }));
-    let both = "the value of `phfqit.macro_definitions.w` is invalid: either `delimited_args` or `args` may be given, not both";
-    assert_eq!(problems, [("phfqit.macro_definitions.w".to_string(), both.to_string())]);
+    assert_eq!(problems, ["phfqit.macro_definitions.w"]);
 }
 
 #[test]
@@ -193,9 +202,12 @@ fn a_declared_macro_named_as_another_features_macro_is_the_librarys_ordinary_cla
     // `\emph` belongs to the standard package's `textstyles` feature: two
     // features declaring one name in one mode is the clash every registry
     // refuses, with both features named, and nothing of the package's own.
-    let rendered = refusal(serde_json::json!({ "macro_definitions": { "emph": "E" } }));
-    assert!(rendered.contains("emph"), "{rendered}");
-    assert!(rendered.contains("textstyles") && rendered.contains("phfqit"), "{rendered}");
+    let clashes = clashes(serde_json::json!({ "macro_definitions": { "emph": "E" } }));
+    assert!(!clashes.is_empty(), "the registry is refused for a clash");
+    for (name, owners) in &clashes {
+        assert_eq!(name, "emph", "{clashes:?}");
+        assert!(owners.iter().any(|owner| owner == "textstyles") && owners.iter().any(|owner| owner == "phfqit"), "{clashes:?}");
+    }
 }
 
 #[test]

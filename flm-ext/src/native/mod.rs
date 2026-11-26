@@ -11,15 +11,18 @@
 //! is the same: it depends on `flm-ext` with the feature `guest` alone, and
 //! its root invokes the macro [`extension!`](crate::guest::extension), which
 //! writes, on every target, the static `FLM_EXTENSION`
-//! ([`CompiledExtension`]) through which a program reaches the crate.
+//! ([`CompiledExtension`]) through which a program reaches the crate. A crate
+//! that holds several extensions declares one such static per extension and
+//! invokes [`extensions!`](crate::guest::extensions) over its table of code
+//! ([`NamedExtension`] rows) in its place.
 //!
 //! The program turns on `flm-ext`'s feature `native`, and that feature, not
 //! the target, decides the form: with it, on every target, the extension's
-//! requests are answered in the same process, and the macro writes no export.
+//! requests are answered in the same process, and the macros write no export.
 //! So a program built for `wasm32` (a program running the library in a web
 //! browser, for instance) carries extensions compiled in as a program built
 //! for any other target does. Without the feature, a crate compiled for
-//! `wasm32` is a WebAssembly module of its own: the macro writes the module's
+//! `wasm32` is a WebAssembly module of its own: the macros write the module's
 //! four exports (`flm_alloc`, `flm_free`, `flm_entry`, `flm_last_panic`) and
 //! the guest client imports the functions `flm.call` and `flm.take`.
 //!
@@ -33,9 +36,9 @@
 //!
 //! # What the program gives the engine
 //!
-//! The program lists the extensions it compiles in ([`NativeExtension`]):
-//! each one's stem, the text of its manifest, and its `FLM_EXTENSION`. The
-//! engine keeps the list. The program's [source](crate::source) answers the
+//! The program lists the extensions it compiles in as rows of a table of code
+//! ([`NamedExtension`]): each one's stem and its `FLM_EXTENSION`. The engine
+//! keeps the list. The program's [source](crate::source) answers the
 //! extension's stem with its manifest, `extension.engine` being `native`; the
 //! loader then gives the extension to this engine, which finds it by its stem
 //! ([`Engine::load`]). The identity is the source's, as for every engine. A
@@ -47,8 +50,8 @@
 //!
 //! use flm_core::core::registry::PackageResolver;
 //! use flm_ext::guest::core::registry::FeatureBuilder;
-//! use flm_ext::guest::{Extension, Feature, Package};
-//! use flm_ext::native::{NativeEngine, NativeExtension};
+//! use flm_ext::guest::{Extension, Feature, NamedExtension, Package};
+//! use flm_ext::native::NativeEngine;
 //! use flm_ext::{ExtError, ExtensionLoader, MemoryFiles, MemorySource};
 //! use serde_json::{json, Value};
 //!
@@ -57,7 +60,7 @@
 //! flm_ext::guest::extension!(extension);
 //!
 //! fn extension(ext: &mut Extension) {
-//!     ext.package("_", Package::new().uses(["stdcore"]).feature("myext", Feature::new().register(register)));
+//!     ext.package("_", Package::new().feature("myext", Feature::new().register(register)));
 //! }
 //!
 //! fn register(b: &mut FeatureBuilder, _settings: &Value) -> Result<(), ExtError> {
@@ -65,11 +68,7 @@
 //! }
 //!
 //! // The program: the engine holding the extension, and a source answering its stem.
-//! let engine = NativeEngine::new([NativeExtension {
-//!     stem: "myext",
-//!     manifest: "extension:\n  engine: native\n",
-//!     compiled: &FLM_EXTENSION,
-//! }]);
+//! let engine = NativeEngine::new([NamedExtension { stem: "myext", compiled: &FLM_EXTENSION }]);
 //! let manifest = json!({ "extension": { "engine": "native" } });
 //! let source = MemorySource::new().with("myext", "compiled-in:myext", manifest, MemoryFiles::new());
 //! let loader = ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine));
@@ -96,7 +95,7 @@
 //!   The lending of a handler object builds the host's object over the
 //!   frame's registration, with the body every binding's lending native
 //!   shares, and hands it to the API method that takes it. A line of
-//!   `console` output goes to the console sink the engine gave the instance.
+//!   `console` output goes to the log sink the engine gave the instance.
 //!   No JSON value is built or read.
 //! - **A request outside a handler call.** A request sent while no handler
 //!   call of the extension is the innermost one on the thread (from
@@ -156,9 +155,12 @@
 //!
 //! The engine sets no limit: no fuel, no time budget, no memory budget. An
 //! extension compiled into a program is trusted code with the program's
-//! rights. Nor is the depth of the values a request carries bounded: the
-//! engines `js` and `wasm` refuse a value nested deeper than 127 levels when
-//! they read JSON text, a bound of their text reader, and this engine reads no
+//! rights. Nor does the engine stop a handler when its build is cancelled: a
+//! stage or a citation provider that works in units asks its context's
+//! `progress().cancelled()` between two and returns early. Nor is the depth
+//! of the values a request carries bounded: the engines `js` and `wasm`
+//! refuse a value nested deeper than 127 levels when they read JSON text, a
+//! bound of their text reader, and this engine reads no
 //! text. Nor does it check a JSON value (a `serde_json::Value`): it passes
 //! each as it is, in a request's arguments, in its answer and in a template
 //! module's data, where the engines `js` and `wasm` refuse, in each of them,
@@ -183,8 +185,9 @@
 //! # The digest
 //!
 //! The engine's part of the registry digest is the engine's name, the
-//! version of `flm-ext`, and the extension crate's name and version (where the
-//! engine `wasm` takes the module's bytes), not the extension's code. A change
+//! version of `flm-ext`, and the extension's name and version, those of its
+//! [`CompiledExtension`] (where the engine `wasm` takes the module's bytes),
+//! not the extension's code. A change
 //! to the extension that keeps the crate's version leaves the digest
 //! unchanged, as a change to a feature written in Rust does when the feature
 //! keeps its version string, unless the program's build identity
@@ -196,67 +199,54 @@ mod instance;
 use std::fmt;
 use std::sync::Arc;
 
+use flm_core::progress::LogSink;
 use instance::{NativeInstance, NativeLoaded};
 
 use crate::binding::packages::read_packages;
 use crate::binding::{self, BindingRuntime};
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded};
 use crate::guest::entry::EntryReply;
-use crate::guest::CompiledExtension;
-use crate::host::ConsoleSink;
+use crate::guest::{CompiledExtension, NamedExtension};
+use crate::host::Console;
 use crate::manifest::Manifest;
 use crate::source::ExtensionFiles;
 
 /// The name of the engine, as a manifest's `extension.engine` gives it.
 pub const NATIVE: &str = "native";
 
-/// One extension compiled into the program, as the program lists it for the
-/// engine `native`: the stem the engine finds it by, the text of its
-/// manifest, and the static the macro
-/// [`extension!`](crate::guest::extension) writes at the root of its crate.
-#[derive(Debug, Clone, Copy)]
-pub struct NativeExtension {
-    /// The extension's stem, the name a `use` entry gives it (`pdf-latex`).
-    pub stem: &'static str,
-    /// The text of the extension's manifest, for the program's source; the
-    /// engine itself does not read it.
-    pub manifest: &'static str,
-    /// The extension's code: `&my_extension::FLM_EXTENSION`.
-    pub compiled: &'static CompiledExtension,
-}
-
-/// The engine `native`: the extensions compiled into the program
-/// ([`NativeExtension`]), run through the guest client in the same process
+/// The engine `native`: the extensions compiled into the program, rows of a
+/// table of code ([`NamedExtension`]), run through the guest client in the same process
 /// (the [module documentation](self)). Created with the program's list of
-/// extensions; `console` output goes to standard error unless
-/// [`with_console`](NativeEngine::with_console) routes it elsewhere.
+/// extensions; their `console` output goes nowhere unless
+/// [`with_log_sink`](NativeEngine::with_log_sink) gives it a log sink.
 #[derive(Clone)]
 pub struct NativeEngine {
     /// The extensions the engine holds, in the order given.
-    extensions: Vec<NativeExtension>,
+    extensions: Vec<NamedExtension>,
     /// Where `console` output goes.
-    console: ConsoleSink,
+    console: Console,
 }
 
 impl NativeEngine {
-    /// The engine holding `extensions`, its `console` output written to
-    /// standard error as `[native <level>] <text>`.
-    pub fn new(extensions: impl IntoIterator<Item = NativeExtension>) -> NativeEngine {
+    /// The engine holding `extensions`, with no log sink: their `console`
+    /// output goes nowhere.
+    pub fn new(extensions: impl IntoIterator<Item = NamedExtension>) -> NativeEngine {
         NativeEngine {
             extensions: extensions.into_iter().collect(),
-            console: Arc::new(|level, text| eprintln!("[native {level}] {text}")),
+            console: Console::default(),
         }
     }
 
-    /// Routes the `console` output of the extensions this engine loads from
-    /// now on to `sink`.
-    pub fn with_console(mut self, sink: ConsoleSink) -> NativeEngine {
-        self.console = sink;
+    /// Writes the `console` output of the extensions this engine loads from
+    /// now on to `sink`, each line with the extension's stem as its source
+    /// (the [table of levels](crate::host#console-output)).
+    pub fn with_log_sink(mut self, sink: Arc<dyn LogSink>) -> NativeEngine {
+        self.console = Console::to_sink(sink);
         self
     }
 
     /// The extensions the engine holds, in the order given.
-    pub fn extensions(&self) -> &[NativeExtension] {
+    pub fn extensions(&self) -> &[NamedExtension] {
         &self.extensions
     }
 }
@@ -269,8 +259,8 @@ impl fmt::Debug for NativeEngine {
 }
 
 /// The engine's part of the digest: the bytes `flm-ext native `, the version
-/// of `flm-ext`, a NUL byte, the crate's name, a NUL byte, the crate's
-/// version, a NUL byte.
+/// of `flm-ext`, a NUL byte, the extension's name, a NUL byte, its version,
+/// a NUL byte.
 fn digest(compiled: &CompiledExtension) -> Vec<u8> {
     let mut digest = format!("flm-ext {NATIVE} {}", env!("CARGO_PKG_VERSION")).into_bytes();
     for part in [compiled.name(), compiled.version()] {
@@ -305,8 +295,8 @@ impl Engine for NativeEngine {
         let loaded = Arc::new(NativeLoaded {
             id: binding::next_extension_id(),
             extension: extension.clone(),
-            compiled: found.compiled,
-            console: Arc::clone(&self.console),
+            code: *found,
+            console: self.console.clone(),
         });
         let created = NativeInstance::create(&loaded).map_err(|error| vec![LoadError::Load { detail: error.to_string() }])?;
         let defined =
@@ -355,7 +345,7 @@ mod tests {
 
     #[test]
     fn a_stem_the_engine_does_not_hold_is_refused_with_the_stems_it_holds() {
-        let held = |stem| NativeExtension { stem, manifest: "", compiled: &NOTHING };
+        let held = |stem| NamedExtension { stem, compiled: &NOTHING };
         assert_eq!(
             NativeEngine::new([held("pdf-latex"), held("other")]).not_held("pdf"),
             "the extension `pdf` specifies the engine `native` (`extension.engine`), and no extension `pdf` is compiled \

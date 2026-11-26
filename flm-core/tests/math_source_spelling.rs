@@ -8,17 +8,17 @@ mod common;
 use flm_core::core::plan::Overrides;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy};
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
 
-use common::stdcore::{identifiers, registry, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, registry, run_workflow};
 
 /// The standard package with the definitions `\pre{…}`, whose template is
 /// `\alpha#1`, and `\dbl{…}`, whose template is `#1\beta`, each expanded in
 /// every workflow (so that the recomposed LaTeX writes its expansion too).
 fn registry_with_glue() -> std::sync::Arc<flm_core::core::registry::FlmRegistry> {
-    registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
+    registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
         Definition::macro_("pre", vec![ArgDef::mandatory("a")]).content(r"\alpha#1")
             .expand(ExpandPolicy::Always),
         Definition::macro_("dbl", vec![ArgDef::mandatory("a")]).content(r"#1\beta")
@@ -26,10 +26,11 @@ fn registry_with_glue() -> std::sync::Arc<flm_core::core::registry::FlmRegistry>
     ])))
 }
 
-/// The output of `workflow` over `document`, with no diagnostic.
+/// The output of `workflow` over `document`, with no diagnostic but the
+/// Warnings of its plan's unchecked output.
 fn rendered(workflow: &str, document: &str) -> String {
     let run = run_workflow(&registry_with_glue(), workflow, &[document], &Overrides::none());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     match workflow {
         text::WORKFLOW => common::lowering::text(&run),
         html::WORKFLOW => common::html::fragment(&run),

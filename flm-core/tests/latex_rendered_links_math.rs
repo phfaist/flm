@@ -10,6 +10,7 @@
 //! one with `lualatex`.
 
 mod common;
+use common::stdlib::assert_only_unchecked_output;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,16 +20,16 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex_rendered::{DOCUMENT, WORKFLOW, style_artifact};
-use flm_core::stdcore::features::headings::{HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex_rendered::{DOCUMENT, WORKFLOW, style_artifact};
+use flm_core::stdlib::features::headings::{HeadingNumbering, HeadingsConfig};
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The standard package with every heading kind numbered.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)),
+    common::stdlib::registry(
+        StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)),
     )
 }
 
@@ -41,10 +42,11 @@ fn overrides(options: OptionValues) -> Overrides {
     }
 }
 
-/// Runs the workflow over `text`, asserting that nothing was reported.
+/// Runs the workflow over `text`, asserting that it reported nothing but the
+/// Warnings of its plan's unchecked output.
 fn render(text: &str) -> Run {
-    let run = common::stdcore::run_workflow(&registry(), WORKFLOW, &[text], &overrides(OptionValues::new()));
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(&registry(), WORKFLOW, &[text], &overrides(OptionValues::new()));
+    assert_only_unchecked_output(&run);
     run
 }
 

@@ -16,16 +16,16 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::annotations::latex_rendered::PIECE;
-use flm_core::stdcore::features::annotations::{AnnotationsConfig, AnnotationsRenderOptions, Annotator};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::annotations::latex_rendered::PIECE;
+use flm_core::stdlib::features::annotations::{AnnotationsConfig, AnnotationsRenderOptions, Annotator};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package with the annotators `phf` (initials `PhF`, number 0)
 /// and `abc` (number 1).
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().annotations(
+    common::stdlib::registry(StdlibConfig::new().annotations(
         AnnotationsConfig::new()
             .annotator(Annotator::new("phf").initials("PhF"))
             .annotator(Annotator::new("abc")),

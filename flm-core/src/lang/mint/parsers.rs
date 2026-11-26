@@ -20,7 +20,7 @@
 //! digest](crate::model::digest) (the hash of everything about a registry that
 //! can change what processing produces), and a short description. For an argument, they also return which tack-on fields it
 //! declares, and how the [recomposed LaTeX
-//! backend](crate::stdcore::backends::latex_recomposed) takes the argument
+//! backend](crate::stdlib::backends::latex_recomposed) takes the argument
 //! when it keeps a [user definition](crate::lang::rewrites::userdefs::Definition)
 //! as a LaTeX command instead of expanding its uses. The library reads a
 //! parser only through these methods and never tests which parser type it
@@ -147,7 +147,7 @@ pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
     /// digest](crate::model::digest) (the hash of everything about a registry
     /// that can change what processing produces) and in the digest that the
     /// `userdefs` feature computes over its configuration
-    /// ([`UserdefsConfig::digest_bytes`](crate::stdcore::features::userdefs::UserdefsConfig::digest_bytes)).
+    /// ([`UserdefsConfig::digest_bytes`](crate::stdlib::features::userdefs::UserdefsConfig::digest_bytes)).
     ///
     /// Two parsers that read differently must return different bytes (a
     /// standard kind returns bytes per kind and per delimiter pair), and one
@@ -184,7 +184,7 @@ pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
 
     /// Returns how a user definition that declares this argument is written
     /// back as a LaTeX definition, when the [recomposed LaTeX
-    /// backend](crate::stdcore::backends::latex_recomposed) keeps the
+    /// backend](crate::stdlib::backends::latex_recomposed) keeps the
     /// definition rather than expanding it. See [`DefinitionShape`].
     fn definition_shape(&self) -> DefinitionShape;
 
@@ -206,7 +206,7 @@ pub trait FlmArgumentParser: ArgumentParser<Flm> + Send + Sync {
     }
 }
 
-/// How the [recomposed LaTeX backend](crate::stdcore::backends::latex_recomposed)
+/// How the [recomposed LaTeX backend](crate::stdlib::backends::latex_recomposed)
 /// takes one declared argument when it keeps a [user
 /// definition](crate::lang::rewrites::userdefs::Definition) as a LaTeX command
 /// instead of expanding its uses, as returned by
@@ -748,10 +748,10 @@ impl ArgStdKind {
     }
 }
 
-/// Writes `text` as a code span of the description of a standard kind:
-/// between single backticks, or, when `text` holds a backtick, between runs
-/// of backticks longer than any run in `text`, with a space inside each end.
-fn code_span(text: &str) -> String {
+/// Writes `text` as a code span of a documentation text: between single
+/// backticks, or, when `text` holds a backtick, between runs of backticks
+/// longer than any run in `text`, with a space inside each end.
+pub(crate) fn code_span(text: &str) -> String {
     let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
     if longest == 0 {
         return format!("`{text}`");

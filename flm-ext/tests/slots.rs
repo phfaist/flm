@@ -9,10 +9,11 @@ mod common;
 
 use std::sync::Arc;
 
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::backends::latex::{packages as core_packages, preamble as core_preamble};
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::numbering::{
+use flm_core::core::registry::{BuildError, RegistryBuildError, RegistryBuilder, RegistryInputs, UnresolvedPeer};
+use flm_core::core::services::{ServiceError, SlotTarget};
+use flm_core::stdlib::backends::latex::{packages as core_packages, preamble as core_preamble};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::numbering::{
     CounterDecl, CounterStyleDecl, Delimiters, ParentSetDecl, PrefixWords, Within,
 };
 use flm_ext::adapter::dispatch;
@@ -21,8 +22,8 @@ use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowerin
 use flm_ext::api::core::registry::{Contributed, FeatureBuilder, Finalizer};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, SyntaxDef};
 use flm_ext::api::model::element::ElementSpec;
-use flm_ext::api::stdcore::backends::latex::{packages, preamble};
-use flm_ext::api::stdcore::features::numbering::{COUNTERS_SLOT, PARENT_SETS_SLOT, STYLES_SLOT, WITHIN_JOINERS_SLOT};
+use flm_ext::api::stdlib::backends::latex::{packages, preamble};
+use flm_ext::api::stdlib::features::numbering::{COUNTERS_SLOT, PARENT_SETS_SLOT, STYLES_SLOT, WITHIN_JOINERS_SLOT};
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
@@ -80,7 +81,7 @@ struct WritesTheMacro;
 
 impl Lower for WritesTheMacro {
     fn lower<'c>(&self, _: &'c dyn Node<'c>, cx: &'c mut dyn LowerCx, lw: &'c mut dyn Lowerer) -> Result<Lowering, ExtError> {
-        Ok(Lowering::Emit(vec![lw.pres(cx, flm_ext::api::stdcore::backends::latex::RAW, &json!({ "text": "\\exEnv{}" }), vec![])?]))
+        Ok(Lowering::Emit(vec![lw.pres(cx, flm_ext::api::stdlib::backends::latex::RAW, &json!({ "text": "\\exEnv{}" }), vec![])?]))
     }
 }
 
@@ -89,7 +90,7 @@ fn a_preamble_piece_reaches_the_style_file_when_a_rule_requires_it() {
     let registry = registry_with([slots(|b| {
         b.peer_slot(preamble::SLOT, Contributed::Data(json!({ "name": "ex.env", "content": "\\providecommand\\exEnv{}\n", "docs": "The macro.", "requires": [packages::AMSTHM] })))?;
         b.element(ElementDef::new(b.feature(), ["exmark"], SyntaxDef::Macro { args: vec![ArgDef::mandatory("x")] }, ElementSpec::new("ex.mark")))?;
-        let decl = LoweringDecl::new().selection_requires(preamble::piece_id("ex.env")).produces(flm_ext::api::stdcore::backends::latex::RAW);
+        let decl = LoweringDecl::new().selection_requires(preamble::piece_id("ex.env")).produces(flm_ext::api::stdlib::backends::latex::RAW);
         b.lowering_rule(LoweringRule::new(
             "ex.mark.lower.latex",
             "ex.mark",
@@ -100,7 +101,7 @@ fn a_preamble_piece_reaches_the_style_file_when_a_rule_requires_it() {
     })
     .package()]);
     let run = run(&registry, latex_recomposed::WORKFLOW, "A \\exmark{x}.");
-    assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &common::diagnostics(&run));
     let style = run
         .table(latex_recomposed::DOCUMENT)
         .expect("declared")
@@ -120,10 +121,12 @@ fn a_value_named_outside_the_stem_is_refused() {
         (preamble::SLOT, json!({ "name": "other.env", "content": "" }), "preamble piece"),
         (packages::SLOT, json!({ "id": "flm.latex.pkg.foo", "package": "foo", "options": [], "docs": "" }), "package definition"),
     ] {
-        let error = try_registry_with([slots(move |b| b.peer_slot(slot, Contributed::Data(value.clone()))).package()]).expect_err("outside the stem").to_string();
-        assert!(error.contains("flm.ext.name-outside-extension"), "{error}");
-        assert!(error.contains(&format!("the {what} `")), "{what}: {error}");
-        assert!(error.contains("must begin with `ex.`"), "{error}");
+        let error = try_registry_with([slots(move |b| b.peer_slot(slot, Contributed::Data(value.clone()))).package()]).expect_err("outside the stem");
+        let found = common::feature_errors(&error);
+        assert!(
+            matches!(found.as_slice(), [(feature, detail)] if feature == "slots" && detail.starts_with("flm.ext.name-outside-extension: ")),
+            "{what}: {found:?}"
+        );
     }
 }
 
@@ -131,31 +134,35 @@ fn a_value_named_outside_the_stem_is_refused() {
 /// is: a standard slot whose values are not
 /// data then fails the build with `flm-core`'s type check.
 #[test]
-fn data_for_a_standard_slot_outside_the_table_fails_the_build_with_the_two_types() {
+fn data_for_a_standard_slot_outside_the_table_fails_the_build_with_the_slot_s_type_check() {
     let error = try_registry_with([slots(|b| b.contribute_to(WITHIN_JOINERS_SLOT, Contributed::Data(json!({ "name": "ex.j" })))).package()])
-        .expect_err("a slot outside the table")
-        .to_string();
+        .expect_err("a slot outside the table");
     assert!(
-        error.contains("a value contributed to service slot `flm.numbering.within-joiners` must have the slot's type"),
-        "{error}"
+        error.errors.iter().any(|e| matches!(e, BuildError::Service(ServiceError::TypeMismatch { feature, slot, .. })
+            if *feature == "slots" && *slot == WITHIN_JOINERS_SLOT)),
+        "{error:?}"
     );
-    assert!(error.contains("but feature `slots` contributes a `ExtService`"), "{error}");
 }
 
 #[test]
-fn a_value_that_does_not_read_is_refused_with_the_field() {
+fn a_value_that_does_not_read_is_refused() {
     let error = try_registry_with([slots(|b| b.contribute_to(COUNTERS_SLOT, Contributed::Data(json!({ "name": "ex.c", "default_style": 3 })))).package()])
-        .expect_err("a bad field")
-        .to_string();
-    assert!(error.contains("the field `default_style` of a counter declaration must be a string, not `3`"), "{error}");
+        .expect_err("a bad field");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "slots" && detail.starts_with("flm.ext.handler-failed: ")),
+        "{found:?}"
+    );
 }
 
 /// A registry of the package `ex` alone, without the standard package, so
 /// that no feature declares the numbering slots.
-fn alone(register: impl Fn(&mut dyn FeatureBuilder) -> Result<(), ExtError> + Send + Sync + 'static) -> Result<Arc<flm_core::core::registry::FlmRegistry>, String> {
+fn alone(
+    register: impl Fn(&mut dyn FeatureBuilder) -> Result<(), ExtError> + Send + Sync + 'static,
+) -> Result<Arc<flm_core::core::registry::FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
     builder.use_package(slots(register).package());
-    builder.build(&RegistryInputs::new()).map_err(|error| error.to_string())
+    builder.build(&RegistryInputs::new())
 }
 
 #[test]
@@ -166,11 +173,15 @@ fn contribute_to_an_undeclared_slot_fails_the_build_and_peer_slot_leaves_a_note(
         move |b| b.contribute_to(COUNTERS_SLOT, Contributed::Data(counter.clone()))
     })
     .expect_err("an undeclared slot");
-    assert!(error.contains("flm.numbering.counters"), "{error}");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::Service(ServiceError::UndeclaredSlot { target: SlotTarget::ByName(name), .. })
+            if *name == COUNTERS_SLOT)),
+        "{error:?}"
+    );
     let registry = alone(move |b| b.peer_slot(COUNTERS_SLOT, Contributed::Data(counter.clone()))).expect("a peer declaration");
-    let notes: Vec<String> = registry.build_diagnostics().iter().map(|diagnostic| diagnostic.to_string()).collect();
-    assert_eq!(notes.len(), 1, "{notes:?}");
-    assert!(notes[0].contains("flm.numbering.counters"), "{notes:?}");
+    assert_eq!(registry.build_diagnostics().iter().count(), 1);
+    let notes: Vec<&UnresolvedPeer> = registry.build_diagnostics().conditions::<UnresolvedPeer>().collect();
+    assert_eq!(notes.iter().map(|note| note.name.as_str()).collect::<Vec<_>>(), [COUNTERS_SLOT]);
 }
 
 /// A finalizer that runs `f` through the dispatcher, as a script's does.
@@ -198,9 +209,12 @@ fn peer_slot_from_a_finalizer_is_contribution_after_assembly() {
             })))
         })
         .package();
-    let error = try_registry_with([package]).expect_err("a contribution of the second round").to_string();
-    assert!(error.contains("flm.ext.handler-failed: "), "{error}");
-    assert!(error.contains("a finalizer of feature `late` may not contribute"), "{error}");
+    let error = try_registry_with([package]).expect_err("a contribution of the second round");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "late" && detail.starts_with("flm.ext.handler-failed: ")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -222,8 +236,12 @@ fn a_finalizer_and_a_collection_member_through_the_dispatcher() {
         js.call(b, "collection_member", json!(["flm.validated", "other.counted"]))?;
         Ok(())
     });
-    let error = try_registry_with([outside.package()]).expect_err("outside the stem").to_string();
-    assert!(error.contains("other.counted"), "{error}");
+    let error = try_registry_with([outside.package()]).expect_err("outside the stem");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "late" && detail.starts_with("flm.ext.name-outside-extension: ")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -235,8 +253,8 @@ fn contribute_to_piece_id_and_package_id_through_the_dispatcher() {
     let seen = Arc::clone(&ids);
     let double = JsonDouble::new("ex").feature("slots", move |js, b| {
         js.call(b, "contribute_to", json!([preamble::SLOT, { "name": "ex.env", "content": "\\providecommand\\exEnv{}\n" }]))?;
-        let piece = js.call(&module("stdcore/backends/latex/preamble"), "piece_id", json!(["ex.env"]))?;
-        let package = js.call(&module("stdcore/backends/latex/packages"), "package_id", json!(["amsthm"]))?;
+        let piece = js.call(&module("stdlib/backends/latex/preamble"), "piece_id", json!(["ex.env"]))?;
+        let package = js.call(&module("stdlib/backends/latex/packages"), "package_id", json!(["amsthm"]))?;
         seen.lock().expect("the lock").push((piece, package));
         Ok(())
     });

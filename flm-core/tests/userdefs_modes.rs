@@ -19,16 +19,16 @@ use flm_core::lang::rewrites::userdefs::{
 use techy::latexlike::Mode;
 use flm_core::lang::{build_language, structural, LangInputs};
 use flm_core::model::element::{element_of, ElementSpec};
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::blocks::Blocks;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::blocks::Blocks;
 use flm_core::core::registry::FlmFeature;
-use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
 use techy::core::constructs::UnresolvableCommand;
 use techy::error::DiagnosticInfo;
 
 use common::userdefs::{expanded, recomposed, setup, setup_definitions, Setup};
 use common::dump::round_trip;
-use common::stdcore::registry as stdcore_registry;
+use common::stdlib::registry as stdlib_registry;
 use common::wiring::{registry, registry_with};
 use common::parse;
 
@@ -257,7 +257,7 @@ fn one_configuration_refuses_two_definitions_that_apply_in_one_mode() {
         Definition::macro_("foo", Vec::new()).text("T"),
         Definition::macro_("foo", Vec::new()).content("B"),
     ])]);
-    assert!(error.render().contains("the same parsing mode"), "{}", error.render());
+    assert_eq!(common::stdlib::refusing_features(&error), ["userdefs"], "{}", error.render());
 }
 
 // --- the registry digest ----------------------------------------------------------------------
@@ -292,7 +292,7 @@ fn a_fragment_using_both_definitions_of_one_name_reads_back_from_the_wire_form()
         Definition::macro_("foo", Vec::new()).text("TEXT"),
         Definition::macro_("foo", Vec::new()).math("MATH"),
     ]);
-    let registry = stdcore_registry(StdcoreConfig::new().userdefs(config));
+    let registry = stdlib_registry(StdlibConfig::new().userdefs(config));
     let live = Arc::new(parse(registry.lang(), "\\foo \\(\\foo\\)\n"));
     assert!(!live.diags().has_errors(), "{}", live.diags().render_all());
     let elements: Vec<Arc<ElementSpec>> =

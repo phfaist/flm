@@ -151,6 +151,31 @@ impl ColSpec {
     }
 }
 
+/// How a [table](DocBuf::table) is drawn around and between its cells.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TableFrame {
+    /// The columns separated by a gutter of two spaces, a rule of `-` across
+    /// every column under the header rows, and nothing else.
+    Gutter,
+    /// A frame of box-drawing characters around every cell: a line above the
+    /// first row and one below the last, a rule under the header rows,
+    /// nothing between body rows, and on every line of the rows a bar before,
+    /// between and after the cells, with one space on each side of each cell.
+    ///
+    /// ```text
+    /// ┌──────────┬────────┐
+    /// │ Header   │ Right  │
+    /// ├──────────┼────────┤
+    /// │ a cell   │     42 │
+    /// │ wrapped  │        │
+    /// └──────────┴────────┘
+    /// ```
+    ///
+    /// The frame's characters are one column wide for the engine, as for a
+    /// terminal configured for Western languages.
+    Box,
+}
+
 /// One cell of a [table](DocBuf::table): its content, a node of the same
 /// arena, and optionally an alignment of its own.
 ///
@@ -272,6 +297,11 @@ pub(crate) struct TableDef {
     /// The number of leading rows that form the header; a rule is drawn
     /// after them. `0` means no header.
     pub(crate) header_rows: u8,
+    /// How the table is drawn around and between its cells.
+    pub(crate) frame: TableFrame,
+    /// The mark under which the printer reports the characters the table
+    /// draws itself, if any.
+    pub(crate) border_mark: Option<MarkId>,
 }
 
 /// A layout document: an arena of layout nodes, with its pools of text,
@@ -661,8 +691,18 @@ impl DocBuf {
     /// follow their columns. Rows may have fewer cells than there are columns
     /// (the missing cells at the end of a row are empty); cells beyond
     /// `cols.len()` are ignored. `header_rows` is the number of leading rows
-    /// that form the header; a rule of `-` across every column is drawn after
-    /// them (`0` means no header).
+    /// that form the header; a rule is drawn after them (`0` means no
+    /// header). `frame` is how the table is drawn around and between its
+    /// cells ([`TableFrame`]): a gutter of two spaces between the columns and
+    /// a rule of `-`, or a frame of box-drawing characters.
+    ///
+    /// `border_mark`, when given, is the mark under which
+    /// [`print_full`](super::print_full) reports the characters the table
+    /// draws itself: one [`MarkSpan`](super::MarkSpan) per maximal run of
+    /// such characters on a line (a whole rule or frame line; each bar of a
+    /// line of the rows on its own; the padding spaces are not part of any
+    /// run), in the order they are written, after the spans of the marks
+    /// opened before the table.
     ///
     /// # How the columns are laid out
     ///
@@ -677,8 +717,11 @@ impl DocBuf {
     ///    no limit (when its indentation grows as it breaks), so the maximum is
     ///    raised to the minimum where it is smaller.
     /// 2. **Compute the widths.** The available width is the profile's width
-    ///    minus the enclosing indentation and the gutters (two spaces between
-    ///    adjacent columns). If the maxima of all columns fit, or the profile
+    ///    minus the enclosing indentation and the table's own drawing: the
+    ///    gutters (two spaces between adjacent columns) under
+    ///    [`TableFrame::Gutter`], three columns per column and one more under
+    ///    [`TableFrame::Box`] (a bar and two spaces of padding per column, and
+    ///    the closing bar). If the maxima of all columns fit, or the profile
     ///    has no width, each column gets its maximum. Otherwise each column
     ///    starts at its minimum, and the remaining width is shared out in
     ///    proportion to each column's room to grow (maximum minus minimum), in
@@ -696,23 +739,29 @@ impl DocBuf {
     /// 4. **Assemble.** The rows are assembled line by line, with every cell
     ///    at the top of its row: a row is as tall as its tallest cell. Each
     ///    cell is padded to its column's width in its own alignment, or in its
-    ///    column's where it has none; columns are separated by the gutter, and
-    ///    trailing whitespace is removed from every line (the padding, and any
-    ///    trailing whitespace of the last cell's own text).
-    ///    The rule follows the header rows.
+    ///    column's where it has none. Under [`TableFrame::Gutter`], columns are
+    ///    separated by the gutter, trailing whitespace is removed from every
+    ///    line (the padding, and any trailing whitespace of the last cell's
+    ///    own text), and the rule of `-` follows the header rows. Under
+    ///    [`TableFrame::Box`], every line of the rows ends with its closing
+    ///    bar, the frame's lines come above the first row and below the last,
+    ///    and its rule follows the header rows when rows follow them.
     ///
     /// A table is a block: it starts on a line of its own and ends its last
     /// line. A table that prints nothing (no columns, no rows, or only empty
     /// cells) is not a block and leaves the surrounding line as it is.
     ///
-    /// Known limitation: marks inside cells are not reported, because each
-    /// cell is printed by a separate run of the printer; a mark around the
-    /// whole table is reported.
+    /// The marks inside the cells are reported where the cells' text lands in
+    /// the table, after the spans of the marks opened before the table and
+    /// after the runs of the border mark, row by row and column by column. A
+    /// mark over several lines of a cell gives one span per line of the
+    /// cell, because the table interleaves the cell's lines with the rest of
+    /// the row (see the [`printer`](super::printer) module, section 5).
     ///
     /// # Examples
     ///
     /// ```
-    /// use flm_core::layout::{ColSpec, DocBuf, Profile, print};
+    /// use flm_core::layout::{ColSpec, DocBuf, Profile, TableFrame, print};
     ///
     /// let mut b = DocBuf::new();
     /// let name = b.text("name");
@@ -723,6 +772,8 @@ impl DocBuf {
     ///     &[ColSpec::left(), ColSpec::right()],
     ///     &[&[name, count], &[alpha, three]],
     ///     1,
+    ///     TableFrame::Gutter,
+    ///     None,
     /// );
     ///
     /// assert_eq!(
@@ -734,7 +785,7 @@ impl DocBuf {
     /// A cell with an alignment of its own, in a left-aligned column:
     ///
     /// ```
-    /// use flm_core::layout::{ColAlign, ColSpec, DocBuf, Profile, TableCell, print};
+    /// use flm_core::layout::{ColAlign, ColSpec, DocBuf, Profile, TableCell, TableFrame, print};
     ///
     /// let mut b = DocBuf::new();
     /// let wide = b.text("a wide cell");
@@ -743,16 +794,47 @@ impl DocBuf {
     ///     &[ColSpec::left()],
     ///     &[&[TableCell::new(wide)], &[TableCell::aligned(right, ColAlign::Right)]],
     ///     0,
+    ///     TableFrame::Gutter,
+    ///     None,
     /// );
     ///
     /// assert_eq!(print(&b, t, &Profile::new(Some(40))), "a wide cell\n      right\n");
+    /// ```
+    ///
+    /// A framed table, with the characters it draws reported under a mark:
+    ///
+    /// ```
+    /// use flm_core::layout::{ColSpec, DocBuf, MarkId, Profile, TableFrame, print_full};
+    ///
+    /// let mut b = DocBuf::new();
+    /// let name = b.text("name");
+    /// let alpha = b.text("alpha");
+    /// let t = b.table(
+    ///     &[ColSpec::left()],
+    ///     &[&[name], &[alpha]],
+    ///     1,
+    ///     TableFrame::Box,
+    ///     Some(MarkId(0)),
+    /// );
+    ///
+    /// let out = print_full(&b, t, &Profile::new(Some(40)));
+    /// assert_eq!(out.text, "┌───────┐\n│ name  │\n├───────┤\n│ alpha │\n└───────┘\n");
+    /// let runs: Vec<&str> = out.marks.iter().map(|m| &out.text[m.bytes.clone()]).collect();
+    /// assert_eq!(runs, ["┌───────┐", "│", "│", "├───────┤", "│", "│", "└───────┘"]);
     /// ```
     ///
     /// # Panics
     ///
     /// If the arena's node, column, row, cell or table pool would overflow
     /// (see [`DocBuf`]).
-    pub fn table<C>(&mut self, cols: &[ColSpec], rows: &[&[C]], header_rows: u8) -> DocId
+    pub fn table<C>(
+        &mut self,
+        cols: &[ColSpec],
+        rows: &[&[C]],
+        header_rows: u8,
+        frame: TableFrame,
+        border_mark: Option<MarkId>,
+    ) -> DocId
     where
         C: Copy + Into<TableCell>,
     {
@@ -783,6 +865,8 @@ impl DocBuf {
                 end: cols_end,
             },
             header_rows,
+            frame,
+            border_mark,
         });
         self.push(Node::Table { def })
     }

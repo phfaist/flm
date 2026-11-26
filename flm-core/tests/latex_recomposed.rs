@@ -1,5 +1,5 @@
 //! The `latex-recomposed` backend end to end, over a registry built from
-//! `flm_core::stdcore::package`: the plan a `latex-recomposed` workflow
+//! the standard features (`flm_core::stdlib::add_features`): the plan a `latex-recomposed` workflow
 //! builds, and the recomposed LaTeX and style file of one document per property as
 //! goldens under `tests/goldens/latex/` — text and escaping in both Unicode
 //! modes, groups, comments kept and dropped, paragraph breaks, the literal
@@ -30,7 +30,7 @@ use flm_core::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use flm_core::core::plan::{Overrides, PlanError};
-use flm_core::core::registry::{FlmFeature, FlmRegistry};
+use flm_core::core::registry::{FlmFeature, FlmRegistry, PackageEntry, UnresolvedPeer};
 use flm_core::core::run::{Run, RunOptions};
 use flm_core::dump::diag::{expect, expect_none};
 use flm_core::dump::to_json;
@@ -41,23 +41,23 @@ use flm_core::model::aspects::{BlockRole, BlockRoleAspect, FixedBlockRole};
 use flm_core::model::element::ElementSpec;
 use flm_core::model::names::{ElementName, Name};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::UnicodeMode;
-use flm_core::stdcore::backends::pres::{self, DroppedPayload};
-use flm_core::stdcore::backends::latex::construct::{DEFINITION, RAW};
-use flm_core::stdcore::backends::latex::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::UnicodeMode;
+use flm_core::stdlib::backends::pres::{self, DroppedPayload};
+use flm_core::stdlib::backends::latex::construct::{DEFINITION, RAW};
+use flm_core::stdlib::backends::latex::{
     ExtraPreamble, LatexDefinitionKind, LatexDefinitionPayload, LatexPackageDef, LatexRawPayload,
     packages, preamble,
 };
-use flm_core::stdcore::backends::latex_recomposed::{
+use flm_core::stdlib::backends::latex_recomposed::{
     self, BACKEND, LatexRecomposedRenderOptions, OUTPUT_TABLE, StyleFile, WORKFLOW,
 };
-use flm_core::stdcore::features::headings::HeadingsConfig;
-use flm_core::stdcore::features::math::MathRecomposeOptions;
-use flm_core::stdcore::features::refs::{
+use flm_core::stdlib::features::headings::HeadingsConfig;
+use flm_core::stdlib::features::math::MathRecomposeOptions;
+use flm_core::stdlib::features::refs::{
     NO_PREFIX_KEY, RefsRecomposeOptions, SAFE_LABELS, SafeLabelMode,
 };
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use techy::core::node::NodeRef;
 use techy::error::Severity;
 
@@ -69,9 +69,9 @@ use common::naming::{FixedNamer, JobNamer};
 use flm_core::core::artifact::ArtifactNamer;
 use flm_core::core::region::STYLE_PACKAGE;
 use flm_core::core::registry::{FeatureChain, RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
 use common::lowering::PresSite;
-use common::stdcore::{identifiers, run_workflow, try_plan};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow, try_plan};
 
 // --- helpers -------------------------------------------------------------------------------
 
@@ -114,11 +114,11 @@ fn recomposed(text: &str) -> Run {
 fn the_workflow_plans_the_raw_tree_the_safe_labels_the_checks_and_the_three_backend_stages() {
     // A configuration holding one `always` definition: the plan's only rewrite
     // is that expansion.
-    let config = StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
+    let config = StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
         Definition::macro_("version", Vec::new()).text("1.0").expand(ExpandPolicy::Always),
     ]));
-    let registry = common::stdcore::registry(config);
-    let plan = common::stdcore::plan(&registry, WORKFLOW, &Overrides::none());
+    let registry = common::stdlib::registry(config);
+    let plan = common::stdlib::plan(&registry, WORKFLOW, &Overrides::none());
     let names = |names: &[flm_core::model::names::StageName]| {
         names.iter().map(|name| name.to_string()).collect::<Vec<_>>()
     };
@@ -147,7 +147,7 @@ fn the_workflow_plans_the_raw_tree_the_safe_labels_the_checks_and_the_three_back
             "flm.citations.collect",
             "flm.citations.retrieve",
             "flm.citations.check",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.latex-recomposed.pieces",
             "flm.latex-recomposed.lower",
             "flm.latex-recomposed.emit",
@@ -160,8 +160,8 @@ fn the_workflow_plans_the_raw_tree_the_safe_labels_the_checks_and_the_three_back
     // definitions marked as always expanded, which the contract check requires
     // in every plan. No check forces a decision about the *per-plan*
     // definitions: that one the backend's own rules make.
-    let bare = common::stdcore::registry(StdcoreConfig::new());
-    let plan = common::stdcore::plan(&bare, WORKFLOW, &Overrides::none());
+    let bare = common::stdlib::registry(StdlibConfig::new());
+    let plan = common::stdlib::plan(&bare, WORKFLOW, &Overrides::none());
     assert_eq!(names(&plan.rewrite_names()), ["flm.input.splice", "flm.userdefs.expand-always"]);
     assert_eq!(plan.stage_names().len(), 25);
 }
@@ -213,7 +213,7 @@ fn a_cyrillic_spelling_selects_its_font_encoding_in_both_unicode_modes() {
         "{declared_style}"
     );
     assert_fontenc_t2a_branches(&declared_style);
-    assert_eq!(declared.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&declared);
     assert_golden("text-cyrillic-declare.tex", &declared);
 
     let replaced = recompose(&registry(), &[CYRILLIC_DOCUMENT], &backend_options(
@@ -287,7 +287,7 @@ fn two_fontenc_requests_are_one_line_per_engine_and_the_default_encoding_is_name
     let block_end = style.find(fontenc).expect("the fontenc test") + fontenc.len();
     let command = style.find(commands).expect("the default-encoding commands");
     assert!(block < block_end && block_end <= command, "{style}");
-    assert_eq!(run.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&run);
     assert_golden("text-fontenc-both.tex", &run);
 }
 
@@ -339,7 +339,7 @@ fn every_chunk_of_the_table_reaches_the_style_file_in_both_unicode_modes() {
     // A declaration is guarded, so two style files in one LaTeX job do not
     // clash over it.
     assert!(declared_style.contains(r"\ifcsname UnxTBbold\endcsname\else"), "{declared_style}");
-    assert_eq!(declared.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&declared);
     assert_golden("text-chunks-declare.tex", &declared);
 
     let replaced = recompose(&registry(), &[CHUNKS_DOCUMENT], &backend_options(
@@ -354,7 +354,7 @@ fn every_chunk_of_the_table_reaches_the_style_file_in_both_unicode_modes() {
     let (replaced_style, _) = style(&replaced);
     assert!(!replaced_style.contains("newunicodechar"), "{replaced_style}");
     assert!(replaced_style.contains(r"\DeclareSymbolFont{UnxTwasy}{U}{wasy}{m}{n}"), "{replaced_style}");
-    assert_eq!(replaced.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&replaced);
     assert_golden("text-chunks-replace.tex", &replaced);
 }
 
@@ -365,11 +365,11 @@ fn the_per_tree_projection_shows_the_chunks_the_tree_needs() {
     // chunk table's own order, so that a dump shows a change in what a
     // document requires and not only in what it declares.
     let run = recomposed(FONTENC_DOCUMENT);
-    let projected = to_json(&common::stdcore::projection(&run, OUTPUT_TABLE)).expect("json");
+    let projected = to_json(&common::stdlib::projection(&run, OUTPUT_TABLE)).expect("json");
     assert!(projected.contains(r#""chunks":["fontenc-t1","fontenc-t2a"]"#), "{projected}");
     // A document whose characters need nothing shows the empty list.
     let plain = recomposed("Plain text, no spelling needed.\n");
-    let projected = to_json(&common::stdcore::projection(&plain, OUTPUT_TABLE)).expect("json");
+    let projected = to_json(&common::stdlib::projection(&plain, OUTPUT_TABLE)).expect("json");
     assert!(projected.contains(r#""chunks":[]"#), "{projected}");
 }
 
@@ -604,7 +604,7 @@ fn an_alternative_title_rides_the_heading_hook_as_its_key_alt() {
 See \\ref{sec:long}.
 ";
     let run = recomposed(document);
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let text = body(&run);
     // An optional argument holding a command is braced whole by the emitter,
     // as every optional argument is, so that a `]` inside cannot end it; LaTeX
@@ -625,7 +625,7 @@ See \\ref{sec:long}.
 
     // Whitespace around a braced value: the group's content is relayed.
     let run = recomposed("\\section[toc=true, alt= {Spaced} ]{T}\n");
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let text = body(&run);
     assert!(text.contains("\\flmHeading[toc=true,alt={Spaced}]\n\\section{T}{\\flmLabels{}}\n"), "{text}");
 
@@ -634,7 +634,7 @@ See \\ref{sec:long}.
         heading_hook: false,
         ..LatexRecomposedRenderOptions::default()
     }));
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let text = body(&run);
     assert!(text.contains("\\section{A long and \\emph{fancy} title}\\flmLabels{\\label{ref1}}\n"), "{text}");
     assert!(text.contains("\\subsection*{A starred long title}\n"), "{text}");
@@ -705,8 +705,9 @@ fn references_are_allocated_in_document_order_and_written_through_the_hook() {
     // `nope` is not spelled `type:label` and is reported where it was written:
     // here it is a `\ref` target, so the reference scan reports it as it walks
     // the references. The references to `eq:b` resolve — an equation line is a
-    // reference point — and nothing else is reported.
-    assert_eq!(identifiers(&run), ["flm.refs.bad-label"]);
+    // reference point — and the only other report is the plan's warning that
+    // nothing checks the formulas, at the start of the run.
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.refs.bad-label"]);
     assert_golden("refs-default.tex", &run);
 }
 
@@ -740,7 +741,7 @@ fn reference_options_the_package_accepts_are_written_through_unchanged() {
     );
     // Every reference resolves: `sec:a` to the heading, `eq:b` to the line of
     // the equation that carries it.
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("refs-options-compiled.tex", &run);
 }
 
@@ -777,7 +778,7 @@ fn several_targets_of_one_reference_are_written_as_one_reference_command() {
     assert_eq!(table.label_of("ref", "ref1"), Some("sec:a"));
     assert_eq!(table.label_of("ref", "ref2"), Some("sec:b"));
     assert_eq!(table.label_of("ref", "ref3"), Some("eq:c"));
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("refs-many-targets.tex", &run);
 }
 
@@ -816,7 +817,7 @@ fn flms_own_reference_options_are_written_as_the_document_wrote_them() {
     );
     // Every reference resolves, so the compile suite can hold the document to
     // an undefined-reference-free run.
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("refs-options-translated.tex", &run);
 
     // With the hooks off there is no hook to translate anything: the same
@@ -902,7 +903,7 @@ fn a_hyperref_is_written_through_its_hook_around_the_safe_key_and_the_author_s_t
     // document carries links stays its author's decision.
     assert!(style.contains(&format!("\\ProvideDocumentCommand\\{}", preamble::HYPERREF_COMMAND)), "{style}");
     assert!(!style.contains("\\RequirePackage{hyperref}"), "{style}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("refs-hyperref.tex", &run);
 }
 
@@ -1004,7 +1005,7 @@ fn the_text_of_a_reference_s_options_is_escaped_and_a_command_in_a_value_is_lowe
     );
     let plain = recomposed("\\section{A}\\label{sec:a}\n\nSee \\ref[cap=Fig_1,S]{sec:a}.");
     assert!(body(&plain).contains("See \\flmRef[cap={Fig\\_1},S]{ref1}."), "{}", body(&plain));
-    assert_eq!(run.diagnostics().iter().count(), 0, "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("refs-options-escaped.tex", &run);
 }
 
@@ -1103,7 +1104,7 @@ fn the_environments_are_rebuilt_line_by_line_with_labels_at_the_end_of_their_lin
     // A final `\\` followed only by whitespace ends no line and is not written;
     // the whitespace after it is the last line's, as written.
     assert!(text.contains("\\begin{align}\n  a \\\\\n  b\n\\end{align}\n"), "{text}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     let (style, _) = style(&run);
     assert!(style.contains("\\RequirePackage{amsmath}"), "{style}");
     assert_golden("math-environments.tex", &run);
@@ -1131,7 +1132,7 @@ fn a_comment_in_an_equation_line_is_written_as_everywhere_and_can_be_dropped() {
         ),
         "{text}"
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("math-comments.tex", &run);
     let render = LatexRecomposedRenderOptions {
         drop_comments: true,
@@ -1158,7 +1159,7 @@ fn a_command_on_a_line_of_its_own_leaves_no_blank_line_in_an_environment() {
     let run = recomposed(COMMANDS_ON_LINES_OF_THEIR_OWN);
     let text = body(&run);
     assert_eq!(blank_lines_in_math(&text), Vec::<usize>::new(), "{text}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert!(text.contains("\\end{aligned}\\flmLabels{\\label{ref1}}\n\\end{gather}"), "{text}");
     assert!(text.contains("  a &= b\\\\\n  c &= d\n\\end{align}"), "{text}");
     assert!(text.contains("  a = b\n  + c\\flmLabels{"), "{text}");
@@ -1273,12 +1274,12 @@ fn a_tag_holds_text_content_which_is_escaped_and_lowered_like_any_other() {
     // its letter alone.
     let rendered = run_workflow(
         &registry(),
-        flm_core::stdcore::backends::text::WORKFLOW,
+        flm_core::stdlib::backends::text::WORKFLOW,
         &[TAG_TEXT_DOCUMENT],
         &Overrides::none(),
     );
     let output = rendered
-        .table(&flm_core::stdcore::backends::text::TEXT_OUTPUT)
+        .table(&flm_core::stdlib::backends::text::TEXT_OUTPUT)
         .expect("declared")
         .expect("written");
     assert!(output.text.contains("\\tag*{(50% & more)}"), "{}", output.text);
@@ -1305,7 +1306,7 @@ fn an_untyped_label_is_named_like_any_other_and_written_like_any_other() {
         text.contains("\\begin{align}\n  a &= 1\\flmLabels{\\label{ref1}}\n\\end{align}\n"),
         "{text}"
     );
-    assert_eq!(identifiers(&run), ["flm.refs.bad-label"]);
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.refs.bad-label"]);
     let table = run.table(SAFE_LABELS).expect("declared").expect("written");
     assert_eq!(table.allocated, 1);
     assert_eq!(table.label_of("ref", "ref1"), Some("a_b"));
@@ -1363,7 +1364,7 @@ See \\ref{eq:one}, \\ref{eq:two} and \\ref{eq:three}.
     assert!(text.contains("See \\flmRef{ref1}, \\flmRef{ref2} and \\flmRef{ref3}.\n"), "{text}");
     // Each of the three references resolves to the line that carries its
     // label, here in FLM as it will in the compiled LaTeX.
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("math-two-labels.tex", &run);
 }
 
@@ -1381,7 +1382,7 @@ fn a_reference_to_an_equation_line_is_written_as_the_key_of_that_line() {
     assert!(text.contains("  e &= f\\flmLabels{\\label{ref1}}\n\\end{align}\n"), "{text}");
     assert!(text.contains("See \\flmRef{ref1}."), "{text}");
     // The reference resolves in FLM too, to the line that carries the label.
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     let table = run.table(SAFE_LABELS).expect("declared").expect("written");
     assert_eq!(table.allocated, 1);
     assert_eq!(table.label_of("ref", "ref1"), Some("eq:third"));
@@ -1416,8 +1417,8 @@ See \\ref{eq:one} and \\ref{sec:top}.
         }),
     );
     assert_eq!(golden_text(&unset), golden_text(&set));
-    assert_eq!(identifiers(&unset), Vec::<String>::new());
-    assert_eq!(identifiers(&set), Vec::<String>::new());
+    assert_only_unchecked_output(&unset);
+    assert_only_unchecked_output(&set);
     // And what those identical bytes hold, so that the equality above cannot
     // pass over an output that lost its labels twice.
     let text = body(&set);
@@ -1563,12 +1564,12 @@ no language
 ";
     let run = recomposed(document);
     let text = body(&run);
-    assert!(text.contains("\\flmHeading[toc=true]\n\\section{Code \\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{f\\(x\\)}}{\\flmLabels{}}\n"), "{text}");
-    assert!(text.contains("Inline \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{a\\{b\\}\\\\c} text"), "{text}");
-    assert!(text.contains("\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{f\\(x\\)\\ \\=\\ 1}"), "{text}");
-    assert!(text.contains("\\EscVerb[formatcom=\\flmFmtVRB{verba}]{struct}"), "{text}");
-    assert!(text.contains("\\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{raw\\ \\{text\\}\\ 100\\%}"), "{text}");
-    assert!(text.contains("\\emph{inside \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{an\\ argument}}"), "{text}");
+    assert!(text.contains("\\flmHeading[toc=true]\n\\section{Code \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{f\\(x\\)}}{\\flmLabels{}}\n"), "{text}");
+    assert!(text.contains("Inline \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{a\\{b\\}\\\\c} text"), "{text}");
+    assert!(text.contains("\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{f\\(x\\)\\ \\=\\ 1}"), "{text}");
+    assert!(text.contains("\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verba}]{struct}"), "{text}");
+    assert!(text.contains("\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{raw\\ \\{text\\}\\ 100\\%}"), "{text}");
+    assert!(text.contains("\\emph{inside \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{an\\ argument}}"), "{text}");
     assert!(text.contains("\\begin{flmVerbatimCode}[python]\ndef f(x):\n    return {x} + 1\n\\end{flmVerbatimCode}\n"), "{text}");
     assert!(text.contains("\\begin{flmVerbatimCode}[]\nno language\n\\end{flmVerbatimCode}\n"), "{text}");
     let (style, _) = style(&run);
@@ -1619,7 +1620,7 @@ fn heading_redefining_feature() -> Arc<dyn FlmFeature> {
 /// The registry of the spine with [`heading_redefining_feature`] and the host's `chains`.
 fn heading_redefining_registry(chains: &[&str]) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(common::spine::config()));
+    builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), common::spine::config()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(heading_redefining_feature());
     for text in chains {
@@ -1728,7 +1729,7 @@ fn a_dropped_mark_is_a_comment_line_written_as_the_unsupported_stand_in_is() {
         output(&run),
         "Before \n% flm: dropped content outside \\cell\n after.\n\nThen \n% flm: dropped content outside \\cell\nnext.%%\n"
     );
-    assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 // --- documents of several trees, definitions, packages ------------------------------------
@@ -1753,10 +1754,10 @@ fn a_document_of_two_trees_is_one_recomposed_output_with_one_safe_label_count() 
 
 #[test]
 fn an_always_definition_is_expanded_in_the_recomposed_latex() {
-    let config = StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
+    let config = StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(vec![
         Definition::macro_("version", Vec::new()).text("1.0").expand(ExpandPolicy::Always),
     ]));
-    let run = recompose(&common::stdcore::registry(config), &["Version \\version, done."], &Overrides::none());
+    let run = recompose(&common::stdlib::registry(config), &["Version \\version, done."], &Overrides::none());
     assert_eq!(output(&run), "Version 1.0, done.%%\n"
     );
     assert_golden("always-definition.tex", &run);
@@ -1803,7 +1804,7 @@ fn skipping_fontenc_leaves_out_its_lines_and_every_default_encoding_command() {
     assert!(!skipped.contains("\\encodingdefault"), "{skipped}");
     assert!(!skipped.contains("iftex"), "{skipped}");
     assert!(!skipped.contains("\\iftutex"), "{skipped}");
-    assert_eq!(run.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&run);
 
     let render = LatexRecomposedRenderOptions {
         skip_packages: skip(),
@@ -1924,7 +1925,7 @@ fn two_requests_for_a_skipped_package_are_one_line_of_the_author_s_own_options()
         ),
         "{written}"
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
 }
 
 /// And they conflict by the same rule: two of the author's requests for a
@@ -2118,7 +2119,7 @@ See \\ref{sec:a} and \\(\\authnorm{x} = 1\\).
         "{style}"
     );
     assert!(body(&run).contains("\\(\\authnorm{x} = 1\\)"), "{}", body(&run));
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("author-preamble.tex", &run);
 }
 
@@ -2211,7 +2212,7 @@ fn an_unknown_requirement_is_reported_and_its_line_omitted() {
 fn the_recomposed_latex_is_the_same_bytes_under_both_execution_paths() {
     let registry = registry();
     let doc = common::pipeline::doc(&registry, &[common::spine::FEATURES_DOCUMENT, MATH_DOCUMENT]);
-    let plan = common::stdcore::plan(&registry, WORKFLOW, &Overrides::none());
+    let plan = common::stdlib::plan(&registry, WORKFLOW, &Overrides::none());
     let sequential = common::pipeline::run(&doc, &plan, &RunOptions::sequential());
     let parallel = common::pipeline::run(&doc, &plan, &RunOptions::default());
     assert_eq!(golden_text(&sequential), golden_text(&parallel));
@@ -2224,23 +2225,23 @@ fn the_recomposed_latex_is_the_same_bytes_under_both_execution_paths() {
 /// feature and the text backend: a text-only host's registry.
 fn text_only_features() -> Vec<Arc<dyn FlmFeature>> {
     vec![
-        flm_core::stdcore::features::textstyles::feature(),
-        flm_core::stdcore::features::literals::feature(),
-        Arc::new(flm_core::stdcore::features::blocks::Blocks::default()),
-        flm_core::stdcore::features::index::feature(),
-        flm_core::stdcore::features::refpoints::feature(),
-        flm_core::stdcore::features::math::feature(),
+        flm_core::stdlib::features::textstyles::feature(),
+        flm_core::stdlib::features::literals::feature(),
+        Arc::new(flm_core::stdlib::features::blocks::Blocks::default()),
+        flm_core::stdlib::features::index::feature(),
+        flm_core::stdlib::features::refpoints::feature(),
+        flm_core::stdlib::features::math::feature(),
         flm_core::math_passthrough::feature(),
-        flm_core::stdcore::features::refs::feature(),
-        flm_core::stdcore::features::headings::feature(),
-        flm_core::stdcore::features::verbatim::feature(),
-        Arc::new(flm_core::stdcore::features::userdefs::Userdefs::new(UserdefsConfig::new())),
-        flm_core::stdcore::backends::lowering::feature(),
-        flm_core::stdcore::backends::pieces::feature(),
-        flm_core::stdcore::backends::text::feature(),
+        flm_core::stdlib::features::refs::feature(),
+        flm_core::stdlib::features::headings::feature(),
+        flm_core::stdlib::features::verbatim::feature(),
+        Arc::new(flm_core::stdlib::features::userdefs::Userdefs::new(UserdefsConfig::new())),
+        flm_core::stdlib::backends::lowering::feature(),
+        flm_core::stdlib::backends::pieces::feature(),
+        flm_core::stdlib::backends::text::feature(),
         // The text backend's workflow demands the validation collection beside
         // its output, and the `check` feature is what declares that collection.
-        flm_core::stdcore::check_feature(),
+        flm_core::stdlib::check_feature(),
     ]
 }
 
@@ -2280,12 +2281,12 @@ fn the_content_features_build_without_the_latex_backend() {
         ]
     );
     assert!(registry.peer_backends().iter().all(|entry| !entry.resolved));
-    let plan = common::stdcore::plan(
+    let plan = common::stdlib::plan(
         &registry,
-        flm_core::stdcore::backends::text::WORKFLOW,
+        flm_core::stdlib::backends::text::WORKFLOW,
         &Overrides::none(),
     );
-    assert!(plan.active_backends().contains(flm_core::stdcore::backends::text::BACKEND));
+    assert!(plan.active_backends().contains(flm_core::stdlib::backends::text::BACKEND));
 }
 
 /// A lean host's registry: the mathematics feature, the block structure every
@@ -2294,19 +2295,19 @@ fn the_content_features_build_without_the_latex_backend() {
 /// reference and no safe LaTeX key is allocated for a label.
 fn math_only_features(latex: bool) -> Vec<Arc<dyn FlmFeature>> {
     let mut features: Vec<Arc<dyn FlmFeature>> = vec![
-        flm_core::stdcore::features::math::feature(),
+        flm_core::stdlib::features::math::feature(),
         flm_core::math_passthrough::feature(),
-        Arc::new(flm_core::stdcore::features::blocks::Blocks::default()),
-        flm_core::stdcore::backends::lowering::feature(),
-        flm_core::stdcore::check_feature(),
+        Arc::new(flm_core::stdlib::features::blocks::Blocks::default()),
+        flm_core::stdlib::backends::lowering::feature(),
+        flm_core::stdlib::check_feature(),
     ];
     if latex {
-        features.push(flm_core::stdcore::backends::latex::feature());
+        features.push(flm_core::stdlib::backends::latex::feature());
         features.push(latex_recomposed::feature());
-        features.push(flm_core::stdcore::backends::pieces::feature());
+        features.push(flm_core::stdlib::backends::pieces::feature());
     } else {
-        features.push(flm_core::stdcore::backends::pieces::feature());
-        features.push(flm_core::stdcore::backends::text::feature());
+        features.push(flm_core::stdlib::backends::pieces::feature());
+        features.push(flm_core::stdlib::backends::text::feature());
     }
     features
 }
@@ -2339,9 +2340,9 @@ fn mathematics_renders_text_without_the_references_feature() {
     let registry = common::pipeline::registry(math_only_features(false));
     assert!(!registry.has_feature("refs"));
     assert!(!registry.build_diagnostics().has_errors());
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
-        flm_core::stdcore::backends::text::WORKFLOW,
+        flm_core::stdlib::backends::text::WORKFLOW,
         &[LABELED_LINE],
         &Overrides::none(),
     );
@@ -2399,9 +2400,8 @@ fn mathematics_recomposes_a_labeled_line_as_written_without_the_references_featu
     assert!(unresolved_backends.is_empty(), "{unresolved_backends:?}");
     let notes: Vec<String> = registry
         .build_diagnostics()
-        .iter()
-        .filter(|d| d.identifier() == "flm.registry.unresolved-peer")
-        .map(|d| d.message())
+        .conditions::<UnresolvedPeer>()
+        .map(|peer| peer.name.clone())
         .collect();
     // One Note per unresolved declaration, and no other: the `math`
     // feature's of the counter table, the safe-labels table, the resolutions
@@ -2423,11 +2423,10 @@ fn mathematics_recomposes_a_labeled_line_as_written_without_the_references_featu
         ("flm.refs.defined-label", 1),
         ("flm.refs.target", 1),
     ] {
-        let quoted = format!("`{name}`");
-        let naming = notes.iter().filter(|note| note.contains(&quoted)).count();
+        let naming = notes.iter().filter(|note| *note == name).count();
         assert_eq!(naming, count, "{name}: {notes:?}");
     }
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
         latex_recomposed::WORKFLOW,
         &[LABELED_LINE],
@@ -2457,7 +2456,7 @@ fn the_label_hook_means_the_same_without_the_references_feature_as_with_it() {
     // a key for it.
     let registry = common::pipeline::registry(math_only_features(true));
     let written = |label_hooks: bool| {
-        let run = common::stdcore::run_workflow(
+        let run = common::stdlib::run_workflow(
             &registry,
             latex_recomposed::WORKFLOW,
             &[LABELED_LINE],
@@ -2484,7 +2483,7 @@ fn mathematics_without_the_references_feature_keeps_every_label_in_the_hook() {
     // makes the style file request the labels piece here too; the `\nonumber`
     // and the `\tag` are not labels and are written as they always are.
     let registry = common::pipeline::registry(math_only_features(true));
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
         latex_recomposed::WORKFLOW,
         &[LABELED_TAGGED_LINES],
@@ -2504,7 +2503,7 @@ fn the_drop_option_writes_nothing_for_a_lines_labels_without_the_references_feat
     // set: the `\label` is gone and nothing took its place — no command and no
     // group — while the `\nonumber` and the `\tag` are untouched.
     let registry = common::pipeline::registry(math_only_features(true));
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
         latex_recomposed::WORKFLOW,
         &[LABELED_TAGGED_LINES],
@@ -2529,15 +2528,15 @@ fn the_drop_option_writes_nothing_for_a_lines_labels_without_the_references_feat
 /// leave a heading's labels alone.
 fn headings_and_math_features() -> Vec<Arc<dyn FlmFeature>> {
     vec![
-        flm_core::stdcore::features::headings::feature(),
-        flm_core::stdcore::features::math::feature(),
+        flm_core::stdlib::features::headings::feature(),
+        flm_core::stdlib::features::math::feature(),
         flm_core::math_passthrough::feature(),
-        Arc::new(flm_core::stdcore::features::blocks::Blocks::default()),
-        flm_core::stdcore::backends::lowering::feature(),
-        flm_core::stdcore::check_feature(),
-        flm_core::stdcore::backends::latex::feature(),
+        Arc::new(flm_core::stdlib::features::blocks::Blocks::default()),
+        flm_core::stdlib::backends::lowering::feature(),
+        flm_core::stdlib::check_feature(),
+        flm_core::stdlib::backends::latex::feature(),
         latex_recomposed::feature(),
-        flm_core::stdcore::backends::pieces::feature(),
+        flm_core::stdlib::backends::pieces::feature(),
     ]
 }
 
@@ -2558,7 +2557,7 @@ fn the_drop_option_leaves_a_headings_labels_alone() {
   E = mc^2 \\label{eq:e}
 \\end{equation}
 ";
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
         latex_recomposed::WORKFLOW,
         &[document],
@@ -2579,18 +2578,18 @@ fn the_drop_option_leaves_a_headings_labels_alone() {
 /// anchors table it declares as a peer table and sees none.
 fn headings_only_features(latex: bool) -> Vec<Arc<dyn FlmFeature>> {
     let mut features: Vec<Arc<dyn FlmFeature>> = vec![
-        flm_core::stdcore::features::headings::feature(),
-        Arc::new(flm_core::stdcore::features::blocks::Blocks::default()),
-        flm_core::stdcore::backends::lowering::feature(),
-        flm_core::stdcore::check_feature(),
+        flm_core::stdlib::features::headings::feature(),
+        Arc::new(flm_core::stdlib::features::blocks::Blocks::default()),
+        flm_core::stdlib::backends::lowering::feature(),
+        flm_core::stdlib::check_feature(),
     ];
     if latex {
-        features.push(flm_core::stdcore::backends::latex::feature());
+        features.push(flm_core::stdlib::backends::latex::feature());
         features.push(latex_recomposed::feature());
-        features.push(flm_core::stdcore::backends::pieces::feature());
+        features.push(flm_core::stdlib::backends::pieces::feature());
     } else {
-        features.push(flm_core::stdcore::backends::pieces::feature());
-        features.push(flm_core::stdcore::backends::text::feature());
+        features.push(flm_core::stdlib::backends::pieces::feature());
+        features.push(flm_core::stdlib::backends::text::feature());
     }
     features
 }
@@ -2612,14 +2611,9 @@ fn unresolved_peer_tables(registry: &FlmRegistry) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The messages of a registry's `flm.registry.unresolved-peer` Notes.
-fn unresolved_peer_notes(registry: &FlmRegistry) -> Vec<String> {
-    registry
-        .build_diagnostics()
-        .iter()
-        .filter(|d| d.identifier() == "flm.registry.unresolved-peer")
-        .map(|d| d.message())
-        .collect()
+/// The conditions of a registry's `flm.registry.unresolved-peer` Notes.
+fn unresolved_peer_notes(registry: &FlmRegistry) -> Vec<UnresolvedPeer> {
+    registry.build_diagnostics().conditions::<UnresolvedPeer>().cloned().collect()
 }
 
 #[test]
@@ -2654,15 +2648,18 @@ fn headings_render_text_without_the_references_feature() {
     );
     let notes = unresolved_peer_notes(&registry);
     assert!(
-        notes.contains(
-            &"feature `headings` refers to the table `flm.anchors` and expects another feature to declare it, but no feature of this registry declares it; no rule of that feature depends on it"
-                .to_string()
-        ),
+        notes.contains(&UnresolvedPeer {
+            feature: String::from("headings"),
+            kind: String::from("table"),
+            name: String::from("flm.anchors"),
+            rules: Vec::new(),
+            stages: Vec::new(),
+        }),
         "{notes:?}"
     );
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
-        flm_core::stdcore::backends::text::WORKFLOW,
+        flm_core::stdlib::backends::text::WORKFLOW,
         &[A_HEADING],
         &Overrides::none(),
     );
@@ -2695,7 +2692,7 @@ fn headings_recompose_without_the_references_feature() {
     // parent set to, which no feature of this registry owns, and the argument
     // role of the references feature that the `\label` field holds.
     assert_eq!(unresolved_peer_notes(&registry).len(), 7);
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &registry,
         latex_recomposed::WORKFLOW,
         &[A_HEADING],
@@ -2716,7 +2713,7 @@ fn the_backend_without_a_content_feature_builds_and_refuses_only_the_plan() {
         .into_iter()
         .filter(|feature| feature.info().name.as_str() != "textstyles")
         .collect();
-    features.push(flm_core::stdcore::backends::latex::feature());
+    features.push(flm_core::stdlib::backends::latex::feature());
     features.push(latex_recomposed::feature());
     let registry = common::pipeline::registry(features);
     assert!(!registry.build_diagnostics().has_errors());
@@ -2760,23 +2757,17 @@ fn the_backend_without_a_content_feature_builds_and_refuses_only_the_plan() {
     // headings feature contributes its parent set to, which are a slot's own
     // kind of peer declaration and are counted with the build's diagnostics
     // rather than with the tables.
-    let diagnostics: Vec<(String, String)> = registry
-        .build_diagnostics()
-        .iter()
-        .map(|d| (d.identifier().to_string(), d.message()))
-        .collect();
+    let diagnostics: Vec<&str> = registry.build_diagnostics().iter().map(|d| d.identifier()).collect();
     assert_eq!(diagnostics.len(), 9, "{diagnostics:?}");
     assert!(
-        diagnostics.iter().all(|(identifier, _)| identifier == "flm.registry.unresolved-peer"),
+        diagnostics.iter().all(|identifier| *identifier == "flm.registry.unresolved-peer"),
         "{diagnostics:?}"
     );
-    assert!(
-        diagnostics.iter().any(|(_, message)| message.contains("flm.counters")),
-        "{diagnostics:?}"
-    );
+    let notes = unresolved_peer_notes(&registry);
+    assert!(notes.iter().any(|peer| peer.name == "flm.counters"), "{notes:?}");
     assert_eq!(registry.set_aside_rules().count(), 0);
     assert!(registry.rule_idx("flm.textstyle.lower.latex-recomposed").is_none());
-    let plan = common::stdcore::plan(&registry, latex_recomposed::WORKFLOW, &Overrides::none());
+    let plan = common::stdlib::plan(&registry, latex_recomposed::WORKFLOW, &Overrides::none());
     assert!(plan.active_backends().contains(latex_recomposed::BACKEND));
 }
 
@@ -2796,9 +2787,9 @@ fn the_recomposed_latex_is_the_same_bytes_whatever_levels_are_set_as_run_in_head
 
 \\subparagraph{Detail} More content, see \\ref{sec:note}.
 ";
-    let default = common::stdcore::registry(StdcoreConfig::new());
-    let run_in = common::stdcore::registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
+    let default = common::stdlib::registry(StdlibConfig::new());
+    let run_in = common::stdlib::registry(
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
     );
     let plain = recompose(&default, &[document], &Overrides::none());
     let configured = recompose(&run_in, &[document], &Overrides::none());
@@ -2848,7 +2839,7 @@ See \\ref{eq:sum}.
     assert_eq!(diagnostic.severity(), Severity::Error);
     assert_eq!(
         identifiers(&run),
-        ["flm.refs.unresolved", "flm.refs.label-type-not-accepted"]
+        [UNCHECKED_OUTPUT, "flm.refs.unresolved", "flm.refs.label-type-not-accepted"]
     );
     assert_golden("refs-refused-type.tex", &run);
 }
@@ -3003,7 +2994,7 @@ fn a_packed_definition_names_one_parameter_whatever_its_argument_count() {
 /// `flm.artifacts.namer`.
 fn registry_naming(namer: Arc<dyn ArtifactNamer>) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(common::spine::config()));
+    builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), common::spine::config()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.contribute_to(NAMER_SLOT, namer);
     builder.build(&RegistryInputs::new()).unwrap_or_else(|error| panic!("{}", error.render()))
@@ -3068,12 +3059,10 @@ fn the_style_stem_names_the_artifact_and_the_naming_service_prefixes_it() {
 #[test]
 fn a_path_latex_cannot_load_is_refused_and_the_file_named_as_without_a_naming_service() {
     let run = recompose(&registry_naming(Arc::new(FixedNamer("files/x.sty"))), &[NEEDS_A_STYLE_FILE], &Overrides::none());
-    let refused = expect(run.diagnostics().iter(), "flm.latex-recomposed.style-path").severity(Severity::Error).once();
-    assert_eq!(
-        refused.message().to_string(),
-        "the style file must be a file beside the LaTeX document, named `NAME.sty`, and the program's \
-         naming of files places it at `files/x.sty`"
-    );
+    expect(run.diagnostics().iter(), "flm.latex-recomposed.style-path")
+        .severity(Severity::Error)
+        .data(serde_json::json!({ "path": "files/x.sty" }))
+        .once();
     let (style, path) = style(&run);
     let hash = hash_in(&path, "flmrecomposed.");
     assert!(style.contains(&format!("\\ProvidesPackage{{flmrecomposed.{hash}}}")), "{style}");

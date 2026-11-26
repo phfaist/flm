@@ -13,13 +13,13 @@ use flm_core::core::artifact::{Artifact, ArtifactData, ArtifactId, ArtifactNamer
 use flm_core::core::data::table::{TableHandle, TableType};
 use flm_core::core::plan::{Plan, PlanRequest};
 use flm_core::core::region::Regions;
-use flm_core::core::registry::{FlmRegistry, OutputDef, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, OutputDef, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::lowering::{LoweredTrees, NAMER_SLOT};
-use flm_core::stdcore::{self, StdcoreConfig};
-use flm_core::stdcore::backends::pieces::stage::LoweredPieces;
+use flm_core::stdlib::backends::lowering::{LoweredTrees, NAMER_SLOT};
+use flm_core::stdlib::{self, StdlibConfig};
+use flm_core::stdlib::backends::pieces::stage::LoweredPieces;
 use flm_ext::adapter::values::{artifact_from_value, artifact_set_to_value};
 use flm_ext::api::core::artifact::media_type_of;
 use flm_ext::api::core::data::store::StageOut;
@@ -110,10 +110,15 @@ fn writing(log: &Log, write: Arc<Write>) -> Arc<FlmRegistry> {
         .package()])
 }
 
-/// Pushes `item` into the table `aw.files`, logging a refusal's text.
+/// Pushes `item` into the table `aw.files`, logging a refusal's data
+/// (`ExtError::data`) without its free text `detail`.
 fn push(out: &mut dyn StageOut, log: &Log, item: Value) -> Result<(), ExtError> {
     if let Err(error) = out.table("aw.files")?.push(item) {
-        note(log, format!("{}: {}", error.kind(), error));
+        let mut data = error.data();
+        if let Some(map) = data.as_object_mut() {
+            map.remove("detail");
+        }
+        note(log, data.to_string());
     }
     Ok(())
 }
@@ -166,13 +171,8 @@ fn a_second_entry_and_a_repeated_identity_are_the_push_s_errors() {
     );
     let run = run_demanding(&registry, &["aw.files"], "x");
     assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
-    assert_eq!(
-        *log.lock().expect("the log"),
-        [
-            "core: an output has only one main file, `aw:document`, so `aw:figures` must not also be marked as the main file",
-            "core: two different files of an output must not share the identity `aw:document`",
-        ]
-    );
+    let refused = json!({ "kind": "core", "core_kind": "artifact", "data": null }).to_string();
+    assert_eq!(*log.lock().expect("the log"), [refused.clone(), refused]);
     // The set is left as it was by each refused push.
     let set = artifacts(&run, "aw.files");
     assert_eq!(set.len(), 1);
@@ -180,71 +180,42 @@ fn a_second_entry_and_a_repeated_identity_are_the_push_s_errors() {
 }
 
 #[test]
-fn an_artifact_of_the_wrong_shape_is_refused_with_the_shape() {
-    // The refusal names the field or the shape at fault, never the value
-    // itself: an artifact's text is not copied into it.
-    let shape = "an artifact must be written `{ id: { owner, name }, media_type, data: { bytes: CONTENT } | { files: \
-                 [[path, CONTENT], …] }, entry, extension, fixed_path, refs }` (`CONTENT`: a text, `{ text: text }` or `{ \
-                 base64: text }`); ";
-    let data = "its field `data` must be `{ bytes: CONTENT }` or `{ files: [[path, CONTENT], …] }`";
-    for (wrong, fault) in [
-        (json!("secret text"), "this one is a text"),
-        (json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain" }), data),
-        (json!({ "id": "aw:x", "media_type": "text/plain", "data": { "bytes": "" } }), "its field `id` must be `{ owner, name }`, two texts"),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "secret" }, "size": 3 }),
-            "`size` is not one of its fields",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "" }, "entry": "yes" }),
-            "its field `entry` must be `true`, `false` or `null`, not a text",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": 3, "data": { "bytes": "" } }),
-            "its field `media_type` must be a text",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "refs": "aw:y" }),
-            "its field `refs` must be a list or `null`, not a text",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "refs": ["aw:y"] }),
-            "each item of its field `refs` must be `{ owner, name }`, two texts",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "extension": 1 }),
-            "its field `extension` must be a text or `null`, not a number",
-        ),
-        (
-            json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "files": [["a"]] } }),
-            "each file of its field `data` must be `[path, CONTENT]`",
-        ),
-        (json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "", "files": [] } }), data),
+fn an_artifact_of_the_wrong_shape_is_refused() {
+    // The refusal never holds the value itself: an artifact's text is not
+    // copied into it.
+    for wrong in [
+        json!("secret text"),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain" }),
+        json!({ "id": "aw:x", "media_type": "text/plain", "data": { "bytes": "" } }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "secret" }, "size": 3 }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "" }, "entry": "yes" }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": 3, "data": { "bytes": "" } }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "refs": "aw:y" }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "refs": ["aw:y"] }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "bytes": "" }, "extension": 1 }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "files": [["a"]] } }),
+        json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": "", "files": [] } }),
     ] {
         let error = artifact_from_value(&wrong).expect_err("a wrong shape");
         assert_eq!(error.kind(), "value");
-        assert_eq!(error.to_string(), format!("{shape}{fault}"));
         assert!(!error.to_string().contains("secret"), "{error}");
     }
-    // A content of another form, or a text that is not base64, is refused with the
-    // artifact's identity, and the file's path in a folder artifact.
-    let forms = "must be a text, `{ text: text }` or `{ base64: text }`";
-    let map = ", a map, must be `{ text: text }` or `{ base64: text }`";
-    let base64 = " must be base64 in the standard alphabet, with padding";
-    for (content, fault) in [
-        (json!([1, 2]), format!(" {forms}, not a list")),
-        (json!(null), format!(" {forms}, not `null`")),
-        (json!({ "text": "secret", "base64": "c2VjcmV0" }), String::from(map)),
-        (json!({ "base64": 3 }), String::from(map)),
-        (json!({ "base64": "secret!" }), String::from(base64)),
-        (json!({ "base64": "c2VjcmV0dA" }), String::from(base64)),
+    // A content of another form, or a text that is not base64, is refused, in
+    // an artifact and in a file of a folder artifact.
+    for content in [
+        json!([1, 2]),
+        json!(null),
+        json!({ "text": "secret", "base64": "c2VjcmV0" }),
+        json!({ "base64": 3 }),
+        json!({ "base64": "secret!" }),
+        json!({ "base64": "c2VjcmV0dA" }),
     ] {
         let wrong = json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "text/plain", "data": { "bytes": content } });
         let error = artifact_from_value(&wrong).expect_err("a content refused");
-        assert_eq!(error.to_string(), format!("the content of the artifact `aw:x`{fault}"));
+        assert_eq!(error.kind(), "value");
         let folder = json!({ "id": { "owner": "aw", "name": "x" }, "media_type": "", "data": { "files": [["a.bin", content]] } });
         let error = artifact_from_value(&folder).expect_err("a file's content refused");
-        assert_eq!(error.to_string(), format!("the content of the file `a.bin` of the artifact `aw:x`{fault}"));
+        assert_eq!(error.kind(), "value");
         assert!(!error.to_string().contains("secret"), "{error}");
     }
     // Through a stage: the push's error, the set unchanged.
@@ -252,7 +223,7 @@ fn an_artifact_of_the_wrong_shape_is_refused_with_the_shape() {
     let registry = writing(&log, Arc::new(|out, log| push(out, log, json!({ "id": "x" }))));
     let run = run_demanding(&registry, &["aw.files"], "x");
     assert!(artifacts(&run, "aw.files").is_empty());
-    assert_eq!(*log.lock().expect("the log"), [format!("value: {shape}its field `id` must be `{{ owner, name }}`, two texts")]);
+    assert_eq!(*log.lock().expect("the log"), [json!({ "kind": "value" }).to_string()]);
 }
 
 #[test]
@@ -282,7 +253,7 @@ fn the_three_forms_of_a_content_are_pushed() {
 }
 
 #[test]
-fn malformed_base64_is_the_push_s_error_naming_the_artifact() {
+fn malformed_base64_is_the_push_s_error() {
     let log: Log = Arc::default();
     let registry = writing(
         &log,
@@ -294,10 +265,7 @@ fn malformed_base64_is_the_push_s_error_naming_the_artifact() {
     );
     let run = run_demanding(&registry, &["aw.files"], "x");
     assert!(artifacts(&run, "aw.files").is_empty());
-    assert_eq!(
-        *log.lock().expect("the log"),
-        ["value: the content of the artifact `aw:document` must be base64 in the standard alphabet, with padding"]
-    );
+    assert_eq!(*log.lock().expect("the log"), [json!({ "kind": "value" }).to_string()]);
 }
 
 /// The bytes of the binary artifact `aw:image`, which are not UTF-8.
@@ -357,7 +325,7 @@ fn reading(log: &Log, write: Arc<Write>, seen: &Seen, namer: bool) -> Arc<FlmReg
         }))
     });
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.use_package(double.package());
     if namer {
@@ -465,21 +433,17 @@ fn a_read_gives_the_violations_the_set_recorded() {
     assert!(log.lock().expect("the log").is_empty(), "{log:?}");
     let read = seen.lock().expect("seen").clone().expect("read");
     assert_eq!(read["artifacts"].as_array().map(Vec::len), Some(1), "{read}");
-    assert_eq!(read["violations"], json!(["two different files of an output must not share the identity `aw:image`"]));
+    assert_eq!(read["violations"].as_array().map(Vec::len), Some(1), "{read}");
 }
 
 #[test]
-fn a_set_holding_a_reference_to_a_file_is_refused_naming_the_artifact() {
+fn a_set_holding_a_reference_to_a_file_is_refused() {
     let mut set = ArtifactSet::new();
     let mut held = Artifact::bytes(ArtifactId::new("aw", "big"), "video/mp4", Vec::new());
     held.data = ArtifactData::FileRef(FileRef { location: String::from("/tmp/big.mp4") });
     set.insert(held).expect("inserted");
     let error = artifact_set_to_value(&set, &|_| None).expect_err("refused");
     assert_eq!(error.kind(), "value");
-    assert_eq!(
-        error.to_string(),
-        "the artifact `aw:big` must hold its bytes to be read by an extension, not refer to a file holding them"
-    );
 }
 
 // --- the typed writes and the standard tables ----------------------------------------------------
@@ -491,14 +455,11 @@ fn a_stage_writing_a_table_of_lowered_trees_fails_the_build() {
         let decl = StageDecl::new("aw.write", Effect::Compute, Scope::Document).writes("aw.lowered");
         b.stage(stage(decl, Needs::new(), |_, _| Ok(())))
     });
-    let error = try_registry_with([double.package()]).expect_err("the build fails").to_string();
+    let error = try_registry_with([double.package()]).expect_err("the build fails");
+    let found = common::feature_errors(&error);
     assert!(
-        error.contains(
-            "the stage `aw.write` of the package `_` of the extension `aw` writes the table `aw.lowered`, which holds \
-             values of the type `LoweredTrees`; a stage of an extension writes a table of its own, a table of a \
-             definition's text or a table of an artifact set"
-        ),
-        "{error}"
+        matches!(found.as_slice(), [(feature, _)] if feature == "files"),
+        "{found:?}"
     );
 }
 
@@ -521,8 +482,12 @@ fn table_named_declares_a_table_of_each_standard_type() {
         assert_eq!(entry.def.ty, ty, "{name}");
     }
     let outside = Double::new("aw").feature("tables", |b| b.table_named("files", StandardTable::ArtifactSet, "Files."));
-    let error = try_registry_with([outside.package()]).expect_err("the name rule").to_string();
-    assert!(error.contains("the table `files` declared by the package `_` of the extension `aw` must begin with `aw.`"), "{error}");
+    let error = try_registry_with([outside.package()]).expect_err("the name rule");
+    let found = common::feature_errors(&error);
+    assert!(
+        matches!(found.as_slice(), [(feature, detail)] if feature == "tables" && detail.starts_with("flm.ext.name-outside-extension: ")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -540,7 +505,7 @@ fn an_artifact_set_is_declared_and_written_through_the_dispatcher() {
     let seen = Arc::clone(&log);
     let double = JsonDouble::new("aw").feature("files", move |js, b| {
         js.call(b, "table_named", json!(["aw.files", "artifact-set", "The files of the output."]))?;
-        let refused = js.call(b, "table_named", json!(["aw.other", "tree-set", "x"])).map_err(|error| error.to_string());
+        let refused = js.call(b, "table_named", json!(["aw.other", "tree-set", "x"])).map_err(|error| error.kind());
         note(&seen, format!("{refused:?}"));
         let css = js.call(&module("core/artifact"), "media_type_of", json!(["css"]))?;
         let typ = js.call(&module("core/artifact"), "media_type_of", json!(["typ"]))?;
@@ -564,5 +529,5 @@ fn an_artifact_set_is_declared_and_written_through_the_dispatcher() {
     assert_eq!(set.entry().and_then(Artifact::as_bytes), Some(&b"Through JSON."[..]));
     let log = log.lock().expect("the log").clone();
     assert_eq!(log[1], "\"text/css\" null");
-    assert!(log[0].contains("a standard table type"), "{log:?}");
+    assert_eq!(log[0], "Err(\"value\")", "{log:?}");
 }

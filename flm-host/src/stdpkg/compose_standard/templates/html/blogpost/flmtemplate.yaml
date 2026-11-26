@@ -1,0 +1,214 @@
+# An editorial article built from FLM's semantic HTML and rendered pieces.
+name: blogpost
+output: html
+engine: minijinja
+main: blogpost.html
+accepts: all
+requires: [flm.toc]
+
+settings:
+  type: object
+  properties:
+    brand_name:
+      type: string
+      default: ""
+      description: "The name shown at the start of the header; empty for none."
+    brand_url:
+      type: string
+      default: ""
+      description: "The address that the name and the logo of the header link to; empty for no link."
+    logo_url:
+      type: string
+      default: ""
+      description: "The address of the logo shown at the start of the header; empty for none."
+    logo_alt:
+      type: string
+      default: ""
+      description: "The text that stands for the logo."
+    breadcrumbs:
+      type: array
+      items:
+        type: object
+        properties: {text: {type: string}, url: {type: string}}
+      default: []
+      description: "The breadcrumbs shown above the title, each a map with `text` and `url`."
+    lead_image_url:
+      type: string
+      default: ""
+      description: "The address of the image shown below the title; empty for none."
+    lead_image_alt:
+      type: string
+      default: ""
+      description: "The text that stands for the image below the title."
+    lead_image_caption:
+      type: string
+      default: ""
+      description: "The caption of the image below the title; empty for none."
+    contents_title:
+      type: string
+      default: "Contents"
+      description: "The title of the table of contents."
+    footer_text:
+      type: string
+      default: ""
+      description: "The text of the footer; empty for none."
+    footer_links:
+      type: array
+      items:
+        type: object
+        properties: {text: {type: string}, url: {type: string}}
+      default: []
+      description: "The links of the footer, each a map with `text` and `url`."
+    theme:
+      type: string
+      enum: ["light", "dark", "system"]
+      default: "light"
+      description: "The appearance: `light`, `dark`, or `system` to follow the reader's device."
+    code_theme:
+      type: string
+      enum: ["auto", "light", "dark"]
+      default: "auto"
+      description: "The appearance of code blocks: `auto` to follow the page, `light` or `dark`."
+    figure_background:
+      type: string
+      enum: ["auto", "light", "dark"]
+      default: "auto"
+      description: "The background of figures: `auto` to follow the page, `light` or `dark`."
+    text_size:
+      type: string
+      enum: ["small", "standard", "large"]
+      default: "standard"
+      description: "The size of the text: `small`, `standard` or `large`."
+    remember_preferences:
+      type: boolean
+      default: true
+      description: "Whether the reader's choices of appearance, text size and effects are kept for the next visit."
+    reader_controls:
+      type: boolean
+      default: true
+      description: "Whether the header shows the controls of appearance, text size and effects."
+    reading_time:
+      type: boolean
+      default: true
+      description: "Whether the estimated reading time is shown below the title."
+    copy_code:
+      type: boolean
+      default: true
+      description: "Whether each code block has a button that copies its code."
+    zoom_figures:
+      type: boolean
+      default: true
+      description: "Whether a figure can be expanded to fill the window."
+    heading_links:
+      type: boolean
+      default: true
+      description: "Whether each heading has a link to itself."
+    motion:
+      type: string
+      enum: ["subtle", "none"]
+      default: "subtle"
+      description: "The scroll effects: `subtle`, or `none` for no effect."
+    section_reveal:
+      type: boolean
+      default: true
+      description: "Whether sections fade in as they are scrolled into view."
+    heading_accent:
+      type: boolean
+      default: true
+      description: "Whether headings are underlined by an accent as they are scrolled into view."
+    smooth_scroll:
+      type: boolean
+      default: true
+      description: "Whether a link within the page scrolls smoothly."
+    reading_progress:
+      type: boolean
+      default: true
+      description: "Whether a bar at the top of the window shows how far the reader has read."
+    label_skip_content:
+      type: string
+      default: "Skip to content"
+      description: "The words of the link that skips to the content."
+    label_breadcrumbs:
+      type: string
+      default: "Breadcrumbs"
+      description: "The words of the breadcrumbs, for assistive technologies."
+    label_preferences:
+      type: string
+      default: "Reading preferences"
+      description: "The words of the controls of the header."
+    label_text_size:
+      type: string
+      default: "Text size"
+      description: "The words of the control of the text size."
+    label_small:
+      type: string
+      default: "Small"
+      description: "The words of the small text size."
+    label_standard:
+      type: string
+      default: "Default"
+      description: "The words of the standard text size."
+    label_large:
+      type: string
+      default: "Large"
+      description: "The words of the large text size."
+    label_scroll_effects:
+      type: string
+      default: "Scroll effects"
+      description: "The words of the control of the scroll effects."
+    label_reduced_motion:
+      type: string
+      default: "Effects are off to respect your device's reduced-motion preference."
+      description: "The words of the note shown when the device asks for reduced motion."
+    label_disabled_motion:
+      type: string
+      default: "Effects are disabled for this document."
+      description: "The words of the note shown when the setting `motion` is `none`."
+    label_light_theme:
+      type: string
+      default: "Switch to light appearance"
+      description: "The words of the button that switches to the light appearance."
+    label_dark_theme:
+      type: string
+      default: "Switch to dark appearance"
+      description: "The words of the button that switches to the dark appearance."
+    label_progress:
+      type: string
+      default: "Article reading progress"
+      description: "The words of the reading progress bar, for assistive technologies."
+    label_minutes:
+      type: string
+      default: "min read"
+      description: "The words written after the number of minutes of the reading time."
+    label_copy:
+      type: string
+      default: "Copy code"
+      description: "The words of the button that copies a code block."
+    label_copied:
+      type: string
+      default: "Code copied"
+      description: "The words of the note shown once a code block is copied."
+    label_copy_unavailable:
+      type: string
+      default: "Copy is unavailable. Select the code and use your browser's Copy command."
+      description: "The words of the note shown when the code cannot be copied."
+    label_expand:
+      type: string
+      default: "Expand figure"
+      description: "The words of the button that expands a figure."
+    label_close:
+      type: string
+      default: "Close expanded figure"
+      description: "The words of the button that closes an expanded figure."
+    label_figure:
+      type: string
+      default: "Figure"
+      description: "The words of an expanded figure, for assistive technologies."
+    label_footer:
+      type: string
+      default: "Footer"
+      description: "The words of the links of the footer, for assistive technologies."
+    label_link_heading:
+      type: string
+      default: "Link to this heading"
+      description: "The words of the link of a heading to itself."

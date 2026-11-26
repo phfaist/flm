@@ -26,17 +26,17 @@ var flmLecturenotes = (() => {
   });
 
   // src/layout.ts
-  var DEFAULT_CHAPTER_LEVEL = 1;
+  var DEFAULT_NAVIGATION_LEVEL = 1;
   function readSettings(settings) {
-    const given = settings !== null && typeof settings === "object" ? settings.chapter_level : void 0;
+    const given = settings !== null && typeof settings === "object" ? settings.navigation_heading_level : void 0;
     if (given === void 0 || given === null) {
-      return { chapterLevel: DEFAULT_CHAPTER_LEVEL };
+      return { navigationLevel: DEFAULT_NAVIGATION_LEVEL };
     }
     if (typeof given === "number" && Number.isInteger(given) && given >= 0) {
-      return { chapterLevel: given };
+      return { navigationLevel: given };
     }
-    console.error(`flm-lecturenotes: the setting \`chapter_level\` must be a whole number from 0 up, and it is \`${JSON.stringify(given)}\``);
-    return { chapterLevel: DEFAULT_CHAPTER_LEVEL };
+    console.error(`flm-lecturenotes: the setting \`navigation_heading_level\` must be a whole number from 0 up, and it is \`${JSON.stringify(given)}\``);
+    return { navigationLevel: DEFAULT_NAVIGATION_LEVEL };
   }
   function findPage(doc) {
     const content = doc.getElementById("flm-content");
@@ -50,7 +50,7 @@ var flmLecturenotes = (() => {
       root: doc.documentElement,
       content,
       bar: one(".ln-topbar"),
-      chapterText: one(".ln-current-chapter"),
+      unitText: one(".ln-current-unit"),
       prev: one(".ln-prev"),
       next: one(".ln-next"),
       sidebarToggle: one(".ln-sidebar-toggle"),
@@ -84,10 +84,10 @@ var flmLecturenotes = (() => {
     /** Whether the sidebar is hidden on a wide window: `1` or `0`. */
     sidebarHidden: "flm-lecturenotes:sidebar-hidden"
   };
-  function chapterIndices(levels, chapterLevel) {
+  function unitIndices(levels, navigationLevel) {
     const out = [];
     levels.forEach((level, i) => {
-      if (level === chapterLevel) out.push(i);
+      if (level === navigationLevel) out.push(i);
     });
     return out;
   }
@@ -99,21 +99,21 @@ var flmLecturenotes = (() => {
     }
     return best;
   }
-  function chapterOf(levels, index, chapterLevel) {
+  function unitOf(levels, index, navigationLevel) {
     for (let i = index; i >= 0; i--) {
-      if (levels[i] === chapterLevel) return i;
-      if (levels[i] < chapterLevel) return -1;
+      if (levels[i] === navigationLevel) return i;
+      if (levels[i] < navigationLevel) return -1;
     }
     return -1;
   }
-  function navigationTargets(levels, index, chapterLevel) {
-    const chapters = chapterIndices(levels, chapterLevel);
-    const started = chapters.filter((c) => c <= index).length;
-    const inChapter = chapterOf(levels, index, chapterLevel) !== -1;
-    const prevPosition = inChapter ? started - 2 : started - 1;
+  function navigationTargets(levels, index, navigationLevel) {
+    const units = unitIndices(levels, navigationLevel);
+    const started = units.filter((c) => c <= index).length;
+    const inUnit = unitOf(levels, index, navigationLevel) !== -1;
+    const prevPosition = inUnit ? started - 2 : started - 1;
     return {
-      prev: prevPosition >= 0 ? chapters[prevPosition] : -1,
-      next: started < chapters.length ? chapters[started] : -1
+      prev: prevPosition >= 0 ? units[prevPosition] : -1,
+      next: started < units.length ? units[started] : -1
     };
   }
   function parseFolding(stored) {
@@ -140,8 +140,8 @@ var flmLecturenotes = (() => {
     return top < boxTop + FOLLOW_MARGIN_PX || bottom > boxBottom - FOLLOW_MARGIN_PX;
   }
   var TEXTS = {
-    expandAll: "Expand all sections",
-    foldToCurrent: "Show only the current chapter's sections",
+    expandAll: "Expand all",
+    foldToCurrent: "Collapse",
     anchor: "Link to this heading"
   };
   function contentHeadings(content) {
@@ -156,7 +156,7 @@ var flmLecturenotes = (() => {
   }
   var Navigator = class {
     page;
-    chapterLevel;
+    navigationLevel;
     headings = [];
     levels = [];
     /** The link of each heading's entry in the table of contents, by heading id. */
@@ -165,11 +165,11 @@ var flmLecturenotes = (() => {
     userScrolledAt = -Infinity;
     ownScrollUntil = -Infinity;
     ticking = false;
-    /** Called before the arrows or the keys scroll to a chapter (the reading position records itself there). */
+    /** Called before the arrows or the keys scroll to a unit (the reading position records itself there). */
     onBeforeJump = null;
     constructor(page, options) {
       this.page = page;
-      this.chapterLevel = options.chapterLevel;
+      this.navigationLevel = options.navigationLevel;
     }
     /** Adds the listeners and restores the stored states; called once. */
     attach() {
@@ -219,12 +219,7 @@ var flmLecturenotes = (() => {
       this.entries = /* @__PURE__ */ new Map();
       page.sidebar?.querySelectorAll('.flm-toc a[href^="#"]').forEach((link) => {
         const target = page.doc.getElementById(fragmentId(link.getAttribute("href") ?? "#"));
-        const item = link.closest("li");
-        const level = target?.getAttribute("data-flm-level");
-        if (target === null || item === null || level === null || level === void 0) return;
-        item.setAttribute("data-ln-level", level);
-        item.classList.toggle("ln-chapter", parseInt(level, 10) === this.chapterLevel);
-        this.entries.set(target.id, link);
+        if (target !== null) this.entries.set(target.id, link);
       });
       this.addAnchors();
       this.current = -2;
@@ -259,22 +254,22 @@ var flmLecturenotes = (() => {
     update() {
       const { page } = this;
       const index = this.currentIndex();
-      const chapter = index >= 0 ? chapterOf(this.levels, index, this.chapterLevel) : -1;
+      const unit = index >= 0 ? unitOf(this.levels, index, this.navigationLevel) : -1;
       const changed = index !== this.current;
       this.current = index;
       const heading = index >= 0 ? this.headings[index].element : null;
-      const chapterHeading = chapter >= 0 ? this.headings[chapter].element : null;
+      const unitHeading = unit >= 0 ? this.headings[unit].element : null;
       if (changed) {
         for (const link2 of this.entries.values()) link2.removeAttribute("aria-current");
         const link = heading ? this.entries.get(heading.id) : void 0;
         link?.setAttribute("aria-current", "true");
         page.sidebar?.querySelectorAll("li.ln-open").forEach((li) => li.classList.remove("ln-open"));
-        const chapterLink = chapterHeading ? this.entries.get(chapterHeading.id) : void 0;
-        chapterLink?.closest("li")?.classList.add("ln-open");
+        const unitLink = unitHeading ? this.entries.get(unitHeading.id) : void 0;
+        unitLink?.closest("li")?.classList.add("ln-open");
         if (link) this.follow(link);
       }
-      if (page.chapterText) page.chapterText.textContent = chapterHeading ? textOf(chapterHeading) : "";
-      const targets = navigationTargets(this.levels, index, this.chapterLevel);
+      if (page.unitText) page.unitText.textContent = unitHeading ? textOf(unitHeading) : "";
+      const targets = navigationTargets(this.levels, index, this.navigationLevel);
       if (page.prev) page.prev.disabled = targets.prev === -1;
       if (page.next) page.next.disabled = targets.next === -1;
     }
@@ -291,9 +286,9 @@ var flmLecturenotes = (() => {
       const top = sidebar.scrollTop + (entry.top - box.top) - (box.height - entry.height) / 2;
       sidebar.scrollTo({ top, behavior: "smooth" });
     }
-    /** Scrolls to the previous or the next chapter and puts its fragment into the address. */
+    /** Scrolls to the previous or the next unit and puts its fragment into the address. */
     go(direction) {
-      const target = navigationTargets(this.levels, this.currentIndex(), this.chapterLevel)[direction];
+      const target = navigationTargets(this.levels, this.currentIndex(), this.navigationLevel)[direction];
       if (target === -1) return;
       const element = this.headings[target].element;
       this.onBeforeJump?.();
@@ -517,8 +512,13 @@ var flmLecturenotes = (() => {
   var HEADING = ".flm-pres-block--heading";
   var BLOCKS = ".flm-pres-par, .flm-pres-block, li, figure, figcaption, blockquote";
   var INLINE_TAGS = /* @__PURE__ */ new Set(["SPAN", "A", "EM", "STRONG", "SUP"]);
+  var FORMULA = ".flm-math-formula";
   var HEADING_SIBLINGS = 3;
   var MAX_ENTRIES = 8;
+  var CONTEXT_BEFORE = 300;
+  var CONTEXT_AFTER = 200;
+  var NEIGHBOR_BEFORE = 160;
+  var NEIGHBOR_AFTER = 100;
   function previewElements(target) {
     if (target.matches(HEADING)) {
       const out = [target];
@@ -528,8 +528,101 @@ var flmLecturenotes = (() => {
       }
       return out;
     }
-    if (target.tagName === "LI" || !INLINE_TAGS.has(target.tagName)) return [target];
+    if (target.tagName === "LI" || !isInline(target)) return [target];
     return [target.closest(BLOCKS) ?? target];
+  }
+  function isInline(target) {
+    return INLINE_TAGS.has(target.tagName) || target.closest(FORMULA) !== null;
+  }
+  function pathTo(ancestor, node) {
+    const path = [];
+    for (let n = node; n !== ancestor && n.parentNode !== null; n = n.parentNode) {
+      path.unshift(Array.prototype.indexOf.call(n.parentNode.childNodes, n));
+    }
+    return path;
+  }
+  function nodeAt(root, path) {
+    let n = root;
+    for (const i of path) n = n.childNodes[i];
+    return n;
+  }
+  function cutText(text, budget, side) {
+    if (text.length <= budget) return text;
+    if (side === "before") {
+      const start = text.length - budget;
+      const kept2 = text.slice(start);
+      if (/\s/.test(text[start - 1])) return kept2.trimStart();
+      const space2 = kept2.search(/\s/);
+      return space2 === -1 ? "" : kept2.slice(space2).trimStart();
+    }
+    const kept = text.slice(0, budget);
+    if (/\s/.test(text[budget])) return kept.trimEnd();
+    const space = kept.search(/\s\S*$/);
+    return space === -1 ? "" : kept.slice(0, space).trimEnd();
+  }
+  function keepSide(parent, at, budget, side) {
+    const nodes = Array.from(parent.childNodes);
+    const beyond = side === "before" ? nodes.slice(0, at).reverse() : nodes.slice(at + 1);
+    let left = budget;
+    let cut = false;
+    for (const node of beyond) {
+      const length = (node.textContent ?? "").length;
+      if (cut) {
+        node.remove();
+      } else if (length <= left) {
+        left -= length;
+      } else {
+        cut = true;
+        if (node.nodeType === 3) node.textContent = cutText(node.textContent ?? "", left, side);
+        else if (node.matches(FORMULA)) node.remove();
+        else keepSide(node, side === "before" ? node.childNodes.length : -1, left, side);
+      }
+    }
+    return cut;
+  }
+  function cutMark(doc, text) {
+    const span = doc.createElement("span");
+    span.className = "ln-preview-cut";
+    span.textContent = text;
+    return span;
+  }
+  function hasWords(node) {
+    let copy = node;
+    if (node.nodeType === 1) {
+      if (node.matches(FORMULA)) return false;
+      copy = node.cloneNode(true);
+      copy.querySelectorAll(FORMULA).forEach((formula) => formula.remove());
+    }
+    return /[\p{L}\p{N}]/u.test(copy.textContent ?? "");
+  }
+  function isTextParagraph(element) {
+    return element !== null && element.matches(".flm-pres-par") && hasWords(element);
+  }
+  function neighborCopy(paragraph, side, budget, doc) {
+    const copy = paragraph.cloneNode(true);
+    const at = side === "before" ? copy.childNodes.length : -1;
+    if (keepSide(copy, at, budget, side)) {
+      if (side === "before") copy.insertBefore(cutMark(doc, "… "), copy.firstChild);
+      else copy.appendChild(cutMark(doc, " …"));
+    }
+    return copy;
+  }
+  function cutAround(block, focus, doc, before = CONTEXT_BEFORE, after = CONTEXT_AFTER) {
+    const at = Array.prototype.indexOf.call(block.childNodes, focus);
+    if (at === -1) return;
+    if (keepSide(block, at, before, "before")) block.insertBefore(cutMark(doc, "… "), block.firstChild);
+    if (keepSide(block, Array.prototype.indexOf.call(block.childNodes, focus), after, "after")) {
+      block.appendChild(cutMark(doc, " …"));
+    }
+  }
+  function neighbors(block, at, doc) {
+    const nodes = Array.from(block.childNodes);
+    const previous = block.previousElementSibling;
+    const next = block.nextElementSibling;
+    return {
+      before: !nodes.slice(0, at).some(hasWords) && isTextParagraph(previous) ? neighborCopy(previous, "before", NEIGHBOR_BEFORE, doc) : null,
+      after: !nodes.slice(at + 1).some(hasWords) && isTextParagraph(next) ? neighborCopy(next, "after", NEIGHBOR_AFTER, doc) : null
+    };
   }
   var TEXTS2 = {
     more: (count) => `and ${count} more`
@@ -544,6 +637,7 @@ var flmLecturenotes = (() => {
     if (id === null) return null;
     let elements;
     let more = 0;
+    let focus = null;
     if (link.getAttribute("data-flm-kind") === "cite") {
       const entries = citationEntries(link, doc);
       elements = entries.slice(0, MAX_ENTRIES);
@@ -552,14 +646,19 @@ var flmLecturenotes = (() => {
       const target = doc.getElementById(id);
       if (target === null) return null;
       elements = previewElements(target);
+      if (elements.length === 1 && elements[0] !== target && elements[0].contains(target)) {
+        focus = pathTo(elements[0], target).slice(0, 1);
+      }
     }
     if (elements.length === 0) return null;
     const content = doc.createElement("div");
     content.className = "ln-preview-content";
     let list = null;
     let listOf = null;
+    const copies = [];
     for (const element of elements) {
       const copy = element.cloneNode(true);
+      copies.push(copy);
       const parent = element.parentElement;
       if (element.tagName === "LI" && parent !== null) {
         if (list === null || listOf !== parent) {
@@ -573,6 +672,13 @@ var flmLecturenotes = (() => {
         listOf = null;
         content.appendChild(copy);
       }
+    }
+    if (focus !== null) {
+      const copy = copies[0];
+      const around = neighbors(elements[0], focus[0], doc);
+      cutAround(copy, nodeAt(copy, focus), doc);
+      if (around.before !== null) copy.parentNode?.insertBefore(around.before, copy);
+      if (around.after !== null) copy.parentNode?.insertBefore(around.after, copy.nextSibling);
     }
     if (more > 0) {
       const line = doc.createElement("p");
@@ -606,16 +712,7 @@ var flmLecturenotes = (() => {
   var LONG_PRESS_MS = 500;
   var CLICK_GUARD_MS = 700;
   var PRESS_TOLERANCE_PX = 10;
-  function typesetPopup(mathJax, popup) {
-    const typeset = mathJax.typesetPromise;
-    if (typeset === void 0) return Promise.resolve();
-    const run = () => typeset.call(mathJax, [popup]);
-    const startup = mathJax.startup;
-    const work = startup?.promise !== void 0 ? startup.promise.then(run) : run();
-    const chain = work.then(() => void 0, () => void 0);
-    if (startup?.promise !== void 0) startup.promise = chain;
-    return chain;
-  }
+  var CONTENT_COPIED_EVENT = "flm:content-copied";
   function positionPopup(popup, link, windowWidth, windowHeight, scrollX, scrollY) {
     popup.style.left = "0px";
     popup.style.top = "0px";
@@ -628,6 +725,8 @@ var flmLecturenotes = (() => {
     popup = null;
     /** The link whose preview the popup shows. */
     shownFor = null;
+    /** The popup's size when it was last placed. */
+    placed = { width: 0, height: 0 };
     showTimer = 0;
     pendingFor = null;
     hideTimer = 0;
@@ -768,8 +867,19 @@ var flmLecturenotes = (() => {
         this.popup = this.doc.createElement("div");
         this.popup.className = POPUP_CLASS;
         this.doc.body.appendChild(this.popup);
+        if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => this.onResize()).observe(this.popup);
       }
       return this.popup;
+    }
+    /**
+     * Places the popup again when its size changed since it was placed: a
+     * script typeset a formula in it, an image loaded.
+     */
+    onResize() {
+      const popup = this.popup;
+      if (popup === null || this.shownFor === null) return;
+      if (popup.offsetWidth === this.placed.width && popup.offsetHeight === this.placed.height) return;
+      this.place(this.shownFor);
     }
     /** Shows the preview of `link` now. */
     show(link) {
@@ -777,19 +887,12 @@ var flmLecturenotes = (() => {
       const content = buildPreview(link, this.doc);
       if (content === null) return;
       const popup = this.getPopup();
-      const mathJax = window.MathJax;
-      mathJax?.typesetClear?.([popup]);
       popup.replaceChildren(content);
       popup.scrollTop = 0;
       popup.classList.add("ln-preview-shown");
       this.shownFor = link;
       this.place(link);
-      const untypeset = Array.from(popup.querySelectorAll(".flm-pres-math--source")).some((formula) => formula.querySelector("mjx-container") === null);
-      if (untypeset && mathJax !== void 0) {
-        void typesetPopup(mathJax, popup).then(() => {
-          if (this.shownFor === link) this.place(link);
-        });
-      }
+      content.dispatchEvent(new CustomEvent(CONTENT_COPIED_EVENT, { bubbles: true }));
     }
     place(link) {
       const popup = this.popup;
@@ -803,6 +906,7 @@ var flmLecturenotes = (() => {
         window.scrollX,
         window.scrollY
       );
+      this.placed = { width: popup.offsetWidth, height: popup.offsetHeight };
     }
   };
   function focusVisible(element) {

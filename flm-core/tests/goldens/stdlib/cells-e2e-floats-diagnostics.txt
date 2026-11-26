@@ -1,0 +1,9 @@
+===== check =====
+===== text =====
+Warning flm.graphics.unknown-size {"path":"figures/cell.png"} — at `\includegraphics{figures/cell.png}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Warning flm.graphics.unknown-size {"path":"figures/cell.png"} — at `\includegraphics{figures/cell.png}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Warning flm.graphics.unknown-size {"path":"figures/cell.png"} — at `\includegraphics{figures/cell.png}`

@@ -1,0 +1,155 @@
+{
+  "flm.blocks.check-contract": {
+    "per_unit": 0.000176,
+    "per_row": 0.000186
+  },
+  "flm.citations.build-bibliography": {
+    "per_row": 2.86e-05
+  },
+  "flm.citations.check": {
+    "per_row": 6.58e-06
+  },
+  "flm.citations.collect": {
+    "per_row": 7.47e-05
+  },
+  "flm.citations.fetch": {
+    "per_unit": 1.0,
+    "per_row": 2.0
+  },
+  "flm.citations.retrieve": {
+    "per_row": 0.000284
+  },
+  "flm.compose.html": {
+    "per_row": 0.00535
+  },
+  "flm.floats.check-handlers": {
+    "per_row": 5.42e-05
+  },
+  "flm.graphics.convert": {
+    "per_row": 0.5
+  },
+  "flm.graphics.inspect": {
+    "per_unit": 0.000109,
+    "per_row": 0.000115
+  },
+  "flm.graphics.publish.html": {
+    "per_unit": 0.000122,
+    "per_row": 0.000128
+  },
+  "flm.host.build": {
+    "per_row": 0.149
+  },
+  "flm.host.packages": {
+    "per_row": 0.0734
+  },
+  "flm.host.parse": {
+    "per_row": 0.00219
+  },
+  "flm.host.plan": {
+    "per_row": 0.00801
+  },
+  "flm.host.prepare": {
+    "per_row": 0.375
+  },
+  "flm.host.registry": {
+    "per_row": 0.298
+  },
+  "flm.host.run": {
+    "per_row": 0.14
+  },
+  "flm.html.emit": {
+    "per_unit": 0.000348,
+    "per_row": 0.000366
+  },
+  "flm.html.emit-pieces": {
+    "per_row": 0.00016
+  },
+  "flm.html.lower": {
+    "per_unit": 0.0237,
+    "per_row": 0.0249
+  },
+  "flm.html.pieces": {
+    "per_row": 0.00381
+  },
+  "flm.html.regions": {
+    "per_row": 0.000135
+  },
+  "flm.html.resolve-definitions": {
+    "per_row": 0.000197
+  },
+  "flm.index.build": {
+    "per_unit": 0.000114,
+    "per_row": 0.00012
+  },
+  "flm.math-passthrough.check": {
+    "per_unit": 2.53e-05,
+    "per_row": 2.53e-05
+  },
+  "flm.metadata.build": {
+    "per_row": 0.000142
+  },
+  "flm.numbering.number": {
+    "per_row": 0.000225
+  },
+  "flm.output.files": {
+    "per_unit": 0.00068,
+    "per_row": 0.000921
+  },
+  "flm.programs.run": {
+    "per_row": 3.0
+  },
+  "flm.refpoints.scan": {
+    "per_unit": 9.95e-05,
+    "per_row": 0.000105
+  },
+  "flm.refs.anchors": {
+    "per_row": 8.29e-05
+  },
+  "flm.refs.check-labels": {
+    "per_row": 6.09e-06
+  },
+  "flm.refs.resolve": {
+    "per_unit": 5.58e-05,
+    "per_row": 5.88e-05
+  },
+  "flm.refs.scan": {
+    "per_row": 8.03e-05
+  },
+  "flm.run.rewrites": {
+    "per_unit": 0.0014,
+    "per_row": 0.00147
+  },
+  "flm.theorems.check-proofs": {
+    "per_row": 8.06e-05
+  },
+  "flm.toc.build": {
+    "per_row": 0.00041
+  },
+  "flm.write.files": {
+    "per_row": 0.00109
+  },
+  "flm.xnotes.build-list.footnote": {
+    "per_row": 4.09e-05
+  },
+  "flm.xnotes.collect": {
+    "per_row": 8.7e-05
+  },
+  "letter.check": {
+    "per_row": 0.0222
+  },
+  "math-mathjax.check": {
+    "per_unit": 0.123,
+    "per_row": 0.133
+  },
+  "math-mathjax.formulas": {
+    "per_unit": 0.00609,
+    "per_row": 0.195
+  },
+  "math-mathjax.packages": {
+    "per_row": 0.132
+  },
+  "math-mathjax.render": {
+    "per_unit": 0.34,
+    "per_row": 0.34
+  }
+}

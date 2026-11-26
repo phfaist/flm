@@ -4,7 +4,7 @@
 
 use flm_core::core::registry::ElementKind;
 use flm_core::lang::mint::{CallableKind, SyntaxDef};
-use flm_core::stdcore::backends::pieces::declared_pieces;
+use flm_core::stdlib::backends::pieces::declared_pieces;
 use serde::Serialize;
 
 use super::{DeclaredView, Environment, is_empty, summary_of};
@@ -179,7 +179,8 @@ impl Environment {
     ///
     /// The entries of a namespace are in the registry's order for that namespace (the
     /// order of registration, of numbering, or of names, as the registry keeps them). An
-    /// element type that two features register appears once per feature; the capability of
+    /// element type that two features register appears once per feature, each entry with
+    /// the type's own summary; the capability of
     /// a table appears under `capability` as well as the table under `table`; a piece's
     /// owner is the feature that declares the table holding its content.
     pub fn namespaces(&self) -> Vec<NamespaceView> {
@@ -242,6 +243,51 @@ impl Environment {
         hits
     }
 
+    /// Every name by which [`Environment::lookup`] finds something, each with the hit it
+    /// gives: each entity of any namespace under its name; each macro under its name with
+    /// and without the backslash (with it alone for a name that begins with a backslash);
+    /// each environment under its name; each special character sequence under its trigger. In the order of the lookup: the entities by namespace,
+    /// then the commands as [`Environment::lookup`] searches them.
+    pub(crate) fn names(&self) -> Vec<(String, Hit)> {
+        let mut names: Vec<(String, Hit)> = Vec::new();
+        for family in FAMILIES {
+            for entry in self.entries(family) {
+                let hit = Hit::Entity {
+                    namespace: family.name().to_string(),
+                    name: entry.name.clone(),
+                    owner: entry.owner,
+                    summary: entry.summary,
+                };
+                names.push((entry.name, hit));
+            }
+        }
+        for (def, within) in self.all_declarations() {
+            let Some(kind) = def.syntax.kind() else { continue };
+            let written: Vec<String> = match &def.syntax {
+                SyntaxDef::Specials { trigger, .. } => vec![trigger.to_string()],
+                _ => def.names.iter().map(ToString::to_string).collect(),
+            };
+            for name in written {
+                let hit = Hit::Command {
+                    kind,
+                    name: name.clone(),
+                    feature: def.owner.to_string(),
+                    within: within.map(|package| package.name.to_string()),
+                    summary: summary_of(&def.docs).to_string(),
+                };
+                if kind == CallableKind::Macro {
+                    names.push((format!("\\{name}"), hit.clone()));
+                }
+                // A name that begins with a backslash (the macro `\\`) is found only with
+                // the backslash before it.
+                if !name.starts_with('\\') {
+                    names.push((name, hit));
+                }
+            }
+        }
+        names
+    }
+
     /// The names the feature `feature` declares, by namespace, in the order of the
     /// namespaces; the features, packages and element types are left out (a feature view
     /// lists its element types apart), and so is a namespace in which the feature declares
@@ -277,7 +323,7 @@ impl Environment {
                     let owner = element.owner.to_string();
                     let known = out.iter().any(|seen| seen.name == element.element.name.as_str() && seen.owner.as_deref() == Some(owner.as_str()));
                     if !known {
-                        out.push(entry(&element.element.name, Some(&owner), &element.element.docs));
+                        out.push(entry(&element.element.name, Some(&owner), self.element_type_docs(&element.element.name)));
                     }
                 }
                 out
@@ -391,7 +437,8 @@ pub struct EntryView {
     /// package, and for a piece whose table no feature declares.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<String>,
-    /// The first paragraph of its documentation text.
+    /// The first paragraph of its documentation text. For an element type, the summary of
+    /// the type's text, whichever feature gave it, and empty when the type has none.
     #[serde(skip_serializing_if = "is_empty")]
     pub summary: String,
 }

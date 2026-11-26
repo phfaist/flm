@@ -8,8 +8,8 @@
 //! [`ExtensionLoader::with_js`](crate::ExtensionLoader::with_js), over a
 //! [`JsHost`]: the settings every engine instance is created with
 //! ([`JsSettings`]), the modules the program offers to every extension, and
-//! where `console` output goes. Each thread that runs a handler of a loaded
-//! extension gets an *engine instance* of its own for that extension (a
+//! the log sink `console` output goes to. Each thread that runs a handler of
+//! a loaded extension gets an *engine instance* of its own for that extension (a
 //! QuickJS runtime with one context), shared by every package of the
 //! extension, created on first use with the host's limits. A script reaches
 //! the library through the API modules, which mirror [`crate::api`] item for
@@ -42,12 +42,12 @@
 //! import { ArgDef } from "flm:lang/mint";
 //! import { chars_text } from "flm:lang/text";
 //! import { Definition, UserDefinition, Expansion } from "flm:lang/rewrites/userdefs";
-//! import { element_name_under, expand_in_tree_rule_for } from "flm:stdcore/features/userdefs";
+//! import { element_name_under, expand_in_tree_rule_for } from "flm:stdlib/features/userdefs";
+//! import { NodeKindName } from "flm:techy/node";
 //! import { words_of } from "./helpers.js";
 //!
 //! export default function (ext) {
 //!   ext.package("_", {
-//!     uses: ["stdcore"],
 //!     features: {
 //!       wc: {
 //!         title: "Words",                       // optional, as `docs` and `version`
@@ -76,8 +76,8 @@
 //!             run(cx, out) {
 //!               const min = cx.option("wc.counting").min ?? 1;
 //!               let words = 0;
-//!               for (const node of cx.my_tree().root().descendants())
-//!                 if (node.is_chars()) words += words_of(node.chars(), min);
+//!               for (const node of cx.my_tree().root().descendants().kinds([NodeKindName.Chars]))
+//!                 words += words_of(node.chars(), min);
 //!               out.table("wc.words").push({ tree: cx.tree_id(), words });
 //!             },
 //!           });
@@ -102,16 +102,18 @@
 //!
 //! | Key of the package object | Shape | Optional | Meaning |
 //! |---|---|---|---|
-//! | `uses` | a list of `use` entries | yes | the packages it uses: `stdcore`, another extension, `.#core` (a package of this extension) |
+//! | `uses` | a list of `use` entries | yes | the packages it uses: a package of another extension (`phfpack`, `letter#html`), a package compiled into the host (`math-passthrough`), `.#core` (a package of this extension) |
 //! | `flm` | a map | yes | its block: `features`, `parsing`, `workflows`, `feature_order` (as a data extension's manifest writes them under `flm`; `use` is written as `uses`) |
-//! | `templates` | a list of paths | yes | the compose templates it ships, each the path of a description, `templates/OUTPUT/NAME.yaml` or `templates/OUTPUT/NAME/flmtemplate.yaml`, the compose template's name being `NAME`; a path of neither shape is refused |
+//! | `templates` | a list of paths | yes | the compose templates it ships, each the path of its description among the extension's files, relative to the extension's folder (`templates/html/fancy/flmtemplate.yaml`); the description gives the compose template's `name` and `output` |
 //! | `host` | a list of texts | yes | the host services its handlers call ([Host services](#host-services)) |
+//! | `caches` | a map from a cache's name to its declaration | yes | the caches it declares for its handlers, which a host service that keeps caches serves ([`CacheDeclaration`](crate::host::CacheDeclaration) states the keys) |
 //! | `features` | a map from a feature's name to its feature object | yes | its scripted features, in the order written |
 //!
 //! | Key of the feature object | Shape | Optional | Meaning |
 //! |---|---|---|---|
 //! | `title`, `docs`, `version` | texts | yes | as a compiled feature's information |
-//! | `settings` | a map: `config` (`{ docs, schema }`), `options` (name → `{ bind, docs, schema }`, `bind` being `document`, `render` or `either`), `merge_entries`, `markup`, `path` | yes | the settings it declares, as data ([`SettingsReport`](crate::engine::SettingsReport)) |
+//! | `settings` | a map: `config` (`{ docs, schema }`), `options` (name → `{ bind, docs, schema }`, `bind` being `document`, `render` or `either`), `read`; the marks written on the nodes of the schemas (`x-flm-marks`) | yes | the settings it declares, as data ([`SettingsReport`](crate::engine::SettingsReport)) |
+//! | `templates` | a map from a template module's name to `{ output, settings }`, `settings` a JSON Schema of an object without `default`s, optional | yes | the template modules that `register` contributes ([A compose template written as a module](#a-compose-template-written-as-a-module)) |
 //! | `register(b, settings)` | a function | no | declares what the feature contributes, with its configuration |
 //! | `read(settings)` | a function | yes | the feature's configuration reader (below) |
 //!
@@ -153,8 +155,25 @@
 //! | Specifier | Names |
 //! |---|---|
 //! | `flm:core/stage`, … | a module of the extension API (the table below) |
-//! | `./helpers.js`, `../lib/x.js` | a file of the extension, joined to the importing module's folder; it may not climb above the extension's folder |
+//! | `./helpers.js`, `../lib/x.js` | a file of the extension, resolved against the importing module's path as a relative web address is; it may not climb above the extension's folder |
 //! | `lodash`, `mathjax/core` (a bare name) | a module the program offers ([`JsHost::with_module`]) |
+//!
+//! A relative specifier is resolved as JavaScript resolves one, as a relative
+//! web address: joined to the folder of the importing module, its `.` and
+//! empty names left out and each `..` taking off the name before it, as text
+//! (`../lib/x.js` imported from `src/main.js` is the file `lib/x.js`); `/`
+//! separates the names and every other character, `\` included, belongs to a
+//! name (`./~/x.js` is the file `x.js` of the folder `~` of the importing
+//! module's folder). The module is then read through the extension's files,
+//! by its path relative to the extension's folder, which the host checks
+//! ([paths inside an extension](crate::source#paths-inside-an-extension)).
+//! The main module's path (`extension.js.main`) is a path of the manifest,
+//! read through the extension's files as written, relative to the
+//! extension's folder, as every path of the manifest is: `~/main.js` is an
+//! absolute path, and refused. The main module is named by the rule of a
+//! relative specifier, from the extension's folder, so that an import of it
+//! is the same module (`./main.js` imported from `src/other.js` is the main
+//! module `./src/main.js`).
 //!
 //! The extension written in a specifier is required (`./helpers.js`, not
 //! `./helpers`), as ES modules require; a bare name is never a file of the
@@ -208,8 +227,9 @@
 //! by the registry, the factories and the handlers of the load that made it.
 //! Once they are all dropped (a preparation replaced by a new one, which
 //! loads every extension again), the next entry into any instance on that
-//! thread drops the replaced loader's instances there; a thread that runs no
-//! handler again keeps them until it ends.
+//! thread, and the next load of an extension on that thread, drop the
+//! replaced loader's instances there; a thread that runs no handler and
+//! loads no extension again keeps them until it ends.
 //!
 //! # The mapping rules
 //!
@@ -349,7 +369,33 @@
 //!    its tree (not its position in `nodes`) at `error.data.data.node`. A handler may catch it; uncaught, the handler
 //!    fails and the diagnostic's data holds it under `data.flm_error`.
 //! 9. **`Option<T>`** is `T` or `null`. A `Vec<T>` is an array; a tuple is an
-//!    array of its elements: `cx.trees()` answers `[[id, tree], …]`.
+//!    array of its elements. Two kinds of object stand for the collections
+//!    whose length can grow with the document; each is one handle, whose
+//!    items the binding pulls from Rust in groups:
+//!    - An iterator (`cx.walk()`, `node.descendants()`, `cx.trees()`) is a
+//!      *traversal*, an object iterated once with `for … of`; `cx.trees()`
+//!      hands over `[id, tree]` pairs. A traversal of nodes has the methods
+//!      `elements(names)` and `kinds(kinds)`, which return the traversal
+//!      restricted to the nodes of the named elements or of the given
+//!      `NodeKindName`s: `cx.walk().elements([ENVIRONMENT])`. Rust compares
+//!      the nodes, so a node that does not match costs no call into Rust
+//!      and no memory of the engine.
+//!    - A list of nodes (`node.children()`, `node.body()`, a line's
+//!      `content`, …) is a `Nodes`, a *sequence* with `len()`, `is_empty()`,
+//!      `get(i)` and a `for … of` that can be repeated. A list of staged nodes
+//!      (`lw.lower_body(cx, node)`, `rs.restage_subtree(node)`, …) is a
+//!      `StagedNodes`, and the rows of an extension's table (`items()`) are a
+//!      `Rows`, both sequences of the same form. A sequence is not an array:
+//!      `[...nodes]` makes an array, with one object per node.
+//!
+//!    What takes several nodes (`chars_text`, `lw.lower_nodes`, …) takes a
+//!    `Nodes`, or a *joined list*, an array of nodes and `Nodes` joined in
+//!    order. What takes several staged nodes (`lw.pres`, `Lowering.Emit`,
+//!    the child `{ build }` of a `pres_tree`, …) takes a `StagedNodes`, or
+//!    an array of staged nodes and `StagedNodes`. A sequence passed on so
+//!    crosses as its handle, whatever its length, and its items never
+//!    become objects of the engine:
+//!    `Lowering.Emit([lw.text(cx, "["), lw.lower_body(cx, node), lw.text(cx, "]")])`.
 //! 10. **Values are JSON.** Every argument and result crosses as JSON text: a
 //!     number must be an integer (`1.5` is refused with kind `"value"`); an
 //!     `undefined` inside data is left out, as `JSON.stringify` does (write
@@ -362,13 +408,13 @@
 //!     node): `out.diags({ id: "wc.empty", severity: Severity.Warning, message: "the tree has no words" })`.
 //!     Its `id` is any identifier, a library condition's included.
 //! 12. **A `const` name** is a constant of the same name and value:
-//!     `MATH === "flm.math"` in `flm:stdcore/features/math`,
+//!     `MATH === "flm.math"` in `flm:stdlib/features/math`,
 //!     `BLOCK === "flm.pres.block"` and `BODY_SLOT === "body"` in
-//!     `flm:stdcore/backends/pres`, `TAG === "flm.pres.html.tag"` in
-//!     `flm:stdcore/backends/html`. A constant holding a list is a frozen
-//!     array: `ALL` (`flm:stdcore/backends/pres`) holds the names of the
+//!     `flm:stdlib/backends/pres`, `TAG === "flm.pres.html.tag"` in
+//!     `flm:stdlib/backends/html`. A constant holding a list is a frozen
+//!     array: `ALL` (`flm:stdlib/backends/pres`) holds the names of the
 //!     standard presentation elements, and `ENVIRONMENTS`
-//!     (`flm:stdcore/features/math`) is
+//!     (`flm:stdlib/features/math`) is
 //!     `[["equation", true], ["equation*", false], …]`.
 //!
 //! # A lowering rule
@@ -383,7 +429,7 @@
 //!
 //! ```javascript
 //! import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
-//! import { BLOCK, SPAN } from "flm:stdcore/backends/pres";
+//! import { BLOCK, SPAN } from "flm:stdlib/backends/pres";
 //!
 //! b.lowering_rule(new LoweringRule(
 //!   "box.box.lower.default", "box.box",
@@ -395,7 +441,7 @@
 //!       return Lowering.Emit([lw.pres_tree(cx, {
 //!         element: BLOCK, payload: { role: "box.box" },
 //!         children: [{ element: SPAN, payload: { kinds: ["inner"] },
-//!                      children: [...content.map(build => ({ build })), { text: ` (${rows.length})` }] }],
+//!                      children: [{ build: content }, { text: ` (${rows.length})` }] }],
 //!       })]);
 //!     },
 //!   },
@@ -413,13 +459,14 @@
 //! `lw.get(name)` reads a table the rule declared (`reads` or `reads_opt`)
 //! and answers `null` when the table is not there, or one of these forms
 //! ([`TableValue`](crate::api::core::data::table::TableValue)): `{ ext }`,
-//! the items of an extension's own table; `{ trees }`, a trees table;
+//! an extension's own table, whose `items()` returns its rows as a `Rows`
+//! sequence (rule 9); `{ trees }`, a trees table;
 //! `{ projection }`, a standard table written as data; `{ counters }`, the
 //! numbering feature's counter table `flm.counters`, an object with the
-//! methods of [`Counters`](crate::api::stdcore::features::numbering::Counters)
+//! methods of [`Counters`](crate::api::stdlib::features::numbering::Counters)
 //! (`record(point)`, `format(point, options)`); and `{ anchors }`, the
 //! references feature's anchors table `flm.anchors`, an object with the
-//! method [`Anchors::id`](crate::api::stdcore::features::refs::Anchors::id).
+//! method [`Anchors::id`](crate::api::stdlib::features::refs::Anchors::id).
 //! A point is written `{ addr, index }`: the address of a node (`lw.addr()`
 //! for the node the rule lowers) and the point's index among its reference
 //! points. `lw.lang()` answers the built language, from which
@@ -427,8 +474,8 @@
 //!
 //! The documentation
 //! of [`crate::api::core::lowering`] describes every method of the lowerer,
-//! and the documentation of [`crate::api::stdcore::backends::pres`] and
-//! [`crate::api::stdcore::backends::html`] gives the payload shape of each
+//! and the documentation of [`crate::api::stdlib::backends::pres`] and
+//! [`crate::api::stdlib::backends::html`] gives the payload shape of each
 //! presentation element.
 //!
 //! # A rewrite stage
@@ -457,7 +504,8 @@
 //!     if (node.is_chars() && node.chars().includes("--"))
 //!       return Restage.Emit([rs.stage_chars(node.chars().replace(/--/g, "–"), node)]);
 //!     if (node.element_name() === "dash.quote") {
-//!       const content = (node.argument_content_nodes_named("text") ?? []).flatMap(child => rs.restage_subtree(child));
+//!       const content = [];
+//!       for (const child of node.argument_content_nodes_named("text") ?? []) content.push(rs.restage_subtree(child));
 //!       const argument = rs.restage_argument_with_content(node, 0, content);
 //!       return Restage.Emit([rs.stage_chars("“", node), rs.restage_invocation(node, [argument], []), rs.stage_chars("”", node)]);
 //!     }
@@ -499,13 +547,13 @@
 //! stages:
 //!
 //! - the lowering stage is the library's, `new LoweringStage(backend)`
-//!   (`flm:stdcore/backends/lowering`), which applies the lowering rules and
+//!   (`flm:stdlib/backends/lowering`), which applies the lowering rules and
 //!   writes the table `lowered_table_name(backend)` (`flm.lowered.typst`);
 //!   the feature declares that table with
 //!   `b.table_named(name, StandardTable.LoweredTrees, docs)`;
 //! - the emit stage is a stage object, as `b.stage` takes one: it reads the
 //!   lowered trees (`cx.get(name).lowered`, an object with `trees()`,
-//!   `tree(id)`, `requires(id)` and `rounds(id)`), walks the nodes of each
+//!   `tree(id)`, `requires(id)`, `rounds(id)` and `node_at(addr)`), walks the nodes of each
 //!   tree from its `root()` (`element_name()`, `payload()`, `slot_count()`,
 //!   `slot_content_nodes(i)`, …) and pushes the text it writes into a table
 //!   of the extension's own;
@@ -526,7 +574,7 @@
 //! `new OutputDef(…).made_from(name)`.
 //!
 //! The native set lists the elements the emit stage writes itself: the
-//! presentation vocabulary (`ALL`, `flm:stdcore/backends/pres`, among which
+//! presentation vocabulary (`ALL`, `flm:stdlib/backends/pres`, among which
 //! the stand-in `flm.pres.unsupported` every backend must write), the
 //! structural elements a lowered tree keeps (`flm:lang/structural`), and the
 //! extension's own presentation elements. Every element a document using the
@@ -590,9 +638,11 @@
 //! A host service is a named object the program offers to extensions
 //! ([`ExtensionLoader::with_host_service`](crate::ExtensionLoader::with_host_service)),
 //! through which a handler reaches what the sandbox keeps out; the one this
-//! crate defines is `files` ([`crate::host::files`]), and a program may offer
-//! others (the `flm` program also offers `programs`, which finds and runs a
-//! program installed on the machine; see [Trust](crate#trust)). A package declares the
+//! crate defines are `files` ([`crate::host::files`]) and `download`
+//! ([`crate::host::download`], the file at an `https` address), and a program
+//! may offer others (the `flm` program also offers `cache`, which stores and reads the
+//! values of the caches a package declares, and `programs`, which finds and
+//! runs a program installed on the machine; see [Trust](crate#trust)). A package declares the
 //! services its handlers call in its package object's `host` list: a package
 //! declaring a service the program does not offer does not load, and the
 //! list enters the digest.
@@ -603,14 +653,26 @@
 //! `call(method, args)` for any other, from `flm:host`). A name the package
 //! did not declare is refused, even when the program offers it.
 //!
-//! The `files` service reads the text of a file in one of two roots, its
-//! *scope*: `files.read_text("extension", path)` reads a file of the
-//! extension's own folder, `files.read_text("document", path)` a file of the
-//! document's folder (`FilesScope.Extension`, `FilesScope.Document`). Each
-//! answers `null` when nothing is at the path; a path that leaves its root is
-//! refused. The document's files are read through the program's file reader,
-//! so a program that watches the files a build read (a live preview) builds
-//! again when one changes. Text and "nothing there" cross; bytes do not (a
+//! The `files` service reads the text of a file at a qualified path
+//! ([`crate::paths`]): `files.read_text("self:data/entries.json")` reads a
+//! file of the extension's own folder, `files.read_text("doc:refs.json")` a
+//! file of the document's folder, `ext+NAME:` a file of another extension
+//! the document uses. Each answers `null` when nothing is at the path. A path
+//! with no root is refused. A path of the extension's folder must stay
+//! inside it ([paths inside an extension](crate::source#paths-inside-an-extension));
+//! a path of the document's folder is read as a path written in the document
+//! is, relative to the folder or absolute, a `..` climbing above the folder
+//! included.
+//!
+//! The engine sets the property `path` of `import.meta` of each module of
+//! the extension: the module's path inside the extension
+//! (`templates/html/letter.js`). The function `path(import.meta, relative)`
+//! of `flm:host` ([`api::host::path`](crate::api::host::path)) joins a
+//! relative path to the module's folder and answers its qualified path:
+//! `path(import.meta, "./style.css")` is `"self:templates/html/style.css"`.
+//! The document's files are read
+//! through the program's file reader, so a program that watches the files a
+//! build read (a live preview) builds again when one changes. Text and "nothing there" cross; bytes do not (a
 //! template module's shipped files are read by the binding, see below). A
 //! failure of the service is a thrown `FlmError` of kind `host`, whose text
 //! is "`files.read_text`: DETAIL".
@@ -618,7 +680,7 @@
 //! # A citation provider
 //!
 //! A feature contributes a citation provider to the slot `PROVIDERS_SLOT`
-//! (`flm.citations.providers`, from `flm:stdcore/features/citations`): an
+//! (`flm.citations.providers`, from `flm:stdlib/features/citations`): an
 //! object with `name` (beginning with the extension's stem and a dot, or with
 //! `X` and a dot for an extension whose stem is `profile-X`) and
 //! `answer_all(requests, cx)` or `answer(request, cx)`. The retrieve stage
@@ -628,12 +690,12 @@
 //! `register`):
 //!
 //! ```javascript
-//! import { PROVIDERS_SLOT } from "flm:stdcore/features/citations";
+//! import { PROVIDERS_SLOT } from "flm:stdlib/features/citations";
 //!
 //! b.peer_slot(PROVIDERS_SLOT, {
 //!   name: "bibfile.json",
 //!   answer_all(requests, cx) {
-//!     const text = cx.host("files").read_text("document", "bib.json");
+//!     const text = cx.host("files").read_text("doc:bib.json");
 //!     if (text === null) return requests.map(() => ({ error: "the file `bib.json` must hold the entries" }));
 //!     const records = JSON.parse(text);
 //!     return requests.map(({ key }) => {
@@ -667,24 +729,41 @@
 //! A compose template may be a module whose default export is an object with
 //! `name` (the template's name, which a document chooses, `-t NAME`; it is
 //! not under the stem rule), `describe(settings)`, `render(data, cx)` and,
-//! optionally, `files(data, cx)`. A feature contributes it to the slot
-//! `TEMPLATES_SLOT` (`flm.compose.templates`, from
-//! `flm:stdcore/features/compose`) with `b.peer_slot(TEMPLATES_SLOT,
-//! module)`:
+//! optionally, `files(data, cx)`. A feature declares it under the key
+//! `templates` of its feature object, with the output it serves and the
+//! schema of its settings, and contributes it to the slot `TEMPLATES_SLOT`
+//! (`flm.compose.templates`, from `flm:stdlib/features/compose`) with
+//! `b.peer_slot(TEMPLATES_SLOT, module)`:
 //!
 //! ```javascript
+//! features: {
+//!   tinytpl: {
+//!     title: "Tiny page",
+//!     templates: { tiny: { output: "html", settings: { type: "object", properties: {
+//!       heading: { type: "string", description: "The page's heading." },
+//!       banner: { type: ["string", "null"], description: "An image, relative to the file in which it is written.",
+//!                 "x-flm-marks": ["path"] },
+//!     } } } },
+//!     register(b, settings) { b.peer_slot(TEMPLATES_SLOT, tiny); },
+//!   },
+//! }
+//! ```
+//!
+//! ```javascript
+//! import { path } from "flm:host";
+//!
 //! export default {
 //!   name: "tiny",
 //!   describe(settings) {
-//!     return { output: "html", accepts: "all", requires: [], config: { heading: settings.heading ?? "Tiny", banner: null } };
+//!     return { accepts: "all", requires: [], config: { heading: "Tiny", banner: null } };
 //!   },
 //!   files(data, cx) {
 //!     const files = [{ name: "style", extension: "css", media_type: "text/css", text: "h1 { color: teal; }\n" }];
-//!     if (data.config.banner !== null) files.push({ name: "banner", file: data.config.banner, scope: "document" });
+//!     if (data.config.banner !== null) files.push({ name: "banner", file: data.config.banner });
 //!     return files;
 //!   },
 //!   render(data, cx) {
-//!     const head = cx.host("files").read_text("extension", "templates/html/head.html") ?? "";
+//!     const head = cx.host("files").read_text(path(import.meta, "./head.html")) ?? "";
 //!     const paths = Object.fromEntries(data.artifacts);
 //!     const regions = Object.fromEntries(data.regions);
 //!     return `<!doctype html>\n<html><head>${head}<link rel="stylesheet" href="${paths.style}"></head>\n` +
@@ -693,29 +772,37 @@
 //! };
 //! ```
 //!
+//! - The schema under `templates.NAME.settings` declares the module's
+//!   settings, as the key `settings` of a compose template's description
+//!   does, without `default`: the marks of its nodes apply to what is written
+//!   under `compose.template_config.OUTPUT.NAME`, and a key that it lacks is
+//!   left out with a warning.
 //! - `describe(settings)` runs inside the feature's `register`, given the
-//!   feature's configuration, and answers `{ output, accepts, requires,
-//!   config }` (`accepts` `"all"` or a list of piece names; `requires` and
-//!   `config` optional): the compose template the binding contributes, with
-//!   an engine of its own that calls `files` and `render`.
+//!   feature's configuration, and answers `{ accepts, requires, config }`
+//!   (`accepts` `"all"` or a list of piece names; `requires` optional;
+//!   `config` the default of each declared setting, and no other key): the
+//!   compose template the binding contributes, with an engine of its own
+//!   that calls `files` and `render`.
 //! - `files(data, cx)` answers the files the template ships, each `{ name,
 //!   extension, media_type, text }` (a text it computed) or `{ name, file,
-//!   scope, media_type }` (a file of the extension's folder or of the
-//!   document's folder, read by the binding; `media_type` optional, given
-//!   by the file's extension otherwise). The program names them and writes
+//!   media_type }` (a file at the qualified path `file`, read by the
+//!   binding; `media_type` optional, given by the file's extension
+//!   otherwise). The program names them and writes
 //!   them beside the page.
 //! - `render(data, cx)` answers the page, a text. `data` is `{ html, regions:
-//!   [[name, text], …], pieces: [{ name, place, text, words }, …], meta,
-//!   config, artifacts: [[name, path], …] }`, `artifacts` holding the paths of
-//!   the shipped files (empty for `files`); a number of `meta` or `config`
-//!   that is not an integer is refused, the refusal naming its key path.
+//!   [[name, text], …], pieces: [{ name, place, text, words }, …],
+//!   metadata, config, artifacts: [[name, path], …] }`, `artifacts` holding the
+//!   paths of the shipped files (empty for `files`); a number of `metadata` or
+//!   `config` that is not an integer is refused, the refusal naming its key path.
 //!
-//! The shipped files of the two scopes and the reads of `cx.host("files")`
-//! need `host: ["files"]` in the package object. A failure of `describe`
-//! fails the feature's `register`, hence the registry build; a failure of
+//! The shipped files read at a path and the reads of `cx.host("files")`
+//! need `host: ["files"]` in the package object. A failure of `describe`,
+//! a module that the feature does not declare under `templates`, and a
+//! `config` that does not give exactly the declared settings fail the
+//! feature's `register`, hence the registry build; a failure of
 //! `files` or `render` is the template's failure: the Error
 //! `flm.compose.template-failed`, whose text holds "flm.ext.handler-failed:
-//! the template module `NAME` of the feature `F` … failed: TEXT", and the
+//! the template module ‘NAME’ of the feature ‘F’ … failed: TEXT", and the
 //! output is not made.
 //!
 //! # The API modules
@@ -775,12 +862,12 @@
 //!   `Definition`, `StyleDef`, `ScriptDef`, `OutputDef`, `ArtifactId` and
 //!   `Artifact`, whose fields and builder methods are `flm-core`'s and have
 //!   no source under `src/api/`, with the functions `arg_def_from_code` and
-//!   `label_fields_arg` (`flm:stdcore/features/refs`), which read the
+//!   `label_fields_arg` (`flm:stdlib/features/refs`), which read the
 //!   argument Rust answers back as an `ArgDef`;
 //! - the classes of the data types re-exported from `flm-core` without a
 //!   source under `src/api/`: in `flm:model/aspects`, `RefPoint`,
 //!   `NumberSource`, `AnchorPolicy`, `ContentRef` and `AcceptedRefTypes`; in
-//!   `flm:stdcore/features/numbering`, the declarations `CounterDecl`,
+//!   `flm:stdlib/features/numbering`, the declarations `CounterDecl`,
 //!   `CounterStyleDecl`, `ParentSetDecl`, `Within`, `PluralWords`,
 //!   `PrefixWords`, `Delimiters`, `NumberTemplate` and `FormatOptions`; in
 //!   the LaTeX modules, `LatexPreambleDef`, `LatexPackageDef` and the
@@ -859,9 +946,11 @@
 //! methods are unchanged), `performance.now()` answers `0`, and
 //! `Math.random()` is a fixed sequence restarted at every handler call.
 //! `console.log`, `info`, `debug`, `warn` and `error` write their arguments,
-//! joined by spaces, to the host's [`ConsoleSink`] (standard error by
-//! default), not to the run's diagnostics. `eval` and `Function` stay: they
-//! reach nothing more than the script already does.
+//! joined by spaces, to the host's log sink
+//! ([`JsHost::with_log_sink`]; nowhere when the host has none), not to the
+//! run's diagnostics: `error` and `warn` at their own level, the others at
+//! `Info` (the [table of levels](crate::host#console-output)). `eval` and
+//! `Function` stay: they reach nothing more than the script already does.
 //!
 //! # The limits
 //!
@@ -880,10 +969,27 @@
 //! and `time_s: 120`, a 120 s time budget per call, because one call converts
 //! every formula of a document.
 //!
+//! The memory limit bounds what a handler keeps, not the size of the
+//! document it reads: a traversal and a sequence (rule 9) hand their items
+//! over one group at a time, and every item that the handler keeps, in an
+//! array (`[...nodes]`) or in its own data, is an object of the engine. A
+//! stage that looks for a few elements restricts its traversal with
+//! `elements(names)` or `kinds(kinds)`, so that the other nodes never become
+//! objects, and a rule passes the content it lowers on as a sequence.
+//!
 //! A nested handler call (a hook run while another hook's `instantiate`
 //! runs) has a budget of its own, and the outer call's resumes after it.
 //! Creating an engine instance (evaluating the extension's modules and
 //! calling its default export) has the time budget too.
+//!
+//! # A cancelled build
+//!
+//! A stage and a citation provider run under a row of their build's progress
+//! sheet. When that build is asked to stop, the script is interrupted as past
+//! its time budget: the handler fails and the engine is replaced after the
+//! call. The failure reaches no one: what the step under way produced is
+//! discarded with it. A script that works in units may ask first
+//! (`cx.progress().cancelled()`) and return early.
 //!
 //! # Strict mode
 //!
@@ -941,13 +1047,14 @@
 //! | an exception escapes a rewrite stage's `restage`, or its answer is not a `Restage` | as above | the Error `flm.ext.handler-failed` at the node, whose message names the stage; the node copied as if the handler had answered `Restage.Descend`, the rest of the tree rewritten |
 //! | a method of `rs` meets a refusal after which the tree cannot be rewritten (content nested too deeply; a refusal of the new tree's builder; an argument's content inside a node the handler removed) | a thrown `FlmError`, kind `"core"`, which the handler may catch | the tree's rewrite is abandoned whatever the handler answers: the Error `flm.ext.rewrite-failed` at the tree's root, or `flm.blocks.nesting-too-deep`; the tree is absent from the output |
 //! | the library meets such a refusal after the handler answered, while it places the answer or finishes the tree (the tree's root replaced by other than one node; an argument's content inside a node the handler removed; a refusal of the new tree's builder) | nothing: the handler has returned | the same: the tree's rewrite is abandoned, the Error `flm.ext.rewrite-failed` at the tree's root, the tree absent from the output |
+//! | the build is cancelled while a stage or a citation provider runs, in the handler's call or in a job it queued | "WHAT was stopped: the build was cancelled", the data `{ "cancelled": true }` | nothing is reported: what the step under way produced is discarded |
 //! | a limit is exceeded, by the handler's call or by a job it queued | the limit's text, the data `{ "limit": "time" \| "memory", … }` | the same |
 //! | the engine instance cannot be created (on a thread other than the loading one) | the reason | the same |
 //! | a stage, a hook, a rule's body or a rewrite stage is not found after the rehearsal | "the stage `NAME` must be declared by `register` of the feature `F` of the package `P` of the extension `S`" ("the rewrite stage `NAME` …" for a rewrite stage); for a handler aspect, "the reference points of the element `E` must be answered by an aspect attached by `register` of …" (or "the sectioning of the element `E` …"); for a build hook, "the late-initialization hook N must be registered by `register` of …" (or "the finalizer N …") | the same |
 //! | `register` contributes two citation providers, or two template modules, under one name | "the citation provider `NAME` must be contributed once by `register` of the feature `F` of the package `P` of the extension `S`" (likewise "the template module `NAME` …") | as for any failure of `register` (the first row) |
 //! | a citation provider or a template module is not found after the rehearsal (a second run of `register` declared another name) | "the citation provider `NAME` must be contributed by `register` of the feature `F` of the package `P` of the extension `S`" (likewise "the template module `NAME` …") | as the two rows below |
 //! | a citation provider fails (an exception, a limit, an answer of another shape, a provider not found) | — | every key of the call answers "flm.ext.handler-failed: the citation provider `NAME` of the feature `F` … failed: TEXT", reported by the retrieve stage at each key's first citation; those keys have no entry |
-//! | a template module's `files` or `render` fails | — | the Error `flm.compose.template-failed` holding "flm.ext.handler-failed: the template module `NAME` of the feature `F` … failed: TEXT"; the output is not made (a failing `describe` fails `register`, as in the first row) |
+//! | a template module's `files` or `render` fails | — | the Error `flm.compose.template-failed` holding "flm.ext.handler-failed: the template module ‘NAME’ of the feature ‘F’ … failed: TEXT"; the output is not made (a failing `describe` fails `register`, as in the first row) |
 //! | an exception escapes a handler aspect (`points`, `level`, `in_toc`, `toc_title`), or its answer cannot be read | — | nothing is reported (the aspect methods of the library take a node and answer a value, with no place to report to): the aspect answers as if the element carried none, so the occurrence has no reference point (a `\ref` to it is unresolved, and it has no number and no anchor), or the level 0, is not listed in the table of contents, and has no title |
 //! | an exception escapes a late-initialization hook or a finalizer | the failure's text | the registry build fails, as when `register` fails |
 //! | `read(settings)` answers a value that is neither `{ value }` nor `{ error: { path, detail } }` | "the answer of a configuration reader must be `{ value }` or `{ error: { path, detail } }`, not `ANSWER`" | as when an exception escapes `read` (the first row) |
@@ -982,7 +1089,6 @@ mod memory;
 mod modules;
 mod package;
 
-pub use crate::host::{ConsoleLevel, ConsoleSink};
 pub use host::{HostModuleError, JsHost, JsSettings};
 pub use js_engine::JsEngine;
 

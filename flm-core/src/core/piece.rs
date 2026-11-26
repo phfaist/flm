@@ -33,13 +33,13 @@
 //!    holding its content, where it is placed, and whether a render places it
 //!    by default. The feature contributes it to the service slot `flm.pieces`
 //!    that the `pieces` feature owns
-//!    ([`stdcore::backends::pieces::SLOT`](crate::stdcore::backends::pieces::SLOT)).
+//!    ([`stdlib::backends::pieces::SLOT`](crate::stdlib::backends::pieces::SLOT)).
 //! 3. **Its rendering** belongs to each backend: a per-backend stage lowers
 //!    the content with the lowering rules the plan selected for that backend,
 //!    and the backend writes the result into its output, as an [output
 //!    region](crate::core::region) of its own on HTML and on the recomposed
 //!    LaTeX, inside the printed text on the text backend. That machinery is in
-//!    [`crate::stdcore::backends::pieces`].
+//!    [`crate::stdlib::backends::pieces`].
 //!
 //! Because the content is built from document elements, and never a string or
 //! a tree of one backend's own elements, one builder serves every backend, and
@@ -87,7 +87,7 @@ impl PiecePlace {
 /// A feature that offers a piece does three things:
 ///
 /// - it contributes this declaration to the service slot
-///   [`flm.pieces`](crate::stdcore::backends::pieces::SLOT) as a peer
+///   [`flm.pieces`](crate::stdlib::backends::pieces::SLOT) as a peer
 ///   contribution
 ///   ([`FeatureBuilder::peer_slot`](crate::core::registry::FeatureBuilder::peer_slot)),
 ///   so that the feature also builds in a registry without the `pieces`
@@ -98,7 +98,7 @@ impl PiecePlace {
 ///
 /// When two pieces have the same place, a backend places them in the order of
 /// their contributions to the slot. Which pieces a render places is decided
-/// by [`selected_pieces`](crate::stdcore::backends::pieces::selected_pieces).
+/// by [`selected_pieces`](crate::stdlib::backends::pieces::selected_pieces).
 ///
 /// # Examples
 ///
@@ -114,7 +114,7 @@ impl PiecePlace {
 pub struct PieceDecl {
     /// The piece's name: a dotted name the contributing feature owns, such as
     /// `mypkg.notes`. The render options
-    /// ([`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions))
+    /// ([`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions))
     /// refer to the piece by this name.
     pub name: Name,
     /// The table holding the piece's content, whose value type is always
@@ -156,7 +156,7 @@ impl PieceDecl {
 ///
 /// This is the value type of every table that holds a piece's content, so
 /// that a backend's pieces stage (the stage that lowers the pieces for that
-/// backend, [`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage))
+/// backend, [`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage))
 /// reads any piece by its name alone. A content of `None` places nothing and
 /// reports nothing: a list of notes in a document without notes is not an
 /// error.
@@ -168,7 +168,7 @@ impl PieceDecl {
 /// synthesized value must not state a fact about the document as a whole: a
 /// labeled reference point inside it is refused when it is brought up to date,
 /// the backend's pieces stage reports `flm.pieces.lowering-failed`
-/// ([`PieceLoweringFailed`](crate::stdcore::backends::pieces::PieceLoweringFailed)),
+/// ([`PieceLoweringFailed`](crate::stdlib::backends::pieces::PieceLoweringFailed)),
 /// and the piece is left out of that backend's output.
 ///
 /// The piece's builder stage (the stage that builds its content) writes the

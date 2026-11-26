@@ -1,3 +1,4 @@
+{% from "css_selectors.jinja" import css_selectors %}
 <!DOCTYPE html>
 <html{% if "lang" in regions %} lang="{{ regions.lang }}"{% endif %}>
   <head>
@@ -8,19 +9,19 @@
 {{ regions.styles }}
 {% endif %}
     <link rel="stylesheet" href="{{ artifacts.style }}">
-{% for href in config.stylesheets %}
-    <link rel="stylesheet" href="{{ href }}">
-{% endfor %}
+{% if config.css %}
+    <style>{{ eval(config.css, html=false, css_selectors=css_selectors) | escape_for("html-style") }}</style>
+{% endif %}
   </head>
   <body>
     <div class="ln-app">
       <header class="ln-topbar">
         <a class="ln-book-title" href="#top">{{ regions.title }}</a>
-        <span class="ln-current-chapter" aria-live="polite"></span>
+        <span class="ln-current-unit" aria-live="polite"></span>
         <span class="ln-topbar-nav">
-          <button class="ln-prev" type="button" aria-label="Previous chapter" title="Previous chapter">&#8592;</button>
-          <button class="ln-next" type="button" aria-label="Next chapter" title="Next chapter">&#8594;</button>
-          <button class="ln-sidebar-toggle" type="button" aria-label="Contents" title="Contents">&#9776;</button>
+          <button class="ln-prev" type="button" aria-label="Previous" title="Previous"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3.5 4.5 8l6 4.5z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg></button>
+          <button class="ln-next" type="button" aria-label="Next" title="Next"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5 11.5 8l-6 4.5z" fill="currentColor" stroke="currentColor" stroke-linejoin="round"/></svg></button>
+          <button class="ln-sidebar-toggle" type="button" aria-label="Contents" title="Contents"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 2.75v10.5" stroke="currentColor" stroke-width="1.3"/><path d="M10 2.75h2.75a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5H10z" fill="currentColor" fill-opacity="0.25"/></svg></button>
         </span>
 {% if config.links %}
         <span class="ln-topbar-links">
@@ -31,7 +32,7 @@
 {% endif %}
       </header>
       <aside class="ln-sidebar">
-        <div class="ln-sidebar-label"><span class="ln-sidebar-word">Contents</span> <span class="ln-sidebar-buttons"><button class="ln-toc-toggle" type="button" title="Expand all sections" aria-label="Expand all sections"></button></span></div>
+        <div class="ln-sidebar-label"><span class="ln-sidebar-word">Contents</span> <span class="ln-sidebar-buttons"><button class="ln-toc-toggle" type="button" title="Expand all" aria-label="Expand all"></button></span></div>
 {% if "flm.toc" in pieces %}
 {{ pieces["flm.toc"].text }}
 {% endif %}
@@ -39,14 +40,14 @@
       <main class="ln-main" id="top">
         <div class="ln-column">
           <header class="ln-titleblock">
-{% if "flm.meta.title" in pieces %}
-{{ pieces["flm.meta.title"].text }}
+{% if "flm.metadata.title" in pieces %}
+{{ pieces["flm.metadata.title"].text }}
 {% endif %}
-{% if "flm.meta.author" in pieces %}
-{{ pieces["flm.meta.author"].text }}
+{% if "flm.metadata.author" in pieces %}
+{{ pieces["flm.metadata.author"].text }}
 {% endif %}
-{% if "flm.meta.date" in pieces %}
-{{ pieces["flm.meta.date"].text }}
+{% if "flm.metadata.date" in pieces %}
+{{ pieces["flm.metadata.date"].text }}
 {% endif %}
           </header>
           <article class="flm-content" id="flm-content">

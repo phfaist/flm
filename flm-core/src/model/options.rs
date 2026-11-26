@@ -19,8 +19,12 @@
 //! [`FeatureBuilder::options`](crate::core::registry::FeatureBuilder::options)
 //! (or [`options_with_docs`](crate::core::registry::FeatureBuilder::options_with_docs)),
 //! giving its binding ([`Bind`]). The Rust type identifies the option type:
-//! options have no names of their own. A feature declares one struct per
-//! binding, and a feature with more options gives that struct more fields. Any
+//! options have no names of their own. A feature usually declares one struct
+//! per binding, and a feature with more options gives that struct more fields;
+//! it declares a second struct for values that must stay apart, such as values
+//! that only Rust code may set, declared without a settings key (the HTML
+//! backend's
+//! [`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes)). Any
 //! type that implements `Default`, `Hash` and `Debug` and can be shared between
 //! threads can be an option type ([`Options`]).
 //!
@@ -245,7 +249,7 @@ impl<T: Any + Send + Sync + Default + Hash + fmt::Debug> Options for T {}
 
 /// A Rust type name without its module path, as messages show it.
 ///
-/// `"flm_core::stdcore::features::refs::tables::Labels"` becomes `"Labels"`.
+/// `"flm_core::stdlib::features::refs::tables::Labels"` becomes `"Labels"`.
 /// The generic arguments are kept as written, with their paths, since the
 /// outer name is enough to identify the type in a message.
 ///

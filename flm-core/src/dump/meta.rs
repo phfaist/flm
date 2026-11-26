@@ -2,7 +2,7 @@
 //! FLM wrote it, and which version of that kind's format it follows.
 //!
 //! A program that writes data about FLM as JSON (a description of an FLM
-//! environment, a stream of diagnostics) opens the output with a [`Meta`]
+//! environment, a stream of the messages of a build) opens the output with a [`Meta`]
 //! value, so that a reader knows what it reads before it reads the rest. Every
 //! JSON output of this kind shares this one type, whichever crate writes it.
 
@@ -21,19 +21,19 @@ use serde::{Deserialize, Serialize};
 /// ```
 /// use flm_core::dump::Meta;
 ///
-/// let meta = Meta::new("diagnostics", 1);
+/// let meta = Meta::new("messages", 1);
 /// let value = serde_json::to_value(&meta).unwrap();
-/// assert_eq!(value["kind"], "diagnostics");
+/// assert_eq!(value["kind"], "messages");
 /// assert_eq!(value["format"], 1);
-/// // The version of FLM that wrote the output, such as `0.5.0`.
+/// // The version of FLM that wrote the output, such as `0.6.0`.
 /// assert_eq!(value["flm"], meta.flm.as_str());
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Meta {
-    /// What the output is, in one lowercase word: for example `diagnostics`
-    /// for a stream of diagnostics.
+    /// What the output is, in one lowercase word: for example `messages`
+    /// for a stream of the messages of a build.
     pub kind: String,
-    /// The version of FLM that wrote the output, such as `0.5.0`. Every crate
+    /// The version of FLM that wrote the output, such as `0.6.0`. Every crate
     /// of FLM has the same version.
     pub flm: String,
     /// The version of the format of outputs of this kind: an integer that the
@@ -43,7 +43,7 @@ pub struct Meta {
 }
 
 impl Meta {
-    /// Returns the header of an output of the kind `kind` (`diagnostics`)
+    /// Returns the header of an output of the kind `kind` (such as `messages`)
     /// whose format is the version `format` of that kind's format, written by
     /// this version of FLM.
     pub fn new(kind: impl Into<String>, format: u32) -> Meta {

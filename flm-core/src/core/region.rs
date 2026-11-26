@@ -34,7 +34,7 @@
 //! | a piece's name | that piece, as the backend writes it | HTML, recomposed LaTeX |
 //! | [`STYLES`] | the stylesheets the document requires, one part per HTML element (`<style>` or `<link>`) | HTML |
 //! | [`SCRIPTS`] | the scripts the document requires, one part per `<script>` element | HTML |
-//! | [`TITLE`] | the words of the page's title: the document's title, else the title the HTML render options ([`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions)) give | HTML |
+//! | [`TITLE`] | the words of the page's title: the document's title, else the title the HTML render options ([`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions)) give | HTML |
 //! | [`LANG`] | the page's language tag, when the HTML render options give a language; absent otherwise | HTML |
 //! | [`STYLE_PACKAGE`] | the package name of the style file, when the output has a style file | recomposed LaTeX |
 //!
@@ -42,7 +42,7 @@
 //!
 //! A backend whose output is made of regions states it by contributing a
 //! [`RegionsOutput`] to the service slot
-//! [`flm.output.regions`](crate::stdcore::backends::lowering::REGIONS_SLOT):
+//! [`flm.output.regions`](crate::stdlib::backends::lowering::REGIONS_SLOT):
 //! the output, its backend, the table of its regions, the tables of the files
 //! written beside its entry artifact, and the capability its final stage
 //! provides. A stage that assembles the regions another way, such as a
@@ -81,14 +81,14 @@ pub const SCRIPTS: &str = "scripts";
 /// The words are those of the document's title piece when the render places
 /// that piece and its words are not empty, else the title the HTML render
 /// options give
-/// ([`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions)).
+/// ([`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions)).
 /// The region's [`words`](Region::words) are the plain text, and its one part
 /// is that text escaped as HTML text.
 pub const TITLE: &str = "title";
 /// The name of the output region holding an HTML page's language tag, `lang`.
 ///
 /// The region is present only when the HTML render options
-/// ([`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions))
+/// ([`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions))
 /// give a language. Its [`words`](Region::words) are the tag, and its one
 /// part is the tag escaped as the value of an HTML attribute.
 pub const LANG: &str = "lang";
@@ -281,7 +281,7 @@ impl Table for Regions {
 /// host's own assembler can read it.
 ///
 /// A backend contributes one per such output to the service slot
-/// [`flm.output.regions`](crate::stdcore::backends::lowering::REGIONS_SLOT);
+/// [`flm.output.regions`](crate::stdlib::backends::lowering::REGIONS_SLOT);
 /// see the [module documentation](self#which-outputs-are-made-of-regions).
 #[derive(Debug, Clone)]
 pub struct RegionsOutput {

@@ -13,21 +13,21 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::cells::CellsConfig;
-use flm_core::stdcore::features::cells::latex_rendered::PIECE;
-use flm_core::stdcore::features::xnotes::{XnoteKind, XnotePlacement, XnotesConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::cells::CellsConfig;
+use flm_core::stdlib::features::cells::latex_rendered::PIECE;
+use flm_core::stdlib::features::xnotes::{XnoteKind, XnotePlacement, XnotesConfig};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package, tables of cells allowed anywhere.
-fn global() -> StdcoreConfig {
-    StdcoreConfig::new().cells(CellsConfig::new().global(true))
+fn global() -> StdlibConfig {
+    StdlibConfig::new().cells(CellsConfig::new().global(true))
 }
 
 /// The standard package under [`global`].
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(global())
+    common::stdlib::registry(global())
 }
 
 #[test]
@@ -82,7 +82,7 @@ fn an_in_place_footnote_in_a_cell_is_the_note_command() {
     let xnotes = XnotesConfig {
         kinds: vec![XnoteKind::footnote().placement(XnotePlacement::InPlace)],
     };
-    let registry = common::stdcore::registry(global().xnotes(xnotes));
+    let registry = common::stdlib::registry(global().xnotes(xnotes));
     let run = render(&registry, &[NOTE_IN_A_CELL], &Overrides::none());
     let written = document(&run);
     assert!(

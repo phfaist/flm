@@ -28,10 +28,13 @@ use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Exception, Function, Module, Object, Persistent, Runtime,
     Value,
 };
+use flm_core::progress::Scope;
 use serde_json::json;
 
 use super::host::JsHost;
-use super::modules::{FreeRefusals, ModuleLoader, ModuleResolver, ModuleState, SharedState, ENTRY, ENTRY_JS};
+use super::modules::{
+    module_path, FreeRefusals, ModuleLoader, ModuleResolver, ModuleState, SharedState, Unnamed, ENTRY, ENTRY_JS,
+};
 use super::package::JsExtension;
 use super::{glue, OUT_OF_MEMORY_MESSAGE};
 use crate::adapter::handles::CallTable;
@@ -39,7 +42,6 @@ use crate::binding::frames::{self, Frame};
 use crate::binding::{self, Registered, Registration};
 use crate::engine::ExtensionIdentity;
 use super::memory::Limited;
-use crate::paths;
 use crate::runtime::ExtError;
 use crate::source::ExtensionFiles;
 
@@ -93,9 +95,12 @@ pub(crate) struct Engine {
     /// The deadline the interrupt handler compares the clock with; `None` while
     /// no handler runs or the budget is unlimited.
     deadline: Rc<Cell<Option<Instant>>>,
-    /// Set by the interrupt handler when it fired; taken by [`Engine::fail`] to
-    /// tell an interrupt from an ordinary exception.
-    interrupted: Rc<Cell<bool>>,
+    /// The scope of the handler call under way, whose build the interrupt
+    /// handler asks about; [`Scope::none`] while no handler runs.
+    progress: ScopeCell,
+    /// Set by the interrupt handler when it fired, with why; taken by
+    /// [`Engine::fail`] to tell an interrupt from an ordinary exception.
+    interrupted: Rc<Cell<Option<Interrupt>>>,
     /// Set when the instance must not be used again (an interrupt, out of
     /// memory); the outermost call discards it on its way out.
     poisoned: Cell<bool>,
@@ -174,13 +179,30 @@ impl Running<'_> {
 /// while no budget of that engine runs or the budget is unlimited.
 type DeadlineCell = Rc<Cell<Option<Instant>>>;
 
+/// The scope of the handler call under way on an engine, whose build its
+/// interrupt handler asks about.
+type ScopeCell = Rc<RefCell<Scope>>;
+
+/// Why the interrupt handler stopped a script.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Interrupt {
+    /// The time budget ran out.
+    Time,
+    /// The build of the handler call was cancelled.
+    Cancelled,
+}
+
 /// A running budget: the deadline cell of the call (or of the engine's
 /// creation) it belongs to, and the budget of the call it interrupts, paused
-/// until this one ends. See [`Engine::start_budget`]. Dropping it ends the
+/// until this one ends; for a handler call, its engine's scope cell with the
+/// scope it held before. See [`Engine::start_budget`]. Dropping it ends the
 /// budget (also when the call unwinds).
 pub(crate) struct PausedBudget {
     /// The deadline cell of the running call's engine.
     own: DeadlineCell,
+    /// The scope cell of the running call's engine, with the scope it held
+    /// before the call (a nested call's restores the outer call's).
+    scope: Option<(ScopeCell, Scope)>,
     /// The deadline cell of the call this one interrupts, with the deadline it
     /// had; `None` when no other call was running on this thread.
     outer: Option<(DeadlineCell, Option<Instant>)>,
@@ -202,7 +224,7 @@ impl PausedBudget {
         });
         own.set(deadline_after(now, budget));
         RUNNING.with(|running| running.borrow_mut().push(Rc::clone(own)));
-        PausedBudget { own: Rc::clone(own), outer, paused_at: now }
+        PausedBudget { own: Rc::clone(own), scope: None, outer, paused_at: now }
     }
 }
 
@@ -217,6 +239,9 @@ impl Drop for PausedBudget {
         // Cleared first: when the outer call runs on the same engine, the cell
         // is the same, and the outer's deadline is what it must hold after.
         self.own.set(None);
+        if let Some((cell, previous)) = self.scope.take() {
+            *cell.borrow_mut() = previous;
+        }
         if let Some((cell, previous)) = &self.outer {
             let elapsed = self.paused_at.elapsed();
             cell.set(previous.and_then(|deadline| deadline.checked_add(elapsed)));
@@ -249,7 +274,8 @@ thread_local! {
 /// An engine instance in a thread's map, with the loaded extension it is an
 /// instance of, held weakly: once every holder of the extension is gone (the
 /// registry, the factories, the handlers of a preparation that was replaced),
-/// the next entry into any instance on the thread drops it ([`with_engine`]).
+/// the next entry into any instance on the thread, and the next load of an
+/// extension on the thread, drop it ([`sweep`]).
 struct Kept {
     /// The instance.
     engine: Rc<Engine>,
@@ -303,16 +329,22 @@ impl Engine {
         let (allocator, memory_reached) = Limited::new(settings.memory_limit);
         let runtime = Runtime::new_with_alloc(allocator).map_err(|e| failed(e.to_string()))?;
         runtime.set_max_stack_size(settings.stack_size);
-        let interrupted = Rc::new(Cell::new(false));
+        let interrupted = Rc::new(Cell::new(None));
+        let progress: ScopeCell = Rc::new(RefCell::new(Scope::none()));
         runtime.set_interrupt_handler(Some(Box::new({
             let deadline = Rc::clone(&deadline);
             let interrupted = Rc::clone(&interrupted);
-            move || match deadline.get() {
-                Some(at) if Instant::now() >= at => {
-                    interrupted.set(true);
-                    true
-                }
-                _ => false,
+            let progress = Rc::clone(&progress);
+            move || {
+                let why = if deadline.get().is_some_and(|at| Instant::now() >= at) {
+                    Interrupt::Time
+                } else if progress.borrow().cancelled() {
+                    Interrupt::Cancelled
+                } else {
+                    return false;
+                };
+                interrupted.set(Some(why));
+                true
             }
         })));
         let state = ModuleState::shared(
@@ -447,6 +479,7 @@ impl Engine {
                 modules: state,
                 stem: stem.to_string(),
                 deadline,
+                progress,
                 interrupted,
                 poisoned: Cell::new(false),
                 registered: Registered::default(),
@@ -475,9 +508,10 @@ impl Engine {
         })
     }
 
-    /// Starts the time budget of one handler call; answers what
-    /// [`Engine::end_budget`] needs to resume the budget of the call it
-    /// interrupts, if any. A nested call has a budget of its own; the budget
+    /// Starts the time budget of one handler call, whose row is `progress`'s
+    /// (the interrupt handler stops the script when that build is cancelled);
+    /// answers what [`Engine::end_budget`] needs to resume the budget and the
+    /// scope of the call it interrupts, if any. A nested call has a budget of its own; the budget
     /// of the innermost call running on this thread, on this instance or on
     /// another, is paused meanwhile and resumes after. The outermost entry
     /// into the instance clears the memory limit's mark: an allocation
@@ -486,11 +520,14 @@ impl Engine {
     /// inside `register`, a handler a native runs) leaves it as it is: an
     /// allocation the outer call saw refused stays its cause after the nested
     /// call returns.
-    pub(crate) fn start_budget(&self) -> PausedBudget {
+    pub(crate) fn start_budget(&self, progress: &Scope) -> PausedBudget {
         if self.depth.get() <= 1 {
             self.memory_reached.set(false);
         }
-        PausedBudget::start(&self.deadline, self.time_budget)
+        let previous = self.progress.replace(progress.clone());
+        let mut budget = PausedBudget::start(&self.deadline, self.time_budget);
+        budget.scope = Some((Rc::clone(&self.progress), previous));
+        budget
     }
 
     /// Ends the time budget [`Engine::start_budget`] started, and resumes the
@@ -530,14 +567,15 @@ impl Engine {
     }
 
     /// [`Engine::drain`], answering the texts one by one with the failure's
-    /// data; poisons the instance when a job met a limit.
+    /// data; poisons the instance when a job met a limit or was stopped by a
+    /// cancelled build.
     fn drain_texts(&self, ctx: &Ctx<'_>, what: &str) -> Result<(), (Vec<String>, serde_json::Value)> {
         if self.depth.get() > 1 {
             return Ok(());
         }
         drain_jobs(ctx, &self.modules, &self.rejections, &self.limits(), Running::Handler(what)).inspect_err(
             |(_, data)| {
-                if data.get("limit").is_some() {
+                if data.get("limit").is_some() || data.get("cancelled").is_some() {
                     self.poisoned.set(true);
                 }
             },
@@ -598,8 +636,8 @@ impl Engine {
 /// What the rendering of a failure needs to tell a limit from an ordinary
 /// exception.
 struct Limits<'a> {
-    /// Set by the interrupt handler when it fired.
-    interrupted: &'a Cell<bool>,
+    /// Set by the interrupt handler when it fired, with why.
+    interrupted: &'a Cell<Option<Interrupt>>,
     /// The time budget of one call.
     time_budget: Option<Duration>,
     /// The memory limit.
@@ -615,6 +653,20 @@ fn time_text(running: Running<'_>, budget_ms: u64) -> String {
             format!("the modules of the extension `{stem}` must finish evaluating within the time budget of {budget_ms} ms")
         }
         Running::Handler(what) => format!("{what} must finish within its time budget of {budget_ms} ms"),
+    }
+}
+
+/// The text and the data of the interrupt `why` of `running`, whose time
+/// budget is `budget`: the time budget exceeded, or the build cancelled.
+fn interrupt_failure(why: Interrupt, running: Running<'_>, budget: Option<Duration>) -> (String, serde_json::Value) {
+    match why {
+        Interrupt::Time => {
+            let budget_ms = budget.map_or(0, millis);
+            (time_text(running, budget_ms), json!({ "limit": "time", "budget_ms": budget_ms }))
+        }
+        Interrupt::Cancelled => {
+            (format!("{} was stopped: the build was cancelled", running.subject()), json!({ "cancelled": true }))
+        }
     }
 }
 
@@ -644,9 +696,9 @@ fn drain_jobs(
     running: Running<'_>,
 ) -> Result<(), (Vec<String>, serde_json::Value)> {
     while ctx.execute_pending_job() {}
-    if limits.interrupted.replace(false) {
-        let budget_ms = limits.time_budget.map_or(0, millis);
-        return Err((vec![time_text(running, budget_ms)], json!({ "limit": "time", "budget_ms": budget_ms })));
+    if let Some(why) = limits.interrupted.take() {
+        let (detail, data) = interrupt_failure(why, running, limits.time_budget);
+        return Err((vec![detail], data));
     }
     let refusals = state.borrow_mut().take_refusals();
     let (memory, rejected) = take_rejections_apart(rejections, running);
@@ -756,15 +808,9 @@ fn render_failure<'js>(
     limits: &Limits<'_>,
     running: Running<'_>,
 ) -> (ExtError, bool) {
-    if limits.interrupted.replace(false) {
-        let budget_ms = limits.time_budget.map_or(0, millis);
-        return (
-            ExtError::Handler {
-                detail: time_text(running, budget_ms),
-                data: json!({ "limit": "time", "budget_ms": budget_ms }),
-            },
-            true,
-        );
+    if let Some(why) = limits.interrupted.take() {
+        let (detail, data) = interrupt_failure(why, running, limits.time_budget);
+        return (ExtError::Handler { detail, data }, true);
     }
     let Some(caught) = caught else {
         let subject = running.subject();
@@ -891,8 +937,7 @@ impl Drop for Leave<'_> {
 /// entering `Context::with` again.
 ///
 /// Before the lookup, the thread's instances of extensions no one holds any
-/// more (a loader's extensions after its registry, its factories and their
-/// handlers are dropped) are dropped, unless a call is running on them.
+/// more are dropped ([`sweep`]).
 /// After `f`, at the outermost level only: a poisoned instance, or any
 /// instance in strict mode, is removed from the thread's map and dropped.
 ///
@@ -907,20 +952,7 @@ pub(crate) fn with_engine<R>(
 ) -> Result<R, ExtError> {
     let key = EngineKey { host: host.id(), extension: extension.id };
     let strict = host.settings().strict;
-    let swept = ENGINES.with(|engines| {
-        let mut engines = engines.borrow_mut();
-        let mut swept = Vec::new();
-        engines.retain(|_, kept| {
-            let keep = kept.extension.strong_count() > 0 || kept.engine.depth.get() > 0;
-            if !keep {
-                swept.push(Rc::clone(&kept.engine));
-            }
-            keep
-        });
-        swept
-    });
-    // Dropped after the map's borrow ends.
-    drop(swept);
+    sweep();
     let existing = ENGINES.with(|engines| engines.borrow().get(&key).map(|kept| Rc::clone(&kept.engine)));
     let engine = match existing {
         Some(engine) if engine.depth.get() > 0 || !strict => engine,
@@ -981,11 +1013,38 @@ impl Drop for Live<'_> {
     }
 }
 
+/// Drops this thread's instances of the extensions no one holds any more (a
+/// loader's extensions after its registry, its factories and their handlers
+/// are dropped), unless a call is running on them.
+///
+/// Both ways an instance enters the thread's map sweep first ([`with_engine`]
+/// and [`keep`]), so that the map never holds more than the instances of one
+/// generation of dropped extensions. A thread that only loads extensions (a
+/// preparation that fails after the load runs no handler) therefore drops the
+/// instances of the previous load at each load.
+fn sweep() {
+    let swept = ENGINES.with(|engines| {
+        let mut engines = engines.borrow_mut();
+        let mut swept = Vec::new();
+        engines.retain(|_, kept| {
+            let keep = kept.extension.strong_count() > 0 || kept.engine.depth.get() > 0;
+            if !keep {
+                swept.push(Rc::clone(&kept.engine));
+            }
+            keep
+        });
+        swept
+    });
+    // Dropped after the map's borrow ends.
+    drop(swept);
+}
+
 /// Keeps `engine`, the instance the load of `extension` created, in this
-/// thread's map, so that the registry build on the loading thread uses it;
-/// the map holds `extension` weakly ([`with_engine`] drops the instance once
-/// the extension is gone).
+/// thread's map, so that the registry build on the loading thread uses it,
+/// after dropping the thread's instances of extensions no one holds any more
+/// ([`sweep`]); the map holds `extension` weakly.
 pub(crate) fn keep(host: &JsHost, extension: &Arc<JsExtension>, engine: Engine) {
+    sweep();
     let key = EngineKey { host: host.id(), extension: extension.id };
     let kept = Kept { engine: Rc::new(engine), extension: Arc::downgrade(extension) };
     ENGINES.with(|engines| engines.borrow_mut().insert(key, kept));
@@ -1032,8 +1091,10 @@ pub struct TestPackage(Arc<JsExtension>);
 
 impl TestPackage {
     /// An extension of `host` holding `modules`, each a path inside the
-    /// extension (normalized) and a text; the first is the main module. The
-    /// import rules are those of a loaded extension.
+    /// extension (named by the rule of an import's specifier, from the
+    /// extension's folder, [`crate::quickjs`]) and a text; the first is the
+    /// main module.
+    /// The import rules are those of a loaded extension.
     ///
     /// # Errors
     ///
@@ -1044,16 +1105,21 @@ impl TestPackage {
         let mut recorded = BTreeMap::new();
         let mut main = None;
         for (path, text) in modules {
-            let normalized = paths::normalize(path).map_err(|error| refused(error.to_string()))?;
-            main.get_or_insert_with(|| normalized.clone());
-            recorded.insert(normalized, Arc::from(*text));
+            let resolved = module_path("", path).map_err(|unnamed| {
+                refused(match unnamed {
+                    Unnamed::Absolute => format!("the path `{path}` must be relative"),
+                    Unnamed::Above => format!("the path `{path}` leaves the extension's folder"),
+                })
+            })?;
+            main.get_or_insert_with(|| resolved.clone());
+            recorded.insert(resolved, Arc::from(*text));
         }
         let main = main.ok_or_else(|| refused("a test package must have a main module".to_string()))?;
         Ok(TestPackage(Arc::new(JsExtension {
             id: binding::next_extension_id(),
             host: host.clone(),
             settings: host.settings().clone(),
-            extension: ExtensionIdentity { identity: "test".to_string(), stem: "test".to_string() },
+            extension: ExtensionIdentity { identity: "test".to_string(), stem: "test".to_string(), name: "test".to_string() },
             main,
             modules: recorded,
             define: false,
@@ -1094,7 +1160,7 @@ pub fn eval_for_test(host: &JsHost, package: &TestPackage, source: &str) -> Resu
         };
         let frame = Frame { call: table.call(), registration, table: &mut table };
         frames::enter(frame, || {
-            let previous = engine.start_budget();
+            let previous = engine.start_budget(&Scope::none());
             let result = engine.prelude(ctx).and_then(|namespace| {
                 run_test_source(ctx, &namespace, extension, source).map_err(|error| engine.fail(ctx, error, WHAT))
             });

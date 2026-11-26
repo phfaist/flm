@@ -11,11 +11,12 @@ import { Navigator } from './sidebar';
 const REGION_UPDATED = 'flm:region-updated';
 
 /**
- * Sets the page up: the sidebar, the bar and the chapters, the anchors, the
+ * Sets the page up: the sidebar, the bar and the navigation, the anchors, the
  * previews of the links, the reading position; and sets the sidebar up again
  * after each in-place update of the page (the popup closes, the position is
- * recorded again). `settings` is the settings object (`chapter_level`; other
- * fields are ignored). Runs when the document is parsed.
+ * recorded again). `settings` is the settings object
+ * (`navigation_heading_level`; other fields are ignored). Runs when the
+ * document is parsed.
  */
 export function setup(settings: unknown = {}): void {
   const run = (): void => {

@@ -1,0 +1,240 @@
+# Publishes a release of FLM. It is run by hand (the tab Actions, the workflow `Release`,
+# the button "Run workflow"), and only in the public repository phfaist/flm: in any other
+# repository, the run fails at its first step. The version released is the workspace's
+# (`version` of `[workspace.package]` in Cargo.toml), and its tag is `vX.Y.Z`.
+#
+# The run:
+#
+# 1. checks the repository; reads the version; extracts the version's release notes from
+#    docs/_release-notes.md (scripts/release-notes.sh, shown in the job's summary); fails
+#    when the notes are missing or the tag `vX.Y.Z` already exists, and, for a real
+#    release, when the secret CARGO_REGISTRY_TOKEN is not set;
+# 2. runs the checks of the workflow `CI` (ci.yml: the tests, clippy, the API documentation,
+#    the minimum supported Rust versions) and, at the same time, builds the program `flm`
+#    for Linux, macOS and Windows;
+# 3. runs `cargo publish --workspace`, with `--dry-run` when the option "Dry run only" is
+#    set (the default); a dry run ends there, and keeps the program's archives as the run's
+#    artifacts;
+# 4. otherwise, creates the tag `vX.Y.Z` on the run's commit and its GitHub release, with
+#    the release notes, the program's archives and their SHA-256 checksums. A version with
+#    a pre-release part (`0.7.0-beta.1`) is marked as a pre-release.
+#
+# Steps 3 and 4 are separate jobs: when step 4 fails, "Re-run failed jobs" runs it again
+# without publishing the crates a second time.
+#
+# The program's archives, `flm-X.Y.Z-TARGET.tar.gz` (`.zip` for Windows), each hold the
+# program, README.md and the two license files:
+#
+# - Linux, x86_64 and ARM64: linked statically (musl), with no dependency on the system's
+#   libraries; it runs on any distribution;
+# - macOS: one universal program, for Apple silicon (macOS 11 and later) and Intel (macOS
+#   10.12 and later);
+# - Windows, x86_64: with the C runtime linked statically, needing no Visual C++
+#   redistributable.
+#
+# The secret CARGO_REGISTRY_TOKEN is a crates.io API token allowed to publish the crates
+# (the scopes `publish-new` and `publish-update`).
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run only: `cargo publish --dry-run`, no crates published, no tag, no GitHub release"
+        type: boolean
+        default: true
+
+# One release at a time: a second run waits for the first to end.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: repository, version, release notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Repository
+        run: |
+          if [ "$GITHUB_REPOSITORY" != phfaist/flm ]; then
+            echo "::error::Wrong repository ‘${GITHUB_REPOSITORY}’: releases must be run from ‘phfaist/flm’"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Version
+        id: version
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "flm") | .version')
+          echo "Version: ${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - name: Release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+          { echo "## Release notes of flm ${VERSION}"; echo; cat "$RUNNER_TEMP/notes.md"; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Status 2: no such tag.
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" > /dev/null || status=$?
+          if [ "$status" = 0 ]; then
+            echo "::error::Tag ‘v${VERSION}’ already exists in ‘${GITHUB_REPOSITORY}’"
+            exit 1
+          elif [ "$status" != 2 ]; then
+            exit "$status"
+          fi
+      - name: crates.io token
+        if: ${{ !inputs.dry_run }}
+        env:
+          TOKEN_SET: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+        run: |
+          if [ "$TOKEN_SET" != true ]; then
+            echo "::error::Missing repository secret ‘CARGO_REGISTRY_TOKEN’ (a crates.io API token)"
+            exit 1
+          fi
+
+  checks:
+    name: checks
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  binaries:
+    name: program (${{ matrix.target }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+          - os: macos-latest
+            target: universal-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      ARCHIVE: flm-${{ needs.prepare.outputs.version }}-${{ matrix.target }}
+    steps:
+      # The program embeds files of the repository (templates, scripts): they keep the
+      # line endings committed, as on the other systems.
+      - name: Keep line endings as they are
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+      # musl's C compiler, for the C code of the dependencies (QuickJS, SQLite, ring).
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        env:
+          TARGET_CC: musl-gcc
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          cargo build --locked --release -p flm --target ${{ matrix.target }}
+          mkdir -p "$ARCHIVE"
+          cp target/${{ matrix.target }}/release/flm "$ARCHIVE/"
+      # The oldest macOS of each architecture that Rust supports, for the C code too.
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          MACOSX_DEPLOYMENT_TARGET=11.0 cargo build --locked --release -p flm --target aarch64-apple-darwin
+          MACOSX_DEPLOYMENT_TARGET=10.12 cargo build --locked --release -p flm --target x86_64-apple-darwin
+          mkdir -p "$ARCHIVE"
+          lipo -create -output "$ARCHIVE/flm" \
+            target/aarch64-apple-darwin/release/flm target/x86_64-apple-darwin/release/flm
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: |
+          cargo build --locked --release -p flm --target ${{ matrix.target }}
+          mkdir -p "$ARCHIVE"
+          cp target/${{ matrix.target }}/release/flm.exe "$ARCHIVE/"
+      - name: Run the program
+        run: '"$ARCHIVE/flm" --version'
+      - name: Archive
+        run: |
+          cp README.md LICENSE-APACHE LICENSE-MIT "$ARCHIVE/"
+          mkdir dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a "dist/$ARCHIVE.zip" "$ARCHIVE"
+          else
+            tar -czf "dist/$ARCHIVE.tar.gz" "$ARCHIVE"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: ${{ inputs.dry_run && 'cargo publish --dry-run' || 'cargo publish' }}
+    needs: [prepare, checks, binaries]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # No debug information in the builds that verify the packages: a smaller build folder.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish the crates (dry run)
+        if: ${{ inputs.dry_run }}
+        run: cargo publish --locked --workspace --dry-run
+      - name: Publish the crates
+        if: ${{ !inputs.dry_run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked --workspace
+
+  github-release:
+    name: tag and GitHub release
+    needs: [prepare, publish]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: flm-*
+          path: dist
+          merge-multiple: true
+      - name: Tag and release
+        run: |
+          scripts/release-notes.sh "$VERSION" > "$RUNNER_TEMP/notes.md"
+          (cd dist && sha256sum -- * > SHA256SUMS.txt)
+          prerelease=()
+          case $VERSION in *-*) prerelease=(--prerelease) ;; esac
+          gh release create "v${VERSION}" dist/* "${prerelease[@]}" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "flm ${VERSION}" --notes-file "$RUNNER_TEMP/notes.md"

@@ -11,11 +11,12 @@
    adds a stylesheet or a script of its own. */
 @layer flm {
   :root {
-    /* The line above a list of xnotes, the list's text size, and the space
-       above it. */
+    /* The line above a list of xnotes, the list's text size, the space
+       above it, and the space between the line and the list's content. */
     --flm-xnotes-list-rule: 1px solid #999;
     --flm-xnotes-list-size: 0.9em;
     --flm-xnotes-list-space: 2em;
+    --flm-xnotes-list-padding: 1em;
     /* The text before and after an xnote shown in place. */
     --flm-xnotes-inplace-open: "[";
     --flm-xnotes-inplace-close: "]";
@@ -23,9 +24,12 @@
 
   /* A list of xnotes: the block with the role doc-endnotes that carries the
      kind token `xnotes`.  An xnote shown in place as a block carries the
-     kind token too; the role tells the two apart. */
+     kind token too; the role tells the two apart.  The list's first child,
+     its heading, takes no space above it (flm.html.style.headings), so the
+     list leaves the space between its line and its content. */
   .flm-pres-block[data-flm-kind~="xnotes"][role="doc-endnotes"] {
     margin-top: var(--flm-xnotes-list-space);
+    padding-top: var(--flm-xnotes-list-padding);
     border-top: var(--flm-xnotes-list-rule);
     font-size: var(--flm-xnotes-list-size);
   }
@@ -70,7 +74,7 @@
    the text).  Apart from the :root rule that declares the custom
    properties, every selector begins with a class of the HTML contract, the
    set of classes and attributes that this backend promises to write (the
-   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   table CONVENTIONS of the Rust module flm_core::stdlib::backends::html).
    The values a page can adjust are the custom properties declared on :root
    below.  All rules are in the cascade layer flm, so any rule of the page
    outside that layer overrides them.
@@ -519,7 +523,7 @@
    A reference whose target was not found is styled in flm.html.style.core,
    with the other display styles of a span: each stylesheet holds the rules
    of the elements for which the HTML backend's conventions table (the table
-   CONVENTIONS of the Rust module flm_core::stdcore::backends::html) lists
+   CONVENTIONS of the Rust module flm_core::stdlib::backends::html) lists
    it, and that table lists flm.html.style.core for a span. */
 @layer flm {
   :root {
@@ -582,11 +586,12 @@
 </style>
     <style data-flm-def="flm.html.style.page">/* flm.html.style.page */
 /* The page's own typography and the width of its content.  This is the
-   only stylesheet of the HTML backend with a rule whose selector does not
+   only stylesheet of the HTML backend with rules whose selectors do not
    begin with a class of the HTML contract (the classes and attributes that
    the backend promises to write), apart from the :root rule that declares
-   the custom properties: it styles the page's body, which a document does
-   not have.  No element requires it: the backend adds it to the style and
+   the custom properties: it sets the text size on the page's root element
+   and styles the page's body, which a document does not have.  No element
+   requires it: the backend adds it to the style and
    script definitions of every page that it renders (the definitions table
    flm.html.definitions).  A host that places the HTML output in a page of
    its own leaves this stylesheet out through the HTML backend's render
@@ -601,9 +606,14 @@
     --flm-page-line-height: 1.5;
     --flm-page-color: #1a1a1a;
     --flm-page-background: #ffffff;
-    /* How wide the content runs, and the space around it. */
+    /* How wide the content runs, and the space around it: on its left and
+       right sides, and above and below it.  The space above and below is the
+       space on the sides unless a page sets it apart; it follows a value of
+       --flm-page-padding that a page sets on :root, where the custom
+       properties are set. */
     --flm-page-measure: 42rem;
     --flm-page-padding: 1.5rem;
+    --flm-page-padding-vertical: var(--flm-page-padding);
     /* The width of the column for the notes set beside the text, and the gap
        before it: the same two values as in flm.html.style.core, declared here
        as well because each stylesheet declares every property it uses.  A
@@ -613,17 +623,25 @@
     --flm-margin-note-gap: 1rem;
   }
 
-  /* The page itself.  Apart from the :root rules that declare custom
-     properties, this is the only rule of the backend's stylesheets that does
-     not begin with a class of the HTML contract.  It styles the body of the
-     page, which is why a host that places the HTML output in a page of its
-     own leaves this stylesheet out (see the top of this stylesheet). */
+  /* The page's text size, set on the page's root element rather than on its
+     body: the rem unit is the root element's size, and the stylesheets give
+     in rem the lengths that follow the page's text rather than the text
+     around them (the width of the content, a note beside the text, the
+     document's title). */
+  :root {
+    font-size: var(--flm-page-size);
+  }
+
+  /* The page itself.  Apart from the :root rules, this is the only rule of
+     the backend's stylesheets that does not begin with a class of the HTML
+     contract.  With the rule above, it styles the page, which is why a host
+     that places the HTML output in a page of its own leaves this stylesheet
+     out (see the top of this stylesheet). */
   body {
     margin: 0;
     background: var(--flm-page-background);
     color: var(--flm-page-color);
     font-family: var(--flm-page-family);
-    font-size: var(--flm-page-size);
     line-height: var(--flm-page-line-height);
   }
 
@@ -636,13 +654,15 @@
      --flm-margin-note-column of flm.html.style.core, so that the notes
      inside it are placed in the column.  52rem is the content's width with
      the column (42rem + 8rem + 1rem) plus a little room; it is written as a
-     number because a media condition cannot read a custom property, so a
-     page that widens the text or the column writes its own condition. */
+     number because a media condition cannot read a custom property, and a
+     rem in a media condition is the browser's text size, not the page's, so
+     a page that widens the text or the column, or sets a text size other
+     than the browser's, writes its own condition. */
   .flm-content {
     box-sizing: border-box;
     max-width: var(--flm-page-measure);
     margin: 0 auto;
-    padding: var(--flm-page-padding);
+    padding: var(--flm-page-padding-vertical) var(--flm-page-padding);
   }
   @media (min-width: 52rem) {
     .flm-content {

@@ -9,7 +9,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use flm_core::core::registry::PackageEntry;
-use flm_core::stdcore::backends::pres;
+use flm_core::stdlib::backends::pres;
 use flm_ext::adapter::durable::{DurableKind, DurableTable, DurableToken};
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, Mode, SyntaxDef};
@@ -134,7 +134,7 @@ fn a_rule_splices_the_root_node_instantiate_answers() {
 #[test]
 fn a_token_kept_in_module_scope_resolves_in_a_later_call_and_is_stale_under_another_registry() {
     static KEPT: Mutex<Option<DurableToken>> = Mutex::new(None);
-    static FAILED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    static FAILED: Mutex<Vec<ExtError>> = Mutex::new(Vec::new());
     let package = || {
         titles(body(|node, cx, lw| {
             let kept = *KEPT.lock().expect("the lock");
@@ -156,7 +156,7 @@ fn a_token_kept_in_module_scope_resolves_in_a_later_call_and_is_stale_under_anot
                         Ok(Lowering::Emit(lw.splice(cx, &*tree)?))
                     }
                     Err(error) => {
-                        FAILED.lock().expect("the lock").push(error.to_string());
+                        FAILED.lock().expect("the lock").push(error.clone());
                         Err(error)
                     }
                 },
@@ -173,17 +173,17 @@ fn a_token_kept_in_module_scope_resolves_in_a_later_call_and_is_stale_under_anot
     let second = registry_with([package()]);
     let (_, diagnostics) = text_of(&second, "\\extitle{}.");
     let failed = FAILED.lock().expect("the lock").clone();
-    assert_eq!(
-        failed,
-        ["the `compiled_template` object 1 must be one the feature `titles` of the package `_` of the extension `ex` made \
-          under the registry in use"]
+    assert!(
+        matches!(failed.as_slice(), [ExtError::StaleDurable { kind: DurableKind::CompiledTemplate, index: 1, feature, package, extension, .. }]
+            if feature == "titles" && package == "_" && extension == "ex"),
+        "{failed:?}"
     );
-    assert!(diagnostics.iter().any(|text| text.contains("must be one the feature `titles`")), "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
 }
 
 #[test]
 fn an_index_the_table_does_not_hold_and_an_entry_of_another_kind_are_stale() {
-    static ANSWERS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+    static ANSWERS: Mutex<Vec<(ExtError, ExtError)>> = Mutex::new(Vec::new());
     let rule = body(|_node, _cx, lw| {
         let token = {
             let lang = lw.lang();
@@ -193,19 +193,23 @@ fn an_index_the_table_does_not_hold_and_an_entry_of_another_kind_are_stale() {
         let past = lw.durable_template(DurableToken { index: 99, ..token }).err().expect("stale");
         let other = lw.durable_template(DurableToken { kind: DurableKind::TemplateLanguage, ..token }).err().expect("stale");
         assert!(matches!(past, ExtError::StaleDurable { .. }));
-        ANSWERS.lock().expect("the lock").push((past.to_string(), other.to_string()));
+        ANSWERS.lock().expect("the lock").push((past, other));
         Ok(Lowering::Emit(Vec::new()))
     });
     let registry = registry_with([titles(rule)]);
     let _ = text_of(&registry, "\\extitle{}");
     let answers = ANSWERS.lock().expect("the lock").clone();
     assert_eq!(answers.len(), 1);
-    assert_eq!(
-        answers[0].0,
-        "the `compiled_template` object 99 must be one the feature `titles` of the package `_` of the extension `ex` made \
-         under the registry in use"
+    assert!(
+        matches!(&answers[0].0, ExtError::StaleDurable { kind: DurableKind::CompiledTemplate, index: 99, feature, .. } if feature == "titles"),
+        "{:?}",
+        answers[0].0
     );
-    assert!(answers[0].1.starts_with("the `template_language` object 1 must be one"), "{}", answers[0].1);
+    assert!(
+        matches!(&answers[0].1, ExtError::StaleDurable { kind: DurableKind::TemplateLanguage, index: 1, feature, .. } if feature == "titles"),
+        "{:?}",
+        answers[0].1
+    );
 }
 
 #[test]
@@ -255,7 +259,7 @@ fn a_rule_instantiates_a_variant_s_template_with_the_use_site_s_bindings() {
     });
     let package = Double::new("ex")
         .feature("titles", move |b| {
-            b.lowering_rule(flm_ext::api::stdcore::features::userdefs::expand_in_tree_rule_for("ex.boxed", definition.definition()))?;
+            b.lowering_rule(flm_ext::api::stdlib::features::userdefs::expand_in_tree_rule_for("ex.boxed", definition.definition()))?;
             b.element(definition.element_def(&b.feature(), "ex.boxed"))?;
             b.element(ElementDef::new(
                 b.feature(),
@@ -360,7 +364,7 @@ fn the_dispatcher_compiles_keeps_and_instantiates_a_template() {
 
 #[test]
 fn the_dispatcher_refuses_a_stale_token_a_bad_specification_and_a_node_of_the_document() {
-    static ANSWERS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    static ANSWERS: Mutex<Vec<Value>> = Mutex::new(Vec::new());
     let registry = registry_with([json_titles(|js, node, _cx, lw| {
         let userdefs = module("lang/rewrites/userdefs");
         let lang = js.call(lw, "lang", json!([]))?;
@@ -370,7 +374,8 @@ fn the_dispatcher_refuses_a_stale_token_a_bad_specification_and_a_node_of_the_do
         stale["@durable"]["index"] = json!(99);
         let empty = js.call(&userdefs, "ValueBindings::new", json!([]))?;
         let mut answers = ANSWERS.lock().expect("the lock");
-        let mut push = |answer: Result<Value, ExtError>| answers.push(answer.err().map(|error| error.to_string()).unwrap_or_default());
+        // Each refusal's data (`ExtError::data`).
+        let mut push = |answer: Result<Value, ExtError>| answers.push(answer.err().map(|error| error.data()).unwrap_or_default());
         push(js.call(&userdefs, "instantiate", json!([node, stale, empty])));
         push(js.call(&userdefs, "compile_template_with", json!([{ "text": "x" }, lang, language])));
         push(js.call(&userdefs, "compile_template_with", json!([spec_value("#{other}"), lang, language])));
@@ -379,12 +384,13 @@ fn the_dispatcher_refuses_a_stale_token_a_bad_specification_and_a_node_of_the_do
     })]);
     let _ = text_of(&registry, "\\extitle{}");
     let answers = ANSWERS.lock().expect("the lock").clone();
+    assert_eq!(answers.len(), 4, "{answers:?}");
+    let stale = &answers[0];
     assert_eq!(
-        answers[0],
-        "the `compiled_template` object 99 must be one the feature `titles` of the package `_` of the extension `ex` made \
-         under the registry in use"
+        (&stale["kind"], &stale["durable"]["kind"], &stale["durable"]["index"], &stale["feature"]),
+        (&json!("stale_durable"), &json!("compiled_template"), &json!(99), &json!("titles"))
     );
-    assert_eq!(answers[1], "`compile_template_with`: a template specification must have the field `mode`");
-    assert!(answers[2].contains("other"), "{}", answers[2]);
-    assert_eq!(answers[3], "`with`: an object of the kind `tree` is expected here, not one of the kind `node`");
+    assert_eq!(answers[1]["kind"], "value");
+    assert_eq!((&answers[2]["kind"], &answers[2]["core_kind"]), (&json!("core"), &json!("compile_template")));
+    assert_eq!((&answers[3]["kind"], &answers[3]["method"]), (&json!("argument"), &json!("with")));
 }

@@ -149,8 +149,9 @@ pub fn case_one_renders_through_the_text_workflow(loads: &dyn Loads) {
 
 /// Case 1 renders through the HTML workflow as the JavaScript case does.
 pub fn case_one_renders_through_the_html_workflow(loads: &dyn Loads) {
-    let (html, diagnostics) = html_of(&registry_of(loads, "wordcount"), DOCUMENT);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let registry = registry_of(loads, "wordcount");
+    let (html, diagnostics) = html_of(&registry, DOCUMENT);
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, flm_core::stdlib::backends::html::WORKFLOW), &diagnostics);
     assert_javascript_text("case1.html", &html);
 }
 
@@ -175,7 +176,7 @@ pub fn case_one_s_registry_builds_without_a_diagnostic(loads: &dyn Loads) {
 /// The hook of `\shout` given a command recovers the use site with its own diagnostic.
 pub fn a_shout_of_a_command_recovers_the_use_site_with_the_guest_s_diagnostic(loads: &dyn Loads) {
     let registry = registry_of(loads, "wordcount");
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\shout{\\emph{x}}.");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\shout{\\emph{x}}.");
     assert_eq!(common::diagnostics(&run), ["wordcount.shout.not-characters: the argument of \\shout must be plain characters"]);
     let (text, _) = text_of(&registry, "Say \\shout{\\emph{x}}.");
     assert!(text.contains("\\shout{\\emph{x}}"), "{text}");
@@ -270,18 +271,20 @@ pub fn the_count_s_note_appears_under_the_plain_workflows(loads: &dyn Loads) {
     let factory = loads.factory("wordcount");
     let registry = registry_with([factory.build(&PackageSettings::new()).expect("the package builds")]);
     let document = wordcount_settings(&factory, json!({ "report_counts": true })).document_options().clone();
-    for workflow in [flm_core::stdcore::backends::text::WORKFLOW, flm_core::stdcore::backends::html::WORKFLOW] {
+    for workflow in [flm_core::stdlib::backends::text::WORKFLOW, flm_core::stdlib::backends::html::WORKFLOW] {
         let plan = Arc::new(
             Plan::for_workflow(&registry, workflow, &flm_core::core::plan::Overrides::none()).expect("the plan builds"),
         );
         let doc = doc(&registry, &["One two three seven eleven."], document.clone());
         let mut run = Run::new(doc, plan, Externals::none()).expect("a run");
         run.execute(&RunOptions::sequential()).expect("the run executes");
-        assert_eq!(
-            common::diagnostics(&run),
-            ["wordcount.count: the tree `tree#0` holds 5 words of at least 1 characters"],
-            "{workflow}"
-        );
+        // The page's formulas are unchecked.
+        let mut expected = Vec::new();
+        if workflow == flm_core::stdlib::backends::html::WORKFLOW {
+            expected.push(common::UNCHECKED_ON_HTML);
+        }
+        expected.push("wordcount.count: the tree `tree#0` holds 5 words of at least 1 characters");
+        assert_eq!(common::diagnostics(&run), expected, "{workflow}");
     }
 }
 
@@ -291,26 +294,19 @@ pub fn the_count_s_note_appears_under_the_plain_workflows(loads: &dyn Loads) {
 /// and the use site is recovered.
 pub fn a_hook_answering_an_error_fails_with_the_guest_s_error(loads: &dyn Loads) {
     let registry = registry_of(loads, "failing");
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\fails{hey}.");
-    assert_eq!(
-        common::diagnostics(&run),
-        ["flm.ext.handler-failed: the expansion hook of `failing.macro.fails` failed: the hook is not ready"]
-    );
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\fails{hey}.");
+    let diagnostics = common::diagnostics(&run);
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"]);
+    assert!(diagnostics[0].ends_with("the hook is not ready"), "{diagnostics:?}");
     assert_eq!(data_of(&run, "flm.ext.handler-failed")["data"], json!({ "name": "NotReady" }));
     let (text, _) = text_of(&registry, "Say \\fails{hey}.");
     assert_eq!(text, "Say \\fails{hey}.\n");
 }
 
-/// The beginning of the diagnostic of the hook of `\panics`, as the expansion path words
-/// every binding's failure of a hook; each engine adds its own words for the panic.
-pub const PANIC_PREFIX: &str = "flm.ext.handler-failed: the expansion hook of `failing.macro.panics` failed: the expansion \
-                                hook of the element `failing.macro.panics` of the feature `failing` of the package `_` of \
-                                the extension `failing` must run without a ";
-
 /// The diagnostics of a run of `\panics` and the data of its failure, for the engine's own
 /// assertions.
 pub fn the_panicking_hook_s_failure(loads: &dyn Loads) -> (Vec<String>, Value) {
     let registry = registry_of(loads, "failing");
-    let run = common::run(&registry, flm_core::stdcore::backends::text::WORKFLOW, "Say \\panics{hey}.");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, "Say \\panics{hey}.");
     (common::diagnostics(&run), data_of(&run, "flm.ext.handler-failed")["data"].clone())
 }

@@ -15,16 +15,16 @@ use flm_core::core::registry::{DefContent, FlmRegistry};
 use flm_core::core::run::Run;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html::DEFINITIONS_TABLE;
-use flm_core::stdcore::features::annotations::{html, AnnotationsConfig, AnnotationsRenderOptions, Annotator};
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::html::DEFINITIONS_TABLE;
+use flm_core::stdlib::features::annotations::{html, AnnotationsConfig, AnnotationsRenderOptions, Annotator};
+use flm_core::stdlib::StdlibConfig;
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, run_workflow};
 
 /// The two annotators these tests use: `phf` with the initials `PhF`,
 /// annotator 0, and `abc` with none, annotator 1.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().annotations(
+    common::stdlib::registry(StdlibConfig::new().annotations(
         AnnotationsConfig::new()
             .annotator(Annotator::new("phf").initials("PhF"))
             .annotator(Annotator::new("abc")),
@@ -32,10 +32,11 @@ fn registry() -> Arc<FlmRegistry> {
 }
 
 /// `document` rendered through the `html` workflow under `overrides`; any
-/// diagnostic is a test failure.
+/// diagnostic but the Warnings of its plan's unchecked output is a test
+/// failure.
 fn render_under(document: &str, overrides: &Overrides) -> Run {
     let run = run_workflow(&registry(), "html", &[document], overrides);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     run
 }
 

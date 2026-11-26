@@ -8,15 +8,15 @@
 //! a size of the backtick form ([`SlotKind`]). [`Macro::new`] declares on every
 //! definition the four placeholders whose content the feature computes at each
 //! use (`DelimLeft`, `DelimMiddle`, `DelimRight` and [`CONFIG_PLACEHOLDER`]), so
-//! that the macro's templates may write them; the module [`crate::feature`]
+//! that the macro's templates may write them; the module [`crate::phfpack::feature`]
 //! gives them their content.
 
 use flm_ext::ExtError;
 use flm_ext::guest::lang::mint::ArgDef;
 use flm_ext::guest::lang::rewrites::userdefs::{Definition, DefinitionKind};
 
-use crate::sizing::{SIDES, SlotKind};
-use crate::tables::{Row, RowArg, RowKind};
+use crate::phfpack::sizing::{SIDES, SlotKind};
+use crate::phfpack::tables::{Row, RowArg, RowKind};
 
 /// The name of the placeholder with which a template reads a named value of
 /// the settings: `#[group.name]{config}`, for example `#[spaceKets.Bar]{config}`.
@@ -27,7 +27,7 @@ pub const CONFIG_PLACEHOLDER: &str = "config";
 ///
 /// Build one with [`Macro::new`] from a list of arguments, or with
 /// [`Macro::from_row`] from a row of the built-in tables; the settings build the
-/// declared macros ([`PhfqitConfig`](crate::settings::PhfqitConfig)).
+/// declared macros ([`PhfqitConfig`](crate::phfpack::settings::PhfqitConfig)).
 #[derive(Debug, Clone)]
 pub struct Macro {
     /// The user definition: the name, the arguments, the template, the default

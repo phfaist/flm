@@ -1,5 +1,5 @@
 //! The `graphics` feature on the recomposed LaTeX
-//! (`flm_core::stdcore::features::graphics::latex`): the hook
+//! (`flm_core::stdlib::features::graphics::latex`): the hook
 //! `\flmIncludeGraphics[<keys>]{<path>}` with its lengths through the family's
 //! length writer, its definition piece and the two packages it requests
 //! (test 8); a path's characters escaped, and a user definition whose
@@ -12,25 +12,25 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::Run;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::backends::pres::Length;
-use flm_core::stdcore::features::graphics::{
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::backends::pres::Length;
+use flm_core::stdlib::features::graphics::{
     Dimensions, GraphicsConfig, GraphicsInspectError, GraphicsInspectRequest,
     GraphicsInspectedInformation, GraphicsInspector, INSPECTOR_SLOT,
 };
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{StdlibConfig, add_features};
 
-use common::stdcore::identifiers;
+use common::stdlib::{UNCHECKED_OUTPUT, identifiers};
 
 /// The configuration under which `\includegraphics` is an ordinary command,
 /// with `definitions` as the user definitions.
-fn config(definitions: Vec<Definition>) -> StdcoreConfig {
-    StdcoreConfig::new()
+fn config(definitions: Vec<Definition>) -> StdlibConfig {
+    StdlibConfig::new()
         .graphics(GraphicsConfig::new().global(true))
         .userdefs(UserdefsConfig::new().definitions(definitions))
 }
@@ -58,9 +58,9 @@ impl GraphicsInspector for SizedByName {
 
 /// The registry under `config`, with the inspector of `SizedByName` where
 /// `inspector` says so.
-fn registry(config: StdcoreConfig, inspector: bool) -> Arc<FlmRegistry> {
+fn registry(config: StdlibConfig, inspector: bool) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(config));
+    builder.use_package(add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     if inspector {
         builder.contribute_to(INSPECTOR_SLOT, Arc::new(SizedByName) as Arc<dyn GraphicsInspector>);
@@ -70,12 +70,13 @@ fn registry(config: StdcoreConfig, inspector: bool) -> Arc<FlmRegistry> {
 
 /// The run of the recomposed LaTeX over `document`.
 fn run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
-    common::stdcore::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
+    common::stdlib::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
 }
 
-/// The recomposed LaTeX and the style file of `document`; the run may
-/// report only the Warnings every `width=` and `height=` draws, and the
-/// Warning of an image whose size is not known. The recomposed LaTeX is given
+/// The recomposed LaTeX and the style file of `document`; the run must
+/// report the Warning of the unchecked formulas of `math-passthrough`, and
+/// may report besides only the Warnings every `width=` and `height=` draws,
+/// and the Warning of an image whose size is not known. The recomposed LaTeX is given
 /// without the backend's closing line, `%%`.
 fn written(registry: &Arc<FlmRegistry>, document: &str) -> (String, String, Run) {
     let run = run(registry, document);
@@ -83,7 +84,7 @@ fn written(registry: &Arc<FlmRegistry>, document: &str) -> (String, String, Run)
         .into_iter()
         .filter(|id| id != "flm.graphics.resized" && id != "flm.graphics.unknown-size")
         .collect();
-    assert_eq!(unexpected, Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(unexpected, [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     // The output ends with the backend's closing comment line.
     let output = common::latex::output(&run);
     let output = output.strip_suffix("%%\n").expect("the closing line").to_string();
@@ -167,7 +168,7 @@ fn a_placeholder_scaled_from_an_inspected_size_in_an_expanded_use_site() {
 #[test]
 fn an_empty_path_is_an_error_and_writes_no_hook() {
     let run = run(&registry(config(Vec::new()), true), "A\n\n\\includegraphics{}\n\nB");
-    assert_eq!(identifiers(&run), ["flm.graphics.empty-path"]);
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.graphics.empty-path"]);
     let output = common::latex::output(&run);
     assert!(!output.contains("\\flmIncludeGraphics"), "{output}");
 }

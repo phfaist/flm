@@ -8,14 +8,14 @@ use std::sync::Arc;
 
 use super::engine::{self, Engine as Instance};
 use super::host::JsHost;
+use super::modules::{self, Unnamed};
 use super::package::{self, JsExtension};
 use crate::binding::packages::{read_packages, unreadable};
 use crate::binding::{self, BindingRuntime};
 use crate::engine::{Engine, ExtensionIdentity, LoadError, Loaded};
 use crate::loader::ExtensionLoader;
 use crate::manifest::Manifest;
-use crate::paths::{self, PathErrorKind};
-use crate::source::ExtensionFiles;
+use crate::source::{ExtensionFiles, FilesError, FilesErrorKind};
 
 /// The name of the engine.
 const JS: &str = "js";
@@ -58,7 +58,10 @@ impl Engine for JsEngine {
         JS
     }
 
-    /// Loads the extension: the main module's path normalized, its text read,
+    /// Loads the extension: the main module read through the extension's
+    /// files by its path as the manifest writes it, relative to the
+    /// extension's folder, and named by the rule of an import's specifier
+    /// ([`crate::quickjs`]), so that an import of it is the same module;
     /// an engine instance created in the files mode (every module of the
     /// static import graph read and recorded, the default export called), the
     /// package objects read, the templates read; the instance is then kept on
@@ -72,35 +75,45 @@ impl Engine for JsEngine {
         let stem = &extension.stem;
         let at_main = |detail: String| vec![LoadError::Manifest { path: "extension.js.main".to_string(), detail }];
         let written = manifest.js.as_ref().map(|js| js.main.clone()).unwrap_or_default();
-        let main = paths::normalize(&written).map_err(|error| {
-            at_main(match error.kind {
-                PathErrorKind::LeavesRoot => format!(
-                    "`extension.js.main` of the extension `{stem}` is `{written}`, which leaves the extension's folder"
-                ),
-                PathErrorKind::Absolute => format!(
-                    "`extension.js.main` of the extension `{stem}` is `{written}`, which is an absolute path; it must \
-                     be a path inside the extension's folder"
-                ),
-                PathErrorKind::Backslash => format!(
-                    "`extension.js.main` of the extension `{stem}` is `{written}`, which holds `\\`; a path inside \
-                     the extension uses `/`"
-                ),
-            })
-        })?;
-        let text = match files.read_text(&main) {
+        let leaves = || {
+            at_main(format!(
+                "`extension.js.main` of the extension `{stem}` is `{written}`, which leaves the extension's folder"
+            ))
+        };
+        let absolute = || {
+            at_main(format!(
+                "`extension.js.main` of the extension `{stem}` is `{written}`, which is an absolute path; it must be a \
+                 path inside the extension's folder"
+            ))
+        };
+        // A path of the manifest, read as the manifest writes it.
+        let text = match files.read_text("", &written) {
             Ok(Some(text)) => text,
             Ok(None) => {
                 return Err(at_main(format!(
-                    "the extension `{stem}` names its main module `{main}` (`extension.js.main`), and the extension \
-                     holds no file `{main}`"
+                    "the extension `{stem}` names its main module `{written}` (`extension.js.main`), and the \
+                     extension holds no file `{written}`"
+                )));
+            }
+            Err(FilesError { kind: FilesErrorKind::Above, .. }) => return Err(leaves()),
+            Err(FilesError { kind: FilesErrorKind::Absolute, .. }) => return Err(absolute()),
+            Err(FilesError { kind: FilesErrorKind::NoSystemForm(reason), .. }) => {
+                return Err(at_main(format!(
+                    "the main module ‘{written}’ of the extension ‘{stem}’ names no file on this system: {reason}"
                 )));
             }
             Err(error) => {
                 return Err(vec![LoadError::Load {
-                    detail: format!("the main module `{main}` of the extension `{stem}` cannot be read: {error}"),
+                    detail: format!("the main module ‘{written}’ of the extension ‘{stem}’ {}", modules::unread(error)),
                 }]);
             }
         };
+        // The module's name, by the rule of an import's specifier, so that an
+        // import of the main module's path is the main module.
+        let main = modules::module_path("", &written).map_err(|unnamed| match unnamed {
+            Unnamed::Above => leaves(),
+            Unnamed::Absolute => absolute(),
+        })?;
         let mut loading = JsExtension {
             id: binding::next_extension_id(),
             host: self.host.clone(),

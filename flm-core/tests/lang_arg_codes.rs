@@ -10,19 +10,21 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::FlmRegistry;
+use flm_core::core::registry::{FlmRegistry, PackageEntry, PackageFactory};
+use flm_core::core::settings::{PackageSettings, SettingsDecl};
 use flm_core::lang::mint::{
     arg_def_from_code, ArgCodeProblem, ArgData, ArgDataFields, ArgDef, ArgListData, ArgStdKind,
 };
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{self, StdlibConfig};
 use serde_json::{json, Value};
 use techy::latexlike::Mode;
 
 use common::html::fragment;
 use common::{callables, lang, macro_with, parse};
+use common::stdlib::assert_only_unchecked_output;
 
 // --- test 1: what each code reads ---------------------------------------------------------------
 
@@ -120,18 +122,27 @@ fn a_user_definition_reads_its_list_in_each_shape() {
 
 // --- test 3: a user definition declared with each code the library did not read before ----------
 
+/// The declaration of the `userdefs` settings, as the factory of a package
+/// holding the standard features lists it.
+fn userdefs_decl() -> SettingsDecl {
+    let factory = PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+    .unwrap();
+    factory.settings("userdefs").unwrap().clone()
+}
+
 /// The `userdefs` configuration read from `data`, as a front matter's
 /// settings are read.
 fn userdefs(data: Value) -> UserdefsConfig {
-    let factory = stdcore::factory().unwrap();
-    let decl = factory.settings("userdefs").unwrap();
+    let decl = userdefs_decl();
     let settings = decl.read(data.as_object().unwrap()).unwrap_or_else(|errors| panic!("{errors:?}"));
     settings.config::<UserdefsConfig>().cloned().unwrap()
 }
 
-/// The registry over the standard package whose `userdefs` settings are `data`.
+/// The registry over the standard features whose `userdefs` settings are `data`.
 fn registry(data: Value) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().userdefs(userdefs(data)))
+    common::stdlib::registry(StdlibConfig::new().userdefs(userdefs(data)))
 }
 
 #[test]
@@ -158,8 +169,8 @@ fn a_user_definition_declared_with_each_new_code_expands_its_argument() {
         let document = format!("A {source} B \\({source}\\)");
         let text = common::spine::text_at(&registry, &document, None);
         assert_eq!(text, format!("A {in_text} B \\({in_math}\\)\n"), "{code}");
-        let run = common::stdcore::run_workflow(&registry, html::WORKFLOW, &[&document], &Overrides::none());
-        assert!(run.diagnostics().iter().next().is_none(), "{code}: {}", run.diagnostics().render_all());
+        let run = common::stdlib::run_workflow(&registry, html::WORKFLOW, &[&document], &Overrides::none());
+        assert_only_unchecked_output(&run);
         let page = fragment(&run);
         assert!(page.starts_with(&format!("A {in_text} B <span")), "{code}: {page}");
         assert!(page.contains(&format!("\\({in_math}\\)</span>")), "{code}: {page}");
@@ -170,8 +181,7 @@ fn a_user_definition_declared_with_each_new_code_expands_its_argument() {
 
 #[test]
 fn a_code_outside_the_alphabet_and_an_incomplete_code_are_met_when_the_settings_are_read() {
-    let factory = stdcore::factory().unwrap();
-    let decl = factory.settings("userdefs").unwrap();
+    let decl = userdefs_decl();
     for (args, problem) in [
         (json!(["q"]), ArgCodeProblem::Unknown),
         (json!([{ "code": "Q" }]), ArgCodeProblem::Unknown),
@@ -195,8 +205,6 @@ fn a_code_outside_the_alphabet_and_an_incomplete_code_are_met_when_the_settings_
         };
         let expected = arg_def_from_code(&code).unwrap_err();
         assert_eq!(expected.problem, problem, "{args}");
-        let message = errors[0].to_string();
-        assert!(message.contains(&expected.to_string()), "{args}: {message}");
     }
 }
 
@@ -262,8 +270,8 @@ fn an_argument_built_from_a_parser_has_no_code() {
 /// a macro `\m` declared in settings with the one argument `arg`.
 fn expanded(arg: Value, source: &str) -> String {
     let registry = registry(json!({ "macros": { "m": { "content": "[#1]", "args": [arg] } } }));
-    let run = common::stdcore::run_workflow(&registry, html::WORKFLOW, &[source], &Overrides::none());
-    assert!(run.diagnostics().iter().next().is_none(), "{source}: {}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(&registry, html::WORKFLOW, &[source], &Overrides::none());
+    assert_only_unchecked_output(&run);
     common::spine::text_at(&registry, source, None)
 }
 

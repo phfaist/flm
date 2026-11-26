@@ -32,9 +32,10 @@ use flm_ext::guest::core::registry::FeatureBuilder;
 use flm_ext::guest::core::run::StageCx;
 use flm_ext::guest::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_ext::guest::lang::mint::{ArgDef, ElementDef, SyntaxDef};
+use flm_ext::guest::lang::rewrites::userdefs::StagedNodes;
 use flm_ext::guest::lang::text::chars_text;
 use flm_ext::guest::model::element::ElementSpec;
-use flm_ext::guest::techy::node::Node;
+use flm_ext::guest::techy::node::{Node, NodeKindName};
 use flm_ext::guest::{Extension, Feature, Package};
 use serde_json::{Value, json};
 
@@ -47,7 +48,7 @@ pub const PANIC: &str = "the second extension's rule was told to panic";
 flm_ext::guest::extension!(extension);
 
 /// A request's answer as this extension records it: whether the stub's rule was lowering
-/// its content on the thread, and the error's text or the media type found.
+/// its content on the thread, and the error's kind or the media type found.
 pub type Answer = (bool, String);
 
 thread_local! {
@@ -108,11 +109,12 @@ pub fn drop_answers_under(key: u64) -> Vec<Answer> {
     answers.iter().filter(|(recorded, _)| *recorded == key).map(|(_, answer)| answer.clone()).collect()
 }
 
-/// Sends a request (the media type of `pdf`) and answers its answer.
+/// Sends a request (the media type of `pdf`) and answers its answer: what it found, or the
+/// kind of its error.
 fn send_a_request() -> Answer {
     let answer = match media_type_of("pdf") {
         Ok(found) => format!("found {found:?}"),
-        Err(error) => error.to_string(),
+        Err(error) => error.kind().to_string(),
     };
     (super::stub::lowering_content(), answer)
 }
@@ -121,7 +123,7 @@ fn extension(ext: &mut Extension) {
     DEFINES.with(|count| count.set(count.get() + 1));
     let answer = send_a_request();
     DEFINE_ANSWERS.with(|answers| answers.borrow_mut().push(answer));
-    ext.package("_", Package::new().uses(["stdcore"]).feature("second", Feature::new().title("Second").register(register)));
+    ext.package("_", Package::new().feature("second", Feature::new().title("Second").register(register)));
 }
 
 /// The characters of each tree.
@@ -140,10 +142,8 @@ impl Stage for Count {
         let tree = cx.tree_id()?.unwrap_or_default();
         let mut count = 0;
         if let Some(my_tree) = cx.my_tree()? {
-            for node in my_tree.root()?.descendants()? {
-                if node.is_chars()? {
-                    count += node.chars()?.unwrap_or_default().chars().count();
-                }
+            for node in my_tree.root()?.descendants()?.kinds(&[NodeKindName::Chars])? {
+                count += node?.chars()?.unwrap_or_default().chars().count();
             }
         }
         out.table(COUNT)?.push(json!({ "tree": tree, "characters": count }))
@@ -156,8 +156,9 @@ struct Mark;
 impl Lower for Mark {
     fn lower(&self, node: &Node, cx: &mut LowerCx, lw: &mut Lowerer) -> Result<Lowering, ExtError> {
         let text = node.argument_content_nodes_named("text")?.unwrap_or_default();
-        let mut staged = vec![lw.text(cx, "[second:")?];
-        staged.extend(lw.lower_nodes(cx, &text)?);
+        let mut staged = StagedNodes::default();
+        staged.push(lw.text(cx, "[second:")?);
+        staged.push_all(&lw.lower_nodes(cx, &text)?);
         staged.push(lw.text(cx, "]")?);
         Ok(Lowering::Emit(staged))
     }
@@ -172,7 +173,7 @@ impl Lower for Panics {
         if text == "now" {
             panic!("{PANIC}");
         }
-        Ok(Lowering::Emit(vec![lw.text(cx, &text)?]))
+        Ok(Lowering::Emit(vec![lw.text(cx, &text)?].into()))
     }
 }
 
@@ -184,12 +185,12 @@ impl Lower for Thread {
         let text = chars_text(&node.argument_content_nodes_named("text")?.unwrap_or_default())?.unwrap_or_default();
         let answer = std::thread::spawn(|| match media_type_of("pdf") {
             Ok(found) => format!("found {found:?}"),
-            Err(error) => error.to_string(),
+            Err(error) => error.kind().to_string(),
         })
         .join()
         .unwrap_or_else(|_| "the thread panicked".to_string());
         THREAD_ANSWERS.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push((text.clone(), answer));
-        Ok(Lowering::Emit(vec![lw.text(cx, &text)?]))
+        Ok(Lowering::Emit(vec![lw.text(cx, &text)?].into()))
     }
 }
 

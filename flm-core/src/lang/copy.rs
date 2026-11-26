@@ -38,7 +38,7 @@
 //!   ([`SynthesizedPiece`]), for content that needs a structure of its own. Such
 //!   a node may carry data of its own (a [payload](crate::lang::PresPayload))
 //!   and may hold no piece at all. For example, an
-//!   [xnote](crate::stdcore::features::xnotes) is a note set apart from the
+//!   [xnote](crate::stdlib::features::xnotes) is a note set apart from the
 //!   running text and shown elsewhere or in place (a footnote, an endnote, a
 //!   side note); the list of an xnote kind is made of such nodes, each entry
 //!   holding a node whose payload refers to the xnote whose content it shows,
@@ -129,7 +129,7 @@ impl From<RestageError<CopyError>> for CopyError {
     fn from(error: RestageError<CopyError>) -> CopyError {
         match error {
             RestageError::Visitor(error) => error,
-            RestageError::DescentLimitExceeded { detail } => CopyError::NestingTooDeep { detail },
+            RestageError::DescentLimitExceeded { detail, .. } => CopyError::NestingTooDeep { detail },
             other => CopyError::Failed { detail: other.to_string() },
         }
     }
@@ -202,7 +202,7 @@ pub enum ValueContent {
     Shown,
     /// Content the value holds as its own: a structure the value builds
     /// around content lowered nowhere else (the list of an
-    /// [xnote](crate::stdcore::features::xnotes) kind, the
+    /// [xnote](crate::stdlib::features::xnotes) kind, the
     /// lead-in of a term definition), the use site of a user definition copied
     /// to be expanded in place, or content copied only to be read. Every node
     /// is copied as it is, regardless of what its element would put in its
@@ -243,7 +243,7 @@ pub enum ValuePiece<'n, 't> {
 /// ([`FlmNodeExt::payload`](crate::lang::FlmNodeExt::payload)).
 ///
 /// This is how a value gets a structure of its own. For example, the list of an
-/// [xnote](crate::stdcore::features::xnotes) kind (a kind of footnote, endnote
+/// [xnote](crate::stdlib::features::xnotes) kind (a kind of footnote, endnote
 /// or side note) is one list node holding one entry node per xnote, each
 /// holding a node whose payload refers to the xnote whose content the entry
 /// shows.

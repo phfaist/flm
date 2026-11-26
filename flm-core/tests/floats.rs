@@ -14,22 +14,27 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, RegistryBuilder,
-    RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder,
+    RegistryInputs, UnresolvedPeer,
 };
 use flm_core::core::run::{Externals, Run, RunOptions};
+use flm_core::dump::diag::expect;
 use flm_core::lang::{Flm, FlmGroupType};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::floats::{
-    self, CONTENT_SLOT, FloatContentHandler, FloatNumbering, FloatType, FloatsConfig,
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::floats::{
+    self, CONTENT_SLOT, ContentRefused, FloatContentHandler, FloatNumbering, FloatType, FloatsConfig,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
+use serde_json::json;
 use techy::core::node::NodeRef;
 use techy::error::Severity;
 use techy::serialize::SerialValue;
 
 use common::lowering::{lowered_projection, text as printed};
-use common::stdcore::{identifiers, package_features_but, registry_over, reports, run_workflow};
+use common::stdlib::{
+    UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, package_features_but, refusing_features,
+    registry_over, reports, run_workflow,
+};
 
 // ---------------------------------------------------------------------------------------------
 // registries, runs and the shape of a lowered tree
@@ -48,7 +53,7 @@ fn any_config() -> FloatsConfig {
 
 /// The standard package with the floats feature under `config`.
 fn with_config(config: FloatsConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().floats(config))
+    common::stdlib::registry(StdlibConfig::new().floats(config))
 }
 
 /// The standard package under [`any_config`].
@@ -58,7 +63,7 @@ fn std() -> Arc<FlmRegistry> {
 
 /// The standard package under [`any_config`] without the feature `left_out`.
 fn without(left_out: &str) -> Arc<FlmRegistry> {
-    registry_over(package_features_but(StdcoreConfig::new().floats(any_config()), left_out))
+    registry_over(package_features_but(StdlibConfig::new().floats(any_config()), left_out))
 }
 
 /// Runs the `text` workflow of `registry` over `document`.
@@ -139,21 +144,21 @@ fn clean(document: &str) -> String {
 // the configuration (P10; test 15)
 // ---------------------------------------------------------------------------------------------
 
-/// What the registry build under `config` reported, rendered; a build that
+/// The features refusing the registry build under `config`; a build that
 /// succeeds is a test failure.
-fn build_error(config: FloatsConfig) -> String {
+fn build_error(config: FloatsConfig) -> Vec<String> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().floats(config)));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new().floats(config)));
     builder.use_package(flm_core::math_passthrough::package());
     match builder.build(&RegistryInputs::new()) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => refusing_features(&error),
     }
 }
 
 #[test]
 fn the_package_lists_floats_after_annotations_and_before_userdefs() {
-    let names: Vec<String> = package(StdcoreConfig::new())
+    let names: Vec<String> = add_features(PackageEntry::new("std"), StdlibConfig::new())
         .features
         .iter()
         .map(|feature| feature.info().name.to_string())
@@ -166,15 +171,15 @@ fn the_package_lists_floats_after_annotations_and_before_userdefs() {
 }
 
 #[test]
-fn a_configuration_the_feature_refuses_names_the_culprit() {
+fn a_configuration_the_feature_refuses_fails_the_build() {
     let refused = build_error(FloatsConfig::new().float_type(FloatType::new("my-float", ["any"])));
-    assert!(refused.contains("`my-float`") && refused.contains("must"), "{refused}");
+    assert_eq!(refused, [floats::FEATURE]);
     let refused = build_error(FloatsConfig::new().float_type(FloatType::new("numbered", ["any"])));
-    assert!(refused.contains("may not be named `numbered`"), "{refused}");
+    assert_eq!(refused, [floats::FEATURE]);
     let refused = build_error(FloatsConfig::new().float_type(FloatType::new("x", Vec::<String>::new())));
-    assert!(refused.contains("`x`") && refused.contains("must list at least one"), "{refused}");
+    assert_eq!(refused, [floats::FEATURE]);
     let twice = FloatsConfig { types: vec![FloatType::figure(), FloatType::figure()] };
-    assert!(build_error(twice).contains("may not be declared twice"));
+    assert_eq!(build_error(twice), [floats::FEATURE]);
 }
 
 #[test]
@@ -280,8 +285,6 @@ fn under_unnumbered_no_float_is_numbered_and_a_nonumber_is_a_note() {
     assert_eq!(reported, []);
     let run = render(&registry, "\\begin{figure}\\nonumber A.\\end{figure}");
     assert_eq!(reports(&run), [("flm.floats.nonumber-without-effect".to_string(), Severity::Note)]);
-    let message = run.diagnostics().iter().next().expect("one").to_string();
-    assert!(message.contains("never numbered"), "{message}");
 }
 
 #[test]
@@ -347,8 +350,7 @@ fn a_reference_to_an_unnumbered_float_with_no_caption_has_nothing_to_show() {
     let run = render(&std(), "\\begin{figure}\\nonumber\\label{figure:a}A.\\end{figure}\n\nSee \\ref{figure:a}.");
     assert_eq!(reports(&run), [("flm.refs.nothing-to-show".to_string(), Severity::Error)]);
     assert!(printed(&run).contains("See figure:a."));
-    let message = run.diagnostics().iter().next().expect("one").to_string();
-    assert!(message.contains("`figure:a`") && message.contains("neither"), "{message}");
+    expect(run.diagnostics().iter(), "flm.refs.nothing-to-show").data(json!({ "label": "figure:a" })).once();
 }
 
 #[test]
@@ -377,7 +379,7 @@ fn a_label_of_a_type_the_float_does_not_accept_is_refused_unless_configured() {
 #[test]
 fn without_the_references_feature_a_label_is_accepted_draws_a_note_and_still_numbers() {
     let registry = registry_over(package_features_but(
-        StdcoreConfig::new().floats(any_config().float_type(
+        StdlibConfig::new().floats(any_config().float_type(
             FloatType::figure().handlers(["any"]).numbering(FloatNumbering::AutoNumbered),
         )),
         "refs",
@@ -411,17 +413,12 @@ fn content_no_handler_admits_is_an_error_and_is_shown() {
         .collect();
     assert_eq!(errors, ["flm.floats.content-refused"]);
     assert_eq!(printed(&run).trim_end(), "Some text.\n\nC");
-    let message = run
+    let refused = run
         .diagnostics()
         .iter()
-        .find(|d| d.identifier() == "flm.floats.content-refused")
-        .expect("reported")
-        .to_string();
-    // The graphics feature contributes the handler the figure names: the
-    // condition is stated in its words. A registry without that feature
-    // states it without them (`tests/floats_images.rs`).
-    assert!(message.contains("a ‘figure’ must hold exactly one image"), "{message}");
-    assert!(!message.contains("includegraphics"), "{message}");
+        .find_map(|d| d.data().downcast_ref::<ContentRefused>())
+        .expect("reported");
+    assert_eq!(refused.float_type, "figure");
 }
 
 #[test]
@@ -429,15 +426,13 @@ fn a_handler_nobody_contributes_is_reported_once_per_run() {
     let registry = with_config(FloatsConfig::new().float_type(FloatType::table().handlers(["charts", "any"])));
     let run = render(&registry, "\\begin{table}A.\\end{table}\\begin{table}B.\\end{table}");
     assert_eq!(reports(&run), [("flm.floats.missing-handler".to_string(), Severity::Note)]);
-    let message = run.diagnostics().iter().next().expect("one").to_string();
-    assert!(
-        message.contains("a ‘table’ may hold content of the kind ‘charts’, but the program processing this document does not handle that kind of content"),
-        "{message}"
-    );
+    expect(run.diagnostics().iter(), "flm.floats.missing-handler")
+        .data(json!({ "float_type": "table", "handler": "charts" }))
+        .once();
     // A type nobody uses is not reported.
     assert_eq!(identifiers(&render(&registry, "Text.")), Vec::<String>::new());
     // The `check` workflow reports it too.
-    let checked = run_workflow(&registry, flm_core::stdcore::CHECK_WORKFLOW, &["\\begin{table}A.\\end{table}"], &Overrides::none());
+    let checked = run_workflow(&registry, flm_core::stdlib::CHECK_WORKFLOW, &["\\begin{table}A.\\end{table}"], &Overrides::none());
     assert_eq!(reports(&checked), [("flm.floats.missing-handler".to_string(), Severity::Note)]);
 }
 
@@ -481,29 +476,32 @@ fn with_listings(features: Vec<Arc<dyn FlmFeature>>) -> Arc<FlmRegistry> {
 
 #[test]
 fn a_feature_contributes_a_type_and_a_handler_of_its_own() {
-    let registry = with_listings(package_features_but(StdcoreConfig::new().floats(any_config()), ""));
+    let registry = with_listings(package_features_but(StdlibConfig::new().floats(any_config()), ""));
     let text = text_with(&registry, "\\begin{listing}\\label{listing:a}Code.\\caption{A}\\end{listing}\n\nSee \\ref{listing:a}.");
     assert_eq!(text, "Code.\n\nListing\u{a0}1: A\n\nSee Listing\u{a0}1.");
     assert_eq!(identifiers(&render(&registry, "\\begin{listing}Code.\\end{listing}")), Vec::<String>::new());
     let run = render(&registry, "\\begin{listing}One.\n\nTwo.\\end{listing}");
     assert_eq!(identifiers(&run), ["flm.floats.content-refused"]);
-    let message = run.diagnostics().iter().next().expect("one").to_string();
-    assert!(message.contains("a ‘listing’ must hold exactly one paragraph"), "{message}");
+    // The handler's own words say what the type admits.
+    expect(run.diagnostics().iter(), "flm.floats.content-refused")
+        .data(json!({ "float_type": "listing", "admitted": "exactly one paragraph" }))
+        .once();
 }
 
 #[test]
 fn a_feature_contributing_a_type_renders_without_the_floats_feature() {
-    use flm_core::stdcore::backends::{html, latex_recomposed};
-    let registry = with_listings(package_features_but(StdcoreConfig::new(), floats::FEATURE));
+    use flm_core::stdlib::backends::{html, latex_recomposed};
+    let registry = with_listings(package_features_but(StdlibConfig::new(), floats::FEATURE));
     // The registry builds, with a Note for each peer declaration nobody
     // resolves: the environment among them, dropped.
     let notes: Vec<&str> = registry.build_diagnostics().iter().map(|d| d.identifier()).collect();
     assert!(notes.iter().all(|id| *id == "flm.registry.unresolved-peer"), "{notes:?}");
-    let messages: Vec<String> = registry.build_diagnostics().iter().map(|d| d.to_string()).collect();
-    assert!(
-        messages.iter().any(|m| m.contains("refers to the element type `flm.floats.float`")),
-        "{messages:?}"
-    );
+    let peers: Vec<(&str, &str)> = registry
+        .build_diagnostics()
+        .conditions::<UnresolvedPeer>()
+        .map(|peer| (peer.kind.as_str(), peer.name.as_str()))
+        .collect();
+    assert!(peers.contains(&("element type", "flm.floats.float")), "{peers:?}");
     let values: Vec<(String, bool)> = registry
         .peer_element_values()
         .iter()
@@ -513,14 +511,14 @@ fn a_feature_contributing_a_type_renders_without_the_floats_feature() {
     // Every rendering plan builds, and a plain document renders.
     for workflow in [text::WORKFLOW, html::WORKFLOW, latex_recomposed::WORKFLOW] {
         let run = run_workflow(&registry, workflow, &["Text."], &Overrides::none());
-        assert_eq!(identifiers(&run), Vec::<String>::new(), "{workflow}");
+        assert_only_unchecked_output(&run);
     }
     assert_eq!(text_with(&registry, "Text."), "Text.");
     // The environment is not defined.
     let run = render(&registry, "\\begin{listing}Code.\\end{listing}");
     assert_eq!(identifiers(&run), ["latexlike.environments.unknown-environment"]);
     // With the floats feature, the same declaration is kept.
-    let registry = with_listings(package_features_but(StdcoreConfig::new().floats(any_config()), ""));
+    let registry = with_listings(package_features_but(StdlibConfig::new().floats(any_config()), ""));
     let listing = registry.peer_element_values().iter().find(|entry| entry.names[0].as_str() == "listing");
     assert!(listing.is_some_and(|entry| entry.resolved));
 }
@@ -638,7 +636,7 @@ fn the_text_is_the_same_sequentially_and_in_parallel() {
     let registry = std();
     let texts = [FOUR, "\\begin{table}\\label{table:t}T.\\end{table}\\ref{figure:c}", "\\begin{diagram}\\nonumber X\\end{diagram}"];
     let doc = common::pipeline::doc(&registry, &texts);
-    let plan = common::stdcore::plan(&registry, text::WORKFLOW, &Overrides::none());
+    let plan = common::stdlib::plan(&registry, text::WORKFLOW, &Overrides::none());
     let sequential = common::pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::sequential());
     let parallel = common::pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::new());
     assert_eq!(printed(&sequential), printed(&parallel));
@@ -696,13 +694,13 @@ fn hard_documents_neither_panic_nor_loop() {
 
 #[test]
 fn the_recomposed_latex_writes_the_environment_and_reports_as_the_text_does() {
-    use flm_core::stdcore::backends::latex_recomposed;
+    use flm_core::stdlib::backends::latex_recomposed;
     let registry = std();
     let latex = |document: &str| {
         run_workflow(&registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
     };
     let run = latex("\\begin{figure}\\label{figure:a}A.\n\n\\caption{A photo}\\end{figure}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     let output = common::latex::output(&run);
     // The hook environment over the type and the case (`tests/floats_latex.rs`).
     assert!(output.contains("\\begin{flmFloat}{figure}{NumCap}A.\n\n"), "{output}");
@@ -711,6 +709,9 @@ fn the_recomposed_latex_writes_the_environment_and_reports_as_the_text_does() {
         "\\begin{figure}A.\\caption{B}\\caption{C}\\caption[x=1]{D}\\nonumber\\nonumber\\end{figure}",
         "\\begin{table}\\label{fig:x}T.\\end{table}",
     ] {
-        assert_eq!(identifiers(&latex(document)), identifiers(&render(&registry, document)), "{document}");
+        // The same reports, after the Warning of the recomposed LaTeX's
+        // unchecked formulas.
+        let expected = [vec![UNCHECKED_OUTPUT.to_string()], identifiers(&render(&registry, document))].concat();
+        assert_eq!(identifiers(&latex(document)), expected, "{document}");
     }
 }

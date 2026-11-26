@@ -25,7 +25,7 @@ Every formula is then written for MathJax, in one of two modes.
 On the recomposed LaTeX and on the text output the formulas are written as the
 author wrote them, with their numbers, in both modes. On the text output, a
 displayed formula or a display-math environment stands on lines of its own,
-indented, inside its paragraph, as the standard library sets one.
+indented, inside its paragraph, as the standard features set one.
 
 Beyond MathJax's packages, the extension defines two commands inside a
 formula, whatever `packages` lists: the delimiters `\llangle` (⟪, U+27EA, an
@@ -40,7 +40,7 @@ listed, in both modes.
 processed as `\(…\)` is, and inside a formula the extension hands MathJax its
 argument in place of the command.
 
-The extension requires the `math` feature of the standard package. No command
+The extension requires the standard feature `math`. No command
 can be defined inside a formula: MathJax's `newcommand` package is never
 offered, so `\newcommand` inside a formula is an unknown command.
 
@@ -94,6 +94,13 @@ flm:
   use: [math-mathjax]
 ```
 
+The extension's package declares the host service `cache` (see below), so a
+program loads the extension, in either mode, only when it offers a service
+named `cache`. The `flm` program, and every program built on the host library
+`flm-host`, offers it. A program built on the extension layer `flm-ext` alone
+registers a service of that name; a service that answers `null` to every call
+is enough, and the extension then typesets every formula at every build.
+
 ## Settings
 
 The feature `math-mathjax` reads these settings:
@@ -104,9 +111,9 @@ The feature `math-mathjax` reads these settings:
 | `packages` | a list of package names | every package of the bundle | the MathJax TeX packages whose commands a document may use; a package the bundle does not hold is refused |
 | `math_font_url` | an address | none | in `mathml` mode, a web font with a MATH table for the formulas |
 | `loader_url` | an address | `https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js` | in `load-in-browser` mode, where the page loads MathJax from |
-| `lazy` | `true`, `false` | `false` | in `load-in-browser` mode, whether MathJax typesets each formula only when it scrolls into view (MathJax's `ui/lazy` component) instead of all at once when the page loads |
+| `lazy` | `true`, `false` | `false` | in `load-in-browser` mode, whether MathJax typesets each formula only when it scrolls into view (MathJax's `ui/lazy` component) instead of all at once when the page loads; the anchors of an environment's lines then stand before its TeX, which MathJax replaces until it typesets the formula, so that a link to a line leads to the start of its formula |
 | `preamble` | TeX | empty | TeX that MathJax processes once, before any formula, in both modes: what it defines and sets holds for every formula |
-| `export_commands` | a list of command names, each without its backslash | none | the commands the preamble defines that a formula may use |
+| `export_commands` | a list of command names, each without its backslash | none | the commands the preamble defines that a formula may use; each is declared as an FLM command in math mode |
 
 For example, a document whose formulas use the `physics` package, written into
 the page as MathML:
@@ -163,14 +170,50 @@ by features `userdefs` and `math-mathjax` in mode Math``. The author then
 leaves that package out of `packages`, or gives the definition another name.
 An empty `packages` list declares no MathJax command.
 
+In both modes, the outermost element of each formula carries FLM's mark of a formula,
+which a stylesheet or a script of the page reads whatever wrote the formula: the class
+`flm-math-formula`, `data-flm-display` (`inline` or `display`), and for a display-math
+environment `data-flm-env`, its name. In `load-in-browser` mode that element is the span
+holding the formula's TeX (`<span class="math-mathjax-formula flm-math-formula" …>`), in
+`mathml` mode the `math` element itself, and for a formula MathJax cannot typeset, the span
+holding its source.
+
 In `mathml` mode, MathJax converts each formula once (and once more for each
-copy of it, such as a section title's formula shown in the table of contents),
-in the engine limits the manifest sets. One TeX input, configured when the
+copy of it, such as a section title's formula shown in the table of contents,
+when the program offers no cache; see below), in the engine limits the
+manifest sets. One TeX input, configured when the
 feature registers, converts every formula, after it has processed the
 preamble. A formula MathJax cannot
 typeset (for example `\frac{a}`, with an argument missing) is the error ``MathJax cannot
 typeset the formula: Missing argument for \frac``, and the page shows the
-formula's source as text. A page that holds a formula carries the stylesheet
+formula's source as text.
+
+In `mathml` mode, the extension keeps the MathML that MathJax gives for each
+formula in the cache `typeset.mathml` of the program that runs it (a values
+cache that all documents share, through the host service `cache`; the `flm`
+program names it `flm.ext.math-mathjax.typeset.mathml`): a later build, or a
+copy of the formula in the same build, reads the formula's MathML from there,
+and MathJax does not convert it again. A formula's value
+is kept for 90 days after its last use. `flm cache list` shows the cache's
+size, and `flm cache clean flm.ext.math-mathjax.typeset.mathml` empties it. The
+key of a formula holds:
+
+- the version of MathJax that the bundle holds (`vendor/bundle.js`);
+- the settings `packages` and `preamble`, which configure MathJax's TeX input;
+- the setting `export_commands`, which selects the commands of the preamble
+  that a formula may use; a change to it makes every formula typeset again;
+- whether the formula is displayed;
+- the TeX that the extension gives MathJax for the formula.
+
+The other settings change only how the page shows the MathML, or apply only in
+`load-in-browser` mode, so they are not part of the key.
+
+The extension's own package (the two delimiters) is fixed with the extension's
+code; a change to it, or to anything else in how the extension calls MathJax,
+comes with a new version of the cache, which starts empty. A formula that
+MathJax cannot typeset is not kept, so its error is reported at every build.
+
+A page that holds a formula carries the stylesheet
 `math-mathjax.style`: the font list of the `math` elements (the font of
 `math_font_url` first, when set, then Latin Modern Math, STIX Two Math, Cambria
 Math and the browser's `math` family), each displayed formula a centered
@@ -190,8 +233,8 @@ the document uses (with `base`, and MathJax's `texhtml`, which reads the
 document content inside a formula) and the extension's own package, which it
 defines when MathJax is ready and before MathJax reads its TeX configuration
 (`startup.ready`), and the page keeps its formulas typeset when a script
-updates parts of it in place, as the HTML backend's own MathJax configuration
-does. With a preamble, the page's MathJax processes it once, before it
+updates parts of it in place or shows a copy of part of it, as the HTML
+backend's own MathJax configuration does. With a preamble, the page's MathJax processes it once, before it
 typesets the page, and the configuration lists every package of `packages`,
 whatever the document uses, since the extension does not read the preamble to
 know which packages it uses.
@@ -201,10 +244,10 @@ know which packages it uses.
 | File | What it holds |
 |---|---|
 | `flmextension.yaml` | the manifest: a JavaScript extension, its main module, and its engine limits: the 16 MiB stack and 64 MiB of memory that MathJax needs, and a 120 s time budget per call, because one call converts every formula of a document |
-| `main.js` | the package `_` and its feature `math-mathjax`, its settings, and its check |
+| `main.js` | the package `_`, its host service and its cache, and its feature `math-mathjax`, its settings, and its check |
 | `definitions.js` | the reading of MathJax's command maps and the declarations made from it, and the two delimiters the extension defines |
 | `tex.js` | the TeX of a formula, built from its nodes, with its holes (the places of document content) |
-| `render.js` | the render stage of `mathml` mode: MathJax run on each formula, its MathML written into a table |
+| `render.js` | the render stage of `mathml` mode: MathJax run on each formula that the cache does not hold, its MathML kept in the cache and written into a table |
 | `lower.js` | the lowering rules, by backend, the conversion of MathJax's MathML into the page's elements, and the stylesheet of `mathml` mode |
 | `page.js` | the script definition of `load-in-browser` mode and the stage that writes its configuration |
 | `vendor/mathjax.js`, `vendor/bundle.js` | generated by the repository's `npm/math-mathjax`: the MathJax bundle, and the packages and version it holds |

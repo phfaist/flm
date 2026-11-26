@@ -3,7 +3,7 @@
 //
 // Mirrors `flm_core::lang::mint`: the declarations of elements and fallbacks, and the argument and
 // body definitions they carry.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 export { CallableKind } from "flm:core/registry";
 
 const MODULE = module("lang/mint");

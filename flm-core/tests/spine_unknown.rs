@@ -1,5 +1,6 @@
 //! An element no backend emits natively, through the whole pipeline: a
-//! test-only feature registers `x.box` beside `flm_core::stdcore::package`.
+//! test-only feature registers `x.box` beside the standard features
+//! (`flm_core::stdlib::add_features`).
 //! With its own lowering rule producing `block` the element is reachable; with
 //! no rule the text plan is refused at plan build with the typed error listing
 //! it; with the element accepted as a hole it lowers to
@@ -22,10 +23,10 @@ use flm_core::core::registry::FlmFeature;
 use flm_core::dump::diag::expect;
 use flm_core::lang::Flm;
 use flm_core::lang::mint::{ArgDef, ElementDef, SyntaxDef};
-use flm_core::stdcore::backends::lowering::lower_arg_or_nothing;
-use flm_core::stdcore::backends::pres::{self, BlockPayload, UnsupportedPayload, payload_of};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::refs::UnresolvedRefs;
+use flm_core::stdlib::backends::lowering::lower_arg_or_nothing;
+use flm_core::stdlib::backends::pres::{self, BlockPayload, UnsupportedPayload, payload_of};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::refs::UnresolvedRefs;
 use techy::core::node::NodeRef;
 use techy::error::Severity;
 

@@ -3,7 +3,7 @@
 //! rewrite's trees.
 
 use crate::api::core::data::store::StageOut;
-use crate::api::core::run::{RewriteCx, StageCx};
+use crate::api::core::run::{RewriteCx, StageCx, Trees};
 use crate::api::techy::node::{Node, Tree};
 use crate::api::techy::transform::{Restage, Restager};
 use crate::runtime::ExtError;
@@ -292,7 +292,7 @@ impl RewriteDecl {
 /// The trait is sealed: the adapter alone implements it.
 pub trait TreesTable: Sealed {
     /// The table's trees, by id, in id order.
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)>;
+    fn trees(&self) -> Trees;
 
     /// The tree of id `id`, if the table holds it.
     fn tree(&self, id: &str) -> Option<Box<dyn Tree>>;

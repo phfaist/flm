@@ -12,11 +12,11 @@ decides what each construct becomes in that format.
 
 This chapter is the author's reference of the language. It describes what the
 parser reads, how the text is laid out in paragraphs and blocks, and every
-command and environment of the standard package
-([`stdcore`](crate::stdcore)), with what each one produces. The rendered samples
-are plain text printed by the [text backend](crate::stdcore::backends::text);
+command and environment of the standard features
+([`stdlib`](crate::stdlib)), with what each one produces. The rendered samples
+are plain text printed by the [text backend](crate::stdlib::backends::text);
 another backend writes the same markup differently — the
-[LaTeX backend](crate::stdcore::backends::latex_recomposed), for example, writes
+[LaTeX backend](crate::stdlib::backends::latex_recomposed), for example, writes
 it back as LaTeX; this chapter calls that output the *recomposed LaTeX*.
 
 FLM takes LaTeX's syntax but not its processing model. Parsing never expands a
@@ -35,7 +35,7 @@ processes a document — the `flm` command-line program, or any other program
 built on the library — chooses which features
 it registers and how each is configured (see [features and
 packages](crate::guide::concepts_overview#features-and-packages)). This chapter
-describes the standard package under its default configuration. A program that
+describes the standard features under their default configuration. A program that
 registers other features has other commands, written in the same syntax; [the
 extension guide](crate::guide::extending) shows how a feature is written.
 
@@ -113,8 +113,8 @@ and whether `$` delimits mathematics
 (see the [command-line guide](crate::guide::command_line#configuration-files-and-document-front-matter)),
 and an included file may set its own for its content (see [including
 files](#including-files)). The table above shows the defaults. Of the other rows,
-only `~` comes from the standard package: it is a special character sequence of
-the [`literals`](crate::stdcore::features::literals) feature. Commands, groups,
+only `~` comes from the standard features: it is a special character sequence of
+the [`literals`](crate::stdlib::features::literals) feature. Commands, groups,
 paragraph breaks and the mathematics delimiters belong to the parser itself.
 
 A comment starts with two characters, `%%`, not with the single `%` that LaTeX
@@ -139,9 +139,9 @@ amount of money would change meaning on the day its program switched
 
 ### Writing a character that means something else
 
-Nine spellings each stand for a single character. The
-[`literals`](crate::stdcore::features::literals) feature of the standard package
-declares them, and each produces exactly its one character as ordinary text:
+Nine spellings each stand for a single character. They are defined in the standard
+[`literals`](crate::stdlib::features::literals) feature, and each produces exactly its
+one character as ordinary text:
 
 | written | character |
 |---|---|
@@ -318,7 +318,7 @@ A *special character sequence* is a sequence of characters recognized wherever
 it is written, with no backslash before it; `~` has this form in LaTeX. Macros,
 environments and special character sequences are the three *callable kinds* of
 the language ([`CallableKind`](crate::lang::mint::CallableKind)), the forms in
-which an element can be written. The standard package declares two special
+which an element can be written. The standard features provide two special
 character sequences: `~`, a non-breaking space everywhere (see [writing a
 character that means something
 else](#writing-a-character-that-means-something-else)), and `&`, which separates
@@ -408,7 +408,7 @@ A second paragraph. Still the second paragraph.
 An element whose block role is *block* is a block of its own: it is not part of
 the paragraph around it, and the text before it and the text after it become two
 paragraphs, even where no blank line separates them from the block. Among the
-elements of the standard package, the blocks are the [headings](#headings), the
+elements of the standard features, the blocks are the [headings](#headings), the
 [lists](#lists), the [tables of cells](#tables-of-cells), the
 [theorems](#theorems), the [term definitions](#defined-terms), the
 [quotations](#quotations), the [floats](#floats), the `verbatimcode`
@@ -427,7 +427,7 @@ between two blocks is removed.
 A *displayed item* is content that stands inside a paragraph and is set on
 lines of its own, apart from the text before it and the text after it (block
 role [`Displayed`](crate::model::aspects::BlockRole::Displayed)). The displayed
-items of the standard package are the displayed formulas: display mathematics
+items of the standard features are the displayed formulas: display mathematics
 written `\[…\]` or `$$…$$`, and the six [display-math
 environments](#mathematics), such as `equation` and `align*`. A formula written
 `\(…\)` or `$…$` is inline content.
@@ -528,7 +528,7 @@ with curly quotes, accented letters or East Asian characters is not changed.
 
 The program chooses which families apply when it builds its registry
 ([`BlocksConfig`](crate::lang::rewrites::blocks::BlocksConfig), passed through
-[`StdcoreConfig::blocks`](crate::stdcore::StdcoreConfig::blocks)); a document
+[`StdlibConfig::blocks`](crate::stdlib::StdlibConfig::blocks)); a document
 cannot switch them. Collapsing whitespace is not one of the families and always
 happens. Mathematics and verbatim content are exempt from all of it, and so is the
 text that a command reads as typed, such as the keys of `\cite`, a label in
@@ -540,8 +540,8 @@ through exactly as written.
 
 Four commands mark their one mandatory argument with a text style. They are the
 four values of the element `flm.textstyle`
-([`TEXT_STYLE`](crate::stdcore::features::textstyles::TEXT_STYLE)), declared by
-the [`textstyles`](crate::stdcore::features::textstyles) feature:
+([`TEXT_STYLE`](crate::stdlib::features::textstyles::TEXT_STYLE)), declared by
+the [`textstyles`](crate::stdlib::features::textstyles) feature:
 
 | written | meaning |
 |---|---|
@@ -556,7 +556,7 @@ Some \emph{emphasis}, \textbf{bold}, \textit{italic} and \texttt{monospace}.
 
 All four are inline: they take part in the paragraph around them and keep the
 whitespace next to them. What each one means is a value of
-[`TextStyle`](crate::stdcore::features::textstyles::TextStyle). A backend with no
+[`TextStyle`](crate::stdlib::features::textstyles::TextStyle). A backend with no
 way to show a style prints the content without it, as the text backend does for
 all four:
 
@@ -566,21 +566,21 @@ Some emphasis, bold, italic and monospace.
 
 ## Headings
 
-The standard package declares five **heading kinds**, one per level, from
+The standard features provide five **heading kinds**, one per level, from
 `section` (level 1) to `subparagraph` (level 5), each written with a command of
 its own name: `\section`, `\subsection`, `\subsubsection`, `\paragraph`,
-`\subparagraph`. A heading kind ([`HeadingDecl`](crate::stdcore::features::headings::HeadingDecl))
-is what a heading is; the [`headings`](crate::stdcore::features::headings)
+`\subparagraph`. A heading kind ([`HeadingDecl`](crate::stdlib::features::headings::HeadingDecl))
+is what a heading is; the [`headings`](crate::stdlib::features::headings)
 feature declares the heading kinds and the commands that write them from its
-configuration ([`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig)),
+configuration ([`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig)),
 so a program may declare other heading kinds and other commands. A level is a number
 counted from zero, a smaller level being an outer one, and every number is a
 valid level: a program may declare a heading kind at level 0, above the sections, such as
 a chapter. Every heading is a node of the element `flm.heading`
-([`HEADING`](crate::stdcore::features::headings::HEADING)), and every heading
+([`HEADING`](crate::stdlib::features::headings::HEADING)), and every heading
 command takes, in this order: an optional star, an optional bracket of
 key-values, the title, and any number of `\label` fields
-([`heading_args`](crate::stdcore::features::headings::heading_args)).
+([`heading_args`](crate::stdlib::features::headings::heading_args)).
 
 ```text
 \section{Introduction}\label{sec:intro}
@@ -613,12 +613,12 @@ alone means `key=true`. Three keys are read:
   `toc=false`, **starred or not**: a `\section*{T}` is listed, and
   `\section*[toc=false]{T}` (or `\section[numbered=false,toc=false]{T}`) is
   neither numbered nor listed. A heading kind the program declared as never listed
-  ([`skip_toc`](crate::stdcore::features::headings::HeadingDecl::skip_toc))
+  ([`skip_toc`](crate::stdlib::features::headings::HeadingDecl::skip_toc))
   ignores `toc` and reports nothing about it. The outputs also carry the fact on
   the heading itself: the HTML output writes it as the attribute `data-flm-toc` on
   every heading, block or run-in, and the recomposed LaTeX passes it to its LaTeX
   hook for headings (`\flmHeading`, a macro the style file defines with a default;
-  see [`latex::preamble`](crate::stdcore::backends::latex::preamble) and [the LaTeX
+  see [`latex::preamble`](crate::stdlib::backends::latex::preamble) and [the LaTeX
   hooks](crate::guide::rendering#the-latex-hooks)), whose default lists a starred
   heading written with `toc=true` in LaTeX's table of contents.
 - `alt={…}` — the heading's **alternative title**, a shorter or plainer form of
@@ -650,7 +650,7 @@ short title: `\section[Short]{A long title}` is the Error
 
 A later key replaces an earlier one. A command that the program declared with
 default key-values of its own
-([`HeadingCommand`](crate::stdcore::features::headings::HeadingCommand)), for
+([`HeadingCommand`](crate::stdlib::features::headings::HeadingCommand)), for
 example a command that writes a `section` left out of the table of contents,
 has its defaults replaced in the same way, first by the star and then by the
 bracket.
@@ -660,22 +660,22 @@ bracket.
 **Headings are not numbered unless the registry's configuration says so.** Each
 of the five standard heading kinds counts in a *counter* of its own (a dotted
 name under which things are counted in document order; see
-[`CounterDecl`](crate::stdcore::features::numbering::CounterDecl) and [counters
+[`CounterDecl`](crate::stdlib::features::numbering::CounterDecl) and [counters
 and counter styles](crate::guide::concepts_overview#counters-and-counter-styles)),
 named after the heading kind under the headings feature's prefix:
 `flm.headings.section`, `flm.headings.subsection`, and so on to
 `flm.headings.subparagraph`. Which heading kinds are numbered is the configuration's
 depth,
-[`HeadingsConfig::numbering`](crate::stdcore::features::headings::HeadingsConfig::numbering):
+[`HeadingsConfig::numbering`](crate::stdlib::features::headings::HeadingsConfig::numbering):
 no heading kind by default, every heading kind, or every heading kind down to a
 level. "Number the
 sections and the subsections and nothing deeper" is a depth of two:
 
 ```rust
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::headings::{HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::headings::{HeadingNumbering, HeadingsConfig};
 
-let config = StdcoreConfig::new()
+let config = StdlibConfig::new()
     .headings(HeadingsConfig::new().numbering(HeadingNumbering::UpToDepth(2)));
 # let _ = config;
 ```
@@ -686,7 +686,7 @@ configuration.
 The number is written before the title, followed by `. `: `1. Intro`,
 `1.2. Details`. That text is a setting of each heading kind, its title number
 format, `#{number}. ` by default
-([`HeadingDecl::title_number_format`](crate::stdcore::features::headings::HeadingDecl::title_number_format)).
+([`HeadingDecl::title_number_format`](crate::stdlib::features::headings::HeadingDecl::title_number_format)).
 The first three levels are written in decimal digits, each numbered **within**
 the level above it. This means two things: the number restarts whenever the
 level above advances, and the number of the level above is written before its
@@ -718,16 +718,16 @@ sections the value 0 before the first one, so that such a subsection reads
 
 A **run-in heading** is a heading set at the start of the paragraph it
 introduces, on the paragraph's first line, rather than on a line of its own (see
-[`headings`](crate::stdcore::features::headings)): where the program declares
+[`headings`](crate::stdlib::features::headings)): where the program declares
 `paragraph` as run in, the text backend prints `\paragraph{Note} Some content.`
 as `Note. Some content.`, with the stop set by
-[`TextRenderOptions::run_in_stop`](crate::stdcore::backends::text::TextRenderOptions::run_in_stop).
+[`TextRenderOptions::run_in_stop`](crate::stdlib::backends::text::TextRenderOptions::run_in_stop).
 The program decides which heading kinds are set that way, not the author: each heading kind
 says whether it is run in
-([`HeadingDecl::run_in`](crate::stdcore::features::headings::HeadingDecl::run_in);
-[`HeadingsConfig::run_in_levels`](crate::stdcore::features::headings::HeadingsConfig::run_in_levels)
+([`HeadingDecl::run_in`](crate::stdlib::features::headings::HeadingDecl::run_in);
+[`HeadingsConfig::run_in_levels`](crate::stdlib::features::headings::HeadingsConfig::run_in_levels)
 sets it by level), and the program passes the configuration through
-[`StdcoreConfig::headings`](crate::stdcore::StdcoreConfig::headings). No standard
+[`StdlibConfig::headings`](crate::stdlib::StdlibConfig::headings). No standard
 heading kind is run in, so unless a program says otherwise every heading is a block.
 
 A heading of a run-in heading kind is not a block: the block-structure pass opens a
@@ -747,7 +747,7 @@ rule of `=` under it, and a heading one level deeper with a rule of `-`. A
 deeper heading has no rule: its title is preceded by `#` characters and a
 space, three for a heading two levels below the root and one more for each
 further level. The root heading level is a render option of the text backend
-([`TextRenderOptions::root_heading_level`](crate::stdcore::backends::text::TextRenderOptions::root_heading_level)),
+([`TextRenderOptions::root_heading_level`](crate::stdlib::backends::text::TextRenderOptions::root_heading_level)),
 1 by default, the level of a section; the [rendering
 guide](crate::guide::rendering) gives the details.
 
@@ -765,7 +765,7 @@ Unnumbered
 ### The table of contents
 
 The **table of contents** is a list of the document's headings, built by the
-[`toc`](crate::stdcore::features::toc) feature of the standard package. An author
+standard [`toc`](crate::stdlib::features::toc) feature. An author
 does not write it in the document (there is no `\tableofcontents` command): the
 output places it before the content when the render asks for it.
 
@@ -804,7 +804,7 @@ subsubsection directly under a section) is nested one list deeper, not two.
 
 - On the HTML page, the table of contents is a `<nav>` of nested lists, each entry a
   link to its heading. The program's compose template `simple` places it between
-  the page's header and its main content (see the [rendering
+  the page's header and the content (see the [rendering
   guide](crate::guide::rendering) for the markup and its stylesheet).
 - In the plain text, it is printed before the content, after the title, the
   authors and the date, one entry per paragraph. The entries are printed at the
@@ -823,7 +823,7 @@ subsubsection directly under a section) is nested one list deeper, not two.
 `\ref{type:label}` refers to that construct. A second reference command,
 `\hyperref[type:label]{text}`, refers to the same constructs but shows the text
 the author writes as its second argument instead of what the target shows. The
-[`refs`](crate::stdcore::features::refs) feature declares all three. A fourth
+[`refs`](crate::stdlib::features::refs) feature declares all three. A fourth
 command, `\eqref`, belongs to the mathematics feature and refers to equation
 lines only (see [inside a display-math
 environment](#inside-a-display-math-environment)).
@@ -859,7 +859,7 @@ Or read how to format things.
 ### Writing a label
 
 A `\label` is a *field*, not a command: it is read only after a construct that
-declares it ([`label_fields_arg`](crate::stdcore::features::refs::label_fields_arg);
+declares it ([`label_fields_arg`](crate::stdlib::features::refs::label_fields_arg);
 see [fields: data a construct
 reads](crate::guide::concepts_overview#fields-data-a-construct-reads)). The
 construct reads the field as data and attaches the label to its reference point.
@@ -888,10 +888,10 @@ exactly as its `\label` does.
 
 Each construct states which label types may be written for it. A heading accepts
 `sec` and `topic`
-([`LABEL_TYPES`](crate::stdcore::features::headings::LABEL_TYPES)), so
+([`LABEL_TYPES`](crate::stdlib::features::headings::LABEL_TYPES)), so
 `\section{Sum}\label{eq:sum}` labels nothing: the type `eq` is for an equation,
 not a section. An equation line that can be numbered accepts `eq`
-([`LABEL_TYPES`](crate::stdcore::features::math::LABEL_TYPES)); one that can
+([`LABEL_TYPES`](crate::stdlib::features::math::LABEL_TYPES)); one that can
 carry no number accepts no type, because a reference to it would have nothing to
 show. A construct may also accept every type, which is what a feature declares
 for a construct whose label types are not fixed in advance.
@@ -910,7 +910,7 @@ float without a caption, has nothing to show: a reference to it is the Error
 `flm.refs.nothing-to-show`, and the label is shown as written.
 
 `\hyperref` takes the label in *brackets* and the text to show in braces
-([`hyperref_args`](crate::stdcore::features::refs::hyperref_args)). The text is
+([`hyperref_args`](crate::stdlib::features::refs::hyperref_args)). The text is
 ordinary content (formatting commands, a formula, another reference), and the
 output shows it, linked to the target. In every other respect a `\hyperref` is a
 `\ref`: the same labels, the same link target, the same reports. Written without
@@ -920,10 +920,10 @@ other text not spelled `type:label`; the words are still shown, without a link.
 ### The options of `\ref`
 
 `\ref` takes an optional key-value argument before its target
-([`ref_args`](crate::stdcore::features::refs::ref_args)), which says how a
+([`ref_args`](crate::stdlib::features::refs::ref_args)), which says how a
 number is introduced. The words before a number are the target's *counter
 style*'s (the description of how a counter's value is shown; see
-[`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl) and
+[`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl) and
 [counters and counter
 styles](crate::guide::concepts_overview#counters-and-counter-styles)):
 
@@ -962,21 +962,21 @@ items are joined by "and", more items by commas and a final ", and":
 `\ref{eq:a,thm:big}` reads `Eq. (1) and Thm. 1.1`, and
 `\ref{eq:a,thm:big,note:n}` reads `Eq. (1), Thm. 1.1, and A note`. These joining
 texts are the configuration of the references feature
-([`RefsConfig`](crate::stdcore::features::refs::RefsConfig)), which a program may
+([`RefsConfig`](crate::stdlib::features::refs::RefsConfig)), which a program may
 change, to write "und" in place of "and" for example.
 
 ### Anchors
 
 The link's target is an *anchor*: the identifier a link points at for a
 reference point, computed once by the references feature
-([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)). Which anchor a reference
+([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)). Which anchor a reference
 point gets depends on what it is:
 
 - a labeled point gets its first label, the type and the label joined by a
   hyphen: `\label{sec:intro}` gives `sec-intro`
-  ([`label_anchor`](crate::stdcore::features::refs::label_anchor), which
+  ([`label_anchor`](crate::stdlib::features::refs::label_anchor), which
   encodes the two parts separately with
-  [`encode_anchor`](crate::stdcore::features::refs::encode_anchor));
+  [`encode_anchor`](crate::stdlib::features::refs::encode_anchor));
 - an unlabeled heading gets its title, after a prefix and a double hyphen:
   `sec--Introduction` (an xnote in the title is not part of it); a second
   unlabeled heading with the same title gets `sec--Introduction-2`, a third
@@ -997,9 +997,9 @@ does not give `sec--Foo`.
   `\hyperref`, the text its author wrote), marked as unresolved. It is the Error
   `flm.refs.unresolved` by default, and a Warning when the program that
   requested the rendering asks for that
-  ([`RefsRenderOptions`](crate::stdcore::features::refs::RefsRenderOptions) with
-  [`UnresolvedRefs::Allow`](crate::stdcore::features::refs::UnresolvedRefs)).
-  Under the [`check`](crate::stdcore::CHECK_WORKFLOW) workflow, which checks a
+  ([`RefsRenderOptions`](crate::stdlib::features::refs::RefsRenderOptions) with
+  [`UnresolvedRefs::Allow`](crate::stdlib::features::refs::UnresolvedRefs)).
+  Under the [`check`](crate::stdlib::CHECK_WORKFLOW) workflow, which checks a
   document and renders nothing (a *workflow* is a named set of demands together with
   the choices that go with them, a complete request for a kind of processing; see
   [`WorkflowDef`](crate::core::registry::WorkflowDef)),
@@ -1024,8 +1024,8 @@ Mathematics is written between `\(` and `\)` for inline mathematics and between
 program switched on [`dollar_math`](crate::lang::FlmParsing::dollar_math). Six
 environments write display mathematics under their own name: `equation`,
 `align`, `gather` and their starred forms
-([`ENVIRONMENTS`](crate::stdcore::features::math::ENVIRONMENTS)). The
-[`math`](crate::stdcore::features::math) feature declares them. Display
+([`ENVIRONMENTS`](crate::stdlib::features::math::ENVIRONMENTS)). The
+[`math`](crate::stdlib::features::math) feature declares them. Display
 mathematics, written `\[…\]`, `$$…$$` or with one of the six environments, is a
 [displayed item](#displayed-items): it stands inside the paragraph it is written
 in, on lines of its own.
@@ -1084,7 +1084,7 @@ A word of ordinary text inside a formula is written with a **text command**:
 The `math` feature declares these commands **for mathematics mode only**:
 `\text`, `\textnormal`, `\textup`, `\textrm`, `\textmd`, `\textbf`, `\textit`,
 `\textsl`, `\textsc`, `\textsf`, `\texttt` and `\mbox`
-([`COMMANDS`](crate::stdcore::features::math::text::COMMANDS)). Outside
+([`COMMANDS`](crate::stdlib::features::math::text::COMMANDS)). Outside
 mathematics, `\textbf`, `\textit` and `\texttt` are the [inline formatting
 commands](#inline-formatting), and `\text`, `\mbox` and the others are unknown
 commands.
@@ -1105,7 +1105,7 @@ error, because text mode is strict: `\alpha` is notation outside the argument
 and a mistake inside it. The mathematics around the argument is not changed.
 
 The library includes no renderer for mathematics. The capability
-[`flm.math.rendered`](crate::stdcore::features::math::RENDERED) is declared with
+[`flm.math.rendered`](crate::stdlib::features::math::RENDERED) is declared with
 no stage providing it, for an extension that renders mathematics (a
 *capability* is a registered name for a state of processing that a stage brings
 about; see [`CapabilityDef`](crate::core::registry::CapabilityDef)). `math-passthrough`
@@ -1128,9 +1128,9 @@ in the same paragraph.
 
 The unstarred environments number their lines: each line takes a number unless
 the line says otherwise, and the lines of the starred forms never do
-([`MathEnvironment::numbered`](crate::stdcore::features::math::MathEnvironment)).
+([`MathEnvironment::numbered`](crate::stdlib::features::math::MathEnvironment)).
 Equations are numbered unless the registry's configuration says otherwise
-([`MathConfig`](crate::stdcore::features::math::MathConfig)); what they are
+([`MathConfig`](crate::stdlib::features::math::MathConfig)); what they are
 numbered within is set by the document's numbering options (see [the numbering
 guide](crate::guide::numbering)).
 
@@ -1138,7 +1138,7 @@ guide](crate::guide::numbering)).
 
 `\ensuremath{…}` writes mathematics wherever it stands, as in LaTeX. The `math`
 feature declares it in both modes
-([`ensuremath`](crate::stdcore::features::math::ensuremath)):
+([`ensuremath`](crate::stdlib::features::math::ensuremath)):
 
 - **In text**, it is an inline formula: `\ensuremath{x^2}` is read as `\(x^2\)` is,
   its content in mathematics mode, and every math processor and every output
@@ -1164,7 +1164,7 @@ mathematics whether it is used in text or inside a formula.
 Four commands are available inside the body of the six environments, and only
 there: the `math` feature declares them in a scoped package that the
 environments' bodies make available
-([`math::lines`](crate::stdcore::features::math::lines)). Written in `\(…\)`, in
+([`math::lines`](crate::stdlib::features::math::lines)). Written in `\(…\)`, in
 `\[…\]` or inside a nested environment such as `cases`, the same names are
 unknown commands of mathematics, kept as written like any other under
 `math-passthrough`; written in text, they are unknown macros and errors.
@@ -1199,8 +1199,8 @@ into *equation lines* at each `\\`: an equation line is one line of a
 display-math environment as its body reads between two `\\`, with its
 mathematics, its labels, its tag and its no-number mark (see [equation
 lines](crate::guide::concepts_overview#equation-lines);
-[`equation_lines`](crate::stdcore::features::math::lines::equation_lines) returns
-one [`EquationLine`](crate::stdcore::features::math::lines::EquationLine) per
+[`equation_lines`](crate::stdlib::features::math::lines::equation_lines) returns
+one [`EquationLine`](crate::stdlib::features::math::lines::EquationLine) per
 line). A `\label` on a line of its own belongs to the line that the following
 `\\` ends: `eq:first` above labels the line `a &= b`. A `\\` at the very end of a
 body, followed only by whitespace and comments, ends the last line and opens no
@@ -1266,7 +1266,7 @@ no-break space) and `\eqref{eq:euler}` shows `(3)`. A line whose author wrote a
 content.
 
 `\eqref{eq:euler}` is the mathematics feature's own reference command
-([`math::eqref`](crate::stdcore::features::math::eqref)). It refers to one
+([`math::eqref`](crate::stdlib::features::math::eqref)). It refers to one
 target, whose label type must be `eq`, and shows it as `\ref[noprefix]` shows
 it: the number alone, in the parentheses of the equation's counter style and
 without the word before them. A target of any other type is the Error
@@ -1276,11 +1276,11 @@ it was written.
 ## Lists
 
 A list is an environment whose body is a sequence of items, each begun by
-`\item`. The [`lists`](crate::stdcore::features::lists) feature declares three
+`\item`. The [`lists`](crate::stdlib::features::lists) feature declares three
 *list kinds* by default: `itemize`, whose items are bulleted, `enumerate`, whose
 items are numbered, and `description`, whose items are labeled by the term each
 one writes. A list's list kind is its environment's name; a program may declare other
-list kinds ([`ListsConfig`](crate::stdcore::features::lists::ListsConfig)).
+list kinds ([`ListsConfig`](crate::stdlib::features::lists::ListsConfig)).
 
 ```text
 \begin{itemize}
@@ -1411,7 +1411,7 @@ none.
 
 `\label{item:…}` written directly after an `\item` and its bracket labels the
 item; the label type is `item`, and no other type is accepted there
-([`LABEL_TYPES`](crate::stdcore::features::lists::LABEL_TYPES)). A reference to a
+([`LABEL_TYPES`](crate::stdlib::features::lists::LABEL_TYPES)). A reference to a
 numbered item shows the word `Item` and the item's number through the reference
 template: `\ref{item:x}` reads `Item 2` for the second item of an outermost
 `enumerate`, `Item (ii)` for the second item of a list at the second depth, and
@@ -1439,17 +1439,17 @@ numbered list shows no labels and is reported as the Error
 The mistakes of a list described in this chapter are reported when a backend
 converts the list into its output format (the *lowering*; see [backends,
 lowering and outputs](crate::guide::concepts_overview#backends-lowering-and-outputs)),
-so the [`check`](crate::stdcore::CHECK_WORKFLOW) workflow, which converts
+so the [`check`](crate::stdlib::CHECK_WORKFLOW) workflow, which converts
 nothing into an output, does not report them.
 
 ## Tables of cells
 
 A *table of cells* is a `cells` environment: a grid of rows and columns, filled
 one cell at a time with `\cell` or by rows with `\celldata`, declared by the
-[`cells`](crate::stdcore::features::cells) feature. By default the environment is
+[`cells`](crate::stdlib::features::cells) feature. By default the environment is
 available inside a `table` float and nowhere else (see [floats](#floats)); a
 program that sets the feature's switch
-[`global`](crate::stdcore::features::cells::CellsConfig::global) makes it an ordinary
+[`global`](crate::stdlib::features::cells::CellsConfig::global) makes it an ordinary
 environment, written wherever blocks are written. Anywhere else, `\begin{cells}`
 is an unknown environment.
 
@@ -1524,7 +1524,7 @@ on:
 **Style tokens.** The angle brackets hold *style tokens* separated by
 whitespace. A token is a name, or a name with a value in braces, and each states
 a fact about the cell
-([`CellStyle`](crate::stdcore::features::cells::CellStyle)):
+([`CellStyle`](crate::stdlib::features::cells::CellStyle)):
 
 | token | what it states about the cell |
 |---|---|
@@ -1547,7 +1547,7 @@ in the body outside a cell (`flm.cells.content-outside-cell`), and the later of
 two cells covering one position (`flm.cells.overlap`), are left out, and for each
 a *dropped mark* is placed immediately before the table: a mark that each output
 shows where content was left out, `[dropped: …]` in plain text (see
-[`lowering::error`](crate::stdcore::backends::lowering::error)). A placement or a
+[`lowering::error`](crate::stdlib::backends::lowering::error)). A placement or a
 mapping that cannot be read is ignored (`flm.cells.bad-placement`), and a token
 that is misspelled or given a value it does not take is ignored
 (`flm.cells.unknown-style`, `flm.cells.bad-style-value`). A `\cell` or a
@@ -1561,11 +1561,11 @@ report them.
 
 ## Xnotes
 
-An *xnote* ([`xnotes`](crate::stdcore::features::xnotes)) is a piece of text set
+An *xnote* ([`xnotes`](crate::stdlib::features::xnotes)) is a piece of text set
 apart from the running text, marked where it belongs and shown elsewhere or in
 place: a footnote, an endnote, a side note. An *xnote kind* is one way of being
 an xnote; the program configures the xnote kinds when it builds its registry
-([`XnotesConfig`](crate::stdcore::features::xnotes::XnotesConfig)), and the
+([`XnotesConfig`](crate::stdlib::features::xnotes::XnotesConfig)), and the
 default configuration declares one, `footnote`, written `\footnote`. A citation
 is not an xnote (see [citations](#citations)).
 
@@ -1623,7 +1623,7 @@ See \ref{fn:appendix}, or \ref[noprefix]{fn:appendix}.
 A second xnote kind is configuration, not syntax: a program may add
 `\endnote{…}`, numbered in a counter of its own, or an unnumbered
 `\sidenote{…}` shown where it is written. An xnote kind is either *listed* or shown *in
-place* ([`XnotePlacement`](crate::stdcore::features::xnotes::XnotePlacement)).
+place* ([`XnotePlacement`](crate::stdlib::features::xnotes::XnotePlacement)).
 An xnote of a listed xnote kind prints its mark in the running text, and the
 xnotes of that kind are shown after the content, in a list of their own under
 the xnote kind's title (`Footnotes`), each beside its mark. An xnote of an xnote
@@ -1636,7 +1636,7 @@ xnote of the list links back to its mark.
 
 Three commands link to an **address**, a place outside the document, written as
 the reader's program should follow it; the
-[`href`](crate::stdcore::features::href) feature declares them:
+[`href`](crate::stdlib::features::href) feature declares them:
 
 | written | links to | shows |
 |---|---|---|
@@ -1651,7 +1651,8 @@ So `\url{https://example.com/a%20b#top}` links to exactly that address. The
 library checks nothing about an address (no scheme, no form) and changes nothing
 in it. An output that refuses some addresses reports it when it writes the link:
 the HTML output refuses a scheme it does not accept, such as `javascript:`, and
-keeps the link's text (`flm.html.refused-address`).
+keeps the link's text (`flm.html.refused-address`). Which schemes it accepts is
+decided by the program that renders the page, not by the document.
 
 **What `\url` and `\email` show** is the address without a leading `http://`,
 `https://` or `mailto:`, and without the `/`, `#` and `?` characters it ends
@@ -1660,9 +1661,9 @@ second argument, which is ordinary inline content. In plain text a link prints
 the address after what it shows, `Click here <https://example.com>`, except for
 a `\url` or an `\email`, which already show their address; the program rendering
 the document switches these with
-[`link_addresses`](crate::stdcore::backends::text::TextRenderOptions::link_addresses)
+[`link_addresses`](crate::stdlib::backends::text::TextRenderOptions::link_addresses)
 and
-[`link_addresses_when_shown`](crate::stdcore::backends::text::TextRenderOptions::link_addresses_when_shown).
+[`link_addresses_when_shown`](crate::stdlib::backends::text::TextRenderOptions::link_addresses_when_shown).
 
 **In the template of a user definition**, a placeholder inside an address is
 replaced by the characters of the use site, and a literal `#` is written `##`,
@@ -1688,7 +1689,7 @@ characters.
 
 A **citation** refers to a cited work by its **citation key** and shows a
 **citation mark** where it is written. The
-[`citations`](crate::stdcore::features::citations) feature declares the
+[`citations`](crate::stdlib::features::citations) feature declares the
 commands. Each cited work gets a number, in the order the document first cites
 it, and the mark shows the numbers, each a link to the work.
 
@@ -1760,9 +1761,9 @@ one written before `\R[I]`.
   `flm.citations.no-citation`; an unknown flag is the Error
   `flm.citations.unknown-flag`.
 - **Two forms of the mark.** The program chooses how the numbers look when the
-  citation entries are listed ([`MarkForm`](crate::stdcore::features::citations::MarkForm),
+  citation entries are listed ([`MarkForm`](crate::stdlib::features::citations::MarkForm),
   the field `mark` of
-  [`CitationsConfig`](crate::stdcore::features::citations::CitationsConfig)):
+  [`CitationsConfig`](crate::stdlib::features::citations::CitationsConfig)):
   *bracketed*, the default, with the numbers inline between the delimiters of
   the counter style described at the end of this item, or *superscript*, with
   the numbers raised, without delimiters, and without a space before a `\cite`'s mark (`text¹,²`). A citation written with
@@ -1770,7 +1771,7 @@ one written before `\R[I]`.
   without delimiters, `refs. 1,2`, and the list labels its entries `1`, `2`. The
   delimiters, the words, the texts joining the numbers and whether consecutive
   numbers make a range are set by a counter style, the field `style` of
-  [`CitationsConfig`](crate::stdcore::features::citations::CitationsConfig) (see
+  [`CitationsConfig`](crate::stdlib::features::citations::CitationsConfig) (see
   [counters and counter
   styles](crate::guide::concepts_overview#counters-and-counter-styles)).
 
@@ -1784,7 +1785,7 @@ the same numbers.
 gives each cited work its **citation entry**, what is shown for it, such as
 `Knuth, The Art of Computer Programming, 1984`, through sources of entries it
 sets up (citation providers,
-[`CitationProvider`](crate::stdcore::features::citations::CitationProvider)); the
+[`CitationProvider`](crate::stdlib::features::citations::CitationProvider)); the
 document itself only writes keys. After the content, under the heading
 `References`, the cited works are listed in the order of their numbers, each
 labeled with its number (`[1]`), after the list of footnotes where there is
@@ -1808,7 +1809,7 @@ error (`flm.citations.entry-cites`, `flm.citations.entry-not-inline`), and its
 key is then without an entry.
 
 **Two placements.** The program chooses where the entries are shown
-([`CitationPlacement`](crate::stdcore::features::citations::CitationPlacement),
+([`CitationPlacement`](crate::stdlib::features::citations::CitationPlacement),
 the field `placement` of `CitationsConfig`): *listed*, the default, as above;
 or *in place*, where a mark shows the entries themselves, one bracketed group
 per key in the order written, the note after its entry: `\cite{a}\cite[Thm
@@ -1822,7 +1823,7 @@ its brackets. The form of the mark has no effect under the in-place placement.
 A **defined term** is a word or a phrase that a document explains in a **term
 definition**, the `defterm` environment; a **term link** links to that term
 definition from anywhere in the document. The
-[`defterm`](crate::stdcore::features::defterm) feature declares both.
+[`defterm`](crate::stdlib::features::defterm) feature declares both.
 
 ```text
 \begin{defterm}{Markov chain}\label{topic:markov}\aliasterm{Markov chains}
@@ -1849,7 +1850,7 @@ does too. See Markov chain.
   definition's paragraphs. The definition opens with a **lead-in** set into its
   first paragraph, the term and a colon by default; the program may configure
   another lead-in, or none
-  ([`DeftermConfig`](crate::stdcore::features::defterm::DeftermConfig)).
+  ([`DeftermConfig`](crate::stdlib::features::defterm::DeftermConfig)).
 - After the term, in any order and each as often as needed: `\label{…}`, a label
   of the type `term` or `topic`, by which `\ref` and `\hyperref` refer to the
   definition (a reference to a definition shows its term); and
@@ -1881,7 +1882,7 @@ written with its lead-in, and a term link is written as its text.
 
 The **theorem environments** are the numbered, titled, labelable blocks of
 mathematical writing: theorems, lemmas, definitions, proofs. The
-[`theorems`](crate::stdcore::features::theorems) feature declares them.
+[`theorems`](crate::stdlib::features::theorems) feature declares them.
 
 ```text
 \begin{theorem}[My theorem]\label{thm:sqrt2}
@@ -1912,11 +1913,11 @@ By Theorem 1, no fraction squares to two.
   and 3), and `proof`, which is not numbered and ends with the closing mark `□`.
   The program may declare other theorem kinds (an `exercise`, for example) or
   another set of them
-  ([`TheoremsConfig`](crate::stdcore::features::theorems::TheoremsConfig)); the
+  ([`TheoremsConfig`](crate::stdlib::features::theorems::TheoremsConfig)); the
   three sets the library ships hold six, eight and thirteen theorem kinds
-  ([`simpleset`](crate::stdcore::features::theorems::TheoremsConfig::simpleset),
-  [`new`](crate::stdcore::features::theorems::TheoremsConfig::new),
-  [`richset`](crate::stdcore::features::theorems::TheoremsConfig::richset); the
+  ([`simpleset`](crate::stdlib::features::theorems::TheoremsConfig::simpleset),
+  [`new`](crate::stdlib::features::theorems::TheoremsConfig::new),
+  [`richset`](crate::stdlib::features::theorems::TheoremsConfig::richset); the
   largest adds `idea`, `question`, `claim`, `observation` and `problem`).
 - **The heading.** Each theorem opens with a heading set into its first
   paragraph: the theorem kind's word and the theorem's number, then the title in
@@ -1972,7 +1973,7 @@ kind's word alone.
 
 A **quotation** is a block set apart from the running text: a quoted passage, a
 poem, an address. Its content is made of **quotation sections**, each written
-with a section command. The [`quote`](crate::stdcore::features::quote) feature
+with a section command. The [`quote`](crate::stdlib::features::quote) feature
 declares the quote environments and their section commands.
 
 ```text
@@ -2042,7 +2043,7 @@ City, ST 12345
 
 **Configuring an environment.** The program may declare other quote
 environments
-([`QuoteConfig`](crate::stdcore::features::quote::QuoteConfig)), each with the
+([`QuoteConfig`](crate::stdlib::features::quote::QuoteConfig)), each with the
 section commands it accepts and what its content outside them is read as: a
 passage, lines, an attribution, a block, or nothing, which makes such content an
 error. Examples are an `epigraph` accepting `\text` and `\attributed` alone, or a
@@ -2059,9 +2060,9 @@ makes the registry build fail.
 remark written in the text. Each reviewer, an **annotator**, has a command of
 their own, which exists only when the program configures that annotator, with
 the annotator's initials if they have any; the
-[`annotations`](crate::stdcore::features::annotations) feature declares the
+[`annotations`](crate::stdlib::features::annotations) feature declares the
 commands
-([`AnnotationsConfig`](crate::stdcore::features::annotations::AnnotationsConfig)).
+([`AnnotationsConfig`](crate::stdlib::features::annotations::AnnotationsConfig)).
 No annotator is configured by default, and `\phf` is then an unknown command. In
 this chapter, an annotator writes `\phf` and has the initials `PhF`.
 
@@ -2121,7 +2122,7 @@ appendix.
   highlight's passage counts as words of the title.
 - **Hiding.** The program rendering the document can leave every annotation out,
   for a clean copy
-  ([`AnnotationsRenderOptions::hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden)):
+  ([`AnnotationsRenderOptions::hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden)):
   each highlight is then shown as its passage alone and each reviewer's comment
   not at all, with no change to the source. A reviewer's comment written across
   a paragraph break leaves that break in the clean copy: the text around it
@@ -2133,11 +2134,11 @@ appendix.
 
 `\includegraphics[options]{path}` shows an **image**: a picture file referred to
 by its **path**, as written (`figures/plot.png`, `https://example.org/a.svg`).
-The [`graphics`](crate::stdcore::features::graphics) feature declares the
+The [`graphics`](crate::stdlib::features::graphics) feature declares the
 command. The library never opens the file: the output refers to it, and what is
 known about the file, such as its size and its resolution, comes from the
 program rendering the document, where that program supplies the information
-([`GraphicsInspector`](crate::stdcore::features::graphics::GraphicsInspector)).
+([`GraphicsInspector`](crate::stdlib::features::graphics::GraphicsInspector)).
 
 ```text
 \includegraphics[alt=A plot of the data, width=5cm]{figures/plot.png}
@@ -2152,7 +2153,7 @@ prints
 **Where the command may be written.** By default the command is available only
 inside the body of a float (a `figure`), and is an unknown command anywhere
 else. The program can make it an ordinary command
-([`GraphicsConfig::global`](crate::stdcore::features::graphics::GraphicsConfig::global)),
+([`GraphicsConfig::global`](crate::stdlib::features::graphics::GraphicsConfig::global)),
 written wherever text may be written: in a sentence, in a paragraph of its own,
 in a heading's title, in a caption, in a list item, in a footnote.
 
@@ -2225,7 +2226,7 @@ caption and labels, numbered in its float type's sequence. The name is LaTeX's: 
 the plain-text and HTML outputs a float is shown where it is written and never
 moved, and the recomposed LaTeX writes a numbered float as a LaTeX float
 environment, which LaTeX places. The
-[`floats`](crate::stdcore::features::floats) feature declares the float types.
+[`floats`](crate::stdlib::features::floats) feature declares the float types.
 
 ```text
 \begin{figure}
@@ -2299,11 +2300,11 @@ See Fig. 1.
   the text after it is a new paragraph.
 
 The float's body is read, and its mistakes reported, when a backend converts the
-float into its output, so the [`check`](crate::stdcore::CHECK_WORKFLOW) workflow
+float into its output, so the [`check`](crate::stdlib::CHECK_WORKFLOW) workflow
 does not report them.
 
 **Configuring a float type.** The program may declare other float types
-([`FloatsConfig`](crate::stdcore::features::floats::FloatsConfig)), for example a
+([`FloatsConfig`](crate::stdlib::features::floats::FloatsConfig)), for example a
 `diagram` holding any content and numbered when labeled, each with its name, the
 word written under its content (`Diagram`), its numbering policy, the words a
 reference writes (`Diagram`, `Diagrams`), what its body may hold and the label
@@ -2316,7 +2317,7 @@ meaning: a backslash, a brace and a percent sign are ordinary characters, braces
 need not balance, and the content ends only at its own end delimiter (see
 [verbatim regions](crate::guide::concepts_overview#verbatim-regions)). Five
 constructs hold verbatim content, three macros and two environments, declared by
-the [`verbatim`](crate::stdcore::features::verbatim) feature:
+the [`verbatim`](crate::stdlib::features::verbatim) feature:
 
 | written | verbatim kind | printed |
 |---|---|---|
@@ -2334,7 +2335,7 @@ written between their delimiters. For the two environments, the content is the
 body, and a line break directly after `\begin{name}` is not part of it.
 
 The optional `[lang]` argument states the programming language the content is
-written in. Nothing in the standard package interprets it; a backend that
+written in. Nothing in the standard features interprets it; a backend that
 highlights syntax can use it. The text backend prints neither the language nor
 the verbatim kind, which have no spelling in plain text.
 
@@ -2366,30 +2367,34 @@ end of the input is kept.
 
 A document's title, its authors and its date are not written in its body: they
 are the document's *metadata*, which the program sets on the document
-([`DocMeta`](crate::stdcore::features::meta::DocMeta)) and which the
-[`meta`](crate::stdcore::features::meta) feature shows before the content. The
+([`DocMeta`](crate::stdlib::features::metadata::DocMeta)) and which the
+[`metadata`](crate::stdlib::features::metadata) feature shows before the content. The
 `flm` program reads them from the root keys `title`, `author` and `date` of the
-document's front matter: `title` and `date` one text each, `author` one text or
-a list of texts, one per author (see the [command-line
+document's front matter: `title` and `date` one text each, `author` one author or
+a list of authors. An author is a text, the author's name, or a map with the
+author's `name` and, where given, `affiliation` (one text or a list), `email` (the
+address) and `note` (one text or a list) (see the [command-line
 guide](crate::guide::command_line#configuration-files-and-document-front-matter)).
 Each is FLM text, not plain text, read as inline content: `The \emph{Art} of
-\(x^2\)`. A problem in it is reported at its place in the file that holds it. On
-the text output, the title, then the authors separated by commas, then the date
-are printed before the content. A document without metadata shows nothing
-there.
+\(x^2\)`; the email address is a plain text. A problem in a text is reported at
+its place in the file that holds it. On the text output, the title, then each
+author, then the date are printed before the content; an author's name,
+affiliations, email address and notes stand each on a line of its own. A document
+without metadata shows nothing there.
 
 ## Including files
 
 `\input{file}` brings the content of another file into the document where the
-command is written; the [`input`](crate::stdcore::features::input) feature
+command is written; the [`input`](crate::stdlib::features::input) feature
 declares the command. The file's name is written as plain characters: a command,
 a group or a comment inside the braces is reported
 (`flm.input.reference-not-plain`). Finding and reading the file
 is the work of the program, not of the language (see
 [`lang::input`](crate::lang::input)). The `flm` program reads the name relative
-to the folder of the file that holds the command: `\input{parts/intro.flm}` in
-`docs/paper.flm` reads `docs/parts/intro.flm`, and a command in that file that writes
-`method.flm` reads `docs/parts/method.flm`. Another program built on the library
+to the folder of the file that holds the command, with `/` between the names on every
+system ([the command-line guide](crate::guide::command_line#paths)):
+`\input{parts/intro.flm}` in `docs/paper.flm` reads `docs/parts/intro.flm`, and a
+command in that file that writes `method.flm` reads `docs/parts/method.flm`. Another program built on the library
 decides how it finds files; one that provides no way to find them reports each
 `\input` (`flm.input.unavailable`).
 
@@ -2481,16 +2486,16 @@ keep a use site as a call of the definition (see [when a definition is
 expanded](#when-a-definition-is-expanded)).
 
 User definitions are declared in the settings of the
-[`userdefs`](crate::stdcore::features::userdefs) feature, never in the document's
+[`userdefs`](crate::stdlib::features::userdefs) feature, never in the document's
 body, so a document cannot define a command inside itself: FLM has no
 `\newcommand`. The `flm` program reads them from its own settings, from a data
 package the document uses, or from the document's front matter (see the
 [command-line
 guide](crate::guide::command_line#configuration-files-and-document-front-matter)).
 A program built on the library gives them as a
-[`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig), which the
-standard package takes through
-[`StdcoreConfig::userdefs`](crate::stdcore::StdcoreConfig::userdefs). User
+[`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig), which the
+standard features take through
+[`StdlibConfig::userdefs`](crate::stdlib::StdlibConfig::userdefs). User
 definitions are fixed when the registry is built, before the document's body is
 read, and the body can neither add to them nor switch them off.
 
@@ -2521,14 +2526,14 @@ text backend:
 # use std::sync::Arc;
 # use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 # use flm_core::core::plan::{Overrides, Plan};
-# use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+# use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 # use flm_core::core::run::{Externals, Run, RunOptions};
 # use flm_core::lang::{FlmOrigin, ParseOptions, parse_fragment};
-# use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT};
+# use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT};
 # use flm_core::techy::source::Source;
 use flm_core::lang::mint::ArgDef;
-use flm_core::stdcore::features::userdefs::{Definition, ExpandPolicy, UserdefsConfig};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::features::userdefs::{Definition, ExpandPolicy, UserdefsConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let userdefs = UserdefsConfig::new()
     // `\hello{name}` — one mandatory argument, referred to by its name.
@@ -2544,7 +2549,7 @@ let userdefs = UserdefsConfig::new()
     );
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new().userdefs(userdefs)));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new().userdefs(userdefs)));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -2844,7 +2849,7 @@ except the recomposed LaTeX, and in the `check` workflow. The recomposed LaTeX
 instead *keeps* its use sites in the tree and writes each as a use of the
 definition, in text and inside mathematics alike, with the definition itself in
 the output's style file (a *kept definition*; see
-[`userdefs::kept`](crate::stdcore::features::userdefs::kept)).
+[`userdefs::kept`](crate::stdlib::features::userdefs::kept)).
 
 A definition is written that way when its template *typesets* its arguments
 (`see #1`, `\emph{#1}`), since LaTeX then puts each use's arguments where the
@@ -2858,7 +2863,7 @@ cannot be written as LaTeX definitions are expanded there too; the [rendering
 guide](crate::guide::rendering) lists them. A program may also ask for the use
 sites of a `PerPlan` definition to be kept on any output and expanded only when
 they are rendered, by preferring the definition's `instantiate-at-lowering`
-rule ([`instantiate_at_lowering_rule`](crate::stdcore::features::userdefs::instantiate_at_lowering_rule)).
+rule ([`instantiate_at_lowering_rule`](crate::stdlib::features::userdefs::instantiate_at_lowering_rule)).
 A template that declares a label cannot be instantiated this way either: its use
 sites are the Error `flm.userdefs.kept-template-declares-point` on every output,
 and only the expansion policy `Always` avoids it.
@@ -2875,7 +2880,7 @@ and only the expansion policy `Always` avoids it.
 - User definitions that use each other without end stop at a depth limit
   ([`DEFAULT_RECURSION_LIMIT`](crate::lang::rewrites::userdefs::DEFAULT_RECURSION_LIMIT),
   32 nested expansions, which
-  [`UserdefsConfig::recursion_limit`](crate::stdcore::features::userdefs::UserdefsConfig::recursion_limit)
+  [`UserdefsConfig::recursion_limit`](crate::stdlib::features::userdefs::UserdefsConfig::recursion_limit)
   can change). The innermost use
   site is kept as its literal text and reported as one error
   ([`RecursionLimit`](crate::lang::rewrites::userdefs::RecursionLimit)).
@@ -2927,7 +2932,7 @@ more text.
   It takes no argument, since nothing is known about its syntax, so what follows
   it is read as ordinary content, and it is inline. The text backend prints it
   back as written, `\nope`
-  ([`UnknownMacroRule`](crate::stdcore::backends::lowering::UnknownMacroRule)).
+  ([`UnknownMacroRule`](crate::stdlib::backends::lowering::UnknownMacroRule)).
   The usual whitespace rule still applies: the space after the name is part of
   the macro, so `\nope and` prints as `\nopeand`.
 - An **unknown environment** becomes a node of the element
@@ -2936,7 +2941,7 @@ more text.
   [`UnknownEnvironment`](crate::techy::latexlike::UnknownEnvironment). Its body
   *is* read, as blocks, and ends at its own `\end{name}`; the node is a block of
   its own. The text backend prints the `\begin` and `\end` lines around the body
-  ([`UnknownEnvironmentRule`](crate::stdcore::backends::lowering::UnknownEnvironmentRule)).
+  ([`UnknownEnvironmentRule`](crate::stdlib::backends::lowering::UnknownEnvironmentRule)).
 
 Each occurrence raises exactly one diagnostic: a paragraph break inside an
 unknown environment's body, or content that follows an unknown macro, adds no
@@ -2955,7 +2960,7 @@ program asked for that element to be accepted as unrenderable rather than
 refused (an *accepted unrenderable element*; see
 [`PlanRequest::unsupported`](crate::core::plan::PlanRequest::unsupported)), the
 text backend prints `[unsupported: <element name>]` and reports one error
-([`UnsupportedElement`](crate::stdcore::backends::lowering::UnsupportedElement)).
+([`UnsupportedElement`](crate::stdlib::backends::lowering::UnsupportedElement)).
 That is a mismatch between a program's features and its backend, which a
 document cannot cause on its own; without that permission the whole rendering is
 refused before any document is read, with a message giving the element that has

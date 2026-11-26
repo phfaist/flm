@@ -173,9 +173,9 @@ use html5ever::tree_builder::TreeBuilderOpts;
 use html5ever::{Attribute, QualName, local_name, ns, tokenizer::TokenizerOpts};
 use markup5ever_rcdom::{Handle, NodeData, RcDom};
 
-use flm_core::stdcore::backends::html::conventions::{PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE};
-use flm_core::stdcore::backends::html::{class_of_element, class_of_role};
-use flm_core::stdcore::backends::pres;
+use flm_core::stdlib::backends::html::conventions::{PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE};
+use flm_core::stdlib::backends::html::{class_of_element, class_of_role};
+use flm_core::stdlib::backends::pres;
 
 // ============================================================================
 // the goldens: discovery
@@ -189,7 +189,7 @@ use flm_core::stdcore::backends::pres;
 /// A directory that does not exist holds no golden, so this suite runs over
 /// whichever of the three a checkout carries.
 const GOLDEN_DIRECTORIES: [&str; 3] =
-    ["tests/goldens/html", "tests/goldens/spine", "../flm-cli/tests/goldens"];
+    ["tests/goldens/html", "tests/goldens/spine", "../flm/tests/goldens"];
 
 /// How a golden is parsed: as a whole page, or as a piece of one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -596,26 +596,26 @@ mod contract {
     use std::collections::BTreeSet;
     use std::sync::Arc;
 
-    use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
-    use flm_core::stdcore::backends::html::conventions::{
+    use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
+    use flm_core::stdlib::backends::html::conventions::{
         BLOCK_TAGS, CONVENTIONS, DEFAULT_BLOCK_TAG, PARAGRAPH_FLOW_TAG, PARAGRAPH_ROLE,
         STYLE_ATTRIBUTE, TagRule, Written, doc_role_value,
     };
-    use flm_core::stdcore::backends::html::{
+    use flm_core::stdlib::backends::html::{
         AUXILIARY_CLASSES, class_of_element, class_of_role, data_attribute,
     };
-    use flm_core::stdcore::backends::pres;
-    use flm_core::stdcore::features::{
-        annotations, citations, defterm, floats, headings, quote, theorems, toc, xnotes,
+    use flm_core::stdlib::backends::pres;
+    use flm_core::stdlib::features::{
+        annotations, citations, defterm, floats, headings, math, quote, theorems, toc, xnotes,
     };
-    use flm_core::stdcore::{StdcoreConfig, package};
+    use flm_core::stdlib::{StdlibConfig, add_features};
 
     /// The registry a host building the standard package gets. It is read for
     /// the element names the package registers, which is where the roles a
     /// rule of the package can write come from.
     fn standard_registry() -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(StdcoreConfig::new()));
+        builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
         builder.use_package(flm_core::math_passthrough::package());
         builder.build(&RegistryInputs::new()).expect("the standard package builds")
     }
@@ -687,7 +687,7 @@ mod contract {
     /// The roles of the standard package that name a part of an element
     /// rather than an element: each is published by the feature that writes
     /// it, and this list is what a feature adds to when it writes one.
-    const PART_ROLES: [&str; 22] = [
+    const PART_ROLES: [&str; 23] = [
         annotations::HIGHLIGHT_ROLE,
         annotations::COMMENT_ROLE,
         annotations::INITIALS_ROLE,
@@ -710,6 +710,7 @@ mod contract {
         citations::SPACE_ROLE,
         citations::ENTRY_NUMBER_ROLE,
         toc::NUMBER_ROLE,
+        math::html::FORMULA_ROLE,
     ];
 
     /// The tags the contract's rows can produce, derived from every row's
@@ -723,7 +724,7 @@ mod contract {
     ///
     /// Those four lists are a **copy**: the originals are three private
     /// functions of the emitter (`heading_tag`, `span_tag` and `list_tag` in
-    /// `stdcore/backends/html/emit.rs`) and the arm that writes a verbatim
+    /// `stdlib/backends/html/emit.rs`) and the arm that writes a verbatim
     /// block, which an integration test cannot call. The copy is held against
     /// the originals by `every_tag_the_contract_claims_is_written_by_a_golden`
     /// below: every tag named here must be one some golden really carries, so
@@ -749,8 +750,8 @@ mod contract {
                 TagRule::Display { inline, block } => {
                     tags.extend([inline, block]);
                 }
-                TagRule::VerbatimDisplay => {
-                    tags.extend(["code", "pre"]);
+                TagRule::VerbatimKindAndDisplay => {
+                    tags.extend(["code", "pre", "span", "div"]);
                 }
                 TagRule::ListKind => {
                     tags.extend(["ol", "ul", "dl"]);
@@ -834,15 +835,14 @@ mod contract {
             .then(|| String::from(STYLE_ATTRIBUTE));
         let entries = fields()
             .filter_map(|field| field.entry_attribute())
-            .filter(|name| !name.ends_with('-'))
-            .map(String::from);
+            .filter(|name| !name.ends_with('-'));
         fields().filter_map(|field| field.attribute()).chain(entries).chain(style).collect()
     }
 
     /// The families of attributes the contract's rows write on each entry:
     /// the prefix of every attribute of the family, which is completed by a
     /// value's name (`data-flm-style-` for a cell's custom styles).
-    pub fn attribute_families() -> BTreeSet<&'static str> {
+    pub fn attribute_families() -> BTreeSet<String> {
         CONVENTIONS
             .iter()
             .flat_map(|convention| convention.fields.iter())
@@ -1697,7 +1697,7 @@ fn an_elements_attributes_are_read_as_written() {
 /// carries when it holds an element that needs it. The directory does not
 /// exist until the default stylesheet is delivered, and an empty or absent
 /// directory holds no chunk, which the scanner says and passes.
-const STYLESHEET_DIRECTORY: &str = "src/stdcore/backends/html/css";
+const STYLESHEET_DIRECTORY: &str = "src/stdlib/backends/html/css";
 
 /// The one cascade layer everything this backend styles sits in.
 ///

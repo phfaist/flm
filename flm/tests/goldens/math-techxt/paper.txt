@@ -1,0 +1,11 @@
+Let 𝑎 + b = 𝑐 hold, with
+
+  ∑ᵢ₌₁ⁿ 𝑥ᵢ²
+
+and the lines
+
+  𝑎 = ⎛  1  2 ⎞
+      ⎝ 30  4 ⎠ (1)
+  𝑏 ≤ c (T)
+
+See (1), and 𝑥 by (1).

@@ -1,0 +1,100 @@
+[package]
+name = "flm"
+description = "The flm command-line program: the command line over the FLM host library"
+version.workspace = true
+edition.workspace = true
+# Rust 1.88, the floor of the host library `flm-host` it is built on (the library
+# `flm-core` stays on the workspace's 1.86).
+rust-version = "1.88"
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+# The workspace's category, and that of command-line programs.
+categories = ["text-processing", "command-line-utilities"]
+
+# docs.rs, which builds the API documentation of the published crate, ignores
+# `.cargo/config.toml`. These settings make it turn on every feature of the crate, so
+# that its pages show the items of each feature and their links resolve, and add the
+# sidebar customization that `cargo docs` adds locally (the path resolves from the
+# package root, where `docs` links to the workspace's `docs/` folder).
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--html-in-header", "docs/rustdoc-header.html"]
+
+[lints]
+workspace = true
+
+[lib]
+name = "flm"
+path = "src/lib.rs"
+
+[[bin]]
+name = "flm"
+path = "src/main.rs"
+# No documentation page for the binary: rustdoc would write it where the library's goes,
+# both being named `flm`.
+doc = false
+
+[dependencies]
+# The library: the program's commands use its package factories and its standard names;
+# the tests of `flm dump` read techy's serialized values through flm-core's re-export,
+# `flm_core::techy`, so the program declares no techy dependency of its own.
+flm-core = { workspace = true, default-features = true }
+flm-host = { workspace = true, default-features = false, features = ["fs", "graphics", "citations", "watch", "sqlite", "download"] }
+# The extensions shipped with FLM, whose tables the executable gives to `run` (cargo feature
+# `bundled-extensions`).
+flm-extensions = { workspace = true, optional = true }
+# The engine of the command `dump` (`flm_info::dump`), which processes a file with the
+# library alone; the description of an environment and its pages for the command `info`
+# (`flm_info::pages`), over a document the host prepared (cargo feature `flm-host`).
+flm-info = { workspace = true, features = ["flm-host"] }
+# The arguments of the command line (floor Rust 1.85 for the versions 4.6).
+clap = { version = "4", features = ["derive"] }
+# Opening the preview's address in the default browser, and a written output (`-V`) with
+# the system's default application.
+open = "5"
+# The schema of a front matter, handed to the preview's server, the pages of
+# `flm info --json` and the records of `--json-messages`; the tests of `flm dump` read
+# the command's JSON output back with it too.
+serde_json = "1"
+# The width of the terminal in columns, with which `flm info` writes its pages when
+# standard output is a terminal and `COLUMNS` does not give it (floor Rust 1.63 for the
+# version 0.4.1, locked so that it shares `rustix` 0.38 with the other dependencies).
+terminal_size = "0.4"
+# The system's folder of a user's caches (`dirs::cache_dir`), in which the program keeps its
+# cache when no option and no environment variable gives the folder.
+dirs = "6"
+
+# On Unix, the signals that ask the program to end (Ctrl+C's interrupt, Ctrl+\'s quit
+# signal, the hang-up of a closed terminal, `SIGTERM`), handled under `watch`, `render` and
+# `check` to stop the programs that extensions run before the program ends: `signal-hook`
+# tells which signal arrived and ends the process by that signal; `libc` tells whether the
+# program's parent left a signal ignored, which then stays ignored.
+[target.'cfg(unix)'.dependencies]
+signal-hook = { version = "0.4", default-features = false, features = ["iterator"] }
+libc = "0.2"
+
+# On other systems, Ctrl+C, which ends `flm watch` with the status 0.
+[target.'cfg(not(unix))'.dependencies]
+ctrlc = "3"
+
+[features]
+default = ["js", "wasm", "bundled-extensions"]
+# The program runs JavaScript extensions (the engine `js`), on by default.
+js = ["flm-host/js"]
+# The program runs extensions compiled to WebAssembly (the engine `wasm`), on by default.
+wasm = ["flm-host/wasm"]
+# The program carries the extensions shipped with FLM (the crate `flm-extensions`), those
+# written in Rust compiled in, found by name with nothing installed, after every folder of
+# the search path: the executable gives their tables to `run`.
+bundled-extensions = ["dep:flm-extensions", "flm-extensions/all", "flm-host/native"]
+
+[dev-dependencies]
+# The address of an image written into a page, compared in a test (`tests/graphics.rs`).
+base64 = "0.22"
+# The BibTeX export read back by a reader of that format (`tests/citations.rs`).
+biblatex = "0.12"
+# The keyword `pattern` of the schemas of settings, checked by the validator shared with
+# `flm-core`'s tests (`flm-core/tests/support/json_schema.rs`).
+regex = "1"

@@ -57,7 +57,7 @@
 // the run of whitespace that ends the content is written after the line's
 // tag and its line break, and the run that begins the next line's content is
 // then dropped. A comment, written as a space, does not end a line.
-import { ENVIRONMENT, TEXT, ENSUREMATH, formula_display, normalize_line_newlines } from "flm:stdcore/features/math";
+import { ENVIRONMENT, TEXT, ENSUREMATH, formula_display, normalize_line_newlines } from "flm:stdlib/features/math";
 
 // The part standing for `\notag` at the end of a line that shows nothing.
 export const NOTAG = Object.freeze({ notag: true });

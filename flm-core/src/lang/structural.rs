@@ -96,7 +96,7 @@ pub const PLACEHOLDER: &str = "flm.placeholder";
 /// [`field`](crate::lang::mint::field) module.
 ///
 /// A field node that reaches a backend's lowering is reported as an error
-/// ([`FieldRule`](crate::stdcore::backends::lowering::FieldRule)): the
+/// ([`FieldRule`](crate::stdlib::backends::lowering::FieldRule)): the
 /// construct that absorbed it did not read its data.
 pub const FIELD: &str = "flm.field";
 /// The name of the element of a macro the parse could not attribute to any
@@ -149,6 +149,51 @@ pub const NAMES: [&str; 13] = [
     UNKNOWN_MACRO,
     UNKNOWN_ENVIRONMENT,
 ];
+
+/// The documentation text the language gives to the structural element type
+/// `name`, one of [`NAMES`]: what the nodes of that type mean, whatever their
+/// element value. `None` for any other name.
+///
+/// The registry holds these texts with the texts that features give to their
+/// own element types
+/// ([`FlmRegistry::element_type_text`](crate::core::registry::FlmRegistry::element_type_text)),
+/// attributed to the language
+/// ([`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER)). A text is FLM,
+/// written as every documentation text is
+/// ([`ElementDef::docs`](crate::lang::mint::ElementDef::docs)).
+pub(crate) fn type_text(name: &str) -> Option<&'static str> {
+    let text = match name {
+        TEXT => "A run of text characters.",
+        COMMENT => "A comment written in the source, from `%` to the end of the line.",
+        CONTAINER => "A container: content held together, with no meaning of its own.",
+        GROUP => "A content group, written `{…}`.",
+        MATH => {
+            "A mathematics group: inline mathematics, written `\\(…\\)` or `$…$`, or display \
+             mathematics, written `\\[…\\]` or `$$…$$`."
+        }
+        VERBATIM => "A verbatim group: raw text, kept exactly as written.",
+        OPAQUE_WRAPPER => "Parsed content kept as written, in a group with no delimiters.",
+        PARAGRAPH => "A paragraph.",
+        PARBREAK => "A paragraph break: a blank line in the source.",
+        PLACEHOLDER => {
+            "A placeholder of a template, such as `#1` or `#{name}`, replaced by content when \
+             the template is expanded."
+        }
+        FIELD => {
+            "A field: a macro that a construct reads as data, not as content, such as the \
+             `\\label` written after a heading or the `\\tag` written in a line of displayed \
+             equations.\n\nEvery field has this type, \
+             whichever construct declares it; only the construct that declares a field reads it."
+        }
+        UNKNOWN_MACRO => "A macro that no feature of the document defines, reported as an error.",
+        UNKNOWN_ENVIRONMENT => {
+            "An environment that no feature of the document defines, reported as an error; its \
+             body is block content."
+        }
+        _ => return None,
+    };
+    Some(text)
+}
 
 /// The structural elements while they can still be changed: one element value
 /// per node shape, to which the registry attaches the features' aspects before

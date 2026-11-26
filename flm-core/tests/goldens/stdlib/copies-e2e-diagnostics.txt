@@ -1,0 +1,36 @@
+===== check =====
+Warning flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Warning flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Warning flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+===== text =====
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:e}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:e}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:e}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\ref{sec:e}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}` — in a frame at `\ref{sec:c}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}`
+Warning flm.graphics.assumed-resolution {"path":"bare.png"} — at `\includegraphics[width=5cm]{bare.png}`
+Warning flm.graphics.resized {"key":"width"} — at `\includegraphics[width=5cm]{bare.png}`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\seenowhere`
+Error flm.refs.unresolved {"label":"sec:nowhere"} — at `\ref{sec:nowhere}` — in a frame at `\seenowhere`

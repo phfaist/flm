@@ -167,6 +167,17 @@ impl Owner {
 mod tests {
     use super::*;
 
+    /// The refusal of the name `name` of a `what` declared by the package
+    /// `package` of the extension `extension`.
+    fn outside(what: &str, name: &str, package: &str, extension: &str) -> ExtError {
+        ExtError::NameOutsideExtension {
+            what: what.to_string(),
+            name: name.to_string(),
+            package: package.to_string(),
+            extension: extension.to_string(),
+        }
+    }
+
     #[test]
     fn a_name_under_the_stem_and_a_dot_passes() {
         assert_eq!(check("table", "wc.words", "wc", "_"), Ok(()));
@@ -177,10 +188,7 @@ mod tests {
     fn a_name_outside_the_stem_fails() {
         for name in ["words", "wcx.words", "wc", "other.wc.words", ""] {
             let error = check("table", name, "wc", "core").expect_err(name);
-            assert_eq!(
-                error.to_string(),
-                format!("the table `{name}` declared by the package `core` of the extension `wc` must begin with `wc.`")
-            );
+            assert_eq!(error, outside("table", name, "core", "wc"));
         }
     }
 
@@ -192,15 +200,9 @@ mod tests {
         }
         for name in ["other", "typstx", "typst-", "other.typst", ""] {
             let error = check_backend("backend", name, "typst", "_").expect_err(name);
-            assert_eq!(
-                error.to_string(),
-                format!("the backend `{name}` declared by the package `_` of the extension `typst` must be `typst` or begin with `typst.`")
-            );
+            assert_eq!(error, outside("backend", name, "_", "typst"));
             let error = check_backend("output", name, "typst", "main").expect_err(name);
-            assert_eq!(
-                error.to_string(),
-                format!("the output `{name}` declared by the package `main` of the extension `typst` must be `typst` or begin with `typst.`")
-            );
+            assert_eq!(error, outside("output", name, "main", "typst"));
         }
     }
 
@@ -220,10 +222,7 @@ mod tests {
         }
         for name in ["flm.lowered.other", "flm.lowered.", "flm.lowered.tbx", "flm.lowered", "flm.output.tb", "tb"] {
             let error = check_table(name, "tb", "_").expect_err(name);
-            assert_eq!(
-                error.to_string(),
-                format!("the table `{name}` declared by the package `_` of the extension `tb` must begin with `tb.`")
-            );
+            assert_eq!(error, outside("table", name, "_", "tb"));
         }
     }
 }

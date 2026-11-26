@@ -1,10 +1,12 @@
 /* flm-lecturenotes: the table of contents in the sidebar.
-   The table is the FLM piece flm.toc (.flm-toc: nested lists of links).  The
-   script gives each entry (the li) the level of the heading it leads to
-   (data-ln-level), marks the chapters' entries (.ln-chapter) and the entry of
-   the chapter being read (.ln-open), and marks the current entry's link
-   (aria-current).  While the page is folded (no class ln-toc-all on the root
-   element), only the chapter being read shows its sections. */
+   The table is the FLM piece flm.toc (.flm-toc: nested lists of links); each
+   entry (the li) carries its heading's level in the attribute data-flm-level.
+   The script marks the current entry's link (aria-current) and the entry of
+   the unit being read (.ln-open).  The rules that depend on an entry's level
+   (the entries at the navigation level and above it, those below it, and the
+   folding of the table) are not in this stylesheet: the lecture-notes compose
+   template of FLM writes them, from its settings, after it (the file
+   groups.css of the template). */
 
 .flm-toc .flm-pres-link[data-flm-kind="toc"] {
   display: block;
@@ -15,12 +17,12 @@
 }
 .flm-toc .flm-pres-link[data-flm-kind="toc"]:hover {
   color: var(--ln-accent);
-  background: var(--ln-accent-bg);
+  background: var(--ln-entry-bg);
   text-decoration: none;
 }
 .flm-toc .flm-pres-link[data-flm-kind="toc"][aria-current="true"] {
   color: var(--ln-accent);
-  background: var(--ln-accent-bg);
+  background: var(--ln-entry-bg);
   font-weight: var(--ln-current-weight);
 }
 .flm-toc .flm-toc-entry-number {
@@ -28,37 +30,4 @@
   font-weight: normal;
   margin-right: var(--ln-entry-number-gap);
   font-variant-numeric: tabular-nums;
-}
-
-/* A part (level 0): an uppercase group label. */
-.flm-toc li[data-ln-level="0"] {
-  margin-top: var(--ln-part-entry-space);
-}
-.flm-toc li[data-ln-level="0"] > .flm-pres-link {
-  text-transform: uppercase;
-  letter-spacing: var(--ln-part-entry-spacing);
-  font-size: var(--ln-part-entry-size);
-  color: var(--ln-muted);
-}
-/* A chapter (level 1). */
-.flm-toc li[data-ln-level="1"] {
-  margin-top: var(--ln-chapter-entry-space);
-}
-.flm-toc li[data-ln-level="1"] > .flm-pres-link {
-  font-weight: var(--ln-chapter-entry-weight);
-}
-.flm-toc li[data-ln-level="1"] > .flm-pres-link[aria-current="true"] {
-  font-weight: var(--ln-current-chapter-entry-weight);
-}
-/* A section (level 2). */
-.flm-toc li[data-ln-level="2"] > .flm-pres-link {
-  color: var(--ln-muted);
-}
-.flm-toc li[data-ln-level="2"] > .flm-pres-link[aria-current="true"] {
-  color: var(--ln-accent);
-}
-
-/* Folded: a chapter's sections show only for the chapter being read. */
-:root:not(.ln-toc-all) .flm-toc li.ln-chapter:not(.ln-open) > .flm-pres-list {
-  display: none;
 }

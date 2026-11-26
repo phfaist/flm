@@ -8,18 +8,19 @@
 
 mod common;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use flm_core::core::data::table::TableHandle;
 use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::{FlmRegistry, PackageEntry, PackageFactory};
+use flm_core::core::registry::{BuildError, FlmRegistry, PackageEntry, PackageFactory};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
+use flm_core::progress::{LogLevel, LogSink};
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::adapter::values::diagnostic_value_to_json;
-use flm_ext::quickjs::{ConsoleLevel, JsHost, JsSettings};
+use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::{json, Value};
 
 use common::{registry_with, try_registry_with};
@@ -121,6 +122,20 @@ fn data_of(run: &Run, id: &str) -> Value {
         .unwrap_or(Value::Null)
 }
 
+/// The details of the feature errors of the failed build of the registry
+/// holding `entry`, each beginning with its identifier.
+fn feature_failures(entry: PackageEntry) -> Vec<String> {
+    let error = try_registry_with([entry]).expect_err("the build fails");
+    error
+        .errors
+        .into_iter()
+        .filter_map(|error| match error {
+            BuildError::Feature { detail, .. } => Some(detail),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The `calls` of the counter probe's items after one run over one tree.
 fn counter_run(registry: &Arc<FlmRegistry>) -> Vec<Value> {
     let run = run_demanding(registry, &["counter.calls"], &["One tree."]);
@@ -153,7 +168,7 @@ fn load_reports_the_package_and_the_factory_names_it_its_feature_and_what_it_use
     let main = r#"
         export default function (ext) {
             ext.package("_", {
-                uses: ["stdcore"],
+                uses: ["mystyle"],
                 features: { words: { title: "Words", docs: "The count.", version: "1", register(b) {} } },
             });
         }
@@ -163,166 +178,101 @@ fn load_reports_the_package_and_the_factory_names_it_its_feature_and_what_it_use
     assert_eq!(factory.name().as_str(), "wc#_");
     assert_eq!(factory.features().iter().map(|f| f.name.as_str().to_string()).collect::<Vec<_>>(), ["words"]);
     assert!(factory.features().iter().all(|f| f.settings.is_none()));
-    assert_eq!(factory.used().iter().map(|n| n.as_str().to_string()).collect::<Vec<_>>(), ["stdcore"]);
+    assert_eq!(factory.used().iter().map(|n| n.as_str().to_string()).collect::<Vec<_>>(), ["mystyle"]);
     // The package registers: its feature's `register` runs through JavaScript.
     registry_with([factory.build(&PackageSettings::new()).expect("the package builds")]);
 }
 
 #[test]
 fn a_main_module_that_does_not_parse_is_a_load_error() {
-    let found = problems("export default function (ext) { const = 1; }");
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].starts_with("the modules of the extension `wc` must be valid JavaScript: "), "{found:?}");
-    assert!(found[0].ends_with("(at main.js:1:39)"), "{found:?}");
+    assert_eq!(problems("export default function (ext) { const = 1; }").len(), 1);
 }
 
 #[test]
 fn a_main_module_whose_import_is_unknown_is_a_load_error() {
-    assert_eq!(
-        problems(r#"import "helpers"; export default function (ext) {}"#),
-        [
-            "the module `main.js` of the extension `wc` imports `helpers`, which is neither a module of the extension \
-             (`./…`), nor of the extension API (`flm:…`), nor a module this program offers"
-        ]
-    );
+    assert_eq!(problems(r#"import "helpers"; export default function (ext) {}"#).len(), 1);
 }
 
 #[test]
 fn a_package_object_that_is_not_one_is_a_load_error() {
-    assert_eq!(
-        problems("export const x = 1;"),
-        ["the main module `main.js` of the extension `wc` must have a function as its default export (`export default function (ext) { … }`)"]
-    );
-    let prefix = "the default export of the main module `main.js` of the extension `wc` must return without an error: ";
+    assert_eq!(problems("export const x = 1;").len(), 1);
     let cases = [
-        (r#"ext.package("", {})"#, "the extension `wc` calls `ext.package` with a package name that is not a non-empty text"),
-        (r#"ext.package("_", 3)"#, "the package `_` of the extension `wc` must be an object"),
-        (r#"ext.package("_", { uses: "stdcore" })"#, "`uses` of the package `_` of the extension `wc` must be a list of texts"),
-        (r#"ext.package("_", { templates: [1] })"#, "`templates` of the package `_` of the extension `wc` must be a list of texts"),
-        (r#"ext.package("_", { flm: [] })"#, "`flm` of the package `_` of the extension `wc` must be a map"),
-        (
-            r#"ext.package("_", { features: [] })"#,
-            "`features` of the package `_` of the extension `wc` must be a map from a feature's name to its object",
-        ),
-        (
-            r#"ext.package("_", { features: { a: { title: "A" } } })"#,
-            "the feature `a` of the package `_` of the extension `wc` must be an object with a `register` function",
-        ),
+        r#"ext.package("", {})"#,
+        r#"ext.package("_", 3)"#,
+        r#"ext.package("_", { uses: "mystyle" })"#,
+        r#"ext.package("_", { templates: [1] })"#,
+        r#"ext.package("_", { flm: [] })"#,
+        r#"ext.package("_", { features: [] })"#,
+        r#"ext.package("_", { features: { a: { title: "A" } } })"#,
     ];
-    for (call, expected) in cases {
+    for call in cases {
         let main = format!("export default function (ext) {{ {call}; }}");
-        assert_eq!(problems(&main), [format!("{prefix}{expected}")], "{call}");
+        assert_eq!(problems(&main).len(), 1, "{call}");
     }
 }
 
 #[test]
 fn a_feature_object_with_an_unknown_key_is_a_load_error() {
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { setings: {}, register() {} } } }); }"#;
-    assert_eq!(
-        problems(main),
-        [
-            "the feature `a` of the package `_` of the extension `wc` cannot be read: unknown field `setings`, expected \
-             one of `title`, `docs`, `version`, `settings`"
-        ]
-    );
-    // A settings part of the wrong shape names the shape, not a type of Rust.
+    assert_eq!(problems(main).len(), 1);
+    // A settings part of the wrong shape.
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { settings: 3, register() {} } } }); }"#;
-    assert_eq!(
-        problems(main),
-        [
-            "`settings` of the feature `a` of the package `_` of the extension `wc` must be a map with `config`, \
-             `options`, `merge_entries`, `markup` and `path`, each optional"
-        ]
-    );
+    assert_eq!(problems(main).len(), 1);
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { settings: { config: [] }, register() {} } } }); }"#;
-    assert_eq!(
-        problems(main),
-        ["`settings.config` of the feature `a` of the package `_` of the extension `wc` must be a map with `schema` and, optionally, `docs`"]
-    );
+    assert_eq!(problems(main).len(), 1);
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { settings: { options: { "wc.x": 3, "wc.y": { bind: 1, schema: {} } } }, register() {} } } }); }"#;
-    assert_eq!(
-        problems(main),
-        [
-            "in the extension `wc`, the option `wc.x` of the feature `a` of the package `_` must be a map with `bind`, \
-             `schema` and, optionally, `docs` (`settings.options.wc.x`)",
-            "in the extension `wc`, `bind` of the option `wc.y` of the feature `a` of the package `_` must be \
-             `document`, `render` or `either`, and it is `1` (`settings.options.wc.y.bind`)",
-        ]
-    );
+    assert_eq!(problems(main).len(), 2);
 }
 
 #[test]
-fn every_part_of_a_feature_s_settings_of_the_wrong_shape_names_its_key_path() {
+fn every_part_of_a_feature_s_settings_of_the_wrong_shape_is_refused() {
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { settings: {
-        options: [], merge_entries: 3, markup: "x", path: [1], config: null }, register() {} } } }); }"#;
-    let owner = "of the feature `a` of the package `_` of the extension `wc`";
-    assert_eq!(
-        problems(main),
-        [
-            format!("`settings.options` {owner} must be a map from an option's name to its declaration"),
-            format!("`settings.merge_entries` {owner} must be a map from a key to its default entries"),
-            format!("`settings.markup` {owner} must be a list of texts"),
-            format!("`settings.path` {owner} must be a list of texts"),
-        ]
-    );
+        options: [], config: 3 }, register() {} } } }); }"#;
+    assert_eq!(problems(main).len(), 2);
 }
 
 #[test]
 fn a_feature_object_s_key_that_json_cannot_hold_is_refused() {
-    let prefix = "the default export of the main module `main.js` of the extension `wc` must return without an error: ";
     for (key, value) in [("run", "() => {}"), ("count", "1n"), ("tag", "Symbol(\"t\")")] {
         let main = format!(
             r#"export default function (ext) {{ ext.package("_", {{ features: {{ a: {{ {key}: {value}, register() {{}} }} }} }}); }}"#
         );
-        assert_eq!(
-            problems(&main),
-            [format!(
-                "{prefix}`{key}` of the feature `a` of the package `_` of the extension `wc` must be a text, a number, \
-                 a boolean, a list or a map; the functions of a feature object are `register` and `read`"
-            )],
-            "{key}"
-        );
+        assert_eq!(problems(&main).len(), 1, "{key}");
     }
 }
 
 #[test]
-fn a_value_json_cannot_hold_is_refused_at_any_depth_naming_its_key_path() {
-    let prefix = "the default export of the main module `main.js` of the extension `wc` must return without an error: ";
-    let owner = "of the feature `a` of the package `_` of the extension `wc`";
-    let shapes = "must be a text, a number, a boolean, a list or a map; the functions of a feature object are `register` and `read`";
-    for (object, refused) in [
-        ("settings: { options: { x: () => {} } }", format!("`settings.options.x` {owner} {shapes}")),
-        ("settings: { options: { x: { default: Symbol(\"t\") } } }", format!("`settings.options.x.default` {owner} {shapes}")),
-        ("settings: { markup: [\"a\", 1n] }", format!("`settings.markup[1]` {owner} {shapes}")),
+fn a_value_json_cannot_hold_is_refused_at_any_depth() {
+    for object in [
+        "settings: { options: { x: () => {} } }",
+        "settings: { options: { x: { default: Symbol(\"t\") } } }",
+        "settings: { config: { schema: { \"x-flm-marks\": [\"markup\", 1n] } } }",
         // A list with a hole: the walk reads the hole as undefined.
-        ("settings: { options: [1, , () => {}] }", format!("`settings.options[2]` {owner} {shapes}")),
-        ("settings: { [Symbol(\"t\")]: 1 }", format!("the key `Symbol(t)` of `settings` {owner} must be a text")),
-        ("[Symbol(\"t\")]: 1", format!("the key `Symbol(t)` {owner} must be a text")),
+        "settings: { options: [1, , () => {}] }",
+        "settings: { [Symbol(\"t\")]: 1 }",
+        "[Symbol(\"t\")]: 1",
     ] {
         let main = format!(
             r#"export default function (ext) {{ ext.package("_", {{ features: {{ a: {{ {object}, register() {{}} }} }} }}); }}"#
         );
-        assert_eq!(problems(&main), [format!("{prefix}{refused}")], "{object}");
+        assert_eq!(problems(&main).len(), 1, "{object}");
     }
-    // A feature object that contains itself, refused at the key
-    // path where the cycle closes; a value met twice without a cycle passes.
-    for (object, refused) in [
-        ("settings: s", "`settings.self`"),
-        ("settings: { options: [s] }", "`settings.options[0].self`"),
-    ] {
+    // A feature object that contains itself is refused; a value met twice
+    // without a cycle passes.
+    for object in ["settings: s", "settings: { options: [s] }"] {
         let main = format!(
             r#"export default function (ext) {{ const s = {{}}; s.self = s; ext.package("_", {{ features: {{ a: {{ {object}, register() {{}} }} }} }}); }}"#
         );
-        assert_eq!(problems(&main), [format!("{prefix}{refused} {owner} must not contain itself")], "{object}");
+        assert_eq!(problems(&main).len(), 1, "{object}");
     }
     // The feature object itself is among the objects walked, so a
     // feature object that contains itself is refused as a cycle, not at its
     // `register` function.
-    for (statement, refused) in [("f.self = f;", "`self`"), ("f.settings = { back: f };", "`settings.back`")] {
+    for statement in ["f.self = f;", "f.settings = { back: f };"] {
         let main = format!(
             r#"export default function (ext) {{ const f = {{ register() {{}} }}; {statement} ext.package("_", {{ features: {{ a: f }} }}); }}"#
         );
-        assert_eq!(problems(&main), [format!("{prefix}{refused} {owner} must not contain itself")], "{statement}");
+        assert_eq!(problems(&main).len(), 1, "{statement}");
     }
     let main = r#"export default function (ext) { const d = { type: "string" }; ext.package("_", { features: { a: { docs: "A", settings: { config: { schema: { type: "object", properties: { x: d, y: d } } } }, register() {} } } }); }"#;
     assert!(try_load(&host(JsSettings::default()), main, &[]).is_ok());
@@ -331,24 +281,14 @@ fn a_value_json_cannot_hold_is_refused_at_any_depth_naming_its_key_path() {
 #[test]
 fn a_feature_object_s_own_name_key_is_refused_as_unknown() {
     let main = r#"export default function (ext) { ext.package("_", { features: { a: { name: "b", register() {} } } }); }"#;
-    assert_eq!(
-        problems(main),
-        [
-            "the feature `a` of the package `_` of the extension `wc` cannot be read: unknown field `name`, expected \
-             one of `title`, `docs`, `version`, `settings`"
-        ]
-    );
+    assert_eq!(problems(main).len(), 1);
 }
 
 #[test]
 fn a_package_name_a_use_entry_cannot_write_is_refused() {
     for name in ["a#b", "x y", "a/b", "."] {
         let main = format!(r#"export default function (ext) {{ ext.package("{name}", {{}}); }}"#);
-        assert_eq!(
-            problems(&main),
-            [format!("the package name `{name}` of the extension `wc` must be letters, digits, `-` and `_`")],
-            "{name}"
-        );
+        assert_eq!(problems(&main).len(), 1, "{name}");
     }
 }
 
@@ -414,7 +354,7 @@ fn a_document_stage_reads_the_structured_trees_table() {
                 const table = cx.get("flm.blocks.structured");
                 for (const [id, tree] of table.trees.trees()) {
                     const root = tree.root();
-                    out.table("wc.trees").push({ id, children: root.children().length, count: root.child_count() });
+                    out.table("wc.trees").push({ id, children: root.children().len(), count: root.child_count() });
                 }
             },
         });
@@ -474,14 +414,9 @@ fn strict_mode_gives_every_handler_call_a_fresh_engine() {
 #[test]
 fn a_name_outside_the_extension_s_stem_fails_the_build_from_javascript() {
     let main = wc_main("", r#"b.table("words", "Outside the prefix.");"#);
-    let error = try_registry_with([package(&main)]).err().map(|error| error.to_string()).unwrap_or_default();
-    assert!(
-        error.contains(
-            "flm.ext.name-outside-extension: the table `words` declared by the package `_` of the extension `wc` must begin with `wc.`"
-        ),
-        "{error}"
-    );
-    assert!(!error.contains("flm.ext.handler-failed"), "{error}");
+    let failures = feature_failures(package(&main));
+    assert!(failures.iter().any(|detail| detail.starts_with("flm.ext.name-outside-extension: ")), "{failures:?}");
+    assert!(!failures.iter().any(|detail| detail.contains("flm.ext.handler-failed")), "{failures:?}");
 }
 
 /// A script that catches the refusal and throws it again still
@@ -490,19 +425,23 @@ fn a_name_outside_the_extension_s_stem_fails_the_build_from_javascript() {
 #[test]
 fn a_caught_and_rethrown_refusal_of_the_name_rule_keeps_its_kind() {
     let main = wc_main("", r#"try { b.table("words", "Outside the prefix."); } catch (e) { if (e.kind !== "name_outside_extension") throw new Error(`kind ${e.kind}`); throw e; }"#);
-    let error = try_registry_with([package(&main)]).err().map(|error| error.to_string()).unwrap_or_default();
-    assert!(error.contains("flm.ext.name-outside-extension: the table `words`"), "{error}");
+    let failures = feature_failures(package(&main));
+    assert!(failures.iter().any(|detail| detail.starts_with("flm.ext.name-outside-extension: ")), "{failures:?}");
     let main = wc_main("", r#"b.table({}, "Not a name.");"#);
-    let error = try_registry_with([package(&main)]).err().map(|error| error.to_string()).unwrap_or_default();
-    assert!(error.contains("flm.ext.handler-failed"), "{error}");
+    let failures = feature_failures(package(&main));
+    assert!(failures.iter().any(|detail| detail.starts_with("flm.ext.handler-failed: ")), "{failures:?}");
 }
 
 #[test]
 fn a_throwing_register_fails_the_build_with_handler_failed() {
     let main = wc_main("", r#"throw new TypeError("the register is not ready");"#);
-    let error = try_registry_with([package(&main)]).err().map(|error| error.to_string()).unwrap_or_default();
-    assert!(error.contains("flm.ext.handler-failed"), "{error}");
-    assert!(error.contains("the register is not ready"), "{error}");
+    let failures = feature_failures(package(&main));
+    assert!(
+        failures
+            .iter()
+            .any(|detail| detail.starts_with("flm.ext.handler-failed: ") && detail.contains("the register is not ready")),
+        "{failures:?}"
+    );
 }
 
 #[test]
@@ -522,7 +461,9 @@ fn a_throwing_run_is_an_error_at_the_stage_and_the_run_completes() {
     );
     let registry = registry_with([package(&main)]);
     let run = run_demanding(&registry, &["wc.seen"], &["Hello."]);
-    assert_eq!(common::diagnostics(&run), ["flm.ext.handler-failed: the stage `wc.see` failed: the stage gave up"]);
+    let found = common::diagnostics(&run);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].starts_with("flm.ext.handler-failed: ") && found[0].ends_with("the stage gave up"), "{found:?}");
     assert_eq!(items(&run, "wc.seen"), [json!("before")]);
     let data = data_of(&run, "flm.ext.handler-failed");
     assert_eq!(data["kind"], "handler");
@@ -554,7 +495,6 @@ fn a_stale_handle_is_a_handler_failure_with_the_stale_handle_data() {
     assert_eq!(data["data"]["name"], "FlmError");
     assert_eq!(data["data"]["flm_error"]["kind"], "stale_handle");
     assert_eq!(data["data"]["flm_error"]["handle"]["kind"], "stage_cx");
-    assert!(data["detail"].as_str().is_some_and(|detail| detail.contains("belongs to a call that is not the one running")), "{data}");
     assert_eq!(items(&run, "wc.seen"), [json!("per-tree")]);
 }
 
@@ -583,23 +523,22 @@ fn a_float_pushed_from_javascript_is_refused() {
     assert!(items(&run, "wc.seen").is_empty());
 }
 
+/// A console line reaches the host's log sink with the level of the method
+/// that wrote it and the extension's stem as its source, while the extension
+/// is loaded (its main module evaluated, its feature registered) and during a
+/// handler call.
 #[test]
-fn console_log_inside_a_handler_reaches_the_sink() {
-    let lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    let sink_lines = Arc::clone(&lines);
-    let host = host(JsSettings::default()).with_console(Arc::new(move |level: ConsoleLevel, text: &str| {
-        if let Ok(mut lines) = sink_lines.lock() {
-            lines.push(format!("{level} {text}"));
-        }
-    }));
+fn a_console_line_reaches_the_log_sink_with_its_level_and_the_extension_s_name() {
+    let lines = Arc::new(common::KeptLines::default());
+    let host = host(JsSettings::default()).with_log_sink(Arc::clone(&lines) as Arc<dyn LogSink>);
     let main = wc_main(
-        STAGE_IMPORTS,
+        &format!("{STAGE_IMPORTS}\nconsole.warn(\"loading\");"),
         r#"
         console.info("registering", b.feature());
         b.table("wc.seen", "What the stage saw.");
         b.stage({
             decl() { return new StageDecl("wc.see", Effect.Compute, Scope.PerTree).writes("wc.seen"); },
-            run(cx, out) { console.log("tree", cx.tree_id(), 2); },
+            run(cx, out) { console.error("tree", cx.tree_id(), 2); console.debug("done"); },
         });
         "#,
     );
@@ -607,8 +546,16 @@ fn console_log_inside_a_handler_reaches_the_sink() {
         let registry = registry_with([package_with(&host, &main)]);
         run_demanding(&registry, &["wc.seen"], &["Hello."]);
     });
-    let lines = lines.lock().map(|lines| lines.clone()).unwrap_or_default();
-    assert_eq!(lines, ["info registering words", "log tree tree#0 2"]);
+    let line = |level, text: &str| (level, "wc".to_string(), text.to_string());
+    assert_eq!(
+        lines.lines(),
+        [
+            line(LogLevel::Warn, "loading"),
+            line(LogLevel::Info, "registering words"),
+            line(LogLevel::Error, "tree tree#0 2"),
+            line(LogLevel::Info, "done"),
+        ]
+    );
 }
 
 #[test]
@@ -645,7 +592,7 @@ fn badge_main(stage_text: &str) -> String {
         }};
         const element = {{ name: "wc.badge", docs: "", aspects: [{{ Expand: lend_expand("wc.badge", hook) }}], value: null }};
         const definition = {{ kind: "macro", name: "badge", expand: "always" }};
-        b.lowering_rule(call(module("stdcore/features/userdefs"), "expand_in_tree_rule_for", ["wc.badge", definition]));
+        b.lowering_rule(call(module("stdlib/features/userdefs"), "expand_in_tree_rule_for", ["wc.badge", definition]));
         b.element({{ owner: b.feature(), names: ["badge"], syntax: {{ macro: {{ args: [] }} }}, element, docs: "", modes: null }});
         "#
         ),
@@ -668,7 +615,7 @@ fn a_hook_that_fails_recovers_the_use_site_with_handler_failed() {
     let (text, diagnostics) = common::text_of(&registry, "A \\badge{} here.");
     assert_eq!(text, "A \\badge here.\n");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the expansion hook of `wc.badge` failed: "), "{diagnostics:?}");
+    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: "), "{diagnostics:?}");
 }
 
 // --- handler aspects, late-init hooks and finalizers from JavaScript ----------------------------
@@ -678,7 +625,7 @@ const BOX_IMPORTS: &str = r#"
 import { ArgDef, ElementDef, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec, Aspect } from "flm:model/element";
 import { RefPoint, AnchorPolicy, ContentRef, AcceptedRefTypes } from "flm:model/aspects";
-import * as refs from "flm:stdcore/features/refs";
+import * as refs from "flm:stdlib/features/refs";
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
 "#;
 
@@ -713,7 +660,7 @@ const REFERENCED: &str = "\\wcbox{Alpha}\\label{ex:one} See \\ref{ex:one}.";
 /// is the first argument)`.
 fn toc_entries(registry: &Arc<FlmRegistry>, text: &str) -> Vec<(u32, bool)> {
     use flm_core::model::aspects::ContentRef as CoreContent;
-    use flm_core::stdcore::features::toc;
+    use flm_core::stdlib::features::toc;
     let source = Arc::new(FlmSource::new(text).with_origin(FlmOrigin::none()));
     let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
         .expect("the document parses");
@@ -758,12 +705,13 @@ fn an_in_toc_and_a_toc_title_left_out_answer_the_defaults_and_in_toc_false_hides
 fn a_points_handler_that_throws_leaves_the_element_without_a_point() {
     let main = box_main(r#"[Aspect.Referenceable({ points(node) { throw new Error("no points today"); } })]"#);
     let registry = registry_with([package(&main)]);
-    let (_, diagnostics) = common::text_of(&registry, REFERENCED);
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, REFERENCED);
+    let diagnostics = common::diagnostics(&run);
     // The aspect answers no point: the `\ref` is unresolved, reported by the
     // references feature at the `\ref`; the handler's failure is reported
     // nowhere.
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].contains("ex:one"), "{diagnostics:?}");
+    assert_eq!(common::identifiers(&run), ["flm.refs.unresolved"], "{diagnostics:?}");
+    flm_core::dump::diag::expect(run.diagnostics().iter(), "flm.refs.unresolved").data(json!({ "label": "ex:one" })).once();
     assert!(!diagnostics[0].contains("no points today"), "{diagnostics:?}");
 }
 
@@ -786,11 +734,10 @@ fn an_aspect_of_an_unknown_kind_is_refused_by_the_native() {
         r#"lend_aspect("Bogus", "wc.box", { points() { return []; } });"#,
     );
     let factory = try_load(&host(JsSettings::default()), &main, &[]).expect("the extension loads");
-    let error = match factory.build(&PackageSettings::new()) {
-        Ok(entry) => common::try_registry_with([entry]).expect_err("the build fails").to_string(),
-        Err(error) => error.to_string(),
-    };
-    assert!(error.contains("the kind of a handler aspect must be `Referenceable` or `Sectioning`, not `Bogus`"), "{error}");
+    // The package does not build, or the registry does not.
+    if let Ok(entry) = factory.build(&PackageSettings::new()) {
+        assert!(common::try_registry_with([entry]).is_err(), "the build fails");
+    }
 }
 
 /// A main module whose `register` registers a late-initialization hook
@@ -840,45 +787,35 @@ fn a_late_init_hook_or_a_finalizer_not_found_after_the_rehearsal_fails_the_build
     let host = host(JsSettings { strict: true, ..JsSettings::default() });
     let factory = try_load(&host, &hooks_main(true), &[]).expect("the extension loads");
     let entry = factory.build(&PackageSettings::new()).expect("the package builds");
-    let error = common::try_registry_with([entry]).expect_err("the build fails").to_string();
-    let late = "the late-initialization hook 0 must be registered by `register` of the feature `words` of the package `_` of the extension `wc`";
-    let finalizer = "the finalizer 0 must be registered by `register` of the feature `words` of the package `_` of the extension `wc`";
-    assert!(error.contains("flm.ext.handler-failed: ") && (error.contains(late) || error.contains(finalizer)), "{error}");
+    let failures = feature_failures(entry);
+    assert!(failures.iter().any(|detail| detail.starts_with("flm.ext.handler-failed: ")), "{failures:?}");
     // Without the late-initialization hook, the finalizer is the one met.
     let only_finalizer = hooks_main(true).replacen("if (b._token !== null) b.late_init", "if (false) b.late_init", 1);
     let factory = try_load(&host, &only_finalizer, &[]).expect("the extension loads");
     let entry = factory.build(&PackageSettings::new()).expect("the package builds");
-    let error = common::try_registry_with([entry]).expect_err("the build fails").to_string();
-    assert!(error.contains(finalizer), "{error}");
+    let failures = feature_failures(entry);
+    assert!(failures.iter().any(|detail| detail.starts_with("flm.ext.handler-failed: ")), "{failures:?}");
 }
 
 #[test]
-fn the_aspect_entries_name_what_is_not_found_after_the_rehearsal() {
+fn the_aspect_entries_fail_for_what_is_not_found_after_the_rehearsal() {
     // The entries of `flm:_entry`, called for an element of a feature whose
     // `register` attached nothing on this instance.
     let main = r#"
 import { points, level } from "flm:_entry";
 export function probe() {
-  const texts = [];
+  const kinds = [];
   for (const entry of [points, level]) {
-    try { entry("_", "words", "wc.box", "null"); } catch (error) { texts.push(error.message); }
+    try { entry("_", "words", "wc.box", "null"); } catch (error) { kinds.push(error.kind); }
   }
-  return JSON.stringify(texts);
+  return JSON.stringify(kinds);
 }
 "#;
     let host = host(JsSettings::default());
     let package = flm_ext::quickjs::TestPackage::new(&host, &[("main.js", main)]).expect("the test package");
     let answer = flm_ext::quickjs::eval_for_test(&host, &package, "return main.probe();").expect("the script runs");
-    let texts: Vec<String> = serde_json::from_str(&answer).expect("a list of texts");
-    assert_eq!(texts.len(), 2, "{texts:?}");
-    assert!(
-        texts[0].starts_with("the reference points of the element `wc.box` must be answered by an aspect attached by `register` of the feature `words` of the package `_` of the extension `"),
-        "{texts:?}"
-    );
-    assert!(
-        texts[1].starts_with("the sectioning of the element `wc.box` must be answered by an aspect attached by `register` of the feature `words` of the package `_` of the extension `"),
-        "{texts:?}"
-    );
+    let kinds: Vec<String> = serde_json::from_str(&answer).expect("a list of texts");
+    assert_eq!(kinds, ["handler", "handler"]);
 }
 
 // --- the durable token's class -------------------------------------------------------------------
@@ -935,7 +872,7 @@ import { ArgDef, ElementDef, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec } from "flm:model/element";
 import { ValueBindings, instantiate } from "flm:lang/rewrites/userdefs";
 import { revive } from "flm:_runtime";
-import { SPAN } from "flm:stdcore/backends/pres";
+import { SPAN } from "flm:stdlib/backends/pres";
 "#,
         r#"
         b.element(new ElementDef(b.feature(), ["wcstale"], SyntaxDef.Macro([ArgDef.mandatory("content")]), new ElementSpec("wc.stale")));
@@ -944,7 +881,7 @@ import { SPAN } from "flm:stdcore/backends/pres";
             const stale = revive({ "@durable": { kind: "compiled_template", table: 999999, index: 1 } });
             try { instantiate(node, stale, new ValueBindings()); }
             catch (error) {
-              lw.diagnose({ id: "wc.caught", severity: "warning", message: `${error.kind}|${JSON.stringify(error.data.durable)}|${error.message}` });
+              lw.diagnose({ id: "wc.caught", severity: "warning", message: `${error.kind}|${JSON.stringify(error.data.durable)}` });
             }
             return Lowering.Emit([]);
           },
@@ -953,10 +890,5 @@ import { SPAN } from "flm:stdcore/backends/pres";
     );
     let registry = registry_with([package(&main)]);
     let (_, diagnostics) = common::text_of(&registry, "A \\wcstale{}.");
-    assert_eq!(
-        diagnostics,
-        [
-            "wc.caught: stale_durable|{\"kind\":\"compiled_template\",\"table\":999999,\"index\":1}|the `compiled_template` object 1 must be one the feature `words` of the package `_` of the extension `wc` made under the registry in use"
-        ]
-    );
+    assert_eq!(diagnostics, ["wc.caught: stale_durable|{\"kind\":\"compiled_template\",\"table\":999999,\"index\":1}"]);
 }

@@ -9,21 +9,21 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::element_value;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::text::{self, TextRenderOptions};
-use flm_core::stdcore::features::quote::{
+use flm_core::stdlib::backends::text::{self, TextRenderOptions};
+use flm_core::stdlib::features::quote::{
     QuoteConfig, QuoteElement, QuoteEnvironment, QuoteSection, SectionElement, sections_package,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::serialize::SerialValue;
 
 use common::lowering::{lowered_projection, text as printed};
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, clashing_names, identifiers, refusing_features, run_workflow};
 
 // ---------------------------------------------------------------------------------------------
 // registries, runs and the shape of a lowered tree
@@ -31,23 +31,23 @@ use common::stdcore::{identifiers, run_workflow};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The standard package with the quote feature under `config`.
 fn with_config(config: QuoteConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().quote(config))
+    common::stdlib::registry(StdlibConfig::new().quote(config))
 }
 
-/// What the registry build under `config` reported, rendered; a build that
-/// succeeds is a test failure.
-fn build_error(config: QuoteConfig) -> String {
+/// What the registry build under `config` reported; a build that succeeds is
+/// a test failure.
+fn build_error(config: QuoteConfig) -> RegistryBuildError {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().quote(config)));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new().quote(config)));
     builder.use_package(flm_core::math_passthrough::package());
     match builder.build(&RegistryInputs::new()) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => error,
     }
 }
 
@@ -207,19 +207,17 @@ fn an_environment_named_as_a_declared_one_a_reserved_kind_or_admitting_nothing_i
     let clash = build_error(
         QuoteConfig::new().environment("itemize", QuoteEnvironment::new([QuoteSection::Text])),
     );
-    assert!(clash.contains("itemize"), "{clash}");
+    assert_eq!(clashing_names(&clash), ["itemize"], "{clash}");
     let theorem = build_error(
         QuoteConfig::new().environment("theorem", QuoteEnvironment::new([QuoteSection::Text])),
     );
-    assert!(theorem.contains("theorem"), "{theorem}");
+    assert_eq!(clashing_names(&theorem), ["theorem"], "{theorem}");
     let reserved = build_error(
         QuoteConfig::new().environment("numbered", QuoteEnvironment::new([QuoteSection::Text])),
     );
-    // The name blamed stands before the last colon; the reserved list follows it.
-    let blamed = reserved.rsplit_once(':').map_or("", |(blamed, _)| blamed);
-    assert!(blamed.contains("`numbered`"), "{reserved}");
+    assert_eq!(refusing_features(&reserved), ["quote"], "{reserved}");
     let nothing = build_error(QuoteConfig::new().environment("empty", QuoteEnvironment::new([])));
-    assert!(nothing.contains("`empty`"), "{nothing}");
+    assert_eq!(refusing_features(&nothing), ["quote"], "{nothing}");
 }
 
 #[test]
@@ -489,7 +487,7 @@ fn a_quotation_renders_on_the_page_and_in_the_recomposed_latex() {
     let document = "\\begin{quote}\\text{a}\\lines{b\\\\\\indent c}\\attributed{d}\\end{quote}";
     for workflow in ["html", "latex-recomposed"] {
         let run = run_workflow(&registry, workflow, &[document], &Overrides::none());
-        assert_eq!(identifiers(&run), Vec::<String>::new(), "{workflow}");
+        assert_only_unchecked_output(&run);
     }
     // The recomposed LaTeX writes the environment back, each section
     // through its hook (`tests/quote_latex.rs`).
@@ -510,7 +508,7 @@ fn text_inside_a_formula_inside_a_quotation_is_the_mathematics_one() {
     assert_eq!(reported, Vec::<String>::new());
     // The formula's `\text` is the `math` feature's own element, lowered as
     // content inside the formula, not as a quotation's text.
-    assert!(shape.contains(r#"math-passthrough(math-text("x"))"#), "{shape}");
+    assert!(shape.contains(r#"math-passthrough{flm.math.formula}(math-text("x"))"#), "{shape}");
     assert_eq!(shape.matches("flm.quote.text").count(), 1, "{shape}");
 }
 
@@ -543,7 +541,7 @@ fn the_text_is_the_same_sequentially_and_in_parallel() {
         "\\begin{blockquote}\nOne.\n\nTwo.\n\\end{blockquote}",
     ];
     let doc = common::pipeline::doc(&registry, &texts);
-    let plan = common::stdcore::plan(&registry, text::WORKFLOW, &Overrides::none());
+    let plan = common::stdlib::plan(&registry, text::WORKFLOW, &Overrides::none());
     let sequential =
         common::pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::sequential());
     let parallel = common::pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::new());

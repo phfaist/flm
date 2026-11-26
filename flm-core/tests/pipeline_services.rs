@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use flm_core::core::registry::{
     BuildError, BuildPhase, FeatureBuilder, Finalizer, HOST_FEATURE, RegistryBuilder,
-    RegistryInputs, RoundTwoAction,
+    RegistryInputs, RoundTwoAction, UnresolvedPeer,
 };
 use flm_core::core::services::{Arity, ServiceError, SlotTarget};
 use flm_core::core::stage::{Effect, Needs, Scope, StageDecl};
@@ -155,10 +155,12 @@ fn a_peer_contribution_to_a_slot_nobody_declares_is_dropped_with_a_note() {
     assert_eq!(peer_slots(&registry), [("t.b", "t.hooks", false)]);
     assert_eq!(build_diagnostic_ids(&registry), ["flm.registry.unresolved-peer"]);
     assert!(!registry.build_diagnostics().has_errors());
-    assert_eq!(
-        registry.build_diagnostics().iter().next().expect("the note").message(),
-        "feature `t.b` refers to the slot `t.hooks` and expects another feature to declare it, but no feature of this registry declares it; the value contributed to it is dropped"
-    );
+    let peers: Vec<(&str, &str, &str)> = registry
+        .build_diagnostics()
+        .conditions::<UnresolvedPeer>()
+        .map(|peer| (peer.feature.as_str(), peer.kind.as_str(), peer.name.as_str()))
+        .collect();
+    assert_eq!(peers, [("t.b", "slot", "t.hooks")]);
 }
 
 #[test]
@@ -175,9 +177,12 @@ fn several_peer_contributions_to_one_absent_slot_are_one_note() {
         build_diagnostic_ids(&registry),
         ["flm.registry.unresolved-peer", "flm.registry.unresolved-peer"]
     );
-    let messages: Vec<String> = registry.build_diagnostics().iter().map(|d| d.message()).collect();
-    assert!(messages[0].contains("refers to the slot `t.hooks`"), "{}", messages[0]);
-    assert!(messages[1].contains("refers to the slot `t.styles`"), "{}", messages[1]);
+    let peers: Vec<(&str, &str)> = registry
+        .build_diagnostics()
+        .conditions::<UnresolvedPeer>()
+        .map(|peer| (peer.kind.as_str(), peer.name.as_str()))
+        .collect();
+    assert_eq!(peers, [("slot", "t.hooks"), ("slot", "t.styles")]);
     assert_eq!(
         peer_slots(&registry),
         [("t.b", "t.hooks", false), ("t.b", "t.hooks", false), ("t.b", "t.styles", false)]

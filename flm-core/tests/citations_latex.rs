@@ -17,15 +17,15 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::citations::latex::{
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::citations::latex::{
     definition_piece, CITE_COMMAND, PIECE, PRE_SPACE_COMMAND, REF_CITE_COMMAND,
 };
-use flm_core::stdcore::features::citations::{CitationPlacement, CitationsConfig, MarkForm};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::features::citations::{CitationPlacement, CitationsConfig, MarkForm};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow};
 
 // --- helpers ---------------------------------------------------------------------------------
 
@@ -42,7 +42,7 @@ fn userdefs() -> UserdefsConfig {
 /// The standard package under `config`, with [`userdefs`], every key
 /// answered by the test provider.
 fn registry_of(config: CitationsConfig) -> Arc<FlmRegistry> {
-    common::citations::registry(StdcoreConfig::new().citations(config).userdefs(userdefs()))
+    common::citations::registry(StdlibConfig::new().citations(config).userdefs(userdefs()))
 }
 
 /// The recomposition of `document` under `registry`.
@@ -51,10 +51,10 @@ fn recompose_on(registry: &Arc<FlmRegistry>, document: &str) -> Run {
 }
 
 /// The recomposition of `document` under the default configuration; the run
-/// must report nothing.
+/// must report nothing but the Warnings of its plan's unchecked output.
 fn recompose(document: &str) -> Run {
     let run = recompose_on(&registry_of(CitationsConfig::new()), document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     run
 }
 
@@ -136,7 +136,7 @@ fn the_placement_and_the_form_change_nothing() {
         CitationsConfig::new().placement(CitationPlacement::InPlace).mark(MarkForm::Superscript),
     ] {
         let run = recompose_on(&registry_of(config.clone()), document);
-        assert_eq!(identifiers(&run), Vec::<String>::new(), "{config:?}");
+        assert_only_unchecked_output(&run);
         assert_eq!(common::latex::golden_text(&run), default, "{config:?}");
     }
 }
@@ -209,7 +209,7 @@ fn a_mistaken_call_is_reported_and_writes_no_hook_and_a_chunk_writing_none_is_a_
     let run = recompose_on(&registry_of(CitationsConfig::new()), "A\\cite{a}\\cite{} B\\cite{} C\\R D\\R[X]\\cite{a}.");
     assert_eq!(
         identifiers(&run),
-        ["flm.citations.no-key", "flm.citations.no-key", "flm.citations.no-citation", "flm.citations.unknown-flag"]
+        [UNCHECKED_OUTPUT, "flm.citations.no-key", "flm.citations.no-key", "flm.citations.no-citation", "flm.citations.unknown-flag"]
     );
     let output = common::latex::output(&run);
     assert!(output.starts_with("A\\flmCitePreSpace\\flmCite{a} B\n%"), "{output}");
@@ -219,7 +219,7 @@ fn a_mistaken_call_is_reported_and_writes_no_hook_and_a_chunk_writing_none_is_a_
 
 #[test]
 fn a_cited_key_with_no_entry_is_an_error_here_too() {
-    let registry = common::citations::registry_with(StdcoreConfig::new(), Vec::new());
+    let registry = common::citations::registry_with(StdlibConfig::new(), Vec::new());
     let run = recompose_on(&registry, "text\\cite{a}");
     assert!(identifiers(&run).contains(&"flm.citations.no-entry".to_string()), "{:?}", identifiers(&run));
     assert!(common::latex::output(&run).starts_with("text\\flmCitePreSpace\\flmCite{a}"));

@@ -3,11 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EDGE_PX, MAX_ENTRIES, POPUP_GAP_PX,
+  CONTEXT_AFTER, CONTEXT_BEFORE, EDGE_PX, MAX_ENTRIES, NEIGHBOR_AFTER, NEIGHBOR_BEFORE, POPUP_GAP_PX,
   type MarkPart,
-  buildPreview, citationEntries, citedRanges, entriesBetween, joinsRange, linkTarget, markParts,
-  type MathJaxLike, type Placeable,
-  placePopup, positionPopup, previewElements, typesetPopup,
+  buildPreview, citationEntries, citedRanges, cutText, entriesBetween, joinsRange, linkTarget, markParts,
+  type Placeable,
+  placePopup, positionPopup, previewElements,
 } from '../src/previews';
 import { FakeDocument, type FakeElement, h, outline } from './dom';
 
@@ -39,7 +39,12 @@ test('a dash between two citation links joins a range; any other text separates'
 
 // ── A page ─────────────────────────────────────────────────────────────────
 
+// The mark of a formula's outermost element: the class `flm-math-formula` (in
+// the selectors below) and `data-flm-display`.
 const display = { 'data-flm-display': 'display' };
+const inline = { 'data-flm-display': 'inline' };
+/** A displayed formula written as MathML: its `math` element is the outermost one. */
+const mathDisplay = { display: 'block', 'data-flm-display': 'display' };
 const cite = (n: number) => h('a.flm-pres-link', { href: `#citation-${n}`, 'data-flm-kind': 'cite' }, String(n));
 
 /** A page shaped as the rendered sample: headings, paragraphs, displayed formulas, a theorem, a footnote, a bibliography. */
@@ -51,12 +56,12 @@ function page(): { doc: FakeDocument; byId: (id: string) => FakeElement } {
     h('p.flm-pres-par#p5'),
     h('h3.flm-pres-block--heading#sec-c', { 'data-flm-level': '2' }, 'C'),
     h('p.flm-pres-par#p7', {}, 'The channel',
-      h('span.flm-pres-math--source', display, h('tex-html', {}, h('span.flm-pres-math--text#eq-tp'))),
+      h('span.math-mathjax-formula.flm-math-formula', display, h('tex-html', {}, h('span.flm-pres-math--text#eq-tp'))),
       'is degradable.'),
     h('p.flm-pres-par#p8', {}, 'Condition ', h('a.flm-pres-link', { href: '#eq-tp', 'data-flm-kind': 'ref' }, 'Eq. (2)')),
     h('div.flm-pres-block.flm-theorems-theorem#theorem-1', { 'data-flm-kind': 'theoremlike theorem' },
       h('p.flm-pres-par', {}, 'if and only if',
-        h('span.flm-pres-math--source', display,
+        h('span.math-mathjax-formula.flm-math-formula', display,
           h('mjx-container', { display: 'true' }, h('mjx-html', {}, h('span.flm-pres-math--text')))),
         'for some matrix')),
     h('p.flm-pres-par#p9', {}, 'Text.',
@@ -68,6 +73,9 @@ function page(): { doc: FakeDocument; byId: (id: string) => FakeElement } {
       h('span.flm-pres-span.flm-citations-mark#m3', { 'data-flm-kind': 'attached' }, '[', cite(7), '–', cite(2), ']'),
       h('a.flm-pres-link#url', { href: 'https://example.org/', 'data-flm-kind': 'url' }, 'a site'),
       h('a.flm-pres-link#missing', { href: '#nowhere', 'data-flm-kind': 'ref' }, 'nothing')),
+    h('p.flm-pres-par#p10', {}, 'Hence',
+      h('math.flm-math-formula', mathDisplay, h('mtable', {}, h('mtr#eq-row', {}, h('mtd', {}, 'a = b')))),
+      'holds.'),
   );
   const notes = h('ol.flm-pres-list#notes', { 'data-flm-kind': 'numbered xnotes labeled' },
     h('li#fn-1', {}, h('span.flm-pres-list-label', {}, 'a'),
@@ -103,6 +111,126 @@ test('a list entry, a block, an inline element preview as the rules say', () => 
   assert.deepEqual(ids(previewElements(asElement(byId('fnref-1')))), ['p9'], 'an inline target: its paragraph');
   assert.deepEqual(ids(previewElements(asElement(byId('eq-tp')))), ['p7'],
     'a target inside a displayed formula: the paragraph holding the formula');
+  assert.deepEqual(ids(previewElements(asElement(byId('eq-row')))), ['p10'],
+    'a line of a displayed formula written as MathML: the paragraph holding the formula');
+});
+
+test('text is cut at a word, keeping the side nearest the target', () => {
+  assert.equal(cutText('one two three', 20, 'before'), 'one two three', 'short enough: whole');
+  assert.equal(cutText('one two three', 7, 'before'), 'three', 'before: the end, from a whole word');
+  assert.equal(cutText('one two three', 9, 'before'), 'two three', 'before: a cut at a space keeps the word after it');
+  assert.equal(cutText('one two three', 6, 'after'), 'one', 'after: the beginning, up to a whole word');
+  assert.equal(cutText('one two three', 7, 'after'), 'one two', 'after: a cut at a space keeps the word before it');
+  assert.equal(cutText('onetwothree', 5, 'after'), '', 'a single word too long: nothing');
+});
+
+test('the preview of an inline target in a long paragraph keeps the context around it', () => {
+  const words = (n: number, w: string) => Array.from({ length: n }, () => w).join(' ');
+  const formula = () =>
+    h('math.flm-math-formula', mathDisplay, h('mtable', {}, h('mtr#eq-long', {}, h('mtd', {}, 'x = y'))));
+  const long = h('p.flm-pres-par#long', {},
+    words(100, 'before'), h('em', {}, words(20, 'emph')), ' ', formula(), ' ', words(100, 'after'));
+  const short = h('p.flm-pres-par#short', {}, 'Short ',
+    h('math.flm-math-formula', inline, h('mtr#eq-short', {}, 'z')), ' text.');
+  const link = (id: string) => h('a.flm-pres-link', { href: `#${id}`, 'data-flm-kind': 'ref' });
+  const doc = new FakeDocument([h('article.flm-content', {}, long, short, link('eq-long'), link('eq-short'))]);
+  const preview = (id: string): FakeElement =>
+    buildPreview(asElement(link(id)), asDocument(doc)) as unknown as FakeElement;
+
+  const cut = preview('eq-long');
+  const block = cut.children[0];
+  assert.equal(block.childNodes[0].textContent, '\u2026 ', 'an ellipsis opens the kept text');
+  assert.equal(block.childNodes[block.childNodes.length - 1].textContent, ' \u2026', 'and closes it');
+  assert.equal(block.querySelectorAll('mtr').length, 1, 'the formula is kept whole');
+  const [before, after] = block.textContent.split('x = y');
+  assert.ok(before.length <= CONTEXT_BEFORE + 2 && before.length > CONTEXT_BEFORE - 20, `before: ${before.length}`);
+  assert.ok(after.length <= CONTEXT_AFTER + 2 && after.length > CONTEXT_AFTER - 20, `after: ${after.length}`);
+  assert.ok(before.includes('emph'), 'the emphasis nearest the formula is kept');
+  assert.ok(!/\bbefor\b|\baft\b/.test(block.textContent), 'no word is cut');
+  assert.equal(doc.getElementById('long')?.querySelectorAll('.ln-preview-cut').length, 0, 'the page is left as it was');
+
+  const whole = preview('eq-short');
+  assert.equal(whole.textContent, 'Short z text.', 'a short paragraph: whole');
+  assert.equal(whole.querySelectorAll('.ln-preview-cut').length, 0);
+});
+
+test('a formula, known by its mark whatever wrote it, is kept whole when a preview cuts, and is not words', () => {
+  const words = (n: number, w: string) => Array.from({ length: n }, () => w).join(' ');
+  const link = (id: string) => h('a.flm-pres-link', { href: `#${id}`, 'data-flm-kind': 'ref' });
+  // Inline formulas whose text has spaces, where the cut before the target
+  // falls: as each math processor writes one, and as a drawing would be.
+  const formulas = {
+    techxt: () => h('span.math-techxt.flm-math-formula', inline, 'a + b + c + d'),
+    passthrough: () => h('span.flm-pres-math--passthrough.flm-math-formula', inline, '\\(a + b + c + d\\)'),
+    browser: () => h('span.math-mathjax-formula.flm-math-formula', inline, '\\(a + b + c + d\\)'),
+    mathml: () => h('math.flm-math-formula', inline, h('mrow', {}, 'a + b + c + d')),
+    drawing: () => h('svg.flm-math-formula', inline, h('text', {}, 'a + b + c + d')),
+  };
+  for (const [name, inline] of Object.entries(formulas)) {
+    const target = h('span#eq-' + name, {}, 'T');
+    // Between the formula and the target, 291 characters: the budget before the target ends inside the formula.
+    const near = ' ' + words(58, 'near') + ' ';
+    assert.ok(near.length < CONTEXT_BEFORE && near.length + 'a + b + c + d'.length > CONTEXT_BEFORE);
+    const paragraph = h('p.flm-pres-par', {}, words(10, 'one'), ' ', inline(), near, target, ' end.');
+    const doc = new FakeDocument([h('article.flm-content', {}, paragraph, link('eq-' + name))]);
+    const text = (buildPreview(asElement(link('eq-' + name)), asDocument(doc)) as unknown as FakeElement).textContent;
+    assert.ok(text.startsWith('\u2026  near'), `${name}: the formula is left out whole (${text.slice(0, 30)})`);
+  }
+  // Without the mark, the same element is text like any other, and is cut.
+  const target = h('span#eq-unmarked', {}, 'T');
+  const unmarked = h('p.flm-pres-par', {}, words(10, 'one'), ' ', h('span.math-techxt', {}, 'a + b + c + d'),
+    ' ' + words(58, 'near') + ' ', target, ' end.');
+  const doc = new FakeDocument([h('article.flm-content', {}, unmarked, link('eq-unmarked'))]);
+  const text = (buildPreview(asElement(link('eq-unmarked')), asDocument(doc)) as unknown as FakeElement).textContent;
+  assert.ok(text.startsWith('\u2026 ') && text.includes('c + d near'), `unmarked: cut inside (${text.slice(0, 30)})`);
+  // A paragraph holding only a formula is not a paragraph of text, whatever the processor.
+  for (const [name, inline] of Object.entries(formulas)) {
+    const doc = new FakeDocument([h('article.flm-content', {},
+      h('p.flm-pres-par', {}, inline()),
+      h('p.flm-pres-par', {}, h('span.math-techxt.flm-math-formula#eq-' + name, inline, 'x = y')),
+      link('eq-' + name))]);
+    const preview = buildPreview(asElement(link('eq-' + name)), asDocument(doc)) as unknown as FakeElement;
+    assert.equal(preview.children.length, 1, `${name}: no paragraph of text before`);
+  }
+});
+
+test('on a side with no words beside an equation, its preview shows the end of the paragraph of text there', () => {
+  const words = (n: number, w: string) => Array.from({ length: n }, () => w).join(' ');
+  const alone = (id: string) => h('p.flm-pres-par', {}, ' ',
+    h('math.flm-math-formula', mathDisplay, h('mtr#' + id, {}, 'x = y')), ' ');
+  const link = (id: string) => h('a.flm-pres-link', { href: `#${id}`, 'data-flm-kind': 'ref' });
+  const doc = new FakeDocument([h('article.flm-content', {},
+    h('p.flm-pres-par', {}, words(60, 'lead'), ' so'),
+    alone('eq-a'),
+    h('p.flm-pres-par', {}, 'where ', words(60, 'tail')),
+    h('h3.flm-pres-block--heading', { 'data-flm-level': '2' }, 'Heading'),
+    alone('eq-b'),
+    h('p.flm-pres-par', {}, ' ', h('math.flm-math-formula', inline, 'z'), ' '),
+    h('p.flm-pres-par', {}, 'Short. ', h('math.flm-math-formula', inline, 'w'), ' Not alone:'),
+    h('p.flm-pres-par', {}, 'Then ', h('math.flm-math-formula', inline, h('mtr#eq-c', {}, 'v')), '.'),
+    h('p.flm-pres-par', {}, 'after'),
+    h('p.flm-pres-par', {}, 'Both ', h('math.flm-math-formula', inline, h('mtr#eq-d', {}, 'u')), ' sides.'),
+    h('p.flm-pres-par', {}, 'next'),
+    link('eq-a'), link('eq-b'), link('eq-c'), link('eq-d'))]);
+  const preview = (id: string): FakeElement =>
+    buildPreview(asElement(link(id)), asDocument(doc)) as unknown as FakeElement;
+
+  const a = preview('eq-a');
+  assert.equal(outline(a), 'div.ln-preview-content(p.flm-pres-par(span.ln-preview-cut) '
+    + 'p.flm-pres-par(math.flm-math-formula(mtr)) p.flm-pres-par(span.ln-preview-cut))');
+  const [before, , after] = a.children.map((p) => p.textContent);
+  assert.ok(before.startsWith('\u2026 ') && before.endsWith('lead so'), before);
+  assert.ok(before.length <= NEIGHBOR_BEFORE + 2, `before: ${before.length}`);
+  assert.ok(after.startsWith('where tail') && after.endsWith(' \u2026'), after);
+  assert.ok(after.length <= NEIGHBOR_AFTER + 2, `after: ${after.length}`);
+
+  assert.equal(outline(preview('eq-b')), 'div.ln-preview-content(p.flm-pres-par(math.flm-math-formula(mtr)))',
+    'a heading before and a paragraph holding only a formula after are not paragraphs of text');
+  assert.equal(outline(preview('eq-c')), 'div.ln-preview-content(p.flm-pres-par(math.flm-math-formula(mtr)) p.flm-pres-par)',
+    'an equation that ends its paragraph: the beginning of the paragraph after');
+  assert.equal(preview('eq-c').textContent, 'Then v.after', 'the period after the formula is not words');
+  assert.equal(outline(preview('eq-d')), 'div.ln-preview-content(p.flm-pres-par(math.flm-math-formula(mtr)))',
+    'words on both sides: the paragraph alone');
 });
 
 test('the preview copies the content without ids, anchors or back-links', () => {
@@ -121,7 +249,7 @@ test('the preview copies the content without ids, anchors or back-links', () => 
 
   const formula = buildPreview(asElement(byId('p8').children[0]), asDocument(doc)) as unknown as FakeElement;
   assert.equal(outline(formula),
-    'div.ln-preview-content(p.flm-pres-par(span.flm-pres-math--source(tex-html(span.flm-pres-math--text))))');
+    'div.ln-preview-content(p.flm-pres-par(span.math-mathjax-formula.flm-math-formula(tex-html(span.flm-pres-math--text))))');
 });
 
 test('a citation previews the entries its mark covers, ranges expanded, at most eight', () => {
@@ -188,32 +316,3 @@ test('the popup is measured at the top left corner, not at the place of the prev
   assert.equal(style.top, `${120 + POPUP_GAP_PX + 50}px`, 'the page\'s scroll added');
 });
 
-test('the popup is typeset after MathJax\'s pending work, and a failure ends the chain quietly', async () => {
-  const order: string[] = [];
-  let release!: () => void;
-  const pending = new Promise<void>((resolve) => { release = resolve; });
-  const popup = {} as Element;
-  const mathJax: MathJaxLike = {
-    startup: { promise: pending.then(() => { order.push('page'); }) },
-    typesetPromise: async (elements) => {
-      assert.deepEqual(elements, [popup]);
-      order.push('popup');
-      throw new Error('typesetting failed');
-    },
-  };
-  const before = mathJax.startup!.promise;
-  const done = typesetPopup(mathJax, popup);
-  assert.notEqual(mathJax.startup!.promise, before, 'the chain is stored back');
-  await Promise.resolve();
-  assert.deepEqual(order, [], 'nothing runs before the pending work ends');
-  release();
-  await done;
-  await mathJax.startup!.promise;
-  assert.deepEqual(order, ['page', 'popup']);
-
-  // Without a startup promise, the call runs at once.
-  const calls: Element[][] = [];
-  await typesetPopup({ typesetPromise: async (elements) => { calls.push(elements); } }, popup);
-  assert.deepEqual(calls, [[popup]]);
-  await typesetPopup({}, popup);
-});

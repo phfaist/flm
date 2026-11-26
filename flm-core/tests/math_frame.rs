@@ -1,5 +1,5 @@
 //! The frame library of the `math` feature
-//! (`flm_core::stdcore::features::math::frame`): `formula_display` reads a
+//! (`flm_core::stdlib::features::math::frame`): `formula_display` reads a
 //! math group's class; `line_frames` gives each equation line its anchor from
 //! the anchors table and shows its number from the counter table, its `\tag`,
 //! or nothing, and says so where a table is absent; `number_text` writes the
@@ -14,17 +14,17 @@ use flm_core::lang::Flm;
 use flm_core::lang::structural::MATH;
 use flm_core::model::addr::{NodeAddr, TreeId};
 use flm_core::model::element::element_of;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::math::frame::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::math::frame::{
     LineShows, formula_display, line_frames, number_text,
 };
-use flm_core::stdcore::features::math::ENVIRONMENT;
-use flm_core::stdcore::features::numbering::COUNTERS;
-use flm_core::stdcore::features::refs::ANCHORS;
+use flm_core::stdlib::features::math::ENVIRONMENT;
+use flm_core::stdlib::features::numbering::COUNTERS;
+use flm_core::stdlib::features::refs::ANCHORS;
 use flm_core::techy::core::node::NodeRef;
 
-use common::stdcore::{registry, run_workflow};
+use common::stdlib::{registry, run_workflow};
 
 const DOCUMENT: &str = "Inline \\(a\\) and displayed \\[b\\].\n\n\\begin{align}\n  a \\\\\n  b \\label{eq:b} \\\\\n  c \\tag{T} \\\\\n  d \\tag*{U} \\\\\n  e \\nonumber\n\\end{align}\n\n\\begin{equation*}\n  f\n\\end{equation*}\n";
 
@@ -43,7 +43,7 @@ fn shown(shows: &LineShows<'_>, text: Option<String>) -> String {
 
 #[test]
 fn the_frames_read_the_anchors_and_numbers_the_run_computed() {
-    let run = run_workflow(&registry(StdcoreConfig::new()), text::WORKFLOW, &[DOCUMENT], &Overrides::none());
+    let run = run_workflow(&registry(StdlibConfig::new()), text::WORKFLOW, &[DOCUMENT], &Overrides::none());
     let anchors = run.table(&ANCHORS).expect("declared").expect("written");
     let counters = run.table(&COUNTERS).expect("declared").expect("written");
     let tree = run.frozen_tree(TreeId::tree(0)).expect("the tree");

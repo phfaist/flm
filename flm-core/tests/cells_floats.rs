@@ -10,16 +10,16 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::cells::{self, CellsConfig};
-use flm_core::stdcore::features::floats::{self, FloatType};
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::cells::{self, CellsConfig};
+use flm_core::stdlib::features::floats::{self, ContentRefused, FloatType};
+use flm_core::stdlib::StdlibConfig;
 
 use common::lowering::text as printed;
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{identifiers, run_workflow};
 
-fn registry(config: StdcoreConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(config)
+fn registry(config: StdlibConfig) -> Arc<FlmRegistry> {
+    common::stdlib::registry(config)
 }
 
 fn render(registry: &Arc<FlmRegistry>, document: &str) -> Run {
@@ -31,8 +31,14 @@ fn text_of(run: &Run) -> String {
 }
 
 /// The message of the first diagnostic `id` of the run.
-fn message(run: &Run, id: &str) -> String {
-    run.diagnostics().iter().find(|d| d.identifier() == id).expect("reported").to_string()
+/// The float type of the first `flm.floats.content-refused` the run reports.
+fn refused_type(run: &Run) -> String {
+    run.diagnostics()
+        .iter()
+        .find_map(|d| d.data().downcast_ref::<ContentRefused>())
+        .expect("reported")
+        .float_type
+        .clone()
 }
 
 const TABLE: &str = "\\begin{table}\n\\begin{cells}\\celldata<H>{A & B}\\celldata{1 & 2}\\end{cells}\n\
@@ -41,7 +47,7 @@ const TABLE: &str = "\\begin{table}\n\\begin{cells}\\celldata<H>{A & B}\\celldat
 
 #[test]
 fn under_the_default_a_table_of_cells_renders_in_a_table_float() {
-    let run = render(&registry(StdcoreConfig::new()), TABLE);
+    let run = render(&registry(StdlibConfig::new()), TABLE);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(
         text_of(&run),
@@ -52,7 +58,7 @@ fn under_the_default_a_table_of_cells_renders_in_a_table_float() {
 #[test]
 fn a_table_nested_in_a_cell_of_a_table_float_renders() {
     let run = render(
-        &registry(StdcoreConfig::new()),
+        &registry(StdlibConfig::new()),
         "\\begin{table}\\begin{cells}\\cell{\\begin{cells}\\cell{a}\\cell{b}\\end{cells}}\\cell{c}\
          \\end{cells}\\end{table}",
     );
@@ -70,30 +76,29 @@ fn the_default_table_type_names_the_environments_package_and_the_handler() {
 
 #[test]
 fn the_handler_admits_exactly_one_table_of_cells() {
-    let registry = registry(StdcoreConfig::new());
+    let registry = registry(StdlibConfig::new());
     for document in [
         "\\begin{table}\\begin{cells}\\cell{A}\\end{cells}\\begin{cells}\\cell{B}\\end{cells}\\end{table}",
         "\\begin{table}Some text.\n\n\\begin{cells}\\cell{A}\\end{cells}\\end{table}",
     ] {
         let run = render(&registry, document);
         assert_eq!(identifiers(&run), ["flm.floats.content-refused"], "{document}");
-        let refused = message(&run, "flm.floats.content-refused");
-        assert!(refused.contains("exactly one table of cells"), "{refused}");
+        assert_eq!(refused_type(&run), "table", "{document}");
         assert!(text_of(&run).contains('A'), "shown as it stands: {}", text_of(&run));
     }
 }
 
 #[test]
 fn a_figure_holding_a_table_of_cells_is_the_floats_features_error() {
-    let registry = registry(StdcoreConfig::new().cells(CellsConfig::new().global(true)));
+    let registry = registry(StdlibConfig::new().cells(CellsConfig::new().global(true)));
     let run = render(&registry, "\\begin{figure}\\begin{cells}\\cell{A}\\end{cells}\\end{figure}");
     assert_eq!(identifiers(&run), ["flm.floats.content-refused"]);
-    assert!(message(&run, "flm.floats.content-refused").contains("exactly one image"));
+    assert_eq!(refused_type(&run), "figure");
 }
 
 #[test]
 fn under_global_a_table_float_holds_a_table_alike() {
-    let run = render(&registry(StdcoreConfig::new().cells(CellsConfig::new().global(true))), TABLE);
+    let run = render(&registry(StdlibConfig::new().cells(CellsConfig::new().global(true))), TABLE);
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert!(text_of(&run).starts_with("A  B\n-  -\n1  2"), "{}", text_of(&run));
 }

@@ -107,7 +107,7 @@ impl FlmFeature for ExtFeature {
     fn register(&self, b: &mut CoreFeatureBuilder<'_>) -> Result<(), BuildError> {
         let feature = b.feature().clone();
         let owner = Owner::new(&self.stem, &self.package, &self.feature.name);
-        let mut facade = BuilderFacade::new(b, &owner, &self.services, &self.configuration);
+        let mut facade = BuilderFacade::new(b, &owner, &self.services, &self.configuration, &self.feature.templates);
         let result = self.runtime.register(&owner.package, &self.feature.name, &self.configuration, &mut facade);
         let definitions = facade.into_definitions();
         if let Err(error) = result {

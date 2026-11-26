@@ -1,5 +1,5 @@
 //! The text backend through a plan of the `text` workflow
-//! (`flm_core::stdcore::backends::text`): the stages the workflow schedules,
+//! (`flm_core::stdlib::backends::text`): the stages the workflow schedules,
 //! the output table and its one-artifact set, the render-bound width, rendering
 //! twice, marks mapping to lowered nodes, several trees in document order, an
 //! accepted hole in the text, an unattributed callable's spelling, the output
@@ -17,9 +17,9 @@ use flm_core::core::plan::Overrides;
 use flm_core::core::data::table::{ProjectCx, Table};
 use flm_core::dump::diag::expect;
 use flm_core::dump::golden::assert_text_golden;
-use flm_core::stdcore::backends::lowering::{LoweredAddr, lowered_table};
-use flm_core::stdcore::backends::pres;
-use flm_core::stdcore::backends::text::{TEXT_DOCUMENT, TextRenderOptions};
+use flm_core::stdlib::backends::lowering::{LoweredAddr, lowered_table};
+use flm_core::stdlib::backends::pres;
+use flm_core::stdlib::backends::text::{TEXT_DOCUMENT, TextRenderOptions};
 
 use common::layout::assert_well_formed;
 use common::lowering::{

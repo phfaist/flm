@@ -6,7 +6,9 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use common::{html_of, latex_of, registry_with, text_of};
+use flm_core::stdlib::backends::{html, latex_recomposed};
+
+use common::{assert_only_unchecked_output, html_of, latex_of, registry_with, text_of};
 
 // --- the manifest --------------------------------------------------------------------------
 
@@ -121,10 +123,10 @@ fn a_registry_with_the_standard_package_alone_renders_through_each_output() {
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     assert_eq!(text, "Some text.\n");
     let (html, diagnostics) = html_of(&registry, "Some \\emph{text}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(html.contains("<em"), "{html}");
     let (latex, diagnostics) = latex_of(&registry, "Some \\emph{text}.");
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("\\emph{text}"), "{latex}");
 }
 
@@ -134,7 +136,7 @@ mod builder_rows {
     use std::sync::Arc;
 
     use flm_core::core::plan::{Plan, PlanRequest};
-    use flm_core::stdcore::backends::text;
+    use flm_core::stdlib::backends::text;
     use flm_ext::adapter::handles::Entry;
     use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
     use flm_ext::api::core::registry::{FeatureBuilder, Finalizer, LateInit};
@@ -149,7 +151,10 @@ mod builder_rows {
 
     use crate::common::double::{stage, Double};
     use crate::common::json_double::JsonDouble;
-    use crate::common::{diagnostics, registry_with, run, text_of, try_registry_with};
+    use crate::common::{diagnostics, feature_errors, identifiers, registry_with, run, text_of, try_registry_with};
+    use flm_core::core::registry::BuildError;
+    use flm_core::lang::mint::MintError;
+    use flm_core::lang::LangBuildError;
 
     /// The feature `count` of the package `ex`: a capability `ex.counted`, a
     /// check stage providing it that reports `ex.ran`, and what `extra`
@@ -179,10 +184,12 @@ mod builder_rows {
     #[test]
     fn a_member_outside_the_stem_is_refused() {
         let error = try_registry_with([counting(|b| b.collection_member("flm.validated", "other.counted")).package()])
-            .expect_err("a member outside the stem")
-            .to_string();
-        assert!(error.contains("flm.ext.name-outside-extension"), "{error}");
-        assert!(error.contains("other.counted"), "{error}");
+            .expect_err("a member outside the stem");
+        let found = feature_errors(&error);
+        assert!(
+            matches!(found.as_slice(), [(feature, detail)] if feature == "count" && detail.starts_with("flm.ext.name-outside-extension: ")),
+            "{found:?}"
+        );
     }
 
     #[test]
@@ -241,15 +248,19 @@ mod builder_rows {
         let (inside, diagnostics) = text_of(&registry, "\\begin{exbox}Look: \\exhint{here}.\\end{exbox}");
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert!(inside.contains("Look: here."), "{inside}");
-        let (_, diagnostics) = text_of(&registry, "Outside \\exhint{there}.");
-        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-        assert!(diagnostics[0].contains("exhint"), "{diagnostics:?}");
+        let run = run(&registry, text::WORKFLOW, "Outside \\exhint{there}.");
+        assert_eq!(identifiers(&run), ["core.specs.unresolvable-command"]);
+        flm_core::dump::diag::expect(run.diagnostics().iter(), "core.specs.unresolvable-command").at("\\exhint").once();
     }
 
     #[test]
     fn a_body_naming_a_scoped_package_no_feature_declares_fails_the_build() {
-        let error = try_registry_with([hints("ex.nowhere").package()]).expect_err("an unknown scoped package").to_string();
-        assert!(error.contains("ex.nowhere"), "{error}");
+        let error = try_registry_with([hints("ex.nowhere").package()]).expect_err("an unknown scoped package");
+        assert!(
+            error.errors.iter().any(|e| matches!(e, BuildError::Lang(LangBuildError::Mint(MintError::UnknownScopedPackage { package, .. }))
+                if *package == "ex.nowhere")),
+            "{error:?}"
+        );
     }
 
     #[test]
@@ -257,8 +268,12 @@ mod builder_rows {
         let package = Double::new("ex")
             .feature("boxes", |b| b.scoped_package(ScopedPackageDef::new("other.hints", Vec::new(), "")))
             .package();
-        let error = try_registry_with([package]).expect_err("outside the stem").to_string();
-        assert!(error.contains("flm.ext.name-outside-extension") && error.contains("other.hints"), "{error}");
+        let error = try_registry_with([package]).expect_err("outside the stem");
+        let found = feature_errors(&error);
+        assert!(
+            matches!(found.as_slice(), [(feature, detail)] if feature == "boxes" && detail.starts_with("flm.ext.name-outside-extension: ")),
+            "{found:?}"
+        );
     }
 
     #[test]
@@ -325,8 +340,12 @@ mod builder_rows {
     #[test]
     fn a_failing_late_init_hook_fails_the_build() {
         let failing = Double::new("ex").feature("late", |b| b.late_init(Arc::new(Late(None)))).package();
-        let error = try_registry_with([failing]).expect_err("a failing hook").to_string();
-        assert!(error.contains("flm.ext.handler-failed: the hook gave up"), "{error}");
+        let error = try_registry_with([failing]).expect_err("a failing hook");
+        assert!(
+            error.errors.iter().any(|e| matches!(e, BuildError::LateInit { feature, detail }
+                if *feature == "late" && detail.starts_with("flm.ext.handler-failed: ") && detail.ends_with("the hook gave up"))),
+            "{error:?}"
+        );
     }
 
     #[test]
@@ -389,15 +408,23 @@ mod builder_rows {
         let nested = Double::new("ex")
             .feature("late", |b| b.finalizer(Arc::new(Finish(Box::new(|b| b.finalizer(Arc::new(Finish(Box::new(|_| Ok(()))))))))))
             .package();
-        let error = try_registry_with([nested]).expect_err("a finalizer of the second round").to_string();
+        let error = try_registry_with([nested]).expect_err("a finalizer of the second round");
         // `flm-core`'s `ContributionAfterAssembly`, through the handler's failure.
-        assert!(error.contains("flm.ext.handler-failed: ") && error.contains("register a finalizer"), "{error}");
+        let found = feature_errors(&error);
+        assert!(
+            matches!(found.as_slice(), [(feature, detail)] if feature == "late" && detail.starts_with("flm.ext.handler-failed: ")),
+            "{found:?}"
+        );
         let failing = Double::new("ex")
             .feature("late", |b| {
                 b.finalizer(Arc::new(Finish(Box::new(|_| Err(ExtError::Handler { detail: "no".to_string(), data: Value::Null })))))
             })
             .package();
-        let error = try_registry_with([failing]).expect_err("a failing finalizer").to_string();
-        assert!(error.contains("flm.ext.handler-failed: no"), "{error}");
+        let error = try_registry_with([failing]).expect_err("a failing finalizer");
+        let found = feature_errors(&error);
+        assert!(
+            matches!(found.as_slice(), [(feature, detail)] if feature == "late" && detail.starts_with("flm.ext.handler-failed: ") && detail.ends_with("no")),
+            "{found:?}"
+        );
     }
 }

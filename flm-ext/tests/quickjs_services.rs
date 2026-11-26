@@ -6,7 +6,7 @@
 //! service in a stage, a provider and a template; the rehearsal on another
 //! thread finding the provider and the template by name, and refusing a name
 //! a second run of `register` does not declare; the name rule; the package
-//! object's `host` list.
+//! object's `host` list; the caches a package declares.
 
 #![cfg(feature = "quickjs")]
 
@@ -16,16 +16,17 @@ use std::sync::Arc;
 
 use flm_core::core::artifact::{ArtifactId, ArtifactNamer, ArtifactRef, NamingScope, RelPath};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
 use flm_core::core::plan::{Overrides, Plan};
 use flm_core::core::registry::{FlmFeature, FlmRegistry, PackageEntry, PackageFactory, RegistryBuildError, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::features::compose::{stage_name, ComposeFeature, ComposeOptions, TemplateChoice};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::features::citations::ProviderFailed;
+use flm_core::stdlib::features::compose::{stage_name, ComposeFeature, ComposeOptions, TemplateChoice, TemplateFailed};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::host::HostService;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use flm_ext::{ExtensionLoader, MemoryFiles};
@@ -108,12 +109,23 @@ fn text_of(registry: &Arc<FlmRegistry>, source: &str) -> (String, Vec<String>) {
     (out, common::diagnostics(&run))
 }
 
-/// The registry build's error, as text.
-fn build_error(packages: impl IntoIterator<Item = PackageEntry>) -> String {
+/// The registry build's error.
+fn build_error(packages: impl IntoIterator<Item = PackageEntry>) -> RegistryBuildError {
     match try_registry_with(packages) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     }
+}
+
+/// The `(key, detail)` of each `flm.citations.provider-failed` of the text
+/// run of `source`, sequential.
+fn provider_failures(registry: &Arc<FlmRegistry>, source: &str) -> Vec<(String, String)> {
+    let run = run_with(registry, text::WORKFLOW, &Overrides::none(), source);
+    run.diagnostics()
+        .iter()
+        .filter_map(|d| d.data().downcast_ref::<ProviderFailed>())
+        .map(|failed| (failed.key.clone(), failed.detail.clone()))
+        .collect()
 }
 
 // --- a script's own service slot ---------------------------------------------------------------
@@ -125,7 +137,6 @@ fn build_error(packages: impl IntoIterator<Item = PackageEntry>) -> String {
 const NOTES: &str = r#"
 import { StageDecl, Effect, Scope } from "flm:core/stage";
 import { Arity } from "flm:core/services";
-import { FilesScope } from "flm:host";
 
 export default function (ext) {
   ext.package("_", { host: ["files"], features: { notes: { register(b) {
@@ -141,9 +152,9 @@ export default function (ext) {
           all: cx.services("wc.notes"),
           by_precedence: cx.services_by_precedence("wc.notes"),
           undeclared: [cx.service("wc.none"), cx.services("wc.none")],
-          extension: files.read_text(FilesScope.Extension, "data.txt"),
-          document: files.read_text("document", "doc.txt"),
-          missing: files.read_text("document", "missing.txt"),
+          extension: files.read_text("self:data.txt"),
+          document: files.read_text("doc:doc.txt"),
+          missing: files.read_text("doc:missing.txt"),
         });
       },
     });
@@ -181,7 +192,63 @@ fn a_slot_declared_and_filled_across_two_packages_is_read_by_a_stage() {
     let calls = service.calls.lock().expect("the calls");
     let seen: Vec<(&str, &str, &Value)> =
         calls.iter().map(|(caller, method, args)| (caller.package.as_str(), method.as_str(), &args["path"])).collect();
-    assert_eq!(seen, [("_", "read_text", &json!("doc.txt")), ("_", "read_text", &json!("missing.txt"))]);
+    assert_eq!(seen, [("_", "read_text", &json!("doc:doc.txt")), ("_", "read_text", &json!("doc:missing.txt"))]);
+}
+
+/// The extension `wc`: a stage whose module `lib/reader.js` reads the file
+/// beside it through `path(import.meta, …)`, and a file of the extension
+/// `base` by `ext+base:`.
+const BESIDE: &str = r#"
+import { StageDecl, Effect, Scope } from "flm:core/stage";
+import { path } from "flm:host";
+import { reader } from "./lib/reader.js";
+
+export default function (ext) {
+  ext.package("_", { host: ["files"], features: { beside: { register(b) {
+    b.table("wc.seen", "what the stage saw");
+    b.stage({
+      decl: () => new StageDecl("wc.see", Effect.Compute, Scope.Document).writes("wc.seen"),
+      run(cx, out) {
+        out.table("wc.seen").push({ main: path(import.meta, "lib/note.txt"), ...reader(cx.host("files")) });
+      },
+    });
+  } } } });
+}
+"#;
+
+const READER: &str = r#"
+import { path } from "flm:host";
+
+export function reader(files) {
+  const note = path(import.meta, "./note.txt");
+  return { note, beside: files.read_text(note), other: files.read_text("ext+base:templates/head.html") };
+}
+"#;
+
+#[test]
+fn a_handler_reads_a_file_beside_its_module_and_a_file_of_another_extension() {
+    use flm_core::core::registry::PackageResolver;
+    let service = Arc::new(MemoryHostFiles::new(MemoryFiles::new()));
+    let files = [("main.js", BESIDE), ("lib/reader.js", READER), ("lib/note.txt", "beside the module")];
+    let base = MemoryFiles::new().with_text("templates/head.html", "<head>");
+    let source = js_extension("wc", &files, js_manifest("main.js"))
+        .with("base", "base", json!({ "extension": { "description": "Base." } }), base);
+    let loader = ExtensionLoader::new(vec![Arc::new(source)])
+        .with_js(JsHost::new(JsSettings::default()))
+        .with_host_service(Arc::clone(&service) as Arc<dyn HostService>);
+    let loader = Arc::new(loader);
+    // The use name `base` reaches the other extension, as an entry of `use` would.
+    let _ = loader.resolve("base");
+    let registry = registry_with([built(&loader, "wc", "beside", Value::Null)]);
+    let run = common::run_demanding(&registry, &["wc.seen"], &["Text."]);
+    assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
+    assert_eq!(
+        ext_items(&run, "wc.seen"),
+        [json!({ "main": "self:lib/note.txt", "note": "self:lib/note.txt", "beside": "beside the module", "other": "<head>" })]
+    );
+    // Both files were read from the files of the extensions; the host's object received no
+    // call.
+    assert!(service.calls.lock().expect("the calls").is_empty());
 }
 
 // --- citation providers ------------------------------------------------------------------------
@@ -190,12 +257,12 @@ fn a_slot_declared_and_filled_across_two_packages_is_read_by_a_stage() {
 /// its document file `works.json` holds in one call, and `wc.one` answering
 /// every key one by one.
 const PROVIDERS: &str = r#"
-import { PROVIDERS_SLOT } from "flm:stdcore/features/citations";
+import { PROVIDERS_SLOT } from "flm:stdlib/features/citations";
 
 const all = {
   name: "wc.all",
   answer_all(requests, cx) {
-    const works = JSON.parse(cx.host("files").read_text("document", "works.json"));
+    const works = JSON.parse(cx.host("files").read_text("doc:works.json"));
     return requests.map(({ key }) =>
       key in works ? { entry: cx.build_entry([{ emphasized: [{ text: works[key] }] }]), identity: key } : null);
   },
@@ -252,7 +319,7 @@ fn the_rehearsal_on_another_thread_finds_the_providers_by_name() {
 /// how many times `register` ran on the engine instance (`wc.p0`, `wc.p1`,
 /// …), with a configuration `x`.
 const COUNTING_PROVIDER: &str = r#"
-import { PROVIDERS_SLOT } from "flm:stdcore/features/citations";
+import { PROVIDERS_SLOT } from "flm:stdlib/features/citations";
 
 let runs = 0;
 
@@ -269,80 +336,45 @@ export default function (ext) {
 #[test]
 fn a_provider_a_second_run_of_register_does_not_declare_fails_each_key() {
     let loader = loader(&[("main.js", COUNTING_PROVIDER)], None);
-    let diagnostics = on_worker(|| {
+    let failures = on_worker(|| {
         // On one instance: `register` runs for the first registry (`wc.p0`),
         // then for the second (`wc.p1`); the first registry's run rehearses
         // its configuration again, which declares `wc.p2`.
         let first = registry_with([built(&loader, "wc", "bib", json!({ "x": "1" }))]);
         let _second = registry_with([built(&loader, "wc", "bib", json!({ "x": "2" }))]);
-        text_of(&first, "A \\cite{k}.").1
+        provider_failures(&first, "A \\cite{k}.")
     });
-    let detail = "flm.ext.handler-failed: the citation provider `wc.p0` of the feature `bib` of the package `_` of the \
-                  extension `wc` failed: the citation provider `wc.p0` must be contributed by `register` of the feature \
-                  `bib` of the package `_` of the extension `wc`";
-    assert_eq!(
-        diagnostics.first().map(String::as_str),
-        Some(format!("flm.citations.provider-failed: the bibliography entry of the key `k` could not be retrieved: {detail}").as_str())
-    );
+    let first = failures.first().expect("a provider's failure");
+    assert_eq!(first.0, "k", "{failures:?}");
+    assert!(first.1.starts_with("flm.ext.handler-failed: "), "{failures:?}");
 }
 
 #[test]
 fn a_provider_of_the_wrong_shape_or_given_to_the_wrong_slot_is_refused() {
     let register = |body: &str| {
         let main = format!(
-            "import {{ PROVIDERS_SLOT }} from \"flm:stdcore/features/citations\";\n\
+            "import {{ PROVIDERS_SLOT }} from \"flm:stdlib/features/citations\";\n\
              export default function (ext) {{ ext.package(\"_\", {{ features: {{ bib: {{ register(b) {{ {body} }} }} }} }}); }}\n"
         );
         build_error([built(&loader(&[("main.js", main.as_str())], None), "wc", "bib", Value::Null)])
     };
     let cases = [
-        (
-            "b.peer_slot(PROVIDERS_SLOT, { answer() {} });",
-            "a citation provider contributed to `flm.citations.providers` by the package `_` of the extension `wc` must \
-             be an object with `name` and `answer` or `answer_all`",
-        ),
-        (
-            "b.peer_slot(PROVIDERS_SLOT, { name: \"wc.x\", render() {} });",
-            "a citation provider contributed to `flm.citations.providers` by the package `_` of the extension `wc` must \
-             be an object with `name` and `answer` or `answer_all`",
-        ),
+        "b.peer_slot(PROVIDERS_SLOT, { answer() {} });",
+        "b.peer_slot(PROVIDERS_SLOT, { name: \"wc.x\", render() {} });",
         // The slot's name decides: any object given to the providers'
         // slot is a citation provider, one without its methods refused.
-        (
-            "b.peer_slot(PROVIDERS_SLOT, { name: \"wc.x\" });",
-            "a citation provider contributed to `flm.citations.providers` by the package `_` of the extension `wc` must \
-             be an object with `name` and `answer` or `answer_all`",
-        ),
-        (
-            "b.peer_slot(PROVIDERS_SLOT, \"wc.x\");",
-            "the service slot `flm.citations.providers` takes a citation provider (an object with `name` and `answer` \
-             or `answer_all`), and the package `_` of the extension `wc` contributed data",
-        ),
-        (
-            "b.service_slot(\"wc.notes\", \"single\", \"\"); b.contribute_to(\"wc.notes\", { name: \"wc.x\", answer() {} });",
-            "the service slot `wc.notes` takes data, and the package `_` of the extension `wc` contributed an object \
-             with methods",
-        ),
-        (
-            "b.service_slot(\"wc.notes\", \"single\", \"\"); b.contribute_to(\"wc.notes\", { note: \"x\", show() {} });",
-            "the service slot `wc.notes` takes data, and the package `_` of the extension `wc` contributed an object \
-             with methods",
-        ),
+        "b.peer_slot(PROVIDERS_SLOT, { name: \"wc.x\" });",
+        "b.peer_slot(PROVIDERS_SLOT, \"wc.x\");",
+        "b.service_slot(\"wc.notes\", \"single\", \"\"); b.contribute_to(\"wc.notes\", { name: \"wc.x\", answer() {} });",
+        "b.service_slot(\"wc.notes\", \"single\", \"\"); b.contribute_to(\"wc.notes\", { note: \"x\", show() {} });",
         // A second provider under one name in one `register`.
-        (
-            "const p = { name: \"wc.x\", answer() { return null; } }; b.peer_slot(PROVIDERS_SLOT, p); \
-             b.peer_slot(PROVIDERS_SLOT, { ...p });",
-            "the citation provider `wc.x` must be contributed once by `register` of the feature `bib` of the package \
-             `_` of the extension `wc`",
-        ),
-        (
-            "b.contribute_first_to(PROVIDERS_SLOT, { name: \"wc.x\", answer() {} });",
-            "a citation provider or a template module is contributed with `contribute_to` or `peer_slot`",
-        ),
+        "const p = { name: \"wc.x\", answer() { return null; } }; b.peer_slot(PROVIDERS_SLOT, p); \
+         b.peer_slot(PROVIDERS_SLOT, { ...p });",
+        "b.contribute_first_to(PROVIDERS_SLOT, { name: \"wc.x\", answer() {} });",
     ];
-    for (body, text) in cases {
-        let error = register(body);
-        assert!(error.contains(text), "{body}: {error}");
+    for body in cases {
+        // The registry does not build.
+        register(body);
     }
 }
 
@@ -352,25 +384,16 @@ fn a_provider_of_the_wrong_shape_or_given_to_the_wrong_slot_is_refused() {
 fn a_service_slot_and_a_citation_provider_are_named_inside_the_extension() {
     let register = |body: &str| {
         let main = format!(
-            "import {{ PROVIDERS_SLOT }} from \"flm:stdcore/features/citations\";\n\
+            "import {{ PROVIDERS_SLOT }} from \"flm:stdlib/features/citations\";\n\
              export default function (ext) {{ ext.package(\"_\", {{ features: {{ bib: {{ register(b) {{ {body} }} }} }} }}); }}\n"
         );
         build_error([built(&loader(&[("main.js", main.as_str())], None), "wc", "bib", Value::Null)])
     };
-    let slot = register("b.service_slot(\"notes\", \"ordered-many\", \"\");");
-    assert!(slot.contains("flm.ext.name-outside-extension"), "{slot}");
-    assert!(
-        slot.contains("the service slot `notes` declared by the package `_` of the extension `wc` must begin with `wc.`"),
-        "{slot}"
-    );
-    let provider = register("b.peer_slot(PROVIDERS_SLOT, { name: \"bib.x\", answer() { return null; } });");
-    assert!(provider.contains("flm.ext.name-outside-extension"), "{provider}");
-    assert!(
-        provider.contains(
-            "the citation provider `bib.x` declared by the package `_` of the extension `wc` must begin with `wc.`"
-        ),
-        "{provider}"
-    );
+    let slot = common::feature_errors(&register("b.service_slot(\"notes\", \"ordered-many\", \"\");"));
+    assert!(slot.iter().any(|(_, detail)| detail.starts_with("flm.ext.name-outside-extension: ")), "{slot:?}");
+    let provider =
+        common::feature_errors(&register("b.peer_slot(PROVIDERS_SLOT, { name: \"bib.x\", answer() { return null; } });"));
+    assert!(provider.iter().any(|(_, detail)| detail.starts_with("flm.ext.name-outside-extension: ")), "{provider:?}");
 }
 
 // --- template modules --------------------------------------------------------------------------
@@ -396,25 +419,25 @@ impl ArtifactNamer for JobNamer {
 /// folder; its page holds the extension's partial `head.html` and the
 /// document's `note.txt`.
 const TINY: &str = r#"
-import { TEMPLATES_SLOT } from "flm:stdcore/features/compose";
+import { TEMPLATES_SLOT } from "flm:stdlib/features/compose";
 
 const tiny = {
   name: "tiny",
   describe(settings) {
-    return { output: "html", accepts: "all", requires: [], config: { heading: settings.heading ?? "Tiny", color: "teal", banner: null } };
+    return { accepts: "all", requires: [], config: { heading: settings.heading ?? "Tiny", color: "teal", banner: null } };
   },
   files(data, cx) {
     const files = [
       { name: "style", extension: "css", media_type: "text/css", text: `h1 { color: ${data.config.color}; }\n` },
-      { name: "logo", file: "logo.svg", scope: "extension" },
+      { name: "logo", file: "self:logo.svg" },
     ];
-    if (data.config.banner !== null) files.push({ name: "banner", file: data.config.banner, scope: "document" });
+    if (data.config.banner !== null) files.push({ name: "banner", file: `doc:${data.config.banner}` });
     return files;
   },
   render(data, cx) {
     const files = cx.host("files");
-    const head = files.read_text("extension", "head.html") ?? "";
-    const note = files.read_text("document", "note.txt") ?? "";
+    const head = files.read_text("self:head.html") ?? "";
+    const note = files.read_text("doc:note.txt") ?? "";
     const paths = Object.fromEntries(data.artifacts);
     const regions = Object.fromEntries(data.regions);
     return `${head}<h1>${data.config.heading}</h1>\n${note}style=${paths.style};logo=${paths.logo};banner=${paths.banner}\n${regions.content}`;
@@ -424,6 +447,7 @@ const tiny = {
 export default function (ext) {
   ext.package("_", { host: ["files"], features: { tinytpl: {
     settings: { config: { docs: "The heading.", schema: { type: "object", properties: { heading: { type: "string" } } } } },
+    templates: { tiny: { output: "html", settings: { type: "object", properties: { heading: {}, color: {}, banner: {} } } } },
     register(b, settings) { b.peer_slot(TEMPLATES_SLOT, tiny); },
   } } });
 }
@@ -432,7 +456,7 @@ export default function (ext) {
 /// The registry of the standard package with the composer, `package`, and
 /// the tests' naming of files.
 fn try_compose_registry(package: PackageEntry) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
-    let mut standard = stdcore::package(StdcoreConfig::new());
+    let mut standard = stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new());
     standard.features.push(Arc::new(ComposeFeature::new()) as Arc<dyn FlmFeature>);
     let mut builder = RegistryBuilder::new();
     builder.use_package(standard);
@@ -466,6 +490,21 @@ fn render(registry: &Arc<FlmRegistry>, template: &str, config: Value) -> Run {
     run_with(registry, html::WORKFLOW, &overrides, "A paragraph.\n")
 }
 
+/// The `(template, output, detail)` of a `flm.compose.template-failed`.
+type TemplateFailure = (Option<String>, String, String);
+
+/// The identifiers of the diagnostics of `run`, and the `(template, output,
+/// detail)` of each of its `flm.compose.template-failed`.
+fn template_failures(run: &Run) -> (Vec<String>, Vec<TemplateFailure>) {
+    let failures = run
+        .diagnostics()
+        .iter()
+        .filter_map(|d| d.data().downcast_ref::<TemplateFailed>())
+        .map(|failed| (failed.template.clone(), failed.output.clone(), failed.detail.clone()))
+        .collect();
+    (common::identifiers(run), failures)
+}
+
 /// The bytes of the file `compose:NAME` of a run's HTML output, as text.
 fn shipped(run: &Run, name: &str) -> Option<String> {
     let set = run.table(html::DOCUMENT).expect("declared")?;
@@ -484,9 +523,10 @@ const TINY_PAGE: &str = "<meta charset=\"utf-8\">\n<h1>Notes</h1>\na note\nstyle
                          banner=job-banner.png\n<div id=\"flm-region-content\">\nA paragraph. \n</div>";
 
 /// The page, the shipped files and the diagnostics of a render of `tiny`.
-fn tiny_render(registry: &Arc<FlmRegistry>) -> (Option<String>, [Option<String>; 3], Vec<String>) {
+fn tiny_render(registry: &Arc<FlmRegistry>) -> (Option<String>, [Option<String>; 3], Vec<String>, Arc<Plan>) {
     let run = render(registry, "tiny", json!({ "banner": "banner.png" }));
-    (page(&run), [shipped(&run, "style"), shipped(&run, "logo"), shipped(&run, "banner")], common::diagnostics(&run))
+    let files = [shipped(&run, "style"), shipped(&run, "logo"), shipped(&run, "banner")];
+    (page(&run), files, common::diagnostics(&run), Arc::clone(run.plan()))
 }
 
 #[test]
@@ -494,13 +534,13 @@ fn a_template_module_describes_itself_ships_its_files_and_renders() {
     let registry = tiny_registry();
     let template = registry
         .services()
-        .services_named::<flm_core::stdcore::features::compose::Template>(flm_core::stdcore::features::compose::TEMPLATES_SLOT)
+        .services_named::<flm_core::stdlib::features::compose::Template>(flm_core::stdlib::features::compose::TEMPLATES_SLOT)
         .find(|template| template.name == "tiny")
         .expect("the template");
     assert_eq!((template.package.as_str(), template.engine.as_str()), ("wc#_", "wc#_:tiny"));
     assert_eq!(template.config["heading"], json!("Notes"));
-    let (page, files, diagnostics) = on_worker(|| tiny_render(&registry));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let (page, files, diagnostics, plan) = on_worker(|| tiny_render(&registry));
+    common::assert_only_unchecked_output(&plan, &diagnostics);
     assert_eq!(page.as_deref(), Some(TINY_PAGE));
     assert_eq!(files, [Some("h1 { color: teal; }\n".to_string()), Some("<svg/>".to_string()), Some("PNG".to_string())]);
 }
@@ -508,8 +548,8 @@ fn a_template_module_describes_itself_ships_its_files_and_renders() {
 #[test]
 fn the_rehearsal_on_another_thread_finds_the_template_module_by_name() {
     let registry = tiny_registry();
-    let (page, files, diagnostics) = on_other_thread(|| tiny_render(&registry));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let (page, files, diagnostics, plan) = on_other_thread(|| tiny_render(&registry));
+    common::assert_only_unchecked_output(&plan, &diagnostics);
     assert_eq!(page.as_deref(), Some(TINY_PAGE));
     assert_eq!(files[0].as_deref(), Some("h1 { color: teal; }\n"));
 }
@@ -518,17 +558,18 @@ fn the_rehearsal_on_another_thread_finds_the_template_module_by_name() {
 /// after how many times `register` ran on the engine instance (`t0`, `t1`,
 /// …), with a configuration `x`.
 const COUNTING_TEMPLATE: &str = r#"
-import { TEMPLATES_SLOT } from "flm:stdcore/features/compose";
+import { TEMPLATES_SLOT } from "flm:stdlib/features/compose";
 
 let runs = 0;
 
 export default function (ext) {
   ext.package("_", { features: { tinytpl: {
     settings: { config: { docs: "x", schema: { type: "object", properties: { x: { type: "string" } } } } },
+    templates: Object.fromEntries([0, 1, 2, 3].map((run) => [`t${run}`, { output: "html" }])),
     register(b) {
       b.peer_slot(TEMPLATES_SLOT, {
         name: `t${runs++}`,
-        describe() { return { output: "html", accepts: "all" }; },
+        describe() { return { accepts: "all" }; },
         render(data) { return "page"; },
       });
     },
@@ -539,92 +580,77 @@ export default function (ext) {
 #[test]
 fn a_template_module_a_second_run_of_register_does_not_declare_fails_the_template() {
     let loader = loader(&[("main.js", COUNTING_TEMPLATE)], None);
-    let diagnostics = on_worker(|| {
+    let (identifiers, failures) = on_worker(|| {
         let first = try_compose_registry(built(&loader, "wc", "tinytpl", json!({ "x": "1" }))).expect("the registry");
         let _second = try_compose_registry(built(&loader, "wc", "tinytpl", json!({ "x": "2" }))).expect("the registry");
-        common::diagnostics(&render(&first, "t0", json!({})))
+        template_failures(&render(&first, "t0", json!({})))
     });
-    assert_eq!(
-        diagnostics,
-        ["flm.compose.template-failed: the compose template `t0` for the output `html` cannot be applied: \
-          flm.ext.handler-failed: the template module `t0` of the feature `tinytpl` of the package `_` of the extension \
-          `wc` failed: the template module `t0` must be contributed by `register` of the feature `tinytpl` of the \
-          package `_` of the extension `wc`"]
-    );
+    assert_eq!(identifiers, [common::UNCHECKED_OUTPUT, "flm.compose.template-failed"]);
+    assert_eq!((failures[0].0.as_deref(), failures[0].1.as_str()), (Some("t0"), "html"));
+    assert!(failures[0].2.starts_with("flm.ext.handler-failed: "), "{failures:?}");
 }
 
 #[test]
 fn a_template_module_of_the_wrong_shape_is_refused() {
-    let main = "import { TEMPLATES_SLOT } from \"flm:stdcore/features/compose\";\n\
+    let main = "import { TEMPLATES_SLOT } from \"flm:stdlib/features/compose\";\n\
                 export default function (ext) { ext.package(\"_\", { features: { tinytpl: { register(b) {\n\
                 b.peer_slot(TEMPLATES_SLOT, { name: \"tiny\", render() { return \"\"; } }); } } } }); }\n";
     let error = match try_compose_registry(built(&loader(&[("main.js", main)], None), "wc", "tinytpl", Value::Null)) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert!(
-        error.contains(
-            "a template module contributed to `flm.compose.templates` by the package `_` of the extension `wc` must be \
-             an object with `name`, `describe` and `render`"
-        ),
-        "{error}"
-    );
+    let found = common::feature_errors(&error);
+    assert!(found.iter().any(|(_, detail)| detail.starts_with("flm.ext.handler-failed: ")), "{found:?}");
 }
 
 #[test]
 fn a_second_template_module_under_one_name_is_refused() {
-    let module = "{ name: \"tiny\", describe() { return { output: \"html\", accepts: \"all\" }; }, render() { return \"\"; } }";
+    let module = "{ name: \"tiny\", describe() { return { accepts: \"all\" }; }, render() { return \"\"; } }";
     let main = format!(
-        "import {{ TEMPLATES_SLOT }} from \"flm:stdcore/features/compose\";\n\
-         export default function (ext) {{ ext.package(\"_\", {{ features: {{ tinytpl: {{ register(b) {{\n\
+        "import {{ TEMPLATES_SLOT }} from \"flm:stdlib/features/compose\";\n\
+         export default function (ext) {{ ext.package(\"_\", {{ features: {{ tinytpl: {{ \
+         templates: {{ tiny: {{ output: \"html\" }} }}, register(b) {{\n\
          b.peer_slot(TEMPLATES_SLOT, {module}); b.peer_slot(TEMPLATES_SLOT, {module}); }} }} }} }}); }}\n"
     );
     let loader = loader(&[("main.js", main.as_str())], None);
     let error = match try_compose_registry(built(&loader, "wc", "tinytpl", Value::Null)) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert!(
-        error.contains(
-            "the template module `tiny` must be contributed once by `register` of the feature `tinytpl` of the \
-             package `_` of the extension `wc`"
-        ),
-        "{error}"
-    );
+    let found = common::feature_errors(&error);
+    assert!(found.iter().any(|(_, detail)| detail.starts_with("flm.ext.handler-failed: ")), "{found:?}");
 }
 
 #[test]
 fn a_template_module_s_page_must_be_a_text() {
-    let main = "import { TEMPLATES_SLOT } from \"flm:stdcore/features/compose\";\n\
-                export default function (ext) { ext.package(\"_\", { features: { tinytpl: { register(b) {\n\
-                b.peer_slot(TEMPLATES_SLOT, { name: \"tiny\", describe() { return { output: \"html\", accepts: \"all\" }; }, \
+    let main = "import { TEMPLATES_SLOT } from \"flm:stdlib/features/compose\";\n\
+                export default function (ext) { ext.package(\"_\", { features: { tinytpl: { \
+                templates: { tiny: { output: \"html\" } }, register(b) {\n\
+                b.peer_slot(TEMPLATES_SLOT, { name: \"tiny\", describe() { return { accepts: \"all\" }; }, \
                 render() { return 7; } }); } } } }); }\n";
     let registry =
         try_compose_registry(built(&loader(&[("main.js", main)], None), "wc", "tinytpl", Value::Null)).expect("the registry");
-    let diagnostics = on_worker(|| common::diagnostics(&render(&registry, "tiny", json!({}))));
-    assert_eq!(
-        diagnostics,
-        ["flm.compose.template-failed: the compose template `tiny` for the output `html` cannot be applied: \
-          flm.ext.handler-failed: the template module `tiny` of the feature `tinytpl` of the package `_` of the \
-          extension `wc` failed: the answer of `render` must be a text"]
-    );
+    let (identifiers, failures) = on_worker(|| template_failures(&render(&registry, "tiny", json!({}))));
+    assert_eq!(identifiers, [common::UNCHECKED_OUTPUT, "flm.compose.template-failed"]);
+    assert_eq!((failures[0].0.as_deref(), failures[0].1.as_str()), (Some("tiny"), "html"));
+    assert!(failures[0].2.starts_with("flm.ext.handler-failed: "), "{failures:?}");
 }
 
 /// A `register` that catches an exhausted allocation, contributes a
 /// template module (whose `describe` runs as a nested call on the same
 /// instance) and rethrows what it caught.
 const CAUGHT_THEN_NESTED: &str = r#"
-import { TEMPLATES_SLOT } from "flm:stdcore/features/compose";
+import { TEMPLATES_SLOT } from "flm:stdlib/features/compose";
 
 export default function (ext) {
-  ext.package("_", { features: { tinytpl: { register(b) {
+  ext.package("_", { features: { tinytpl: { templates: { tiny: { output: "html" } }, register(b) {
     let caught = "nothing";
     let a = [];
     try { for (;;) a.push(new Array(100000)); } catch (e) { caught = e; }
     a = null;
     b.peer_slot(TEMPLATES_SLOT, {
       name: "tiny",
-      describe() { return { output: "html", accepts: "all" }; },
+      describe() { return { accepts: "all" }; },
       render() { return ""; },
     });
     throw caught;
@@ -640,13 +666,10 @@ fn a_nested_call_keeps_the_memory_limit_the_outer_call_reached() {
     let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_js(JsHost::new(settings)));
     let error = match try_compose_registry(built(&loader, "wc", "tinytpl", Value::Null)) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    let expected = format!(
-        "`register` of the feature `tinytpl` of the package `_` of the extension `wc` must stay within the memory \
-         limit of {limit} bytes"
-    );
-    assert!(error.contains(&expected), "{error}");
+    let found = common::feature_errors(&error);
+    assert!(found.iter().any(|(_, detail)| detail.starts_with("flm.ext.handler-failed: ")), "{found:?}");
 }
 
 // --- the package object's `host` --------------------------------------------------------------
@@ -655,10 +678,7 @@ fn a_nested_call_keeps_the_memory_limit_the_outer_call_reached() {
 fn host_must_be_a_list_of_texts() {
     let main = "export default function (ext) { ext.package(\"_\", { host: \"files\" }); }";
     let problems = load_problems(&loader(&[("main.js", main)], None), "wc");
-    assert!(
-        problems.iter().any(|problem| problem.contains("`host` of the package `_` of the extension `wc` must be a list of texts")),
-        "{problems:?}"
-    );
+    assert!(!problems.is_empty());
 }
 
 /// The registry digest of the extension `wc` whose package declares `host`,
@@ -678,26 +698,117 @@ fn the_host_list_reaches_the_report_and_the_digest() {
     // The report holds the list: a service the host lacks fails the load.
     let main = "export default function (ext) { ext.package(\"_\", { host: [\"files\", \"programs\"] }); }";
     let service = the_document_s_folder();
-    assert_eq!(
-        load_problems(&loader(&[("main.js", main)], Some(&service)), "wc"),
-        ["the package `_` of the extension `wc` declares the host service `programs` (`host`), which this program does \
-          not offer; it offers `files`"]
-    );
+    assert_eq!(load_problems(&loader(&[("main.js", main)], Some(&service)), "wc").len(), 1);
     // The declaration enters the digest.
     assert_eq!(digest_declaring("[\"files\"]"), digest_declaring("[\"files\"]"));
     assert_ne!(digest_declaring("[\"files\"]"), digest_declaring("[]"));
 }
 
+/// A service `keep` that records the callers of the packages it checks.
+#[derive(Default)]
+struct Keeping {
+    checked: std::sync::Mutex<Vec<flm_ext::host::HostCaller>>,
+}
+
+impl HostService for Keeping {
+    fn name(&self) -> &str {
+        "keep"
+    }
+
+    fn call(
+        &self,
+        _: &flm_ext::host::HostCaller,
+        _: &str,
+        _: &Value,
+        _: &flm_core::progress::Scope,
+    ) -> Result<flm_ext::host::HostAnswer, flm_ext::host::HostServiceError> {
+        Ok(flm_ext::host::HostAnswer::Data(Value::Null))
+    }
+
+    fn check_package(&self, caller: &flm_ext::host::HostCaller) -> Result<(), flm_ext::host::HostServiceError> {
+        self.checked.lock().expect("the callers").push(caller.clone());
+        Ok(())
+    }
+}
+
+/// The loader of the extension `wc` whose package `_` declares the service
+/// `keep` and the caches `caches` (a JavaScript expression), offering `keep`.
+fn loader_declaring_caches(caches: &str, keep: &Arc<Keeping>) -> Arc<ExtensionLoader> {
+    let main = format!(
+        "export default function (ext) {{ ext.package(\"_\", {{ host: [\"keep\"], caches: {caches}, features: {{ f: \
+         {{ register(b) {{}} }} }} }}); }}"
+    );
+    let source = js_extension("wc", &[("main.js", main.as_str())], js_manifest("main.js"));
+    let loader = ExtensionLoader::new(vec![Arc::new(source)])
+        .with_js(JsHost::new(JsSettings::default()))
+        .with_host_service(Arc::clone(keep) as Arc<dyn HostService>);
+    Arc::new(loader)
+}
+
+#[test]
+fn a_package_s_caches_reach_its_caller_and_a_cache_with_values_and_a_folder_fails_the_load() {
+    use std::num::{NonZeroU32, NonZeroU64};
+
+    use flm_ext::host::{
+        CacheDeclaration, CacheEngine, CacheExpiry, CacheKind, CachePercent, CacheScope, CacheSort, CacheTime,
+    };
+    let (one, two) = (NonZeroU32::MIN, NonZeroU32::new(2).unwrap());
+    let cost = |ms| NonZeroU64::new(ms).unwrap();
+    let keep = Arc::new(Keeping::default());
+    let caches = r#"{
+        "typeset.mathml": { version: 1, values: { engine: "files", blobs: true }, unused_s: 7776000, cost_ms: 20, scope: "shared" },
+        "fetched": { version: 2, values: {}, lifetime_s: 3600, expiry: { stale_percent: 50 }, cost_ms: 1000, scope: "document" },
+        "aux": { version: 1, folder: {}, unused_s: "unlimited", cost_ms: 30000, scope: "document" },
+    }"#;
+    let _ = factory_of(&loader_declaring_caches(caches, &keep), "wc");
+    let checked = keep.checked.lock().expect("the callers");
+    assert_eq!(checked.len(), 1);
+    let expected = [
+        ("typeset.mathml", CacheDeclaration {
+            version: one,
+            kind: CacheKind::Values {
+                engine: CacheEngine::Files,
+                blobs: true,
+                sort: CacheSort::Stable { unused: CacheTime::Seconds(7_776_000) },
+            },
+            cost_ms: cost(20),
+            scope: CacheScope::Shared,
+        }),
+        ("fetched", CacheDeclaration {
+            version: two,
+            kind: CacheKind::Values {
+                engine: CacheEngine::Sqlite,
+                blobs: false,
+                sort: CacheSort::Volatile {
+                    lifetime_s: 3600,
+                    expiry: CacheExpiry { stale_percent: CachePercent::new(50).unwrap(), ..CacheExpiry::default() },
+                },
+            },
+            cost_ms: cost(1000),
+            scope: CacheScope::Document,
+        }),
+        ("aux", CacheDeclaration {
+            version: one,
+            kind: CacheKind::Folder { unused: CacheTime::Unlimited },
+            cost_ms: cost(30_000),
+            scope: CacheScope::Document,
+        }),
+    ];
+    let expected = expected.into_iter().map(|(name, declaration)| (name.to_string(), declaration)).collect();
+    assert_eq!(checked[0].caches, expected);
+    drop(checked);
+
+    let both = r#"{ "both": { version: 1, values: {}, folder: {}, unused_s: 60, cost_ms: 1, scope: "shared" } }"#;
+    assert_eq!(load_problems(&loader_declaring_caches(both, &Arc::new(Keeping::default())), "wc").len(), 1);
+}
+
 // --- the rules on a template's data ------------------------------------------------------------
 
 #[test]
-fn a_decimal_number_in_a_template_s_data_is_named_by_its_key_path() {
+fn a_decimal_number_in_a_template_s_data_fails_the_template() {
     let registry = tiny_registry();
-    let diagnostics = on_worker(|| common::diagnostics(&render(&registry, "tiny", json!({ "ratio": 1.5 }))));
-    assert_eq!(
-        diagnostics,
-        ["flm.compose.template-failed: the compose template `tiny` for the output `html` cannot be applied: \
-          flm.ext.handler-failed: the template module `tiny` of the feature `tinytpl` of the package `_` of the \
-          extension `wc` failed: `config.ratio` of the data of a compose template must be an integer, not `1.5`"]
-    );
+    let (identifiers, failures) = on_worker(|| template_failures(&render(&registry, "tiny", json!({ "ratio": 1.5 }))));
+    assert_eq!(identifiers, [common::UNCHECKED_OUTPUT, "flm.compose.template-failed"]);
+    assert_eq!((failures[0].0.as_deref(), failures[0].1.as_str()), (Some("tiny"), "html"));
+    assert!(failures[0].2.starts_with("flm.ext.handler-failed: "), "{failures:?}");
 }

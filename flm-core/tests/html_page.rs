@@ -1,5 +1,5 @@
 //! The definitions a page needs and how each one arrives
-//! (`flm_core::stdcore::backends::html::defs` and `…::page`): what the
+//! (`flm_core::stdlib::backends::html::defs` and `…::page`): what the
 //! resolve stage writes into `flm.html.definitions`, what the page assembly
 //! makes of it, what the render option `definitions` changes, the three
 //! conditions, and the shape of the stylesheets this backend ships.
@@ -22,7 +22,7 @@ use flm_core::core::data::table::{ProjectCx, Table, TableName};
 use flm_core::core::plan::PlanCx;
 use flm_core::core::registry::{
     BuildError, DefContent, DefinitionText, FeatureBuilder, FeatureChain, FlmFeature, FlmRegistry,
-    RegistryBuilder, RegistryInputs, StyleDef,
+    PackageEntry, RegistryBuilder, RegistryInputs, StyleDef,
 };
 use flm_core::core::run::StageCx;
 use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
@@ -31,30 +31,30 @@ use flm_core::dump::diag::{expect, expect_none};
 use flm_core::dump::golden::assert_json_golden;
 use flm_core::model::names::{BackendName, CapName, Name};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html::{
-    self, DEFINITIONS_TABLE, DefinitionKind, DefinitionNotInlinable, DefinitionOverride,
+use flm_core::stdlib::backends::html::{
+    self, DEFINITIONS_TABLE, DefinitionKind, DefinitionNotInlinable, DefinitionOverride, DefinitionPartMissing,
     HtmlRenderOptions, MATHJAX_LOADER, NotInlinablePart, RESOLVE_STAGE, ResolvedDefinitions,
     STYLE_PAGE,
 };
-use flm_core::stdcore::backends::html::conventions::{
+use flm_core::stdlib::backends::html::conventions::{
     SCRIPT_MATHJAX, STYLE_CORE, STYLE_ERRORS, STYLE_HEADINGS, STYLE_LISTS, STYLE_MATH_PASSTHROUGH,
     STYLE_VERBATIM,
 };
-use flm_core::stdcore::backends::html::mathjax::mathjax_script;
-use flm_core::stdcore::backends::html::names::{class_of_element, class_of_role};
-use flm_core::stdcore::backends::pres;
-use flm_core::stdcore::features::{cells, citations, defterm, floats, headings, meta, quote, theorems, toc, xnotes};
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::backends::html::mathjax::mathjax_script;
+use flm_core::stdlib::backends::html::names::{class_of_element, class_of_role};
+use flm_core::stdlib::backends::pres;
+use flm_core::stdlib::features::{cells, citations, defterm, floats, headings, metadata, quote, theorems, toc, xnotes};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::error::Severity;
 
 use common::html::{assert_golden, golden_path, page as rendered_page};
 use common::lowering::{name, produces, rule};
 use common::macro_def;
-use common::stdcore::{plan, registry as stdcore_registry, run_workflow};
+use common::stdlib::{plan, registry as stdlib_registry, run_workflow};
 
 /// The registry of the standard package under its default configuration.
 fn std_registry() -> Arc<FlmRegistry> {
-    stdcore_registry(StdcoreConfig::new())
+    stdlib_registry(StdlibConfig::new())
 }
 
 /// Runs `texts` under the `html` workflow of the standard package.
@@ -320,7 +320,7 @@ fn a_definition_the_host_requires_and_no_feature_declares_is_an_error() {
 /// The `html` workflow over the standard package with one more feature.
 fn registry_with(extra: Arc<dyn FlmFeature>) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(extra);
     builder.build(&RegistryInputs::new()).unwrap_or_else(|error| {
@@ -427,7 +427,7 @@ fn the_feature_order_decides_which_feature_defines_an_identifier_two_declare() {
     // The chain places the toy feature before the backend: the backend's own
     // declaration is the definition.
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(requiring_feature(
         None,
@@ -543,13 +543,10 @@ fn a_part_whose_table_is_absent_is_an_error_and_the_other_parts_are_written() {
         let reported = expect(run.diagnostics().iter(), "flm.html.definition-part-missing")
             .severity(Severity::Error)
             .once();
-        let condition = match stage {
-            None => "no stage wrote that table",
-            Some(_) => "the table `t.part` holds no text",
-        };
+        let missing = reported.data().downcast_ref::<DefinitionPartMissing>().expect("the condition");
         assert_eq!(
-            reported.message(),
-            format!("the stylesheet `t.style.table` takes a part from the table `t.part`, but {condition}")
+            (missing.kind.as_str(), missing.definition.as_str(), missing.table.as_str()),
+            ("stylesheet", "t.style.table", "t.part")
         );
         let row = definitions(&run).get("t.style.table").expect("the row");
         assert_eq!(
@@ -581,32 +578,34 @@ fn a_part_naming_an_undeclared_table_or_a_table_of_another_type_fails_the_regist
         ))
     });
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(feature);
     let Err(error) = builder.build(&RegistryInputs::new()) else { panic!("the registry builds") };
-    let text = error.render();
-    assert!(
-        text.contains(
-            "the table `t.missing` that the style definition `t.style.parts` takes a part from must be \
-             declared by a feature of the registry"
-        ),
-        "{text}"
+    let refused: Vec<(&str, &str, &str, Option<&str>)> = error
+        .errors
+        .iter()
+        .filter_map(|error| match error {
+            BuildError::DefinitionPartTable { kind, definition, table, found } => {
+                Some((*kind, definition.as_str(), table.as_str(), *found))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        refused,
+        [
+            ("style", "t.style.parts", "t.missing", None),
+            ("style", "t.style.parts", "t.counts", Some("ArtifactSet")),
+        ],
+        "{error}"
     );
-    assert!(
-        text.contains(
-            "the table `t.counts` that the style definition `t.style.parts` takes a part from must hold \
-             `DefinitionText`, not `ArtifactSet`"
-        ),
-        "{text}"
-    );
-    assert!(!text.contains("`t.part`"), "{text}");
 }
 
 #[test]
 fn a_table_part_projects_as_the_tables_name() {
     let table = ResolvedDefinitions {
-        definitions: vec![flm_core::stdcore::backends::html::ResolvedDefinition {
+        definitions: vec![flm_core::stdlib::backends::html::ResolvedDefinition {
             id: Name::from("t.style.table"),
             kind: DefinitionKind::Style,
             owner: flm_core::model::names::FeatureName::from("t"),
@@ -793,7 +792,7 @@ fn the_manifest_lists_every_definition_with_its_delivery() {
     let run = render_with(&std_registry(), &["A formula \\(x^2\\).\n\nMore.\n"], options);
     assert_json_golden(
         golden_path("definitions.json"),
-        &common::stdcore::projection(&run, DEFINITIONS_TABLE),
+        &common::stdlib::projection(&run, DEFINITIONS_TABLE),
     );
 }
 
@@ -826,7 +825,7 @@ fn the_eight_stylesheets_and_the_one_script_are_registered_under_this_backend() 
     // The eight other stylesheets of the package are the xnotes, the defterm,
     // the theorems, the quote, the floats, the cells, the citations and the
     // toc features' own; the headings feature's style definition, first, and
-    // the meta feature's, before the toc's, hold no part.
+    // the metadata feature's, before the toc's, hold no part.
     let others: Vec<(String, String)> = registry
         .styles()
         .iter()
@@ -844,7 +843,7 @@ fn the_eight_stylesheets_and_the_one_script_are_registered_under_this_backend() 
             (String::from("floats"), String::from("flm.floats.style")),
             (String::from("cells"), String::from("flm.cells.style")),
             (String::from("citations"), String::from("flm.citations.style")),
-            (String::from("meta"), String::from("flm.meta.style")),
+            (String::from("metadata"), String::from("flm.metadata.style")),
             (String::from("toc"), String::from("flm.toc.style")),
         ]
     );
@@ -1055,7 +1054,7 @@ fn the_page_leaves_the_column_of_notes_the_core_chunk_sets_them_in() {
 const STYLED: [(&str, &str); 16] = [
     (STYLE_CORE, ".flm-pres-deco-runin"),
     (STYLE_HEADINGS, ".flm-pres-block--heading"),
-    (STYLE_VERBATIM, ".flm-pres-verbatim"),
+    (STYLE_VERBATIM, ".flm-pres-verbatim[data-flm-kind=\"code\"]"),
     (STYLE_MATH_PASSTHROUGH, ".flm-pres-math--passthrough[data-flm-display=\"display\"]"),
     (STYLE_LISTS, ".flm-pres-list"),
     (STYLE_ERRORS, ".flm-pres-unknown-marker"),
@@ -1071,7 +1070,7 @@ const STYLED: [(&str, &str); 16] = [
     (cells::STYLE, ".flm-pres-cells [data-flm-align=\"left\"]"),
     (citations::html::STYLE, ".flm-citations-mark[data-flm-style=\"superscript\"]"),
     (toc::STYLE, ".flm-toc .flm-pres-list[data-flm-kind~=\"toc\"] .flm-pres-list[data-flm-kind~=\"toc\"]"),
-    (meta::STYLE, ".flm-pres-block.flm-meta-title[data-flm-kind~=\"meta\"]"),
+    (metadata::STYLE, ".flm-pres-block.flm-metadata-title[data-flm-kind~=\"metadata\"]"),
 ];
 
 #[test]
@@ -1191,7 +1190,7 @@ fn every_selector_begins_with_a_class_of_the_contract() {
                                 // hyphen being a family of them.
                                 || field.entry_attribute().is_some_and(|name| {
                                     name == attribute
-                                        || (name.ends_with('-') && attribute.starts_with(name))
+                                        || (name.ends_with('-') && attribute.starts_with(&name))
                                 })
                         })
                     }),

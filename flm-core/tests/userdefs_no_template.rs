@@ -10,13 +10,13 @@ use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::{BadDefinition, Definition, DefinitionProblem};
-use flm_core::stdcore::backends::{lowering, text};
-use flm_core::stdcore::check_feature;
-use flm_core::stdcore::features::blocks::Blocks;
-use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+use flm_core::stdlib::backends::{lowering, text};
+use flm_core::stdlib::check_feature;
+use flm_core::stdlib::features::blocks::Blocks;
+use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
 
 use common::lowering::text as text_of;
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{identifiers, run_workflow};
 
 /// A registry over the `userdefs` feature carrying `definitions`, the lowering
 /// machinery, the text backend and the `blocks` feature, together with the
@@ -24,7 +24,7 @@ use common::stdcore::{identifiers, run_workflow};
 fn registry_with(definitions: Vec<Definition>) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
     builder.feature(lowering::feature());
-    builder.feature(flm_core::stdcore::backends::pieces::feature());
+    builder.feature(flm_core::stdlib::backends::pieces::feature());
     builder.feature(text::feature());
     builder.feature(check_feature());
     builder.feature(Arc::new(Blocks::default()));

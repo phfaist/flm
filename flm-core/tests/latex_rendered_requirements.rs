@@ -6,6 +6,7 @@
 //! declares writes nothing there, and one known nowhere is an Error.
 
 mod common;
+use common::stdlib::{assert_no_diagnostics, assert_only_unchecked_output};
 
 use std::sync::Arc;
 
@@ -21,13 +22,13 @@ use flm_core::lang::mint::{ElementDef, SyntaxDef};
 use flm_core::model::addr::TreeId;
 use flm_core::model::element::ElementSpec;
 use flm_core::model::names::Name;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html::{self, DEFINITIONS_TABLE};
-use flm_core::stdcore::backends::latex::{LatexPreambleDef, preamble};
-use flm_core::stdcore::backends::latex_rendered::{self, DOCUMENT, style_artifact};
-use flm_core::stdcore::backends::lowering::lowered_table;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::{quote, theorems};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html::{self, DEFINITIONS_TABLE};
+use flm_core::stdlib::backends::latex::{LatexPreambleDef, preamble};
+use flm_core::stdlib::backends::latex_rendered::{self, DOCUMENT, style_artifact};
+use flm_core::stdlib::backends::lowering::lowered_table;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::{quote, theorems};
 use techy::core::node::NodeRef;
 
 /// A theorem, which the theorems feature's general rule lowers.
@@ -43,12 +44,7 @@ const UNKNOWN: &str = "flm.latex-rendered.unknown-requirement";
 
 /// Runs the workflow `workflow` over `text` with `registry`.
 fn render(registry: &Arc<FlmRegistry>, workflow: &str, text: &str) -> Run {
-    common::stdcore::run_workflow(registry, workflow, &[text], &Overrides::none())
-}
-
-/// Asserts that `run` reported nothing.
-fn no_diagnostics(run: &Run) {
-    assert_eq!(run.diagnostics().iter().count(), 0, "{}", run.diagnostics().render_all());
+    common::stdlib::run_workflow(registry, workflow, &[text], &Overrides::none())
 }
 
 /// The style file of a `latex-rendered` run.
@@ -113,14 +109,14 @@ fn t_feature(required: Vec<&'static str>, pieces: Vec<LatexPreambleDef>) -> Arc<
 
 /// The standard package with the test feature `t`.
 fn registry_with(required: Vec<&'static str>, pieces: Vec<LatexPreambleDef>) -> Arc<FlmRegistry> {
-    let mut features = common::stdcore::package_features_but(StdcoreConfig::new(), "");
+    let mut features = common::stdlib::package_features_but(StdlibConfig::new(), "");
     features.push(t_feature(required, pieces));
-    common::stdcore::registry_over(features)
+    common::stdlib::registry_over(features)
 }
 
 /// The standard package under its default configuration.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 // --- a general rule's requirement on each backend ------------------------------------------
@@ -146,7 +142,7 @@ fn a_theorem_s_requirement_reaches_the_html_definitions_table() {
 #[test]
 fn the_text_backend_records_the_requirement_and_resolves_nothing() {
     let run = render(&registry(), text::WORKFLOW, THEOREM);
-    no_diagnostics(&run);
+    assert_no_diagnostics(&run);
     let lowered = run
         .table(lowered_table(&text::BACKEND.into()))
         .expect("declared")
@@ -164,7 +160,7 @@ fn a_theorem_brings_in_the_piece_delivering_the_theorems_style() {
         .delivering([theorems::html::STYLE]);
     let registry = registry_with(Vec::new(), vec![piece]);
     let run = render(&registry, latex_rendered::WORKFLOW, THEOREM);
-    no_diagnostics(&run);
+    assert_only_unchecked_output(&run);
     assert!(style(&run).contains("% the test piece for theorems\n"), "{}", style(&run));
     // A document with no theorem does not hold the piece.
     let plain = render(&registry, latex_rendered::WORKFLOW, "Plain text.");
@@ -184,7 +180,7 @@ fn a_piece_delivering_two_identifiers_is_written_once_for_either_or_both() {
     let registry = registry_with(Vec::new(), vec![piece]);
     for text in [THEOREM, QUOTE, &format!("{THEOREM}\n\n{QUOTE}")] {
         let run = render(&registry, latex_rendered::WORKFLOW, text);
-        no_diagnostics(&run);
+        assert_only_unchecked_output(&run);
         assert_eq!(style(&run).matches("% the test piece for two styles\n").count(), 1, "{}", style(&run));
     }
 }
@@ -197,7 +193,7 @@ fn two_pieces_delivering_one_identifier_are_both_written() {
         .delivering([quote::html::STYLE]);
     let registry = registry_with(Vec::new(), vec![first, second]);
     let run = render(&registry, latex_rendered::WORKFLOW, QUOTE);
-    no_diagnostics(&run);
+    assert_only_unchecked_output(&run);
     let written = style(&run);
     let first = written.find("% the first test piece\n").unwrap_or_else(|| panic!("{written}"));
     let second = written.find("% the second test piece\n").unwrap_or_else(|| panic!("{written}"));
@@ -211,7 +207,7 @@ fn two_pieces_delivering_one_identifier_are_both_written() {
 fn an_identifier_only_a_stylesheet_declares_writes_nothing_and_reports_nothing() {
     let registry = registry_with(vec!["t.style"], Vec::new());
     let run = render(&registry, latex_rendered::WORKFLOW, "A \\treq{} b");
-    no_diagnostics(&run);
+    assert_only_unchecked_output(&run);
     let plain = render(&registry, latex_rendered::WORKFLOW, "A  b");
     assert_eq!(style(&run), style(&plain));
 }
@@ -220,18 +216,7 @@ fn an_identifier_only_a_stylesheet_declares_writes_nothing_and_reports_nothing()
 fn an_identifier_known_nowhere_is_an_error_naming_it() {
     let registry = registry_with(vec!["t.nowhere"], Vec::new());
     let run = render(&registry, latex_rendered::WORKFLOW, "A \\treq{} b");
-    expect(run.diagnostics().iter(), UNKNOWN).count(1);
-    let message = run
-        .diagnostics()
-        .iter()
-        .find(|report| report.identifier() == UNKNOWN)
-        .expect("reported")
-        .message();
-    assert_eq!(
-        message,
-        "the requirement `t.nowhere` names no LaTeX package request, no definition piece, and no \
-         style or script definition"
-    );
+    expect(run.diagnostics().iter(), UNKNOWN).data(serde_json::json!({ "id": "t.nowhere" })).once();
 }
 
 #[test]

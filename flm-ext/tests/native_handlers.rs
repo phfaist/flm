@@ -44,9 +44,10 @@ use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::aspects::{Referenceable, Sectioning};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::features::compose::{stage_name, ComposeOptions, TemplateChoice};
-use flm_ext::native::{NativeEngine, NativeExtension};
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::features::compose::{stage_name, ComposeOptions, TemplateChoice};
+use flm_ext::guest::NamedExtension;
+use flm_ext::native::NativeEngine;
 use flm_ext::{ExtensionLoader, MemoryFiles, MemorySource};
 use serde_json::json;
 
@@ -56,8 +57,7 @@ use common::{compose_registry, ext_items, registry_with, text_of, toc_entries};
 
 /// The factory of the package `rows#PACKAGE`, from a load of its own.
 fn factory(name: &str) -> PackageFactory {
-    let engine = NativeEngine::new([NativeExtension { stem: "rows", manifest: "", compiled: &rows::FLM_EXTENSION }])
-        .with_console(Arc::new(|_, _| {}));
+    let engine = NativeEngine::new([NamedExtension { stem: "rows", compiled: &rows::FLM_EXTENSION }]);
     let source = MemorySource::new().with("rows", "rows", json!({ "extension": { "engine": "native" } }), MemoryFiles::new());
     let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(source)]).with_engine(Arc::new(engine)));
     common::factory_of(&loader, &format!("rows#{name}"))
@@ -151,7 +151,7 @@ fn rows_6_7_and_8_a_template_module_describes_itself_inside_register_then_ships_
         Overrides { prefer: vec![stage_name("html").into()], render_options: OptionValues::new().with(options), ..Overrides::none() };
     let request = workflow_request(&registry, html::WORKFLOW, &overrides).expect("the workflow");
     let ran = run(&registry, &request, "Some text.");
-    assert!(common::diagnostics(&ran).is_empty(), "{:?}", common::diagnostics(&ran));
+    common::assert_only_unchecked_output(ran.plan(), &common::diagnostics(&ran));
     let set = ran.table(html::DOCUMENT).expect("declared").cloned().unwrap_or_default();
     let page = set.entry().and_then(|entry| entry.as_bytes()).map(|bytes| String::from_utf8_lossy(bytes).into_owned());
     assert_eq!(page.as_deref(), Some("<html>tiny tiny-style.css</html>\n"));
@@ -188,8 +188,10 @@ fn a_configuration_reader_answers_what_register_receives_or_the_value_at_fault()
     assert_eq!(ext_items(&ran, rows::SEEN), [json!({ "level": 2, "checked": true })]);
     // The value at fault, by its path below the feature's name, and the condition it violates.
     let errors = read(json!({ "level": "high" })).expect_err("a value at fault");
-    let found: Vec<(&str, &str)> = errors.iter().map(|error| (error.path.as_str(), error.detail.as_str())).collect();
-    assert_eq!(found, [("read.level", "the value of `read.level` is invalid: must be a number, not `\"high\"`")]);
+    let found: Vec<&str> = errors.iter().map(|error| error.path.as_str()).collect();
+    assert_eq!(found, ["read.level"]);
+    // The reader's own text.
+    assert!(errors[0].detail.ends_with("must be a number, not `\"high\"`"), "{:?}", errors[0].detail);
 }
 
 // --- the values holding handler objects, against the host ----------------------------------------

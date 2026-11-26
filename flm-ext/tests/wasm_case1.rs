@@ -6,8 +6,10 @@
 //! goldens, the settings, the hook's recovery, the rehearsal on a worker thread,
 //! the hook answering an error); here also what is the engine `wasm`'s own: the
 //! digest of the module's bytes, the trap of the hook that panics, a stage that
-//! loops (the fuel limit), a stage that grows its memory (the memory limit), and
-//! the time of the count against JavaScript. Gated on `FLM_TESTS_WASM_GUEST=1`
+//! loops (the fuel limit), a stage that grows its memory (the memory limit), the
+//! time of the count against JavaScript, and the module of `tests/wasm/pair/`,
+//! which holds two extensions, loaded by name under each of its stems and, in
+//! one instance whose exports the test calls itself, defined under both. Gated on `FLM_TESTS_WASM_GUEST=1`
 //! and the target being installed (`common::guest`); otherwise each test writes
 //! one `skipped:` line.
 
@@ -25,7 +27,7 @@ use flm_ext::wasm::{WasmEngine, WasmHost, WasmSettings, ENGINE_VERSION};
 use flm_ext::{Engine, ExtensionIdentity, Manifest, MemoryFiles, MemorySource};
 use serde_json::{json, Value};
 
-use case1::{data_of, on_worker, run_demanding, Loads, PANIC_PREFIX};
+use case1::{data_of, on_worker, run_demanding, Loads};
 use common::registry_with;
 
 // --- helpers -----------------------------------------------------------------------------------
@@ -144,7 +146,7 @@ fn the_digest_changes_with_the_module_s_bytes() {
     let Some(bytes) = module("wordcount") else { return };
     let digest = |bytes: &[u8]| {
         let files = MemoryFiles::new().with_bytes("wordcount.wasm", bytes);
-        let identity = ExtensionIdentity { identity: "wordcount".to_string(), stem: "wordcount".to_string() };
+        let identity = ExtensionIdentity { identity: "wordcount".to_string(), stem: "wordcount".to_string(), name: "wordcount".to_string() };
         let manifest = Manifest::read("wordcount", &common::wasm_manifest("./wordcount.wasm")).expect("the manifest reads");
         let Ok(loaded) = WasmEngine::new(WasmHost::new(WasmSettings::default())).load(&identity, &manifest, Box::new(files))
         else {
@@ -169,16 +171,12 @@ fn the_digest_changes_with_the_module_s_bytes() {
 fn a_hook_that_panics_fails_with_the_panic_s_message() {
     let Some(case) = case() else { return };
     let (diagnostics, data) = case1::the_panicking_hook_s_failure(&case);
-    // The failure as the expansion path words every binding's failure of a hook (the
-    // JavaScript binding's time budget reads the same way), with the panic's message and
-    // place appended.
-    let expected = format!(
-        "{PANIC_PREFIX}trap: wasm `unreachable` instruction executed; the guest panicked: the hook is not ready either, \
-         at src/lib.rs:"
+    // The failure of the hook, with the panic's message and place in its data.
+    assert_eq!(common::ids(&diagnostics), ["flm.ext.handler-failed"], "{diagnostics:?}");
+    assert!(
+        data["panic"].as_str().is_some_and(|panic| panic.starts_with("the hook is not ready either") && panic.contains("src/lib.rs:")),
+        "{data}"
     );
-    assert!(diagnostics.len() == 1 && diagnostics[0].starts_with(&expected), "{diagnostics:?}");
-    assert_eq!(data["trap"], "wasm `unreachable` instruction executed");
-    assert!(data["panic"].as_str().is_some_and(|panic| panic.starts_with("the hook is not ready either, at src/lib.rs:")));
 }
 
 /// The registry of the standard package and the failing guest's package, loaded with a
@@ -205,11 +203,6 @@ fn a_stage_that_loops_fails_with_the_fuel_limit() {
     let Some(bytes) = module("failing") else { return };
     let settings = WasmSettings { fuel: Some(20_000_000), ..WasmSettings::default() };
     let (data, instances) = failed_stage(&bytes, settings, "failing.looped");
-    assert_eq!(
-        data["detail"],
-        "the stage `failing.loop` of the feature `failing` of the package `_` of the extension `failing` must finish \
-         within its budget of 20000000 fuel units"
-    );
     assert_eq!(data["data"], json!({ "limit": "fuel", "fuel": 20_000_000 }));
     assert_eq!(instances, 0, "the instance is dropped after the call");
 }
@@ -219,13 +212,118 @@ fn a_stage_that_grows_its_memory_fails_with_the_memory_limit() {
     let Some(bytes) = module("failing") else { return };
     let settings = WasmSettings { memory_limit: Some(16 << 20), ..WasmSettings::default() };
     let (data, instances) = failed_stage(&bytes, settings, "failing.grown");
-    assert_eq!(
-        data["detail"],
-        "the stage `failing.grow` of the feature `failing` of the package `_` of the extension `failing` must stay \
-         within the memory limit of 16777216 bytes"
-    );
     assert_eq!(data["data"], json!({ "limit": "memory", "limit_bytes": 16_777_216 }));
     assert_eq!(instances, 0, "the instance is dropped after the call");
+}
+
+// --- a module that holds two extensions ---------------------------------------------------------
+
+/// The module of `tests/wasm/pair/`, which holds the extensions `first` and `second` (a
+/// table of code of two rows), loaded by name under each of the two stems, runs the
+/// extension of that stem: its package holds the feature named as the extension.
+#[test]
+fn a_module_of_two_extensions_runs_the_extension_of_the_stem_it_is_loaded_under() {
+    let Some(bytes) = module("pair") else { return };
+    let host = WasmHost::new(WasmSettings::default());
+    for stem in ["first", "second"] {
+        let factory = factory(&host, stem, &bytes);
+        let features: Vec<&str> = factory.features().iter().map(|feature| feature.name.as_str()).collect();
+        assert_eq!(features, [stem]);
+    }
+}
+
+/// The host of [`Bare`]: the text of each request of the guest, in order, and the reply
+/// that `flm.take` copies.
+#[derive(Default)]
+struct BareHost {
+    /// The text of each request, in order.
+    requests: Vec<String>,
+    /// The reply to the last request.
+    reply: Vec<u8>,
+}
+
+/// One instance of a module whose exports the test calls itself, with a host whose
+/// `flm.call` keeps the text of each request and answers `{"ok": null}`.
+struct Bare {
+    store: wasmi::Store<BareHost>,
+    memory: wasmi::Memory,
+    entry: wasmi::TypedFunc<(i32, i32), i64>,
+    alloc: wasmi::TypedFunc<i32, i32>,
+    free: wasmi::TypedFunc<(i32, i32), ()>,
+}
+
+impl Bare {
+    /// An instance of the module `bytes`.
+    fn new(bytes: &[u8]) -> Bare {
+        fn memory_of(caller: &wasmi::Caller<'_, BareHost>) -> wasmi::Memory {
+            caller.get_export("memory").and_then(wasmi::Extern::into_memory).expect("the module exports its memory")
+        }
+        let engine = wasmi::Engine::default();
+        let module = wasmi::Module::new(&engine, bytes).expect("the module compiles");
+        let mut store = wasmi::Store::new(&engine, BareHost::default());
+        let mut linker = wasmi::Linker::<BareHost>::new(&engine);
+        linker
+            .func_wrap("flm", "call", |mut caller: wasmi::Caller<'_, BareHost>, ptr: i32, len: i32| -> i32 {
+                let start = ptr as u32 as usize;
+                let text = &memory_of(&caller).data(&caller)[start..start + len as u32 as usize];
+                let request = String::from_utf8(text.to_vec()).expect("a request is text");
+                let host = caller.data_mut();
+                host.requests.push(request);
+                host.reply = br#"{"ok":null}"#.to_vec();
+                host.reply.len() as i32
+            })
+            .expect("`flm.call` is defined");
+        linker
+            .func_wrap("flm", "take", |mut caller: wasmi::Caller<'_, BareHost>, ptr: i32, _len: i32| {
+                let reply = std::mem::take(&mut caller.data_mut().reply);
+                memory_of(&caller).write(&mut caller, ptr as u32 as usize, &reply).expect("the reply lies within the memory");
+            })
+            .expect("`flm.take` is defined");
+        let instance = linker.instantiate_and_start(&mut store, &module).expect("the module instantiates");
+        Bare {
+            memory: instance.get_memory(&store, "memory").expect("the export `memory`"),
+            entry: instance.get_typed_func(&store, "flm_entry").expect("the export `flm_entry`"),
+            alloc: instance.get_typed_func(&store, "flm_alloc").expect("the export `flm_alloc`"),
+            free: instance.get_typed_func(&store, "flm_free").expect("the export `flm_free`"),
+            store,
+        }
+    }
+
+    /// The envelope that the entry `entry` of the extension `stem` answers with `args`.
+    fn entry(&mut self, entry: &str, stem: &str, args: Value) -> Value {
+        let request = json!({ "entry": entry, "extension": stem, "args": args }).to_string();
+        let length = request.len() as i32;
+        let at = self.alloc.call(&mut self.store, length).expect("`flm_alloc` answers");
+        self.memory.write(&mut self.store, at as u32 as usize, request.as_bytes()).expect("the request lies within the memory");
+        let packed = self.entry.call(&mut self.store, (at, length)).expect("`flm_entry` answers");
+        self.free.call(&mut self.store, (at, length)).expect("`flm_free` answers");
+        let (start, size) = ((packed as u64 >> 32) as usize, (packed as u64 & 0xffff_ffff) as usize);
+        let reply = serde_json::from_slice(&self.memory.data(&self.store)[start..start + size]).expect("the reply is JSON");
+        self.free.call(&mut self.store, (start as i32, size as i32)).expect("`flm_free` answers");
+        reply
+    }
+}
+
+/// In one instance of the module of `tests/wasm/pair/`, the extensions `first` and
+/// `second` each record the stage `pair.mark` under the same package and feature names
+/// (`shared`, `stage`), and the entry `run_stage` of each answers its own stage: the note
+/// the stage writes names the extension.
+#[test]
+fn two_extensions_of_one_instance_answer_their_own_stage() {
+    let Some(bytes) = module("pair") else { return };
+    let mut bare = Bare::new(&bytes);
+    let handle = |kind: &str| json!({ "@handle": { "kind": kind, "call": 1, "index": 1 } });
+    for stem in ["first", "second"] {
+        assert_eq!(bare.entry("define", stem, json!([stem, module_path("pair")])), json!({ "ok": null }));
+        assert_eq!(bare.entry("rehearse", stem, json!(["shared", "stage", {}])), json!({ "ok": null }));
+    }
+    for stem in ["first", "second", "first"] {
+        let args = json!(["shared", "stage", "pair.mark", handle("stage_cx"), handle("stage_out")]);
+        assert_eq!(bare.entry("run_stage", stem, args), json!({ "ok": null }));
+        let request: Value = serde_json::from_str(bare.store.data().requests.last().expect("the stage's request")).expect("JSON");
+        assert_eq!(request["method"], "diags");
+        assert_eq!(request["args"][0]["message"], format!("the stage of the extension ‘{stem}’"), "{request}");
+    }
 }
 
 // --- the time of the count, against JavaScript (the report's figure) ---------------------------

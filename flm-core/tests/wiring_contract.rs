@@ -4,7 +4,7 @@
 //! expanded one is none; the frozen trees of a structured plan over `per-plan`
 //! definitions satisfy both parts of the contract. The checking stage that
 //! gates this half on the expansion alternative in force is covered by
-//! `stdcore_check.rs`.
+//! `stdlib_check.rs`.
 
 mod common;
 

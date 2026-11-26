@@ -7,11 +7,23 @@ edition.workspace = true
 # cargo features, and a cargo feature cannot raise a crate's floor, so the crate
 # declares the highest floor among them. rquickjs 0.14 needs 1.87; the floor is
 # checked with the 1.88 toolchain, the lowest installed above it, and the host
-# crates flm-main and flm-cli are at 1.88 already. Raising it beyond 1.88 needs
+# crates flm-host and flm are at 1.88 already. Raising it beyond 1.88 needs
 # a new toolchain in the check script's `msrv` part (scripts/check.sh).
 rust-version = "1.88"
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+# docs.rs, which builds the API documentation of the published crate, ignores
+# `.cargo/config.toml`. These settings make it turn on every feature of the crate, so
+# that its pages show the items of each feature and their links resolve, and add the
+# sidebar customization that `cargo docs` adds locally (the path resolves from the
+# package root, where `docs` links to the workspace's `docs/` folder).
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--html-in-header", "docs/rustdoc-header.html"]
 
 [lints]
 workspace = true
@@ -27,8 +39,9 @@ wasm = ["dep:wasmi", "dep:wasmi_core"]
 guest = ["dep:schemars"]
 # The engine `native`, which runs extensions written against the guest client and compiled into the
 # program, in the same process: the module `flm_ext::native`. On every target, `wasm32` included, it
-# makes the guest client answer requests in the same process and the macro `extension!` write no
-# export, so an extension's WebAssembly module is built in a cargo run where no crate turns it on.
+# makes the guest client answer requests in the same process, and the macros `extension!` and
+# `extensions!` (and `collection::record!`) write no export and no record, so an extension's
+# WebAssembly module or a collection is built in a cargo run where no crate turns it on.
 native = ["guest"]
 
 # The library alone among the workspace's crates, and not the parser toolkit,
@@ -38,7 +51,7 @@ native = ["guest"]
 # Without the library's default cargo features (its stages run in parallel; it
 # keeps the documentation texts of declarations): those choices belong to the
 # program that carries the extensions.
-flm-core = { path = "../flm-core", default-features = false }
+flm-core = { workspace = true, default-features = false }
 # The data types that cross the boundary derive serde; values cross as
 # serde_json::Value (no floating-point numbers are accepted).
 serde = { version = "1", features = ["derive"] }
@@ -79,7 +92,7 @@ quote = "1"
 wat = { version = "1", default-features = false }
 # The tests read the documentation texts that cross the boundary, so they build
 # the library with them (its feature `docs`).
-flm-core = { path = "../flm-core", default-features = false, features = ["docs"] }
+flm-core = { workspace = true, default-features = false, features = ["docs"] }
 # The HTML parser a browser's parsing is checked with, and the tree it builds
 # into (`tests/math_mathjax.rs` parses a page and fails on a parse error); both
 # are in the lockfile already, through flm-core's tests, whose versions they

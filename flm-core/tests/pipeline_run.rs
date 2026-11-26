@@ -19,20 +19,24 @@ use flm_core::model::options::{Bind, OptionValues};
 use flm_core::core::lowering::{DefaultMark, LoweringDecl};
 use flm_core::core::plan::{LoweringSelection, Overrides, Plan, PlanRequest, PlanWarning};
 use flm_core::core::registry::{CapabilityDef, FlmFeature, FlmRegistry, WorkflowDef};
-use flm_core::core::run::{Externals, Run, RunError, RunOptions, Stamp, Step};
+use flm_core::core::run::{
+    Externals, Run, RunError, RunOptions, RunOutcome, Stamp, Step, UncheckedOutput,
+};
 use flm_core::core::stage::{
     Effect, Needs, RewriteDecl, RewriteError, Scope, StageDecl, TreesTable,
 };
 use flm_core::core::data::store::AccessError;
 use flm_core::core::data::table::TableName;
+use flm_core::dump::diag::expect;
 use flm_core::lang::guard;
+use serde_json::json;
 
 use common::pipeline::{
     COUNT, Count, LOG, Log, Note, Other, Probe, appending, doc, doc_with_options, feature, noop,
     plan, plan_for, probe, record, recorded, registry, reparse, rewrite, run, run_with, snapshot,
     span, stage, text_of,
 };
-use common::stdcore::identifiers;
+use common::stdlib::identifiers;
 
 const ONE: TableName<TreesTable> = TableName::new("t.one");
 const TWO: TableName<TreesTable> = TableName::new("t.two");
@@ -282,7 +286,7 @@ fn the_io_stage_runs_when_no_error_was_recorded() {
         &RunOptions::new(),
     );
     assert_eq!(recorded(&ran), ["io ran"]);
-    assert!(!run.halted_at_gate());
+    assert_eq!(run.outcome(), Some(RunOutcome::Finished));
 }
 
 #[test]
@@ -293,8 +297,8 @@ fn the_error_gate_ends_the_run_before_the_first_io_stage() {
     let plan = plan(&registry, &["t.written", "t.boomed"]);
     let mut run = Run::new(doc, plan, Externals::none()).unwrap();
     let outcome = run.execute(&RunOptions::new()).unwrap();
-    assert!(outcome.halted_at_gate);
-    assert!(run.halted_at_gate());
+    assert_eq!(outcome, RunOutcome::HaltedAtGate);
+    assert_eq!(run.outcome(), Some(RunOutcome::HaltedAtGate));
     assert!(run.is_done());
     assert!(recorded(&ran).is_empty(), "the Io stage must not run");
     assert_eq!(identifiers(&run), ["t.other"]);
@@ -308,7 +312,7 @@ fn continue_with_errors_keeps_the_gate_open() {
     let run =
         run(&doc(&registry, &["boom"]), &plan(&registry, &["t.written", "t.boomed"]), &options);
     assert_eq!(recorded(&ran), ["io ran"]);
-    assert!(!run.halted_at_gate());
+    assert_eq!(run.outcome(), Some(RunOutcome::Finished));
     assert!(run.diagnostics().has_errors());
 }
 
@@ -319,7 +323,7 @@ fn a_parse_error_closes_the_gate_too() {
     let doc = doc(&registry, &[r"\begin{nope}x\end{nope}"]);
     assert!(doc.content().fragment(TreeId::tree(0)).unwrap().diags().has_errors());
     let run = run(&doc, &plan(&registry, &["t.written"]), &RunOptions::new());
-    assert!(run.halted_at_gate());
+    assert_eq!(run.outcome(), Some(RunOutcome::HaltedAtGate));
     assert!(recorded(&ran).is_empty());
 }
 
@@ -774,10 +778,9 @@ fn a_preference_that_cannot_be_honored_leads_the_runs_diagnostics_as_a_warning()
     let first = run.diagnostics().iter().next().expect("the warning");
     assert_eq!(first.identifier(), "flm.run.ignored-preference");
     assert_eq!(first.severity(), Severity::Warning);
-    assert_eq!(
-        first.message(),
-        "the plan request prefers the stage `Q`, but that stage cannot be scheduled: the scheduled stage `P` also provides `Y`, and only one scheduled stage may provide each capability"
-    );
+    expect([first], "flm.run.ignored-preference")
+        .data(json!({ "stage": "Q", "excluded_by": "P", "over": "Y", "workflow": null }))
+        .once();
 }
 
 #[test]
@@ -797,11 +800,9 @@ fn a_workflows_preference_that_cannot_be_honored_names_the_workflow() {
     let run = run(&doc(&registry, &["x"]), &plan, &RunOptions::new());
     let first = run.diagnostics().iter().next().expect("the warning");
     assert_eq!(first.identifier(), "flm.run.ignored-preference");
-    assert!(
-        first.message().starts_with("the plan request for workflow `w` prefers the stage `Q`, but"),
-        "{}",
-        first.message()
-    );
+    expect([first], "flm.run.ignored-preference")
+        .data(json!({ "stage": "Q", "excluded_by": "P", "over": "Y", "workflow": "w" }))
+        .once();
 }
 
 /// The toy payload a peer element declaration names.
@@ -857,11 +858,14 @@ fn a_preference_for_a_set_aside_rule_leads_the_runs_diagnostics_as_a_warning() {
     let first = run.diagnostics().iter().next().expect("the warning");
     assert_eq!(first.identifier(), "flm.run.preferred-rule-set-aside");
     assert_eq!(first.severity(), Severity::Warning);
-    assert_eq!(
-        first.message(),
-        "the plan request prefers the lowering rule `t.foo.lower.html` on backend `text`, but that rule cannot be used: it \
-         depends on backend `html`, element `t.pres.box`, which no registered feature declares"
-    );
+    expect([first], "flm.run.preferred-rule-set-aside")
+        .data(json!({
+            "rule": "t.foo.lower.html",
+            "backend": "text",
+            "unresolved": ["backend `html`", "element `t.pres.box`"],
+            "workflow": null,
+        }))
+        .once();
 }
 
 #[test]
@@ -885,10 +889,53 @@ fn a_preference_for_a_rule_of_another_backend_leads_the_runs_diagnostics_as_a_wa
     let first = run.diagnostics().iter().next().expect("the warning");
     assert_eq!(first.identifier(), "flm.run.preferred-rule-not-candidate");
     assert_eq!(first.severity(), Severity::Warning);
-    assert_eq!(
-        first.message(),
-        "the plan request prefers the lowering rule `t.foo.lower.html` on backend `text`, but that rule is marked as the default on other backends only, which restricts it to those backends"
-    );
+    expect([first], "flm.run.preferred-rule-not-candidate")
+        .data(json!({ "rule": "t.foo.lower.html", "backend": "text", "workflow": null }))
+        .once();
+}
+
+#[test]
+fn unchecked_output_is_reported_once_per_run_with_its_feature_and_backend() {
+    // Two rules of `t` declare unchecked output on `text`: the plan keeps one
+    // warning, and each run reports it once.
+    let declaring = |name: &str, element: &str| {
+        common::pipeline::rule(
+            name,
+            element,
+            LoweringDecl::new().unchecked_output("text", "raw markup", "a reader"),
+            DefaultMark::Everywhere,
+        )
+    };
+    let registry = registry(vec![feature("t", move |b| {
+        b.element(common::macro_def("t", "foo", 0))?;
+        b.element(common::macro_def("t", "bar", 0))?;
+        common::pipeline::register_backend(b, "text", &[])?;
+        b.lowering_rule(declaring("t.foo.lower", "t.foo"))?;
+        b.lowering_rule(declaring("t.bar.lower", "t.bar"))
+    })]);
+    let request = PlanRequest::new().demand(common::pipeline::lowered_cap("text"));
+    let plan = plan_for(&registry, &request);
+    let doc = doc(&registry, &["x"]);
+    for _ in 0..2 {
+        let run = run(&doc, &plan, &RunOptions::new());
+        let reported: Vec<_> = run
+            .diagnostics()
+            .iter()
+            .filter(|diagnostic| diagnostic.identifier() == "flm.run.unchecked-output")
+            .collect();
+        assert_eq!(reported.len(), 1, "{reported:?}");
+        assert_eq!(reported[0].severity(), Severity::Warning);
+        assert_eq!(
+            reported[0].data().downcast_ref::<UncheckedOutput>(),
+            Some(&UncheckedOutput {
+                feature: "t".into(),
+                backend: "text".into(),
+                written: "raw markup".into(),
+                reader: "a reader".into(),
+                workflow: None,
+            })
+        );
+    }
 }
 
 #[test]

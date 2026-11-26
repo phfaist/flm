@@ -1,7 +1,7 @@
 //! The `numbering` feature end to end: what a feature declares, what a
 //! document's options change, and what the numbering stage records.
 //!
-//! The tests build a registry from the `stdcore` package plus a small feature
+//! The tests build a registry from the standard features plus a small feature
 //! written here. That feature declares counters and counter styles into the
 //! two slots, and a command per numbered construct: `\tsec`, `\tsub` and
 //! `\tpara` for a hierarchy of three counters, `\teq` and `\teqalt` for two
@@ -31,14 +31,14 @@ use flm_core::core::data::store::StageOut;
 use flm_core::core::plan::{Overrides, PlanCx};
 use flm_core::core::registry::{
     BuildError, CapabilityDef, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry,
-    RegistryBuildError, RegistryBuilder, RegistryInputs,
+    PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs,
 };
 use flm_core::core::run::{Externals, Run, RunOptions, StageCx};
 use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_core::lang::mint::{ArgDef, ElementDef, SyntaxDef};
-use flm_core::stdcore::backends::pres::read::recompose_source;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::numbering::{
+use flm_core::stdlib::backends::pres::read::recompose_source;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::numbering::{
     CounterDecl, CounterStyleDecl, Counters, Delimiters, FormatOptions, ManyNumbers, NumberSegment,
     Ancestor, CompiledWithinJoiner, CounterValue, FormatError, JoinCx, NumberTemplate,
     NumberingConfig, NumberingOptions, Parent, Part, PrefixWords, StyleError, SubLevelDecl,
@@ -47,9 +47,9 @@ use flm_core::stdcore::features::numbering::{
     CompiledNumberWriter, NumberFormat, NumberOut, NumberWriter, NumberWriterDecl, NumberedValue,
     WriteCx, WriterCx, NUMBER_WRITERS_SLOT,
 };
-use flm_core::stdcore::{StdcoreConfig, CHECK_WORKFLOW, VALIDATED, package};
+use flm_core::stdlib::{StdlibConfig, CHECK_WORKFLOW, VALIDATED, add_features};
 
-use common::stdcore::{identifiers, plan, registry as stdcore_registry, reports};
+use common::stdlib::{UNCHECKED_OUTPUT, identifiers, plan, refusing_features, registry as stdlib_registry, reports};
 
 // ---------------------------------------------------------------------------------------------
 // the test feature
@@ -583,20 +583,20 @@ fn test_feature() -> Arc<dyn FlmFeature> {
     Arc::new(TestFeature { counters, styles, constructs: constructs() })
 }
 
-/// The registry: the `stdcore` package under `config`, plus `feature`.
+/// The registry: the standard features under `config`, plus `feature`.
 fn try_registry(
-    config: StdcoreConfig,
+    config: StdlibConfig,
     feature: Arc<dyn FlmFeature>,
 ) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(config));
+    builder.use_package(add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(feature);
     builder.build(&RegistryInputs::new())
 }
 
 /// [`try_registry`], a build failure being a test failure.
-fn registry_with(config: StdcoreConfig, feature: Arc<dyn FlmFeature>) -> Arc<FlmRegistry> {
+fn registry_with(config: StdlibConfig, feature: Arc<dyn FlmFeature>) -> Arc<FlmRegistry> {
     try_registry(config, feature).unwrap_or_else(|error| {
         panic!("the registry build failed in phase {}:\n{}", error.phase, error.render())
     })
@@ -604,26 +604,30 @@ fn registry_with(config: StdcoreConfig, feature: Arc<dyn FlmFeature>) -> Arc<Flm
 
 /// The registry the tests share.
 fn registry() -> Arc<FlmRegistry> {
-    registry_with(StdcoreConfig::new(), test_feature())
+    registry_with(StdlibConfig::new(), test_feature())
 }
 
-/// What the registry build reported, as a rendered text.
-fn build_failure(counters: Vec<CounterDecl>, styles: Vec<CounterStyleDecl>) -> String {
-    build_failure_under(StdcoreConfig::new(), counters, styles)
+/// The features that refused the registry build ([`refusing_features`]).
+fn build_failure(counters: Vec<CounterDecl>, styles: Vec<CounterStyleDecl>) -> Vec<String> {
+    build_failure_under(StdlibConfig::new(), counters, styles)
 }
 
 /// [`build_failure`] with a configuration of the package.
 fn build_failure_under(
-    config: StdcoreConfig,
+    config: StdlibConfig,
     counters: Vec<CounterDecl>,
     styles: Vec<CounterStyleDecl>,
-) -> String {
+) -> Vec<String> {
     let feature = Arc::new(TestFeature { counters, styles, constructs: Vec::new() });
     match try_registry(config, feature) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => refusing_features(&error),
     }
 }
+
+/// What the build failures of these tests name: the feature that checks every
+/// numbering declaration.
+const REFUSED: [&str; 1] = ["numbering"];
 
 // ---------------------------------------------------------------------------------------------
 // running a document
@@ -831,7 +835,7 @@ fn every_counter_below_one_with_no_value_is_reported_in_an_error_of_its_own() {
         .collect();
     let feature =
         Arc::new(TestFeature { counters, styles: vec![plain("t.style.plain")], constructs });
-    let registry = registry_with(StdcoreConfig::new(), feature);
+    let registry = registry_with(StdlibConfig::new(), feature);
     let source = "Before \\tsub{a} \\tpara{p} \\tline{l} \\tsub{b} after.\n";
 
     let run = run(&registry, source, NumberingOptions::new());
@@ -1006,7 +1010,7 @@ fn a_number_template_may_wrap_the_number_in_a_command() {
     // command's argument may hold the substitution.
     let mut style = plain("t.style.plain");
     style.number_format = NumberTemplate::formats(r"\textbf{#{arabic}}");
-    let config = StdcoreConfig::new().numbering(NumberingConfig::new().style(style));
+    let config = StdlibConfig::new().numbering(NumberingConfig::new().style(style));
     let registry = registry_with(config, test_feature());
     let options = NumberingOptions::new();
     let run = run(&registry, "\\tsec{one} \\tsec{two}", options);
@@ -1071,7 +1075,7 @@ fn a_dotted_counter_name_is_written_in_full_in_a_within_template() {
     ];
     let feature =
         Arc::new(TestFeature { counters, styles: vec![plain("t.style.plain")], constructs });
-    let registry = registry_with(StdcoreConfig::new(), feature);
+    let registry = registry_with(StdlibConfig::new(), feature);
     let declared = run(
         &registry,
         "\\dsec{a} \\dsec{b} \\dsub{c} \\dpara{d} \\dline{e}",
@@ -1099,7 +1103,7 @@ fn a_point_counting_in_a_counter_nothing_declares_is_an_error_reported_once() {
         styles: vec![equation_style("t.style.eq")],
         constructs: vec![Construct::new("teq", "teq", "t.style.eq")],
     });
-    let registry = registry_with(StdcoreConfig::new(), feature);
+    let registry = registry_with(StdlibConfig::new(), feature);
     let run = run(&registry, "\\teq{a} \\teq{b} \\teq{c}", NumberingOptions::new());
     assert_eq!(reports(&run), [error("flm.numbering.undeclared-counter")]);
     assert_eq!(numbers(&run), ["-", "-", "-"]);
@@ -1112,7 +1116,7 @@ fn a_point_shown_in_a_style_nothing_declares_is_an_error_at_the_point() {
         styles: vec![equation_style("t.style.eq")],
         constructs: vec![Construct::new("teq", "teq", "t.style.missing")],
     });
-    let registry = registry_with(StdcoreConfig::new(), feature);
+    let registry = registry_with(StdlibConfig::new(), feature);
     let run = run(&registry, "\\teq{a}", NumberingOptions::new());
     assert_eq!(reports(&run), [error("flm.numbering.undeclared-style")]);
     assert_eq!(numbers(&run), ["-"]);
@@ -1124,55 +1128,49 @@ fn a_point_shown_in_a_style_nothing_declares_is_an_error_at_the_point() {
 
 #[test]
 fn a_counter_declared_twice_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![CounterDecl::new("teq", "s"), CounterDecl::new("teq", "s")],
         vec![plain("s")],
     );
-    assert!(message.contains("two features declare the counter `teq`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_style_declared_twice_fails_the_build() {
-    let message = build_failure(Vec::new(), vec![plain("s"), plain("s")]);
-    assert!(message.contains("two features declare the counter style `s`"), "{message}");
+    let refused = build_failure(Vec::new(), vec![plain("s"), plain("s")]);
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_counter_shown_in_a_style_nothing_declares_fails_the_build() {
-    let message = build_failure(vec![CounterDecl::new("teq", "s")], Vec::new());
-    assert!(
-        message.contains("the counter `teq` is shown in the counter style `s`"),
-        "{message}"
-    );
+    let refused = build_failure(vec![CounterDecl::new("teq", "s")], Vec::new());
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_counter_numbered_within_one_nothing_declares_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![CounterDecl::new("teq", "s").within(Within::parent("tsec"))],
         vec![plain("s")],
     );
-    assert!(
-        message.contains("the counter `teq` is numbered within `tsec`"),
-        "{message}"
-    );
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_hierarchy_that_leads_back_to_itself_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![
             CounterDecl::new("a", "s").within(Within::parent("b")),
             CounterDecl::new("b", "s").within(Within::parent("a")),
         ],
         vec![plain("s")],
     );
-    assert!(message.contains("numbered within each other"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_within_template_naming_a_counter_that_is_not_an_ancestor_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![
             CounterDecl::new("tsec", "s"),
             CounterDecl::new("tother", "s"),
@@ -1180,28 +1178,28 @@ fn a_within_template_naming_a_counter_that_is_not_an_ancestor_fails_the_build() 
         ],
         vec![plain("s")],
     );
-    assert!(message.contains("writes the counter `tother`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_number_template_naming_a_format_that_does_not_exist_fails_the_build() {
     let mut style = plain("s");
     style.number_format = NumberTemplate::formats("#{nosuchformat}");
-    let message = build_failure(Vec::new(), vec![style]);
-    assert!(message.contains("nosuchformat"), "{message}");
+    let refused = build_failure(Vec::new(), vec![style]);
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_style_text_that_is_not_flm_fails_the_build() {
     let mut style = plain("s");
     style.delimiters = Delimiters::new("\\nosuchcommand{", ")");
-    let message = build_failure(Vec::new(), vec![style]);
-    assert!(message.contains("the counter style `s`"), "{message}");
+    let refused = build_failure(Vec::new(), vec![style]);
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_within_template_that_is_not_flm_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![
             CounterDecl::new("tsec", "s"),
             CounterDecl::new("teq", "s")
@@ -1209,7 +1207,7 @@ fn a_within_template_that_is_not_flm_fails_the_build() {
         ],
         vec![plain("s")],
     );
-    assert!(message.contains("\\nosuchcommand{"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1218,7 +1216,7 @@ fn a_within_template_that_is_not_flm_fails_the_build() {
 
 #[test]
 fn the_configuration_replaces_a_declared_style_by_name() {
-    let config = StdcoreConfig::new()
+    let config = StdlibConfig::new()
         .numbering(NumberingConfig::new().style(alternative_style("t.style.eq")));
     let registry = registry_with(config, test_feature());
     let run = run(&registry, "\\teq{a} \\teq{b}", NumberingOptions::new());
@@ -1228,19 +1226,16 @@ fn the_configuration_replaces_a_declared_style_by_name() {
 #[test]
 fn a_replacement_naming_no_declared_style_fails_the_build() {
     let config =
-        StdcoreConfig::new().numbering(NumberingConfig::new().style(plain("t.style.nosuch")));
-    let message = build_failure_under(config, Vec::new(), vec![plain("s")]);
-    assert!(
-        message.contains("replaces the counter style `t.style.nosuch`"),
-        "{message}"
-    );
+        StdlibConfig::new().numbering(NumberingConfig::new().style(plain("t.style.nosuch")));
+    let refused = build_failure_under(config, Vec::new(), vec![plain("s")]);
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn the_table_answers_every_declared_style_by_name_the_replacement_where_the_host_replaced_one() {
     // `t.style.roman` is replaced by the host; the document is written in
     // `t.style.eq` only, so `t.style.alt` is a style no record uses.
-    let config = StdcoreConfig::new()
+    let config = StdlibConfig::new()
         .numbering(NumberingConfig::new().style(alternative_style("t.style.roman")));
     let host = registry_with(config, test_feature());
     let replaced = run(&host, "\\teq{a} \\teq{b}", NumberingOptions::new());
@@ -1286,8 +1281,8 @@ fn the_table_answers_every_declared_style_by_name_the_replacement_where_the_host
 
 #[test]
 fn two_configurations_reach_different_registry_digests() {
-    let plain_registry = registry_with(StdcoreConfig::new(), test_feature());
-    let config = StdcoreConfig::new()
+    let plain_registry = registry_with(StdlibConfig::new(), test_feature());
+    let config = StdlibConfig::new()
         .numbering(NumberingConfig::new().style(alternative_style("t.style.eq")));
     let other = registry_with(config, test_feature());
     assert_ne!(plain_registry.digest(), other.digest());
@@ -1311,16 +1306,21 @@ const PLAIN_DOCUMENT: &str = concat!(
 
 /// Renders [`PLAIN_DOCUMENT`] on the text, `latex-recomposed` and `html`
 /// workflows of `registry` and asserts that each run reports exactly
-/// `expected`.
+/// `expected`, reports of the parse, then, on the two backends other than
+/// text, the Warning of the unchecked formulas ([`UNCHECKED_OUTPUT`]).
 fn renders_on_every_backend(registry: &Arc<FlmRegistry>, expected: &[&str]) {
     for workflow in [text::WORKFLOW, latex_recomposed::WORKFLOW, html::WORKFLOW] {
-        let run = common::stdcore::run_workflow(
+        let run = common::stdlib::run_workflow(
             registry,
             workflow,
             &[PLAIN_DOCUMENT],
             &Overrides::none(),
         );
-        assert_eq!(identifiers(&run), expected, "{workflow}");
+        let mut reported = expected.to_vec();
+        if workflow != text::WORKFLOW {
+            reported.push(UNCHECKED_OUTPUT);
+        }
+        assert_eq!(identifiers(&run), reported, "{workflow}");
     }
 }
 
@@ -1330,7 +1330,7 @@ const UNRESOLVABLE_COMMAND: &str = "core.specs.unresolvable-command";
 
 #[test]
 fn a_registry_with_numbering_and_no_counter_builds_and_renders_on_every_backend() {
-    renders_on_every_backend(&stdcore_registry(StdcoreConfig::new()), &[]);
+    renders_on_every_backend(&stdlib_registry(StdlibConfig::new()), &[]);
 }
 
 #[test]
@@ -1342,10 +1342,10 @@ fn a_registry_without_numbering_builds_and_renders_on_every_backend() {
     let registry = without(&["numbering"]);
     for (workflow, expected) in [
         (text::WORKFLOW, &["flm.refs.nothing-to-show"][..]),
-        (latex_recomposed::WORKFLOW, &[][..]),
-        (html::WORKFLOW, &["flm.refs.nothing-to-show"][..]),
+        (latex_recomposed::WORKFLOW, &[UNCHECKED_OUTPUT][..]),
+        (html::WORKFLOW, &[UNCHECKED_OUTPUT, "flm.refs.nothing-to-show"][..]),
     ] {
-        let run = common::stdcore::run_workflow(
+        let run = common::stdlib::run_workflow(
             &registry,
             workflow,
             &[PLAIN_DOCUMENT],
@@ -1395,7 +1395,7 @@ fn a_counter_declared_where_no_numbering_feature_is_registered_is_dropped_with_a
 
 /// A registry over every standard feature except the ones named.
 fn without(left_out: &[&str]) -> Arc<FlmRegistry> {
-    let entry = package(StdcoreConfig::new());
+    let entry = add_features(PackageEntry::new("std"), StdlibConfig::new());
     let mut builder = RegistryBuilder::new();
     for feature in entry.features.iter().chain([&flm_core::math_passthrough::feature()]) {
         if !left_out.iter().any(|name| feature.info().name == *name) {
@@ -1568,7 +1568,7 @@ fn the_table_projects_each_point_with_its_value_and_the_counters_it_is_within() 
     let options = NumberingOptions::new();
     let run = run(&registry(), "\\tsec{one} \\teqsub{a}", options);
     // The projector names the table and puts its own projection under it.
-    let projection = common::stdcore::projection(&run, COUNTERS);
+    let projection = common::stdlib::projection(&run, COUNTERS);
     let inner = common::dump::field(&projection, "flm.counters").unwrap_or(&projection).clone();
     let SerialValue::Map(entries) = inner else { panic!("the table projects a map") };
     assert_eq!(entries.len(), 2, "{projection:?}");
@@ -1618,7 +1618,7 @@ fn a_within_option_naming_a_joiner_nothing_registers_is_an_error() {
 
 #[test]
 fn a_counter_declared_within_another_by_a_joiner_nothing_registers_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![
             CounterDecl::new("tsec", "s"),
             CounterDecl::new("teq", "s")
@@ -1626,7 +1626,7 @@ fn a_counter_declared_within_another_by_a_joiner_nothing_registers_fails_the_bui
         ],
         vec![plain("s")],
     );
-    assert!(message.contains("nosuch.joiner"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1722,9 +1722,9 @@ fn a_number_writer_that_asks_for_no_part_does_not_run_the_joiner() {
 
 #[test]
 fn a_style_naming_a_number_writer_nothing_registers_fails_the_build() {
-    let message =
+    let refused =
         build_failure(Vec::new(), vec![plain("t.style.plain").with_number_writer("nosuch.writer")]);
-    assert!(message.contains("number writer `nosuch.writer`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
@@ -1733,7 +1733,7 @@ fn a_style_replaced_through_the_configuration_carries_the_writer_it_names() {
     // it by one that names a writer of its own, and every number shown in that
     // style is written by it.
     let replacement = equation_style("t.style.eq").with_number_writer("t.num.bare");
-    let config = StdcoreConfig::new().numbering(NumberingConfig::new().style(replacement));
+    let config = StdlibConfig::new().numbering(NumberingConfig::new().style(replacement));
     let registry = registry_with(config, test_feature());
     let run = run(&registry, "\\teq{a} \\teq{b}", NumberingOptions::new());
     assert!(reports(&run).is_empty(), "{:?}", reports(&run));
@@ -1773,7 +1773,7 @@ impl FlmFeature for SetFeature {
 /// The shared registry plus a feature contributing `sets`.
 fn try_registry_with_sets(sets: Vec<ParentSetDecl>) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(test_feature());
     builder.feature(Arc::new(SetFeature { sets }));
@@ -1852,7 +1852,7 @@ fn options_naming_a_counter_that_is_an_ancestor_under_one_parent_only_are_refuse
 
 #[test]
 fn a_declaration_naming_a_counter_that_is_an_ancestor_under_one_parent_only_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![
             CounterDecl::new("tsec", "s"),
             CounterDecl::new("tsub", "s").within(Within::parent("tsec")),
@@ -1861,7 +1861,7 @@ fn a_declaration_naming_a_counter_that_is_an_ancestor_under_one_parent_only_fail
         ],
         vec![plain("s")],
     );
-    assert!(message.contains("writes the counter `tsub`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
@@ -1926,38 +1926,36 @@ fn a_cycle_through_any_one_parent_numbers_none_of_its_counters() {
 
 #[test]
 fn a_counter_named_with_a_leading_underscore_fails_the_build() {
-    let message = build_failure(vec![CounterDecl::new("_x", "s")], vec![plain("s")]);
-    assert!(message.contains("the counter `_x`"), "{message}");
-    assert!(message.contains("numbering feature's own"), "{message}");
+    let refused = build_failure(vec![CounterDecl::new("_x", "s")], vec![plain("s")]);
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_parent_set_named_with_a_leading_underscore_fails_the_build() {
-    let message = match try_registry_with_sets(vec![ParentSetDecl::new("_levels", ["tsec"])]) {
+    let refused = match try_registry_with_sets(vec![ParentSetDecl::new("_levels", ["tsec"])]) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => refusing_features(&error),
     };
-    assert!(message.contains("the parent set `_levels`"), "{message}");
-    assert!(message.contains("numbering feature's own"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn two_parent_sets_of_one_name_fail_the_build() {
     let set = ParentSetDecl::new("t.levels", ["tsec"]);
-    let message = match try_registry_with_sets(vec![set.clone(), set]) {
+    let refused = match try_registry_with_sets(vec![set.clone(), set]) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => refusing_features(&error),
     };
-    assert!(message.contains("two features declare the parent set `t.levels`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 #[test]
 fn a_declaration_numbered_within_a_parent_set_nothing_registers_fails_the_build() {
-    let message = build_failure(
+    let refused = build_failure(
         vec![CounterDecl::new("teq", "s").within(Within::parent_set("t.nosuch"))],
         vec![plain("s")],
     );
-    assert!(message.contains("the parent set `t.nosuch`"), "{message}");
+    assert_eq!(refused, REFUSED);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2049,7 +2047,7 @@ impl Referenceable for TItem {
 /// is declared with `nesting` as its nesting joiner, and numbered within
 /// `within`.
 struct ListFeature {
-    nesting: Option<flm_core::stdcore::features::numbering::WithinJoinerSpec>,
+    nesting: Option<flm_core::stdlib::features::numbering::WithinJoinerSpec>,
     within: Option<Within>,
 }
 
@@ -2063,7 +2061,7 @@ fn item_styles() -> Vec<CounterStyleDecl> {
             let mut style = CounterStyleDecl::new(format!("t.style.item{}", index + 1));
             style.number_format = NumberTemplate::formats(format);
             style.prefix_words = PrefixWords::new("Item~", "Items~");
-            style.join = flm_core::stdcore::features::numbering::JoinDecl::compact();
+            style.join = flm_core::stdlib::features::numbering::JoinDecl::compact();
             style
         })
         .collect()
@@ -2127,7 +2125,7 @@ impl FlmFeature for ListFeature {
 /// The registry of the tests of instances: the package, the shared test
 /// feature (for `\tsec`) and a list feature with `nesting`.
 fn list_registry(
-    nesting: Option<flm_core::stdcore::features::numbering::WithinJoinerSpec>,
+    nesting: Option<flm_core::stdlib::features::numbering::WithinJoinerSpec>,
 ) -> Arc<FlmRegistry> {
     try_list_registry(nesting).unwrap_or_else(|error| {
         panic!("the registry build failed in phase {}:\n{}", error.phase, error.render())
@@ -2136,18 +2134,18 @@ fn list_registry(
 
 /// [`list_registry`], answering the build's failure.
 fn try_list_registry(
-    nesting: Option<flm_core::stdcore::features::numbering::WithinJoinerSpec>,
+    nesting: Option<flm_core::stdlib::features::numbering::WithinJoinerSpec>,
 ) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     try_list_registry_within(nesting, None)
 }
 
 /// [`try_list_registry`] with the list counter declared within `within`.
 fn try_list_registry_within(
-    nesting: Option<flm_core::stdcore::features::numbering::WithinJoinerSpec>,
+    nesting: Option<flm_core::stdlib::features::numbering::WithinJoinerSpec>,
     within: Option<Within>,
 ) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(test_feature());
     builder.feature(Arc::new(ListFeature { nesting, within }));
@@ -2157,7 +2155,7 @@ fn try_list_registry_within(
 /// The point labeled `t:<text>`.
 fn item(run: &Run, text: &str) -> flm_core::model::aspects::PointId {
     let labels = run
-        .table(&flm_core::stdcore::features::refs::LABELS)
+        .table(&flm_core::stdlib::features::refs::LABELS)
         .expect("the table is declared")
         .expect("the labels were collected");
     *labels
@@ -2217,7 +2215,7 @@ fn sibling_instances_each_restart_and_an_enclosing_instance_continues_past_a_nes
 
 #[test]
 fn a_nesting_joiner_writes_the_enclosing_items_number_before_a_nested_one() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     for nesting in [
         WithinJoinerSpec::Template("#{_parent}.".to_string()),
         WithinJoinerSpec::Template("#{t.list}.".to_string()),
@@ -2235,7 +2233,7 @@ fn a_nesting_joiner_writes_the_enclosing_items_number_before_a_nested_one() {
 
 #[test]
 fn an_instance_three_deep_writes_each_enclosing_instance_through_its_own_joiner() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     let text = "\\begin{tlist}\\titem{a}\\begin{tlist}\\titem{b}\\titem{c}\
                 \\begin{tlist}\\titem{x}\\titem{y}\\end{tlist}\\end{tlist}\\end{tlist}";
     // The counter's own name stands for the innermost enclosing instance, as
@@ -2262,7 +2260,7 @@ fn bare_run(text: &str) -> Run {
 
 #[test]
 fn references_to_items_of_one_instance_form_a_range_and_of_two_instances_two_groups() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     // Without the parent's part: the bare joiner.
     let bare = bare_run(LISTS);
     assert_eq!(items_together(&bare, &["ba", "bb", "bc"]), ["Items~(a)\u{2013}(c)"]);
@@ -2284,7 +2282,7 @@ fn references_to_items_of_one_instance_form_a_range_and_of_two_instances_two_gro
 
 #[test]
 fn the_outermost_instances_may_be_numbered_within_a_section_by_the_options() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     let text = "\\tsec{one} \\begin{tlist}\\titem{a}\\titem{b}\
                 \\begin{tlist}\\titem{ba}\\end{tlist}\\end{tlist} \
                 \\tsec{two} \\begin{tlist}\\titem{c}\\end{tlist}";
@@ -2346,20 +2344,20 @@ fn a_nested_instance_before_any_item_of_the_enclosing_one_is_not_numbered() {
 
 #[test]
 fn a_nesting_joiner_naming_a_counter_that_is_not_an_ancestor_fails_the_build() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     let failure = |nesting: WithinJoinerSpec| match try_list_registry(Some(nesting)) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => refusing_features(&error),
     };
     let named = failure(WithinJoinerSpec::Template("#{tsec}.".to_string()));
-    assert!(named.contains("`t.list`") && named.contains("`tsec`"), "{named}");
+    assert_eq!(named, REFUSED);
     let unknown = failure(WithinJoinerSpec::Named(Name::new("t.num.nothing")));
-    assert!(unknown.contains("t.num.nothing"), "{unknown}");
+    assert_eq!(unknown, REFUSED);
 }
 
 #[test]
 fn a_nesting_joiner_may_name_what_the_counter_is_numbered_within() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     // Declared within the section, the counter's nesting joiner may write the
     // section as well as the enclosing item.
     let registry = try_list_registry_within(
@@ -2384,7 +2382,7 @@ fn a_nesting_joiner_may_name_what_the_counter_is_numbered_within() {
 #[test]
 fn the_table_projects_the_instance_of_a_point_and_of_its_enclosing_items() {
     let run = bare_run("\\begin{tlist}\\titem{a}\\begin{tlist}\\titem{b}\\end{tlist}\\end{tlist}");
-    let projection = common::stdcore::projection(&run, COUNTERS);
+    let projection = common::stdlib::projection(&run, COUNTERS);
     let inner = common::dump::field(&projection, "flm.counters").unwrap_or(&projection).clone();
     let SerialValue::Map(entries) = inner else { panic!("the table projects a map") };
     let field = |value: &SerialValue, key: &str| common::dump::field(value, key).cloned();
@@ -2402,7 +2400,7 @@ fn the_table_projects_the_instance_of_a_point_and_of_its_enclosing_items() {
     // The table of reference points shows what the point states: the number
     // source with its instances, outermost first.
     let points =
-        common::stdcore::projection(&run, flm_core::stdcore::features::refpoints::REFPOINTS);
+        common::stdlib::projection(&run, flm_core::stdlib::features::refpoints::REFPOINTS);
     let written = format!("{points:?}");
     assert!(written.contains("instances"), "{written}");
 }
@@ -2419,7 +2417,7 @@ fn instances_are_numbered_the_same_way_however_the_run_is_executed() {
 
 #[test]
 fn instances_twenty_deep_are_numbered_without_trouble() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     let depth = 20;
     let mut text = String::new();
     for level in 0..depth {
@@ -2456,7 +2454,7 @@ fn a_point_carrying_a_number_template_is_written_through_it_everywhere() {
     assert_eq!(written(&with_word), "Item~(b)");
     // The table of reference points shows the template the point states.
     let points =
-        common::stdcore::projection(&run, flm_core::stdcore::features::refpoints::REFPOINTS);
+        common::stdlib::projection(&run, flm_core::stdlib::features::refpoints::REFPOINTS);
     assert!(format!("{points:?}").contains("(#{alph})"), "{points:?}");
 }
 
@@ -2483,7 +2481,7 @@ fn points_under_one_template_group_together_and_apart_from_the_declared_style() 
 
 #[test]
 fn an_enclosing_item_is_written_in_the_template_it_carried() {
-    use flm_core::stdcore::features::numbering::WithinJoinerSpec;
+    use flm_core::stdlib::features::numbering::WithinJoinerSpec;
     let text = "\\begin{tlist}\\titem{a}\\titemroman{b}\\begin{tlist}\\titem{ba}\\end{tlist}\
                 \\end{tlist}";
     let nesting = WithinJoinerSpec::Template("#{_parent}.".to_string());

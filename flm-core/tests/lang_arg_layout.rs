@@ -29,7 +29,7 @@ use flm_core::lang::rewrites::blocks::{
 use flm_core::lang::{
     BuiltLang, Flm, FlmCallableType, FlmGroupType, LangBuildError, LangInputs, build_language,
 };
-use flm_core::stdcore::features::blocks::{Blocks, STRUCTURED};
+use flm_core::stdlib::features::blocks::{Blocks, STRUCTURED};
 use techy::core::node::{
     BuildId, CallableData, ChildRegion, ContentNodes, GroupData, NodeKind, NodeRef, NodeTree, ParsedArgument,
     ParsedArguments, ParsedSlots, display_tree,
@@ -786,7 +786,6 @@ fn an_unknown_package_named_by_an_argument_is_the_existing_build_error() {
             package: "nope".into(),
         }]
     );
-    assert!(mint_errors_of(&lang)[0].to_string().contains("argument 1 of `s.note`"));
     // The language is still built: `\note` parses, its argument without the package.
     assert_eq!(parsed(&lang, "\\note[x]{y}").0, ["s.note"]);
 }
@@ -895,11 +894,6 @@ fn the_build_errors_of_a_tack_on_field_argument_name_the_field() {
             package: "nope".into(),
         }]
     );
-    assert!(
-        errors[0].to_string().contains("argument 1 of the field `caption` of `s.fig`"),
-        "{}",
-        errors[0]
-    );
 }
 
 // --- a scoped package another feature declares -----------------------------------------------
@@ -948,19 +942,11 @@ impl FlmFeature for Labels {
 #[test]
 fn a_peer_declared_scoped_package_nobody_declares_is_one_note_and_makes_nothing_visible() {
     let registry = common::pipeline::registry(vec![Arc::new(Notes { peer: true })]);
-    let diags: Vec<(String, String)> = registry
-        .build_diagnostics()
-        .iter()
-        .map(|d| (d.identifier().to_string(), d.message()))
-        .collect();
+    let diags: Vec<String> = registry.build_diagnostics().iter().map(common::stdlib::identifier_and_data).collect();
     assert_eq!(
         diags,
-        [(
-            "flm.registry.unresolved-peer".to_string(),
-            "feature `t.notes` refers to the scoped package `t.label` and expects another feature to declare it, but no feature of this registry declares it; the environment bodies and arguments that refer to it get no \
-             definitions from it"
-                .to_string()
-        )]
+        ["flm.registry.unresolved-peer {\"feature\":\"t.notes\",\"kind\":\"scoped package\",\"name\":\"t.label\",\
+          \"rules\":[],\"stages\":[]}"]
     );
     let peers: Vec<(&str, &str, bool)> = registry
         .peer_scoped_packages()

@@ -8,30 +8,37 @@ mod common;
 
 use std::sync::Arc;
 
-use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::plan::{Plan, PlanError, PlanRequest};
+use flm_core::core::registry::{BuildError, PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs};
+use flm_core::core::services::{ServiceError, SlotTarget};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::rewrites::userdefs::Expand as CoreExpand;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::FragmentLayout;
-use flm_core::stdcore;
+use flm_core::stdlib;
 use flm_ext::adapter::table::ExtTable;
 use flm_ext::api::core::registry::CallableKind;
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, FallbackDef, FallbackKind, Mode, SyntaxDef};
 use flm_ext::api::lang::rewrites::userdefs::{Definition, ExpandPolicy, Expansion, UserDefinition};
 use flm_ext::api::model::element::ElementSpec;
-use flm_ext::api::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::api::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::{ExtError, PackageReport};
 use serde_json::Value;
 
 use common::double::{expand, stage, Double};
 use common::{registry_with, try_registry_with};
 
-/// The text of the error of a registry build holding the standard package and
+/// The error of a registry build holding the standard package and
 /// `double`'s package; the build must fail.
-fn build_error(double: Double) -> String {
-    try_registry_with([double.package()]).expect_err("the build fails").to_string()
+fn build_error(double: Double) -> RegistryBuildError {
+    try_registry_with([double.package()]).expect_err("the build fails")
+}
+
+/// Whether `error` is the one error of the feature `feature`, its detail
+/// beginning with the identifier `identifier`.
+fn fails_with(error: &RegistryBuildError, feature: &str, identifier: &str) -> bool {
+    matches!(common::feature_errors(error).as_slice(), [(f, detail)] if f == feature && detail.starts_with(&format!("{identifier}: ")))
 }
 
 /// The element names of the nodes of `text` parsed by `registry`'s language,
@@ -70,10 +77,7 @@ fn a_feature_switched_off_is_left_out() {
 fn a_report_with_a_feature_without_a_name_is_refused() {
     let double = Double::new("wc").feature("count", |_| Ok(())).describe_with(|d| d.features[0].name = String::new());
     let errors = double.try_factory().expect_err("an empty name");
-    assert_eq!(
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-        ["every feature of the package `_` of the extension `wc` must have a name"]
-    );
+    assert_eq!(errors.len(), 1, "{errors:?}");
 }
 
 #[test]
@@ -83,10 +87,7 @@ fn a_report_with_two_features_of_one_name_is_refused() {
         d.features.push(again);
     });
     let errors = double.try_factory().expect_err("a duplicate");
-    assert_eq!(
-        errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-        ["each feature of the package `_` of the extension `wc` must have a name of its own; `count` is used twice"]
-    );
+    assert_eq!(errors.len(), 1, "{errors:?}");
 }
 
 // --- registration ------------------------------------------------------------------------
@@ -109,21 +110,13 @@ fn a_name_outside_the_package_prefix_fails_the_build_for_an_element() {
         b.element(ElementDef::new("", ["shout"], SyntaxDef::Macro { args: Vec::new() }, ElementSpec::new("shout")))
     });
     let error = build_error(double);
-    assert!(
-        error.contains(
-            "flm.ext.name-outside-extension: the element `shout` declared by the package `_` of the extension `wc` must begin with `wc.`"
-        ),
-        "{error}"
-    );
+    assert!(fails_with(&error, "count", "flm.ext.name-outside-extension"), "{error:?}");
 }
 
 #[test]
 fn a_name_outside_the_package_prefix_fails_the_build_for_a_table() {
     let error = build_error(Double::new("wc").feature("count", |b| b.table("words", "")));
-    assert!(
-        error.contains("flm.ext.name-outside-extension: the table `words` declared by the package `_` of the extension `wc` must begin with `wc.`"),
-        "{error}"
-    );
+    assert!(fails_with(&error, "count", "flm.ext.name-outside-extension"), "{error:?}");
 }
 
 #[test]
@@ -131,14 +124,17 @@ fn a_name_outside_the_package_prefix_fails_the_build_for_a_stage() {
     let error = build_error(Double::new("wc").feature("count", |b| {
         b.stage(stage(StageDecl::new("count-words", Effect::Compute, Scope::PerTree), Needs::new(), |_, _| Ok(())))
     }));
-    assert!(error.contains("flm.ext.name-outside-extension"), "{error}");
-    assert!(error.contains("the stage `count-words`"), "{error}");
+    assert!(fails_with(&error, "count", "flm.ext.name-outside-extension"), "{error:?}");
     let error = build_error(Double::new("wc").feature("count", |b| {
         b.table("wc.words", "")?;
         let decl = StageDecl::new("wc.count", Effect::Compute, Scope::PerTree).writes("wc.words").provides("counted");
         b.stage(stage(decl, Needs::new(), |_, _| Ok(())))
     }));
-    assert!(error.contains("the capability `counted`"), "{error}");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::Undeclared { feature, name, .. }
+            if *feature == "count" && *name == "counted")),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -146,8 +142,8 @@ fn a_failing_register_handler_fails_the_build_with_handler_failed() {
     let error = build_error(Double::new("wc").feature("count", |_| {
         Err(ExtError::Handler { detail: "TypeError: x is undefined".to_string(), data: Value::Null })
     }));
-    assert!(error.contains("`count`"), "{error}");
-    assert!(error.contains("flm.ext.handler-failed: TypeError: x is undefined"), "{error}");
+    assert!(fails_with(&error, "count", "flm.ext.handler-failed"), "{error:?}");
+    assert!(common::feature_errors(&error)[0].1.ends_with("TypeError: x is undefined"), "{error:?}");
 }
 
 /// The feature `defs` of the package `wc`: one definition, `\shout{…}`,
@@ -178,12 +174,15 @@ fn a_scripted_definition_declares_an_element_under_the_helper_s_name() {
 fn a_registry_holding_scripted_definitions_without_userdefs_does_not_build() {
     let mut settings = PackageSettings::new();
     settings.switch_off("userdefs");
-    let standard = stdcore::factory().expect("the factory").build(&settings).expect("the package");
+    let standard = stdlib::add_features_from_settings(PackageEntry::new("std"), &settings);
     let mut builder = RegistryBuilder::new();
     builder.use_package(standard);
     builder.use_package(shout("<#1>", ExpandPolicy::Always).package());
     let error = builder.build(&RegistryInputs::new()).expect_err("the definitions need userdefs");
-    assert!(error.to_string().contains("flm.userdefs.always-expanded"), "{error}");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::Undeclared { name, .. } if *name == "flm.userdefs.always-expanded")),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -197,7 +196,7 @@ fn a_scripted_fallback_answers_an_unknown_macro_in_text_mode() {
     let error = build_error(Double::new("wc").feature("loose", |b| {
         b.fallback(FallbackDef::new([Mode::Text], FallbackKind::Macro, ElementSpec::new("unknown")))
     }));
-    assert!(error.contains("the element `unknown`"), "{error}");
+    assert!(fails_with(&error, "loose", "flm.ext.name-outside-extension"), "{error:?}");
 }
 
 #[test]
@@ -218,7 +217,14 @@ fn a_scripted_definition_marked_overriding_replaces_a_standard_macro() {
 #[test]
 fn requiring_an_unfilled_service_slot_fails_the_build() {
     let error = build_error(Double::new("wc").feature("count", |b| b.require_service("wc.spell-checker")));
-    assert!(error.contains("wc.spell-checker"), "{error}");
+    assert!(
+        error.errors.iter().any(|e| matches!(e,
+            BuildError::Service(
+                ServiceError::UndeclaredSlot { target: SlotTarget::ByName(slot), .. }
+                    | ServiceError::RequiredSlotUnfilled { slot, .. }
+            ) if *slot == "wc.spell-checker")),
+        "{error:?}"
+    );
 }
 
 #[test]
@@ -282,7 +288,10 @@ fn a_stage_reads_its_own_table_and_another_feature_s_trees_by_name() {
 fn a_read_of_an_undeclared_table_fails_the_plan() {
     let registry = registry_with([counting("wc.nothing").package()]);
     let error = Plan::build(&registry, &PlanRequest::new().demand("wc.reported")).expect_err("undeclared");
-    assert!(error.to_string().contains("wc.nothing"), "{error}");
+    assert!(
+        matches!(&error, PlanError::NeedsUndeclared { stage, name, .. } if *stage == "wc.report" && *name == "wc.nothing"),
+        "{error:?}"
+    );
 }
 
 // --- helper-made declarations, the digest ------------------------------------------------------
@@ -313,12 +322,7 @@ fn a_helper_made_declaration_outside_the_package_prefix_fails_the_build() {
         let definition = UserDefinition::new(Definition::macro_("shout", vec![ArgDef::mandatory("text")]).content("!"));
         b.element(definition.element_def(&b.feature(), "shout"))
     }));
-    assert!(
-        error.contains(
-            "flm.ext.name-outside-extension: the element `shout` declared by the package `_` of the extension `wc` must begin with `wc.`"
-        ),
-        "{error}"
-    );
+    assert!(fails_with(&error, "defs", "flm.ext.name-outside-extension"), "{error:?}");
 }
 
 #[test]

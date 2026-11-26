@@ -1,7 +1,9 @@
 //! How the text backend draws a heading's rule
-//! (`flm_core::stdcore::backends::text`): the rule under a level 1 or level 2
+//! (`flm_core::stdlib::backends::text`): the rule under a level 1 or level 2
 //! heading is as wide as the title *measures* in display columns, which is not
-//! the number of characters it is written with.
+//! the number of characters it is written with, and is drawn with `=` and `-`,
+//! or with `═` and `─` under the render option `heading_rules: unicode`, which
+//! leaves the `#` prefix of a deeper heading as it is.
 
 mod common;
 
@@ -9,10 +11,10 @@ use std::sync::Arc;
 
 use flm_core::core::registry::FlmRegistry;
 use flm_core::layout::display_width;
-use flm_core::stdcore::backends::pres::{self, HeadingPayload};
-use flm_core::stdcore::backends::text::Emitted;
+use flm_core::stdlib::backends::pres::{self, HeadingPayload};
+use flm_core::stdlib::backends::text::{Emitted, HeadingRules, TextRenderOptions};
 
-use common::lowering::{PresSite, emit_tree, registry};
+use common::lowering::{PresSite, emit_trees_under, registry};
 
 /// A registry to stage presentation nodes against.
 fn vocabulary() -> Arc<FlmRegistry> {
@@ -25,14 +27,21 @@ fn text_of(emitted: &Emitted) -> String {
     emitted.output.as_ref().expect("the emission ran").text.clone()
 }
 
-/// The two printed lines of a heading of `level` reading `title`.
-fn heading(level: u8, title: &str) -> (String, String) {
+/// The text printed for a heading of `level` reading `title`, its rules
+/// drawn with `rules`.
+fn printed_heading(level: u8, title: &str, rules: HeadingRules) -> String {
     let mut site = PresSite::new(&vocabulary());
     let text = site.text(title);
     let heading =
         site.pres(pres::BLOCK_HEADING, HeadingPayload { name: flm_core::model::names::Name::from("section"), level, in_toc: true, anchor: None, number: None }, vec![text]);
     let tree = site.finish(vec![heading]);
-    let printed = text_of(&emit_tree(tree, None));
+    let options = TextRenderOptions { width: None, heading_rules: rules, ..TextRenderOptions::default() };
+    text_of(&emit_trees_under(vec![tree], &options))
+}
+
+/// The two printed lines of a heading of `level` reading `title`.
+fn heading(level: u8, title: &str) -> (String, String) {
+    let printed = printed_heading(level, title, HeadingRules::Ascii);
     let mut lines = printed.lines();
     let title_line = lines.next().expect("the title line").to_string();
     let rule = lines.next().expect("the rule").to_string();
@@ -57,4 +66,26 @@ fn a_title_whose_columns_and_characters_differ_gets_the_wider_rule() {
     assert_eq!(display_width(title), 12);
     assert_eq!(title.chars().count(), 9);
     assert_eq!(heading(1, title).1.chars().count(), 12);
+}
+
+#[test]
+fn unicode_rules_draw_double_and_single_lines_as_wide_as_the_title() {
+    for (level, mark) in [(1u8, '═'), (2, '─')] {
+        for title in ["Introduction", "日本語 Title"] {
+            let printed = printed_heading(level, title, HeadingRules::Unicode);
+            let rule = mark.to_string().repeat(display_width(title) as usize);
+            assert_eq!(printed, format!("{title}\n{rule}\n"), "{title:?}");
+            // A box-drawing character is one display column wide.
+            assert_eq!(display_width(&rule), display_width(title));
+        }
+    }
+}
+
+#[test]
+fn unicode_rules_leave_the_hash_prefix_of_a_deeper_heading_unchanged() {
+    for (level, prefix) in [(3u8, "### "), (4, "#### "), (5, "##### ")] {
+        let ascii = printed_heading(level, "Deep", HeadingRules::Ascii);
+        assert_eq!(ascii, format!("{prefix}Deep\n"));
+        assert_eq!(printed_heading(level, "Deep", HeadingRules::Unicode), ascii);
+    }
 }

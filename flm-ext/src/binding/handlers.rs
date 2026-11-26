@@ -21,6 +21,7 @@
 //! entry with the reply of its kind, so a typed reply of another kind reaches
 //! no object.
 
+use flm_core::progress::Scope;
 use serde_json::Value;
 
 use super::{run_handler, EntryArg, EntryCall, Registration, Reply};
@@ -43,10 +44,11 @@ use crate::api::core::stage::{Needs, RewriteDecl, RewriteStage, Stage, StageDecl
 use crate::api::lang::rewrites::userdefs::{Expand, ExpandCx, ExpandPolicy, Expander, Expansion};
 use crate::api::lang::{BuiltLang, FlmDiagnostics};
 use crate::api::model::aspects::{ContentRef, RefPoint, Referenceable, Sectioning};
-use crate::api::stdcore::features::citations::{CitationProvider, CitationRequest, CitationResult, ProviderCx};
-use crate::api::stdcore::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
+use crate::api::stdlib::features::citations::{CitationProvider, CitationRequest, CitationResult, ProviderCx};
+use crate::api::stdlib::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
 use crate::api::techy::node::Node;
 use crate::api::techy::transform::{Restage, Restager};
+use crate::sealed::Token;
 #[cfg(feature = "native")]
 use crate::guest::entry::EntryReply;
 use crate::runtime::ExtError;
@@ -662,6 +664,16 @@ fn other_kind<R>() -> Result<R, ExtError> {
 }
 
 impl<'c> HandlerKind<'c> {
+    /// The scope of the row the handler works under: its context's, for a stage and a
+    /// citation provider; [`Scope::none`] for every other handler, whose context has none.
+    pub(crate) fn progress(&self) -> Scope {
+        match self {
+            HandlerKind::Run { cx, .. } => cx.progress().core_scope(Token::new()),
+            HandlerKind::Provider { cx, .. } => cx.progress().core_scope(Token::new()),
+            _ => Scope::none(),
+        }
+    }
+
     /// Lends the handler's objects into `table`; answers the entry call.
     /// `owner` is "of the feature `F` of the package `P` of the extension `S`".
     pub(crate) fn lend(self, table: &mut CallTable<'c>, owner: &str) -> EntryCall<'c> {

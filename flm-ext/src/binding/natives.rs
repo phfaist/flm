@@ -16,7 +16,7 @@
 //! | `lend_aspect(kind, element, methods)` | lends an element's handler aspect of the extension's own ([`lend_referenceable`], a [`BindingReferenceable`]; [`lend_sectioning`], a [`BindingSectioning`]) |
 //! | `lend_late_init(index)` | lends a late-initialization hook of the extension's own ([`lend_late_init`], a [`BindingLateInit`]) |
 //! | `lend_finalizer(index)` | lends a finalizer of the extension's own ([`lend_finalizer`], a [`BindingFinalizer`]) |
-//! | `console(level, text)` | the host's console sink |
+//! | `console(level, text)` | writes a line to the host's log sink, at the level of the `console` method `level` names, with the extension's stem as its source |
 //!
 //! # One body, two front doors
 //!
@@ -45,8 +45,8 @@
 //! bindings alone. Compiled into a program, the guest client calls the
 //! extension API directly where a text binding's guest sends `call` or
 //! `module_handle` (`guest::abi::typed`), and writes a line of console
-//! output to the sink its instance's state holds, which the engine `native`
-//! gave it, where a text binding's guest sends `console`. The refusal
+//! output to the log sink that the engine `native` gave its instance's
+//! state, where a text binding's guest sends `console`. The refusal
 //! [`outside`] names what the extension must do from a handler ([`Act`]), in
 //! one text for both front doors.
 //!
@@ -104,7 +104,7 @@ use crate::api::lang::rewrites::userdefs::ExpandPolicy;
 #[cfg(any(feature = "quickjs", feature = "wasm"))]
 use crate::engine::ExtensionIdentity;
 #[cfg(any(feature = "quickjs", feature = "wasm"))]
-use crate::host::{ConsoleLevel, ConsoleSink};
+use crate::host::{console_level, Console};
 use crate::runtime::ExtError;
 
 /// One request to the host: the WebAssembly ABI carries it as JSON
@@ -322,7 +322,7 @@ pub(crate) fn lend_finalizer(view: &FrameView<'_, '_>, index: usize) -> Arc<Bind
 /// A lending then reads its arguments, calls its body, lends the object into the
 /// call's table and answers its handle.
 #[cfg(any(feature = "quickjs", feature = "wasm"))]
-pub(crate) fn answer(extension: &ExtensionIdentity, load: u64, console: &ConsoleSink, native: Native) -> Value {
+pub(crate) fn answer(extension: &ExtensionIdentity, load: u64, console: &Console, native: Native) -> Value {
     envelope(match native {
         Native::Call { handle, method, args } => in_frame(extension, load, Act::Call(&method), |view| {
             let target = receiver(view.table, &handle).map_err(|error| for_method(&method, error))?;
@@ -386,7 +386,7 @@ pub(crate) fn answer(extension: &ExtensionIdentity, load: u64, console: &Console
             Ok(lent(view.table, Entry::Finalizer(hook)))
         }),
         Native::Console { level, text } => {
-            console(ConsoleLevel::from_name(&level), &text);
+            console.write(&extension.stem, console_level(&level), &text);
             Ok(Value::Null)
         }
     })
@@ -653,6 +653,7 @@ mod tests {
 
         fn enter(
             self: Arc<Self>,
+            _progress: &flm_core::progress::Scope,
             _run: &mut dyn FnMut(&mut dyn super::super::Instance) -> Result<super::super::Reply, ExtError>,
         ) -> Result<super::super::Reply, ExtError> {
             unreachable!("no handler call enters the binding")
@@ -661,8 +662,8 @@ mod tests {
 
     #[test]
     fn a_native_is_refused_while_another_extension_s_handler_is_the_running_call() {
-        let identity = |name: &str| ExtensionIdentity { identity: name.to_string(), stem: name.to_string() };
-        let console: ConsoleSink = Arc::new(|_, _| {});
+        let identity = |name: &str| ExtensionIdentity { identity: name.to_string(), stem: name.to_string(), name: name.to_string() };
+        let console = Console::default();
         let lend = || Native::LendLower { rule: "r".to_string() };
         let refused = |stem: &str| envelope(Err(outside(stem, Act::Lower("r"))));
         let (a, b, a_again) = (next_extension_id(), next_extension_id(), next_extension_id());

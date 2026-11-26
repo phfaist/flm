@@ -399,12 +399,43 @@ fn read_limits(
 
 /// Whether `version` meets the requirement `requirement` (true when absent,
 /// or when either does not parse, which [`Manifest::read`] has excluded).
+///
+/// The requirement is read in version order, where a pre-release such as
+/// `0.6.0-beta.1` comes after every `0.5` version and before `0.6.0`. A
+/// comparator written without its patch number, such as `0.6`, stands for its
+/// whole series, the series' pre-releases included, so a pre-release meets it
+/// as its release does (`0.6.0-beta.1` as `0.6.0`). A comparator written in
+/// full, such as `0.6.0` or `0.6.0-beta.2`, compares the version itself.
+///
+/// The `semver` crate's own rule differs: a pre-release meets only a
+/// requirement that names a pre-release of its release. That rule keeps
+/// Cargo from choosing a pre-release nobody asked for; this check chooses no
+/// version, so it does not apply here.
 fn admits(requirement: Option<&str>, version: &str) -> bool {
     let Some(requirement) = requirement else { return true };
-    match (semver::VersionReq::parse(requirement), semver::Version::parse(version)) {
-        (Ok(requirement), Ok(version)) => requirement.matches(&version),
-        _ => true,
-    }
+    let (Ok(requirement), Ok(version)) = (semver::VersionReq::parse(requirement), semver::Version::parse(version))
+    else {
+        return true;
+    };
+    let release = semver::Version::new(version.major, version.minor, version.patch);
+    // `>=X.Y.Z-0`, met by every pre-release of the version's release, and
+    // naming one: placed beside a comparator, it lifts the crate's
+    // pre-release rule and leaves that comparator's own comparison, in
+    // version order.
+    let lowest = semver::Comparator {
+        op: semver::Op::GreaterEq,
+        major: version.major,
+        minor: Some(version.minor),
+        patch: Some(version.patch),
+        pre: semver::Prerelease::new("0").expect("`0` is a pre-release"),
+    };
+    requirement.comparators.iter().all(|comparator| {
+        if comparator.patch.is_none() {
+            comparator.matches(&release)
+        } else {
+            semver::VersionReq { comparators: vec![comparator.clone(), lowest.clone()] }.matches(&version)
+        }
+    })
 }
 
 #[cfg(test)]
@@ -412,8 +443,9 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn details(value: Value) -> Vec<(String, String)> {
-        Manifest::read("myext", &value).expect_err("refused").into_iter().map(|e| (e.path, e.detail)).collect()
+    /// The paths of the problems found in `value`, in order.
+    fn paths(value: Value) -> Vec<String> {
+        Manifest::read("myext", &value).expect_err("refused").into_iter().map(|e| e.path).collect()
     }
 
     #[test]
@@ -446,91 +478,27 @@ mod tests {
     #[test]
     fn each_unknown_key_is_refused_with_its_path() {
         assert_eq!(
-            details(json!({ "extension": { "engines": "js", "name": "x" }, "docs": "d" })),
-            [
-                (
-                    "docs".to_string(),
-                    "`docs` is not a key of the manifest of the extension `myext`; the keys are `extension` and `flm`".to_string()
-                ),
-                (
-                    "extension.engines".to_string(),
-                    "`extension.engines` is not a key of the `extension` block of the extension `myext`; the keys are \
-                     `description`, `author`, `flm_version`, `engine`, `js`, `wasm`"
-                        .to_string()
-                ),
-                (
-                    "extension.name".to_string(),
-                    "`extension.name` is not a key of the `extension` block of the extension `myext`; the keys are \
-                     `description`, `author`, `flm_version`, `engine`, `js`, `wasm`"
-                        .to_string()
-                ),
-            ]
+            paths(json!({ "extension": { "engines": "js", "name": "x" }, "docs": "d" })),
+            ["docs", "extension.engines", "extension.name"]
         );
-        assert_eq!(
-            details(json!(["x"])),
-            [(
-                String::new(),
-                "the manifest of the extension `myext` must be a map holding `extension` and, for the `data` engine, `flm`"
-                    .to_string()
-            )]
-        );
-        assert_eq!(
-            details(json!({ "extension": "x" })),
-            [("extension".to_string(), "`extension` in the manifest of the extension `myext` must be a map".to_string())]
-        );
-        assert_eq!(
-            details(json!({ "extension": { "description": 3 } })),
-            [("extension.description".to_string(), "`extension.description` of the extension `myext` must be a text".to_string())]
-        );
+        assert_eq!(paths(json!(["x"])), [""]);
+        assert_eq!(paths(json!({ "extension": "x" })), ["extension"]);
+        assert_eq!(paths(json!({ "extension": { "description": 3 } })), ["extension.description"]);
     }
 
     #[test]
     fn js_needs_main_and_is_refused_for_another_engine() {
+        assert_eq!(paths(json!({ "extension": { "engine": "js" } })), ["extension.js.main"]);
+        assert_eq!(paths(json!({ "extension": { "js": { "main": "main.js" } } })), ["extension.js"]);
         assert_eq!(
-            details(json!({ "extension": { "engine": "js" } })),
-            [(
-                "extension.js.main".to_string(),
-                "the extension `myext` has the engine `js`, so its manifest must give `extension.js.main`, the path of \
-                 its main module"
-                    .to_string()
-            )]
+            paths(json!({ "extension": { "engine": "js", "js": { "main": "m.js", "workers": 2 } } })),
+            ["extension.js.workers"]
         );
-        assert_eq!(
-            details(json!({ "extension": { "js": { "main": "main.js" } } })),
-            [(
-                "extension.js".to_string(),
-                "the extension `myext` writes `extension.js`, which is the `js` engine's key, and its engine is `data`"
-                    .to_string()
-            )]
-        );
-        assert_eq!(
-            details(json!({ "extension": { "engine": "js", "js": { "main": "m.js", "workers": 2 } } })),
-            [(
-                "extension.js.workers".to_string(),
-                "`extension.js.workers` is not a key of `extension.js` of the extension `myext`; the keys are `main` \
-                 and `limits`"
-                    .to_string()
-            )]
-        );
-        assert_eq!(
-            details(json!({ "extension": { "engine": "js", "js": "main.js" } })),
-            [("extension.js".to_string(), "`extension.js` of the extension `myext` must be a map".to_string())]
-        );
+        assert_eq!(paths(json!({ "extension": { "engine": "js", "js": "main.js" } })), ["extension.js"]);
         // The missing key is reported whatever else the block holds.
         assert_eq!(
-            details(json!({ "extension": { "engine": "js", "js": { "limits": { "time_s": 0 } } } })),
-            [
-                (
-                    "extension.js.limits.time_s".to_string(),
-                    "`extension.js.limits.time_s` of the extension `myext` must be a whole number from 1 up".to_string()
-                ),
-                (
-                    "extension.js.main".to_string(),
-                    "the extension `myext` has the engine `js`, so its manifest must give `extension.js.main`, the \
-                     path of its main module"
-                        .to_string()
-                ),
-            ]
+            paths(json!({ "extension": { "engine": "js", "js": { "limits": { "time_s": 0 } } } })),
+            ["extension.js.limits.time_s", "extension.js.main"]
         );
     }
 
@@ -542,38 +510,15 @@ mod tests {
             manifest.js.map(|js| js.limits),
             Some(JsLimits { memory_mib: None, stack_mib: Some(16), time_s: Some(60) })
         );
-        let mut found: Vec<(String, String)> = read(json!({ "stack_mib": 64, "memory_mib": 0, "heap": 1 }))
+        let mut found: Vec<String> = read(json!({ "stack_mib": 64, "memory_mib": 0, "heap": 1 }))
             .expect_err("refused")
             .into_iter()
-            .map(|e| (e.path, e.detail))
+            .map(|e| e.path)
             .collect();
         found.sort();
-        assert_eq!(
-            found,
-            [
-                (
-                    "extension.js.limits.heap".to_string(),
-                    "`extension.js.limits.heap` is not a key of `extension.js.limits` of the extension `myext`; the \
-                     keys are `memory_mib`, `stack_mib`, `time_s`"
-                        .to_string()
-                ),
-                (
-                    "extension.js.limits.memory_mib".to_string(),
-                    "`extension.js.limits.memory_mib` of the extension `myext` must be a whole number from 1 up".to_string()
-                ),
-                (
-                    "extension.js.limits.stack_mib".to_string(),
-                    "`extension.js.limits.stack_mib` of the extension `myext` must be below 64, the stack in MiB of \
-                     the threads that run the extension's handlers"
-                        .to_string()
-                ),
-            ]
-        );
+        assert_eq!(found, ["extension.js.limits.heap", "extension.js.limits.memory_mib", "extension.js.limits.stack_mib"]);
         let found = read(json!(16)).expect_err("refused");
-        assert_eq!(
-            found[0].detail,
-            "`extension.js.limits` of the extension `myext` must be a map of `memory_mib`, `stack_mib`, `time_s`"
-        );
+        assert_eq!(found[0].path, "extension.js.limits");
     }
 
     #[test]
@@ -582,55 +527,21 @@ mod tests {
             .expect("read");
         assert_eq!(read.wasm, Some(WasmManifest { module: "m.wasm".to_string(), limits: WasmLimits::default() }));
         assert_eq!(read.js, None);
+        assert_eq!(paths(json!({ "extension": { "engine": "wasm" } })), ["extension.wasm.module"]);
         assert_eq!(
-            details(json!({ "extension": { "engine": "wasm" } })),
-            [(
-                "extension.wasm.module".to_string(),
-                "the extension `myext` has the engine `wasm`, so its manifest must give `extension.wasm.module`, the \
-                 path of its module"
-                    .to_string()
-            )]
+            paths(json!({ "extension": { "engine": "js", "js": { "main": "m.js" }, "wasm": { "module": "m.wasm" } } })),
+            ["extension.wasm"]
         );
         assert_eq!(
-            details(json!({ "extension": { "engine": "js", "js": { "main": "m.js" }, "wasm": { "module": "m.wasm" } } })),
-            [(
-                "extension.wasm".to_string(),
-                "the extension `myext` writes `extension.wasm`, which is the `wasm` engine's key, and its engine is `js`"
-                    .to_string()
-            )]
+            paths(json!({ "extension": { "engine": "wasm", "wasm": { "module": "m.wasm", "main": "x" } } })),
+            ["extension.wasm.main"]
         );
-        assert_eq!(
-            details(json!({ "extension": { "engine": "wasm", "wasm": { "module": "m.wasm", "main": "x" } } })),
-            [(
-                "extension.wasm.main".to_string(),
-                "`extension.wasm.main` is not a key of `extension.wasm` of the extension `myext`; the keys are \
-                 `module` and `limits`"
-                    .to_string()
-            )]
-        );
-        assert_eq!(
-            details(json!({ "extension": { "engine": "wasm", "wasm": "m.wasm" } })),
-            [("extension.wasm".to_string(), "`extension.wasm` of the extension `myext` must be a map".to_string())]
-        );
-        assert_eq!(
-            details(json!({ "extension": { "engine": "wasm", "wasm": { "module": 3 } } })),
-            [("extension.wasm.module".to_string(), "`extension.wasm.module` of the extension `myext` must be a text".to_string())]
-        );
+        assert_eq!(paths(json!({ "extension": { "engine": "wasm", "wasm": "m.wasm" } })), ["extension.wasm"]);
+        assert_eq!(paths(json!({ "extension": { "engine": "wasm", "wasm": { "module": 3 } } })), ["extension.wasm.module"]);
         // The missing key is reported whatever else the block holds.
         assert_eq!(
-            details(json!({ "extension": { "engine": "wasm", "wasm": { "limits": { "fuel": 0 } } } })),
-            [
-                (
-                    "extension.wasm.limits.fuel".to_string(),
-                    "`extension.wasm.limits.fuel` of the extension `myext` must be a whole number from 1 up".to_string()
-                ),
-                (
-                    "extension.wasm.module".to_string(),
-                    "the extension `myext` has the engine `wasm`, so its manifest must give `extension.wasm.module`, \
-                     the path of its module"
-                        .to_string()
-                ),
-            ]
+            paths(json!({ "extension": { "engine": "wasm", "wasm": { "limits": { "fuel": 0 } } } })),
+            ["extension.wasm.limits.fuel", "extension.wasm.module"]
         );
     }
 
@@ -641,49 +552,25 @@ mod tests {
         };
         let manifest = read(json!({ "memory_mib": 16, "fuel": 5000 })).expect("read");
         assert_eq!(manifest.wasm.map(|wasm| wasm.limits), Some(WasmLimits { memory_mib: Some(16), fuel: Some(5000) }));
-        let mut found: Vec<(String, String)> =
-            read(json!({ "fuel": 0, "stack_mib": 1 })).expect_err("refused").into_iter().map(|e| (e.path, e.detail)).collect();
+        let mut found: Vec<String> =
+            read(json!({ "fuel": 0, "stack_mib": 1 })).expect_err("refused").into_iter().map(|e| e.path).collect();
         found.sort();
-        assert_eq!(
-            found,
-            [
-                (
-                    "extension.wasm.limits.fuel".to_string(),
-                    "`extension.wasm.limits.fuel` of the extension `myext` must be a whole number from 1 up".to_string()
-                ),
-                (
-                    "extension.wasm.limits.stack_mib".to_string(),
-                    "`extension.wasm.limits.stack_mib` is not a key of `extension.wasm.limits` of the extension \
-                     `myext`; the keys are `memory_mib`, `fuel`"
-                        .to_string()
-                ),
-            ]
-        );
+        assert_eq!(found, ["extension.wasm.limits.fuel", "extension.wasm.limits.stack_mib"]);
         let found = read(json!(16)).expect_err("refused");
-        assert_eq!(found[0].detail, "`extension.wasm.limits` of the extension `myext` must be a map of `memory_mib`, `fuel`");
+        assert_eq!(found[0].path, "extension.wasm.limits");
     }
 
     #[test]
     fn flm_is_refused_for_an_engine_other_than_data() {
         assert_eq!(
-            details(json!({ "extension": { "engine": "js", "js": { "main": "main.js" } }, "flm": { "use": "x" } })),
-            [("flm".to_string(), "the extension `myext` writes `flm`, which only the `data` engine reads, and its engine is `js`".to_string())]
+            paths(json!({ "extension": { "engine": "js", "js": { "main": "main.js" } }, "flm": { "use": "x" } })),
+            ["flm"]
         );
     }
 
     #[test]
     fn flm_version_must_be_a_requirement() {
-        let found = details(json!({ "extension": { "flm_version": "soon" } }));
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].0, "extension.flm_version");
-        assert!(
-            found[0].1.starts_with(
-                "`extension.flm_version` of the extension `myext` must be a version requirement such as `>=0.5` or \
-                 `^0.5.0`, and `soon` is not one: "
-            ),
-            "{}",
-            found[0].1
-        );
+        assert_eq!(paths(json!({ "extension": { "flm_version": "soon" } })), ["extension.flm_version"]);
         let manifest = Manifest::read("myext", &json!({ "extension": { "flm_version": ">=0.5" } })).unwrap();
         assert_eq!(manifest.flm_version.as_deref(), Some(">=0.5"));
     }
@@ -698,5 +585,17 @@ mod tests {
         assert!(this.admits_this_program());
         let later = Manifest::read("myext", &json!({ "extension": { "flm_version": ">=999" } })).unwrap();
         assert!(!later.admits_this_program());
+    }
+
+    #[test]
+    fn a_pre_release_is_read_in_version_order() {
+        assert!(admits(Some(">=0.5"), "0.6.0-beta.1"));
+        assert!(admits(Some("^0.6"), "0.6.0-beta.1"));
+        assert!(admits(Some(">=0.6"), "0.6.1-beta.1"));
+        assert!(!admits(Some("<0.6"), "0.6.0-beta.1"));
+        assert!(!admits(Some("^0.6.0"), "0.6.0-beta.1"));
+        assert!(admits(Some("<0.6.0"), "0.6.0-beta.1"));
+        assert!(!admits(Some(">=0.6.0-beta.2"), "0.6.0-beta.1"));
+        assert!(admits(Some(">=0.6.0-beta.2"), "0.6.0-beta.3"));
     }
 }

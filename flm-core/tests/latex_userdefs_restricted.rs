@@ -1,5 +1,5 @@
 //! A user definition kept as a LaTeX definition on the `latex-recomposed`
-//! backend (`flm_core::stdcore::features::userdefs::kept`) whose template
+//! backend (`flm_core::stdlib::features::userdefs::kept`) whose template
 //! holds a label, a reference or an equation reference: a template that
 //! declares a reference point is refused with the `userdefs` feature's typed
 //! Error, at each use site, naming the remedy, and renders once the definition is marked
@@ -22,21 +22,25 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::mint::{ArgDef, ArgStdKind};
 use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy};
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::backends::latex_recomposed::{BACKEND, WORKFLOW};
-use flm_core::stdcore::features::userdefs::{UserdefsConfig, instantiate_rule_name};
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::backends::latex_recomposed::{BACKEND, WORKFLOW};
+use flm_core::stdlib::features::userdefs::{UserdefsConfig, instantiate_rule_name};
+use flm_core::dump::diag::expect;
+use flm_core::stdlib::StdlibConfig;
+use serde_json::json;
 use techy::error::Severity;
 
 use common::latex::{assert_golden, output, style, style_if_any};
-use common::stdcore::{identifiers, reports, run_workflow};
+use common::stdlib::{
+    UNCHECKED_OUTPUT, assert_only_unchecked_output, identifier_and_data, identifiers, reports, run_workflow,
+};
 
 /// The identifier of the typed Error.
 const DECLARES_POINT: &str = "flm.userdefs.kept-template-declares-point";
 
 fn registry_over(definitions: Vec<Definition>) -> Arc<FlmRegistry> {
-    common::stdcore::registry(
-        StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
+    common::stdlib::registry(
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
     )
 }
 
@@ -70,21 +74,22 @@ fn keyed(expand: ExpandPolicy) -> Definition {
 }
 
 #[test]
-fn a_label_in_a_kept_template_is_refused_at_each_use_site_with_its_remedy() {
+fn a_label_in_a_kept_template_is_refused_at_each_use_site() {
     let registry = registry_over(vec![titled(ExpandPolicy::PerPlan)]);
     let run = recompose(&registry, "\\titled{A}\n\n\\titled{B}\n\nText.");
     assert_eq!(
         reports(&run),
-        [(String::from(DECLARES_POINT), Severity::Error), (String::from(DECLARES_POINT), Severity::Error)],
+        [
+            (String::from(UNCHECKED_OUTPUT), Severity::Warning),
+            (String::from(DECLARES_POINT), Severity::Error),
+            (String::from(DECLARES_POINT), Severity::Error),
+        ],
         "{}",
         run.diagnostics().render_all()
     );
-    let message = run.diagnostics().render_all();
-    assert!(message.contains("`\\titled`"), "{message}");
-    assert!(message.contains("`\\section`"), "{message}");
-    assert!(message.contains("expanded in the document itself"), "{message}");
-    assert!(message.contains("expansion policy `always`"), "{message}");
-    assert!(!message.contains("instantiate"), "{message}");
+    expect(run.diagnostics().iter(), DECLARES_POINT)
+        .data(json!({ "definition": "\\titled", "declared_by": "`\\section`" }))
+        .count(2);
     // The recovery is as it was: each use site lowers to the stand-in of a
     // failed rule, a comment, and nothing of the definition is written.
     let body = output(&run);
@@ -96,7 +101,7 @@ fn a_label_in_a_kept_template_is_refused_at_each_use_site_with_its_remedy() {
 fn the_same_definition_marked_always_renders() {
     let registry = registry_over(vec![titled(ExpandPolicy::Always)]);
     let run = recompose(&registry, "\\titled{A}\n\nSee \\ref{sec:fixed}.");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let body = output(&run);
     assert!(body.contains("\\section{A}{\\flmLabels{\\label{ref1}}}"), "{body}");
     assert!(body.contains("See \\flmRef{ref1}."), "{body}");
@@ -106,12 +111,14 @@ fn the_same_definition_marked_always_renders() {
 fn a_label_completed_by_a_placeholder_is_refused_too() {
     let registry = registry_over(vec![keyed(ExpandPolicy::PerPlan)]);
     let run = recompose(&registry, "\\keyed{a}");
-    assert_eq!(identifiers(&run), [DECLARES_POINT], "{}", run.diagnostics().render_all());
-    assert!(run.diagnostics().render_all().contains("(`\\label`)"));
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, DECLARES_POINT], "{}", run.diagnostics().render_all());
+    expect(run.diagnostics().iter(), DECLARES_POINT)
+        .data(json!({ "definition": "\\keyed", "declared_by": "`\\label`" }))
+        .once();
     // Marked `always`, the label is the use site's.
     let registry = registry_over(vec![keyed(ExpandPolicy::Always)]);
     let run = recompose(&registry, "\\keyed{a}\n\nSee \\ref{sec:a}.");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert!(output(&run).contains("See \\flmRef{ref1}."), "{}", output(&run));
 }
 
@@ -123,12 +130,7 @@ fn instantiating_the_definition_at_lowering_is_no_remedy() {
     let overrides =
         Overrides { lowering: [(BACKEND.into(), selection)].into_iter().collect(), ..Overrides::none() };
     let run = run_workflow(&registry, WORKFLOW, &["\\titled{A} and \\titled{B}"], &overrides);
-    assert_eq!(identifiers(&run), [DECLARES_POINT, DECLARES_POINT], "{}", run.diagnostics().render_all());
-    // The message holds for an instance as for a definition written into the
-    // style file: it names no LaTeX definition.
-    let message = run.diagnostics().render_all();
-    assert!(message.contains("declares a labeled place"), "{message}");
-    assert!(!message.contains("LaTeX definition"), "{message}");
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, DECLARES_POINT, DECLARES_POINT], "{}", run.diagnostics().render_all());
 }
 
 #[test]
@@ -137,7 +139,7 @@ fn a_labeled_xnote_in_a_kept_template_is_refused_by_the_same_error() {
         Definition::macro_("noted", Vec::new()).text("text\\footnote[\\label{fn:k}]{n}"),
     ]);
     let run = recompose(&registry, "\\noted{} and \\noted{}.");
-    assert_eq!(identifiers(&run), [DECLARES_POINT, DECLARES_POINT], "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, DECLARES_POINT, DECLARES_POINT], "{}", run.diagnostics().render_all());
 }
 
 // --- a reference whose target holds a placeholder ------------------------------------------
@@ -174,7 +176,7 @@ const UNRESOLVED: &str = "flm.refs.unresolved";
 const BAD_LABEL: &str = "flm.refs.bad-label";
 
 /// [`expanded`], checked against the same definitions marked `always` for what
-/// the run reports — the same identifiers and messages, compared sorted, not
+/// the run reports — the same identifiers and data, compared sorted, not
 /// the places — where the written LaTeX differs in the shape of a name only:
 /// a target naming nothing takes a name of its use site's value (`ref-v1`)
 /// where it is kept and a document name (`ref2`) where it is marked `always`.
@@ -190,8 +192,7 @@ fn same_reports_as_always(definitions: &[Definition], text: &str) -> Run {
         definitions.iter().cloned().map(|definition| definition.expand(ExpandPolicy::Always)).collect();
     let expanded = recompose(&registry_over(always), text);
     let rendered = |run: &Run| {
-        let mut all: Vec<String> =
-            run.diagnostics().iter().map(|d| format!("{} {}", d.identifier(), d.message())).collect();
+        let mut all: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
         all.sort();
         all
     };
@@ -219,7 +220,7 @@ fn a_reference_to_a_placeholder_expands_every_use_site() {
         "\\section{A}\\label{sec:a}\n\n\\begin{equation}\n  a = b \\label{eq:b}\n\\end{equation}\n\n\
          \\myref{sec:a} \\mylink{sec:a} \\myeq{eq:b}\n",
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let body = output(&run);
     assert!(
         body.contains("(see \\flmRef{ref1}) \\flmHyperref{ref1}{that section} \\eqref{ref2}"),
@@ -241,7 +242,7 @@ fn the_characters_around_a_placeholder_are_the_use_sites_target() {
         Definition::macro_("tagged", vec![ArgDef::mandatory("key")]).text("\\ref{my_type:#1}");
     let run = same_reports_as_always(&[tagged], "\\tagged{a}");
     assert_eq!(output(&run), "\\flmRef{ref-v1}%%\n");
-    assert_eq!(reports(&run), [(String::from(UNRESOLVED), Severity::Error)]);
+    assert_eq!(reports(&run), [(String::from(UNCHECKED_OUTPUT), Severity::Warning), (String::from(UNRESOLVED), Severity::Error)]);
 }
 
 #[test]
@@ -251,7 +252,7 @@ fn a_placeholder_in_a_heading_option_value_expands_the_use_site() {
     let heading = Definition::macro_("numbered", vec![ArgDef::mandatory("flag")])
         .text("\\section[numbered=#1]{T}");
     let run = expanded_as_always(&[heading], "\\numbered{false}\n\n\\numbered{true}");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -265,7 +266,7 @@ fn a_fixed_target_in_a_kept_template_keeps_its_safe_label() {
         &registry,
         "\\section{Intro}\\label{sec:intro}\n\n\\seeintro{} and \\linkintro{there}",
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(
         definition_line(&run, "seeintro"),
         "\\providecommand\\flmUDseeintro{(see \\flmRef{ref1})}"
@@ -295,6 +296,7 @@ fn a_placeholder_target_naming_nothing_is_reported_and_written_under_a_value_nam
     assert_eq!(
         reports(&run),
         [
+            (String::from(UNCHECKED_OUTPUT), Severity::Warning),
             (String::from(BAD_LABEL), Severity::Error),
             (String::from(BAD_LABEL), Severity::Error),
             (String::from(UNRESOLVED), Severity::Error),
@@ -320,7 +322,7 @@ fn a_target_a_verbatim_argument_completes_is_written_under_a_name() {
     );
     assert_eq!(
         identifiers(&run),
-        [BAD_LABEL, BAD_LABEL, UNRESOLVED],
+        [UNCHECKED_OUTPUT, BAD_LABEL, BAD_LABEL, UNRESOLVED],
         "{}",
         run.diagnostics().render_all()
     );
@@ -354,15 +356,16 @@ fn a_reference_an_argument_carries_into_the_value_is_reported_there_too() {
     let two = Definition::macro_("two", vec![ArgDef::mandatory("key"), ArgDef::mandatory("text")])
         .text("\\ref{#1} [#2]");
     let run = expanded(&[two], "\\two{sec:x}{see \\ref{sec:y}}");
-    let mut found: Vec<String> =
-        run.diagnostics().iter().map(|d| format!("{} {}", d.identifier(), d.message())).collect();
+    let mut found: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
     found.sort();
     assert_eq!(
         found,
         [
-            "flm.refs.unresolved the reference points at the label `sec:x`, which is not defined",
-            "flm.refs.unresolved the reference points at the label `sec:y`, which is not defined",
-            "flm.refs.unresolved the reference points at the label `sec:y`, which is not defined",
+            "flm.refs.unresolved {\"label\":\"sec:x\"}",
+            "flm.refs.unresolved {\"label\":\"sec:y\"}",
+            "flm.refs.unresolved {\"label\":\"sec:y\"}",
+            "flm.run.unchecked-output {\"feature\":\"math-passthrough\",\"backend\":\"latex-recomposed\",\
+             \"written\":\"each formula's recomposed LaTeX\",\"reader\":\"LaTeX\",\"workflow\":\"latex-recomposed\"}",
         ],
         "{}",
         run.diagnostics().render_all()
@@ -380,7 +383,7 @@ fn a_term_link_to_a_placeholder_naming_no_term_is_reported_and_named() {
         "{}",
         output(&run)
     );
-    assert_eq!(identifiers(&run), [UNRESOLVED], "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, UNRESOLVED], "{}", run.diagnostics().render_all());
     assert_golden("userdefs-refs-placeholder-terms.tex", &run);
 }
 
@@ -404,7 +407,7 @@ fn instantiating_at_lowering_names_and_reports_the_same_way() {
         "{}",
         output(&run)
     );
-    assert_eq!(identifiers(&run), [BAD_LABEL, UNRESOLVED], "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, BAD_LABEL, UNRESOLVED], "{}", run.diagnostics().render_all());
 }
 
 #[test]
@@ -430,15 +433,16 @@ fn instantiating_at_lowering_on_html_reports_what_the_expanded_document_reports(
     let expanded =
         run_workflow(&registry_over(definitions), html::WORKFLOW, &[text], &Overrides::none());
     let rendered = |run: &Run| {
-        let mut all: Vec<String> = run.diagnostics().iter().map(|d| d.message()).collect();
+        let mut all: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
         all.sort();
         all
     };
     let mut with_the_copy = rendered(&expanded);
-    with_the_copy.push(String::from("the reference points at the label `sec:y`, which is not defined"));
+    with_the_copy.push(String::from("flm.refs.unresolved {\"label\":\"sec:y\"}"));
     with_the_copy.sort();
     assert_eq!(rendered(&instantiated), with_the_copy, "{}", instantiated.diagnostics().render_all());
-    assert_eq!(rendered(&expanded).len(), 3, "{}", expanded.diagnostics().render_all());
+    // Three references, and the Warning of the page's unchecked formulas.
+    assert_eq!(rendered(&expanded).len(), 4, "{}", expanded.diagnostics().render_all());
 }
 
 /// The reports of `flm.refs.unresolved` in `run`.
@@ -482,14 +486,14 @@ fn the_names_and_the_reports_are_the_same_under_every_execution_setting() {
         "\\myeq{eq:none} \\myref{sec:c} \\myref{sec:a}",
     ];
     let doc = common::pipeline::doc(&registry, &texts);
-    let shared = common::stdcore::plan(&registry, WORKFLOW, &Overrides::none());
+    let shared = common::stdlib::plan(&registry, WORKFLOW, &Overrides::none());
     let sequential =
         common::pipeline::run_with(&doc, &shared, Externals::none(), &RunOptions::sequential());
     let parallel =
         common::pipeline::run_with(&doc, &shared, Externals::none(), &RunOptions::default());
     assert_eq!(common::latex::body(&sequential), common::latex::body(&parallel));
     assert_eq!(reports(&sequential), reports(&parallel));
-    assert_eq!(identifiers(&sequential), [BAD_LABEL, UNRESOLVED, UNRESOLVED, UNRESOLVED]);
+    assert_eq!(identifiers(&sequential), [UNCHECKED_OUTPUT, BAD_LABEL, UNRESOLVED, UNRESOLVED, UNRESOLVED]);
 }
 
 #[test]
@@ -509,17 +513,23 @@ fn a_fixed_target_naming_nothing_in_a_kept_template_is_reported_at_each_use_site
     );
     let mut found = identifiers(&run);
     found.sort();
-    assert_eq!(found, [BAD_LABEL, BAD_LABEL, UNRESOLVED, UNRESOLVED], "{}", run.diagnostics().render_all());
+    assert_eq!(
+        found,
+        [BAD_LABEL, BAD_LABEL, UNRESOLVED, UNRESOLVED, UNCHECKED_OUTPUT],
+        "{}",
+        run.diagnostics().render_all()
+    );
     let rendered = run.diagnostics().render_all();
-    assert!(rendered.contains("`sec:none`") && rendered.contains("`nolabel`"), "{rendered}");
+    expect(run.diagnostics().iter(), UNRESOLVED).data(json!({ "label": "sec:none" })).count(2);
+    expect(run.diagnostics().iter(), BAD_LABEL).data(json!({ "text": "nolabel" })).count(2);
     // Each report is raised inside the copy of the template one use site
     // shows, and names that use site.
     let text = "\\seenone{} and \\seenone{}";
-    let at = |offset| vec![(String::from(common::stdcore::SHOWN_HERE), offset)];
-    let (first, second) = (at(0), at(text.rfind("\\seenone").expect("a second use site")));
-    let mut found = common::stdcore::frames(&run);
+    let (first, second) = (vec![0], vec![text.rfind("\\seenone").expect("a second use site")]);
+    let mut found = common::stdlib::frames(&run);
     found.sort();
-    assert_eq!(found, [first.clone(), first, second.clone(), second], "{rendered}");
+    // The Warning of the unchecked formulas has no frame.
+    assert_eq!(found, [vec![], first.clone(), first, second.clone(), second], "{rendered}");
 }
 
 #[test]

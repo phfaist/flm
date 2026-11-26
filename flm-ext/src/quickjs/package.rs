@@ -20,6 +20,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use flm_core::progress::Scope;
 use rquickjs::{Ctx, Function, Object};
 
 use super::engine::{self, Engine};
@@ -49,9 +50,12 @@ pub(crate) struct JsExtension {
     pub settings: JsSettings,
     /// The identity and the stem, for the messages.
     pub extension: ExtensionIdentity,
-    /// The main module's normalized path (`main.js`, `src/main.js`).
+    /// The main module's path inside the extension, the path the manifest
+    /// writes named by the rule of an import's specifier (`./src/main.js`
+    /// gives `src/main.js`).
     pub main: String,
-    /// The recorded modules: normalized path → text.
+    /// The recorded modules: path inside the extension, resolved by the rule
+    /// of an import's specifier → text.
     pub modules: BTreeMap<String, Arc<str>>,
     /// Whether an engine instance calls the default export when it is
     /// created: `true` for a loaded extension, `false` for a test package.
@@ -93,13 +97,15 @@ impl Binding for JsExtension {
     }
 
     /// [`engine::with_engine`], with the call's time budget started before
-    /// `run` and ended after it.
+    /// `run` and ended after it, under `progress`, whose cancellation stops
+    /// the script.
     fn enter(
         self: Arc<Self>,
+        progress: &Scope,
         run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
     ) -> Result<Reply, ExtError> {
         engine::with_engine(&self.host, &self, |ctx, engine| {
-            let budget = engine.start_budget();
+            let budget = engine.start_budget(progress);
             let result = run(&mut JsInstance { ctx, engine });
             engine.end_budget(budget);
             result

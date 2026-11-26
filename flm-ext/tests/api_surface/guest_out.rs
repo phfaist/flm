@@ -7,7 +7,7 @@
 //! One inline module per module of the extension API, nested as the paths
 //! nest (`flm_ext::guest::core::lowering` mirrors `flm:core/lowering`), in
 //! the order of the paths; a folder that is no module of the surface (`core`,
-//! `stdcore/features`) is a module holding its submodules. A module holds,
+//! `stdlib/features`) is a module holding its submodules. A module holds,
 //! in order: the import of the names every body uses (`prelude`), the
 //! imports of the types its signatures name from other modules, then its
 //! re-exports (`pub use crate::api::a::b::{…}` for every data type, unit enum
@@ -36,7 +36,9 @@
 //! `&mut dyn X` and `Box<dyn X>` of a kind row are `&X`, `&mut X` and `X`,
 //! also inside `Option`, `Vec`, slices and tuples; a type of `GUEST_OWN` is
 //! the guest's own type of that name (`Box<dyn CompiledTemplate>` and
-//! `DurableTemplateFacade` are both the own `CompiledTemplate`); any other
+//! `DurableTemplateFacade` are both the own `CompiledTemplate`; the list and
+//! the slice of a list sequence its class, `Vec<Box<dyn Node>>` and
+//! `[Box<dyn Node>]` the own `Nodes`); any other
 //! type is the api's, re-exported; a borrowed result is answered owned (`&str`
 //! is `String`, `&[T]` is `Vec<T>`, `&T` is `T`); a result is a `Result<_,
 //! ExtError>` (`Result<T, NotCharacters>`, which crosses as an error of kind
@@ -91,11 +93,12 @@ pub const GENERATED_RS: &str = "src/guest/generated.rs";
 const PRELUDE: &[&str] = &["Value", "Handle", "HandleKind", "JsonForm", "ExtError", "Result", "Option", "Vec", "String", "Self", "Into", "IntoIterator", "Item"];
 
 /// The guest's own type a row of `GUEST_OWN` stands for: its own name, but
-/// for the two rows of the one own `CompiledTemplate`.
+/// for the two rows of the one own `CompiledTemplate`, and for the list and
+/// the slice of a list sequence, its class (`Nodes`).
 fn own_name(row: &str) -> &str {
     match row {
         "Box<dyn CompiledTemplate>" | "DurableTemplateFacade" => "CompiledTemplate",
-        other => other,
+        other => mapping::list_of(other).map_or(other, |list| list.class()),
     }
 }
 
@@ -169,7 +172,12 @@ impl Sig {
     /// The argument list of the request: each parameter converted by
     /// `ToArg::arg`.
     fn args(&self) -> String {
-        let args: Vec<String> = self
+        format!("vec![{}]", self.arg_values().join(", "))
+    }
+
+    /// Each parameter converted by `ToArg::arg`, in order.
+    fn arg_values(&self) -> Vec<String> {
+        self
             .params
             .iter()
             .map(|(name, ty)| {
@@ -180,14 +188,13 @@ impl Sig {
                 } else if let Some(target) = ty.strip_prefix("impl Into<").and_then(|rest| rest.strip_suffix('>')) {
                     format!("&Into::<{target}>::into({name})")
                 } else if let Some(item) = ty.strip_prefix("impl IntoIterator<Item = ").and_then(|rest| rest.strip_suffix('>')) {
-                    format!("&{name}.into_iter().collect::<Vec<{item}>>()")
+                    format!("&{}", collected(name, item))
                 } else {
                     format!("&{name}")
                 };
                 format!("ToArg::arg({value})")
             })
-            .collect();
-        format!("vec![{}]", args.join(", "))
+            .collect()
     }
 
     /// The body's lines after the request `request` (an expression answering
@@ -270,12 +277,17 @@ struct Surface<'a> {
 }
 
 impl<'a> Surface<'a> {
-    /// Reads the homes: an item's name is at home in the first module that
-    /// holds it (every module of the guest holds the names it re-exports); a
-    /// type of `GUEST_OWN` that no module holds, in the first module whose
-    /// items name it.
+    /// Reads the homes: a list sequence's class is at home in the module of
+    /// its row; an item's name in the first module that holds it (every
+    /// module of the guest holds the names it re-exports); a type of
+    /// `GUEST_OWN` that no module holds, in the first module whose items name
+    /// it.
     fn new(inventory: &'a Inventory) -> Surface<'a> {
         let mut homes = BTreeMap::new();
+        // A list sequence's class is at home in the module of its row.
+        for list in mapping::LISTS {
+            homes.insert(list.class().to_string(), list.module.to_string());
+        }
         for (module, item) in inventory.items() {
             if offered(item) {
                 homes.entry(item.name.clone()).or_insert_with(|| module.path.clone());
@@ -397,6 +409,9 @@ fn item_types(item: &Item) -> Vec<String> {
         ItemKind::Function(function) => add(function),
         _ => {}
     }
+    if let Some(items) = mapping::kind_of(&item.name).and_then(mapping::KindRow::pulls) {
+        out.push(items.to_string());
+    }
     if let ItemKind::Type { fields, .. } = &item.kind {
         out.extend(fields.iter().map(|field| field.ty.clone()));
     }
@@ -448,7 +463,7 @@ pub fn emit(inventory: &Inventory) -> String {
          \x20   #[cfg(feature = \"native\")]\n\
          \x20   pub(crate) use crate::adapter::typed::{FromApi, IntoApi};\n\
          \x20   #[cfg(feature = \"native\")]\n\
-         \x20   pub(crate) use crate::adapter::values::mismatch;\n\
+         \x20   pub(crate) use crate::adapter::values::{mismatch, Group};\n\
          }\n",
     );
     // Every module path and the folders above it.
@@ -756,13 +771,16 @@ struct Typed {
     method: String,
     /// The lines inside the closure.
     lines: Vec<String>,
+    /// Whether the body reads the count `unhanded` of a traversal's
+    /// method ([`ArmPlan::unhanded`]), which the request sends last.
+    unhanded: bool,
 }
 
 impl Typed {
     /// A typed body written in the mapping table (an arm of `HAND_ARMS` or an
     /// extra of `EXTRA_METHODS`): its lines.
     fn written(method: &str, text: &str) -> Typed {
-        Typed { method: method.to_string(), lines: text.lines().map(str::to_string).collect() }
+        Typed { method: method.to_string(), lines: text.lines().map(str::to_string).collect(), unhanded: false }
     }
 
     /// The typed body of the request `plan`, the dispatcher's arm with the
@@ -799,7 +817,7 @@ impl Typed {
             .collect();
         lines.extend(plan.take_and_call(handle, &passed, &format!("\"{method}\"")));
         lines.push(if plan.unit { "Ok(())".to_string() } else { "FromApi::from_api(answer, table)".to_string() });
-        Typed { method: method.to_string(), lines }
+        Typed { method: method.to_string(), lines, unhanded: plan.unhanded }
     }
 }
 
@@ -816,9 +834,19 @@ fn prepared(name: &str, ty: &str) -> Option<String> {
         return Some(format!("let {local} = Into::<{target}>::into({name});"));
     }
     if let Some(item) = ty.strip_prefix("impl IntoIterator<Item = ").and_then(|rest| rest.strip_suffix('>')) {
-        return Some(format!("let {local} = {name}.into_iter().collect::<Vec<{item}>>();"));
+        return Some(format!("let {local} = {};", collected(name, item)));
     }
     (local != name).then(|| format!("let {local} = {name};"))
+}
+
+/// The expression that collects the parameter `name`, an `impl
+/// IntoIterator<Item = ITEM>`, into a `Vec`: of `T` for an item `impl
+/// Into<T>`, each item converted, else of `ITEM`.
+fn collected(name: &str, item: &str) -> String {
+    match item.strip_prefix("impl Into<").and_then(|rest| rest.strip_suffix('>')) {
+        Some(target) => format!("{name}.into_iter().map(Into::into).collect::<Vec<{target}>>()"),
+        None => format!("{name}.into_iter().collect::<Vec<{item}>>()"),
+    }
 }
 
 /// Whether the guest's borrowed type `ty` (`&T`, `&[T]`) is plain data,
@@ -901,7 +929,15 @@ fn method_typed(kind: &'static KindRow, owner: &str, method: &Function, sig: &Si
         return typed;
     }
     assert!(
-        matches!(kind.receiver, mapping::Receiver::LentRef | mapping::Receiver::LentMut | mapping::Receiver::Boxed | mapping::Receiver::Cloned),
+        matches!(
+            kind.receiver,
+            mapping::Receiver::LentRef
+                | mapping::Receiver::LentMut
+                | mapping::Receiver::Boxed
+                | mapping::Receiver::Cloned
+                | mapping::Receiver::Pulled(_)
+                | mapping::Receiver::Indexed(_)
+        ),
         "the method `{owner}::{}` of the kind `{}` must have a hand-written arm with a typed body: the dispatcher generates no arm for its kind",
         method.name,
         kind.kind
@@ -927,6 +963,14 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
     let name = &item.name;
     let kind = mapping::kind_of(name).unwrap_or_else(|| panic!("the item `{name}` of `{}` must have a kind row", module.file));
     let handle_kind = variant(kind.kind);
+    if let Some(items) = kind.pulls() {
+        let mut out = match kind.receiver {
+            mapping::Receiver::Indexed(_) => sequence_struct(surface, item, kind, items, indent, used),
+            _ => traversal_struct(surface, item, kind, items, indent, used),
+        };
+        out.push_str(&methods_block(surface, module, item, kind, indent, used));
+        return out;
+    }
     let mut out = doc(&item.doc, indent);
     let _ = writeln!(out, "{indent}#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
     let _ = writeln!(out, "{indent}pub struct {name} {{");
@@ -961,6 +1005,16 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
         let _ = writeln!(out, "{indent}    }}");
     }
     let _ = writeln!(out, "{indent}}}");
+    out.push_str(&methods_block(surface, module, item, kind, indent, used));
+    out
+}
+
+/// The `impl` block of the methods of the handle kind `kind`, whose struct
+/// is `item`: its forwarding methods, its constructors and its extras; empty
+/// when it has none.
+fn methods_block(surface: &Surface<'_>, module: &Module, item: &Item, kind: &'static KindRow, indent: &str, used: &mut BTreeSet<String>) -> String {
+    let name = &item.name;
+    let mut out = String::new();
     let inner = format!("{indent}    ");
     let mut body = Vec::new();
     for method in methods(item) {
@@ -1020,8 +1074,143 @@ fn handle_struct(surface: &Surface<'_>, module: &Module, item: &Item, indent: &s
     out
 }
 
-/// A forwarding method on `self.handle`, its typed body `typed`.
+/// The struct of the traversal kind `kind`, whose items are of the
+/// (normalized) type `items`: its handle and the items pulled and not handed
+/// over yet ([`abi::Pulled`]), its `JsonForm` (the `@handle` form, its kind
+/// checked), and its `Iterator` of `Result`s, whose `next` pulls a group when
+/// the last one is spent, by either body (a request `pull`, or the typed
+/// body that takes the items from the traversal's entry).
+fn traversal_struct(surface: &Surface<'_>, item: &Item, kind: &KindRow, items: &str, indent: &str, used: &mut BTreeSet<String>) -> String {
+    let name = &item.name;
+    let handle_kind = variant(kind.kind);
+    let items = surface.ty(items, true, used);
+    let mut out = doc(&item.doc, indent);
+    let _ = writeln!(out, "{indent}#[derive(Debug)]");
+    let _ = writeln!(out, "{indent}pub struct {name} {{");
+    let _ = writeln!(out, "{indent}    /// The handle the host lent for it.");
+    let _ = writeln!(out, "{indent}    pub(crate) handle: Handle,");
+    let _ = writeln!(out, "{indent}    /// The items pulled and not handed over yet.");
+    let _ = writeln!(out, "{indent}    pub(crate) pulled: abi::Pulled<{items}>,");
+    let _ = writeln!(out, "{indent}}}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}impl JsonForm for {name} {{");
+    let _ = writeln!(out, "{indent}    fn to_value(&self) -> Value {{");
+    let _ = writeln!(out, "{indent}        handle_to_value(self.handle)");
+    let _ = writeln!(out, "{indent}    }}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}    fn from_value(value: &Value) -> Result<Self, ExtError> {{");
+    let _ = writeln!(out, "{indent}        Ok({name} {{ handle: abi::handle_of(value, HandleKind::{handle_kind})?, pulled: abi::Pulled::default() }})");
+    let _ = writeln!(out, "{indent}    }}");
+    let _ = writeln!(out, "{indent}}}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}impl Iterator for {name} {{");
+    let _ = writeln!(out, "{indent}    type Item = Result<{items}, ExtError>;");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}    fn next(&mut self) -> Option<Result<{items}, ExtError>> {{");
+    let _ = writeln!(out, "{indent}        let handle = self.handle;");
+    let _ = writeln!(out, "{indent}        self.pulled.next(|max| {{");
+    let _ = writeln!(out, "{indent}            #[cfg(not(feature = \"native\"))]");
+    let _ = writeln!(out, "{indent}            {{");
+    let _ = writeln!(out, "{indent}                let reply = abi::call(handle, \"pull\", vec![ToArg::arg(&max)])?;");
+    let _ = writeln!(out, "{indent}                JsonForm::from_value(&reply)");
+    let _ = writeln!(out, "{indent}            }}");
+    let _ = writeln!(out, "{indent}            #[cfg(feature = \"native\")]");
+    let _ = writeln!(out, "{indent}            {{");
+    let _ = writeln!(out, "{indent}                abi::typed(\"pull\", |table| {{");
+    for line in rust_out::pull_lines(kind, "handle", &["max"]) {
+        let _ = writeln!(out, "{indent}                    {line}");
+    }
+    let _ = writeln!(out, "{indent}                    FromApi::from_api(Group(answer), table)");
+    let _ = writeln!(out, "{indent}                }})");
+    let _ = writeln!(out, "{indent}            }}");
+    let _ = writeln!(out, "{indent}        }})");
+    let _ = writeln!(out, "{indent}    }}");
+    let _ = writeln!(out, "{indent}}}");
+    out
+}
+
+/// The struct of the sequence kind `kind`, whose items are of the
+/// (normalized) type `items`: its handle and its length, its `JsonForm` (the
+/// `@handle` form, its kind checked and its length read), and the methods
+/// that need no crossing: `len`, `is_empty`, and `iter`, an iterator of
+/// `Result`s that pulls the items in groups ([`abi::Paged`]) by either body
+/// (a request `pull`, or the typed body that reads the group from the
+/// sequence's entry).
+fn sequence_struct(surface: &Surface<'_>, item: &Item, kind: &KindRow, items: &str, indent: &str, used: &mut BTreeSet<String>) -> String {
+    let name = &item.name;
+    let handle_kind = variant(kind.kind);
+    let items = surface.ty(items, true, used);
+    let mut out = doc(&item.doc, indent);
+    let _ = writeln!(out, "{indent}#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+    let _ = writeln!(out, "{indent}pub struct {name} {{");
+    let _ = writeln!(out, "{indent}    /// The handle the host lent for it.");
+    let _ = writeln!(out, "{indent}    pub(crate) handle: Handle,");
+    let _ = writeln!(out, "{indent}    /// The number of its items, which crossed with the handle.");
+    let _ = writeln!(out, "{indent}    pub(crate) len: usize,");
+    let _ = writeln!(out, "{indent}}}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}impl JsonForm for {name} {{");
+    let _ = writeln!(out, "{indent}    fn to_value(&self) -> Value {{");
+    let _ = writeln!(out, "{indent}        handle_to_value(self.handle)");
+    let _ = writeln!(out, "{indent}    }}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}    fn from_value(value: &Value) -> Result<Self, ExtError> {{");
+    let _ = writeln!(out, "{indent}        let (handle, len) = abi::sequence_of(value, HandleKind::{handle_kind})?;");
+    let _ = writeln!(out, "{indent}        Ok({name} {{ handle, len }})");
+    let _ = writeln!(out, "{indent}    }}");
+    let _ = writeln!(out, "{indent}}}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}impl {name} {{");
+    let _ = writeln!(out, "{indent}    /// The number of items, with no crossing.");
+    let _ = writeln!(out, "{indent}    pub fn len(&self) -> usize {{");
+    let _ = writeln!(out, "{indent}        self.len");
+    let _ = writeln!(out, "{indent}    }}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}    /// Whether it has no item, with no crossing.");
+    let _ = writeln!(out, "{indent}    pub fn is_empty(&self) -> bool {{");
+    let _ = writeln!(out, "{indent}        self.len == 0");
+    let _ = writeln!(out, "{indent}    }}");
+    out.push('\n');
+    let _ = writeln!(out, "{indent}    /// The items, in order, pulled from the host in groups: an item is a `Result`, since a pull crosses.");
+    let _ = writeln!(out, "{indent}    pub fn iter(&self) -> impl Iterator<Item = Result<{items}, ExtError>> {{");
+    let _ = writeln!(out, "{indent}        let handle = self.handle;");
+    let _ = writeln!(out, "{indent}        abi::Paged::new(self.len, move |from| {{");
+    let _ = writeln!(out, "{indent}            #[cfg(not(feature = \"native\"))]");
+    let _ = writeln!(out, "{indent}            {{");
+    let _ = writeln!(
+        out,
+        "{indent}                let reply = abi::call(handle, \"pull\", vec![ToArg::arg(&from), ToArg::arg(&abi::PULL_GROUP), ToArg::arg(&abi::PULL_BYTES)])?;"
+    );
+    let _ = writeln!(out, "{indent}                JsonForm::from_value(&reply)");
+    let _ = writeln!(out, "{indent}            }}");
+    let _ = writeln!(out, "{indent}            #[cfg(feature = \"native\")]");
+    let _ = writeln!(out, "{indent}            {{");
+    let _ = writeln!(out, "{indent}                abi::typed(\"pull\", |table| {{");
+    for line in rust_out::pull_lines(kind, "handle", &["from", "abi::PULL_GROUP", "abi::PULL_BYTES"]) {
+        let _ = writeln!(out, "{indent}                    {line}");
+    }
+    let _ = writeln!(out, "{indent}                    FromApi::from_api(Group(answer), table)");
+    let _ = writeln!(out, "{indent}                }})");
+    let _ = writeln!(out, "{indent}            }}");
+    let _ = writeln!(out, "{indent}        }})");
+    let _ = writeln!(out, "{indent}    }}");
+    let _ = writeln!(out, "{indent}}}");
+    out
+}
+
+/// A forwarding method on `self.handle`, its typed body `typed`; for a
+/// traversal's method, the count `unhanded` ([`abi::Pulled`]'s `held`) sent
+/// last and read by the typed body.
 fn method_text(sig: &Sig, doc_text: &str, rehearsable: bool, typed: &Typed, indent: &str) -> String {
+    if typed.unhanded {
+        // A traversal's method sends, last, the count of the items its
+        // struct pulled and has not handed over; the typed body reads the
+        // same local.
+        let mut values = sig.arg_values();
+        values.push("ToArg::arg(&unhanded)".to_string());
+        let request = format!("abi::call(self.handle, \"{}\", vec![{}])", sig.name, values.join(", "));
+        return function_text(sig, doc_text, &request, typed, Some("let unhanded = self.pulled.held();"), "", indent);
+    }
     let args = sig.args();
     if rehearsable {
         assert_eq!(sig.output, "Result<(), ExtError>", "a method of a rehearsable kind must answer nothing: `{}`", sig.name);

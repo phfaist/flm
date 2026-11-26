@@ -1,4 +1,4 @@
-//! The `graphics` feature (`flm_core::stdcore::features::graphics`) on the
+//! The `graphics` feature (`flm_core::stdlib::features::graphics`) on the
 //! text and HTML backends: the image staged from `\includegraphics` (test 1),
 //! its options and their refusals (test 2), a path read as characters (test
 //! 3), the record and the inspector (test 4), the size an image is shown at
@@ -16,7 +16,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use flm_core::core::lowering::{DefaultMark, LowerError, Lowering};
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{
+    FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs, UnresolvedPeer,
+};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::mint::{ArgDef, BodyDef};
 use flm_core::lang::rewrites::userdefs::Definition;
@@ -24,32 +26,34 @@ use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::addr::TreeId;
 use flm_core::model::names::ElementName;
-use flm_core::stdcore::backends::lowering::lower_run;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::lowering::lower_run;
+use flm_core::stdlib::backends::pres::{
     self, BlockPayload, I48F16, ImageDisplay, ImagePayload, Length, LengthUnit, payload_of,
 };
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::floats::{FloatType, FloatsConfig};
-use flm_core::stdcore::features::graphics::{
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::floats::{FloatType, FloatsConfig};
+use flm_core::stdlib::features::graphics::{
     self, Dimensions, GraphicsConfig, GraphicsInspectError, GraphicsInspectRequest,
     Factor, GraphicsInspectedInformation, GraphicsInspector, GraphicsRecord, GraphicsRenderOptions,
     INCLUDEGRAPHICS_PACKAGE, INFO, INSPECTOR_SLOT, Magnification, PixelSize,
 };
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::error::Severity;
 
 use common::lowering::{lowered, text as printed};
-use common::stdcore::{identifiers, reports, reports_but_unknown_size, run_workflow};
+use common::stdlib::{
+    UNCHECKED_OUTPUT, identifier_and_data, identifiers, reports, reports_but_unknown_size, run_workflow,
+};
 
 // ---------------------------------------------------------------------------------------------
 // registries, runs and what a run staged
 // ---------------------------------------------------------------------------------------------
 
 /// The configuration under which `\includegraphics` is an ordinary command.
-fn global() -> StdcoreConfig {
-    StdcoreConfig::new().graphics(GraphicsConfig::new().global(true))
+fn global() -> StdlibConfig {
+    StdlibConfig::new().graphics(GraphicsConfig::new().global(true))
 }
 
 /// A test inspector: an answer, or an error, per path; a path it does not
@@ -72,12 +76,12 @@ impl GraphicsInspector for TestInspector {
 /// The registry of the standard package under `config`, with `features`
 /// added after it and `inspector` contributed to the slot where given.
 fn registry_with(
-    config: StdcoreConfig,
+    config: StdlibConfig,
     features: Vec<Arc<dyn FlmFeature>>,
     inspector: Option<TestInspector>,
 ) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(config));
+    builder.use_package(add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     for feature in features {
         builder.feature(feature);
@@ -137,6 +141,12 @@ fn dims(width: &str, height: &str) -> Dimensions {
 /// A report of the feature: `flm.graphics.<condition>` at `severity`.
 fn report(condition: &str, severity: Severity) -> (String, Severity) {
     (format!("flm.graphics.{condition}"), severity)
+}
+
+/// The Warning a run of the page or the recomposed LaTeX reports for the
+/// unchecked formulas of `math-passthrough`, before the run's own reports.
+fn unchecked() -> (String, Severity) {
+    (UNCHECKED_OUTPUT.to_string(), Severity::Warning)
 }
 
 /// The Warning every accepted `width=` or `height=` draws.
@@ -250,44 +260,37 @@ fn a_dimension_in_em_or_tab_is_refused_whatever_the_inspector_reports() {
 }
 
 #[test]
-fn each_message_states_the_condition() {
+fn each_report_carries_the_facts_of_its_condition() {
     let run = render(
         &std_global(),
         text::WORKFLOW,
         "\\includegraphics[foo=1, width=1.5em, height=300px, alt=a, alt=b, width=2cm]{p.png}",
     );
-    let messages: Vec<String> = run.diagnostics().iter().map(|d| d.message().to_string()).collect();
+    let found: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
     assert_eq!(
-        messages,
+        found,
         [
-            "\\includegraphics accepts only the options `alt`, `width` and `height`, not `foo`",
-            "the `width` of an image must be given in pt, mm, cm or in, not in `em`",
-            "the `height` of an image must be a number followed directly by one of the units pt, \
-             mm, cm or in, such as `5cm`, not `300px`",
-            "the option `alt` of \\includegraphics may be given only once",
-            "the option `width` of \\includegraphics may be given only once",
-            "the size of the image `p.png` must be known from its file or given with `width` or \
-             `height`",
+            "flm.graphics.unknown-key {\"key\":\"foo\"}",
+            "flm.graphics.relative-unit {\"key\":\"width\",\"unit\":\"em\"}",
+            "flm.graphics.not-a-length {\"key\":\"height\",\"value\":\"300px\"}",
+            "flm.graphics.repeated-key {\"key\":\"alt\"}",
+            "flm.graphics.repeated-key {\"key\":\"width\"}",
+            "flm.graphics.unknown-size {\"path\":\"p.png\"}",
         ]
     );
     let run = render(&std_global(), text::WORKFLOW, "\\includegraphics[alt, =1cm]{p.png}");
-    let messages: Vec<String> = run.diagnostics().iter().map(|d| d.message().to_string()).collect();
+    let found: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
     assert_eq!(
-        messages,
+        found,
         [
-            "the option `alt` of \\includegraphics must be given a value",
-            "each option of \\includegraphics must give its key before `=`",
-            "the size of the image `p.png` must be known from its file or given with `width` or \
-             `height`",
+            "flm.graphics.missing-value {\"key\":\"alt\"}",
+            "flm.graphics.missing-key {}",
+            "flm.graphics.unknown-size {\"path\":\"p.png\"}",
         ]
     );
     let run = render(&std_global(), text::WORKFLOW, "\\includegraphics[width=2cm]{p.png}");
-    let messages: Vec<String> = run.diagnostics().iter().map(|d| d.message().to_string()).collect();
-    assert_eq!(
-        messages,
-        ["an image file should be prepared at the size it is shown at, rather than resized with \
-          `width=`"]
-    );
+    let found: Vec<String> = run.diagnostics().iter().map(identifier_and_data).collect();
+    assert_eq!(found, ["flm.graphics.resized {\"key\":\"width\"}"]);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -379,7 +382,7 @@ fn without_an_inspector_a_record_holds_the_path_the_origin_and_no_answer() {
     let mut content = DocContent::new();
     content.place(Arc::new(parsed));
     let doc = Arc::new(Doc::new(content));
-    let plan = common::stdcore::plan(&registry, text::WORKFLOW, &Overrides::none());
+    let plan = common::stdlib::plan(&registry, text::WORKFLOW, &Overrides::none());
     let run = common::pipeline::run_with(&doc, &plan, Externals::none(), &RunOptions::sequential());
     assert_eq!(identifiers(&run), ["flm.graphics.unknown-size"]);
     let found = records(&run);
@@ -471,8 +474,9 @@ fn no_resolution_is_taken_at_96_with_one_warning_per_image() {
         );
     }
     assert!(
-        run.diagnostics().iter().all(|d| d.message() == "the image file `bare.png` should state its \
-                                                          resolution in dots per inch"),
+        run.diagnostics().iter().all(|d| {
+            identifier_and_data(d) == "flm.graphics.assumed-resolution {\"path\":\"bare.png\"}"
+        }),
         "{}",
         run.diagnostics().render_all()
     );
@@ -502,7 +506,7 @@ fn an_image_shown_again_by_a_reference_reports_at_each_showing() {
     for workflow in [text::WORKFLOW, html::WORKFLOW] {
         let asked = Arc::new(AtomicUsize::new(0));
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(global()));
+        builder.use_package(add_features(PackageEntry::new("std"), global()));
         builder.use_package(flm_core::math_passthrough::package());
         let inspector = Counting(test_four_inspector(), Arc::clone(&asked));
         builder.contribute_to(INSPECTOR_SLOT, Arc::new(inspector) as Arc<dyn GraphicsInspector>);
@@ -511,9 +515,14 @@ fn an_image_shown_again_by_a_reference_reports_at_each_showing() {
         let mut found = reports_of(&run);
         found.sort();
         let assumed = report("assumed-resolution", Severity::Warning);
+        let mut expected = vec![assumed.clone(), assumed.clone(), assumed, resized(), resized(), resized()];
+        if workflow == html::WORKFLOW {
+            expected.push(unchecked());
+        }
+        expected.sort();
         assert_eq!(
             found,
-            [assumed.clone(), assumed.clone(), assumed, resized(), resized(), resized()],
+            expected,
             "{workflow}: {}",
             run.diagnostics().render_all()
         );
@@ -523,15 +532,14 @@ fn an_image_shown_again_by_a_reference_reports_at_each_showing() {
         let first = document.find("\\ref{sec:c}").expect("a first reference");
         let second = document.rfind("\\ref{sec:c}").expect("a second reference");
         for condition in ["assumed-resolution", "resized"] {
-            let mut shown: Vec<Vec<(String, usize)>> = reports_of(&run)
+            let mut shown: Vec<Vec<usize>> = reports_of(&run)
                 .into_iter()
-                .zip(common::stdcore::frames(&run))
+                .zip(common::stdlib::frames(&run))
                 .filter(|(found, _)| found.0.ends_with(condition))
                 .map(|(_, frames)| frames)
                 .collect();
             shown.sort();
-            let at = |offset| vec![(String::from(common::stdcore::SHOWN_HERE), offset)];
-            assert_eq!(shown, [vec![], at(first), at(second)], "{workflow}: {condition}");
+            assert_eq!(shown, [vec![], vec![first], vec![second]], "{workflow}: {condition}");
         }
     }
 }
@@ -539,20 +547,19 @@ fn an_image_shown_again_by_a_reference_reports_at_each_showing() {
 #[test]
 fn an_answer_that_cannot_be_recorded_is_one_error_naming_the_path() {
     let registry = inspected(test_four_inspector());
-    for (path, condition, message) in [
-        ("broken.png", "inspect-failed", "the image file `broken.png` could not be examined: not an image file"),
-        ("missing.png", "inspect-failed", "the image file `missing.png` could not be examined: no such file"),
-        ("empty.png", "no-pixel-size", "the size in pixels reported for the image file `empty.png` must be greater than zero"),
-        (
-            "ems.svg",
-            "inspected-size-not-physical",
-            "the size reported for the image file `ems.svg` must be in pt, mm, cm or in, not in `em`",
-        ),
+    for (path, condition, data) in [
+        ("broken.png", "inspect-failed", "{\"path\":\"broken.png\",\"detail\":\"not an image file\"}"),
+        ("missing.png", "inspect-failed", "{\"path\":\"missing.png\",\"detail\":\"no such file\"}"),
+        ("empty.png", "no-pixel-size", "{\"path\":\"empty.png\"}"),
+        ("ems.svg", "inspected-size-not-physical", "{\"path\":\"ems.svg\",\"unit\":\"em\"}"),
     ] {
         let run = render(&registry, text::WORKFLOW, &format!("\\includegraphics{{{path}}}"));
         // Nothing recorded, the image's size is not known.
         assert_eq!(reports_of(&run), [report(condition, Severity::Error), unknown_size()], "{path}");
-        assert_eq!(run.diagnostics().iter().next().map(|d| d.message().to_string()).as_deref(), Some(message));
+        assert_eq!(
+            run.diagnostics().iter().next().map(identifier_and_data),
+            Some(format!("flm.graphics.{condition} {data}"))
+        );
         let found = records(&run);
         assert_eq!((found[0].path.as_str(), found[0].inspected), (path, None));
         // The image is still shown.
@@ -609,7 +616,7 @@ fn each_output_magnifies_raster_and_vector_images_by_its_own_factors() {
     let overrides = magnified(html::BACKEND, 1.5, 0.5);
     let page = |overrides: &Overrides| {
         let run = run_workflow(&registry, html::WORKFLOW, &[document], overrides);
-        assert_eq!(reports_of(&run), [resized()], "{}", run.diagnostics().render_all());
+        assert_eq!(reports_of(&run), [unchecked(), resized()], "{}", run.diagnostics().render_all());
         common::html::fragment(&run)
     };
     let shown = page(&overrides);
@@ -657,9 +664,8 @@ fn an_image_of_unknown_size_is_reported_on_every_output() {
     }
     let run = render(&registry, text::WORKFLOW, "\\includegraphics{https://example.org/a.png}");
     assert_eq!(
-        run.diagnostics().iter().map(|d| d.message().to_string()).collect::<Vec<_>>(),
-        ["the size of the image `https://example.org/a.png` must be known from its file or given \
-          with `width` or `height`"]
+        run.diagnostics().iter().map(identifier_and_data).collect::<Vec<_>>(),
+        ["flm.graphics.unknown-size {\"path\":\"https://example.org/a.png\"}"]
     );
     // A dimension given, or a size inspected, is a known size.
     for document in ["\\includegraphics[width=1cm]{https://example.org/a.png}", "\\includegraphics{drawing.svg}"] {
@@ -719,7 +725,7 @@ fn a_refused_address_scheme_is_reported_and_writes_no_src() {
     let run = render(&std_global(), html::WORKFLOW, "\\includegraphics{javascript:alert(1)}");
     assert_eq!(
         reports_but_unknown_size(&run),
-        [(String::from("flm.html.refused-address"), Severity::Error)],
+        [unchecked(), (String::from("flm.html.refused-address"), Severity::Error)],
         "{}",
         run.diagnostics().render_all()
     );
@@ -789,12 +795,12 @@ fn an_image_in_a_caption_is_inline_on_the_three_backends() {
         [(String::from("a.png"), ImageDisplay::Block), (String::from("i.png"), ImageDisplay::Inline)]
     );
     let run = render(&registry, html::WORKFLOW, document);
-    assert_eq!(reports_but_unknown_size(&run), []);
+    assert_eq!(reports_but_unknown_size(&run), [unchecked()]);
     let page = common::html::fragment(&run);
     assert!(page.contains("<img class=\"flm-pres-block flm-pres-image\" src=\"a.png\">"), "{page}");
     assert!(page.contains("A plot <img class=\"flm-pres-image\" src=\"i.png\">"), "{page}");
     let run = render(&registry, latex_recomposed::WORKFLOW, document);
-    assert_eq!(reports_but_unknown_size(&run), []);
+    assert_eq!(reports_but_unknown_size(&run), [unchecked()]);
     let latex = common::latex::body(&run);
     assert!(latex.contains("A plot \\flmIncludeGraphics{i.png}"), "{latex}");
 }
@@ -827,7 +833,7 @@ fn picturebox() -> Arc<dyn FlmFeature> {
 
 #[test]
 fn under_the_default_the_command_exists_only_in_a_body_naming_its_package() {
-    let registry = registry_with(StdcoreConfig::new(), vec![picturebox()], None);
+    let registry = registry_with(StdlibConfig::new(), vec![picturebox()], None);
     let run = render(&registry, text::WORKFLOW, "\\begin{picturebox}\\includegraphics{a.png}\\end{picturebox}");
     assert_eq!(reports_but_unknown_size(&run), [], "{}", run.diagnostics().render_all());
     assert_eq!(images(&run).len(), 1);
@@ -863,15 +869,11 @@ fn an_empty_path_is_an_error_and_shows_no_image() {
     for document in ["\\includegraphics{}", "\\includegraphics[width=5cm]{}", "A\n\n\\includegraphics{}\n\nB"] {
         let run = render(&registry, text::WORKFLOW, document);
         assert_eq!(reports_of(&run), [report("empty-path", Severity::Error)], "{document}");
-        assert_eq!(
-            run.diagnostics().iter().next().map(|d| d.message().to_string()).as_deref(),
-            Some("the path of an image must not be empty")
-        );
         assert!(images(&run).is_empty(), "{document}");
         assert!(records(&run).is_empty(), "{document}");
         assert!(!printed(&run).contains("[image"), "{document}");
         let run = render(&registry, html::WORKFLOW, document);
-        assert_eq!(reports_of(&run), [report("empty-path", Severity::Error)], "{document}");
+        assert_eq!(reports_of(&run), [unchecked(), report("empty-path", Severity::Error)], "{document}");
         assert!(!common::html::fragment(&run).contains("<img"), "{document}");
     }
 }
@@ -879,17 +881,13 @@ fn an_empty_path_is_an_error_and_shows_no_image() {
 #[test]
 fn a_registry_without_a_backend_builds_and_shows_images_on_the_others() {
     for left_out in ["latex-recomposed", "html"] {
-        let registry = common::stdcore::registry_over(common::stdcore::package_features_but(global(), left_out));
-        let notes: Vec<String> = registry
+        let registry = common::stdlib::registry_over(common::stdlib::package_features_but(global(), left_out));
+        let peers: Vec<(&str, &str)> = registry
             .build_diagnostics()
-            .iter()
-            .filter(|d| d.severity() == Severity::Note)
-            .map(|d| d.to_string())
+            .conditions::<UnresolvedPeer>()
+            .map(|peer| (peer.feature.as_str(), peer.name.as_str()))
             .collect();
-        assert!(
-            notes.iter().any(|note| note.contains("`graphics`") && note.contains(left_out)),
-            "{left_out}: {notes:#?}"
-        );
+        assert!(peers.contains(&("graphics", left_out)), "{left_out}: {peers:#?}");
         let (image, reports) = one_image(&registry, "\\includegraphics{a.png}");
         assert_eq!((image.src.as_str(), reports), ("a.png", vec![unknown_size()]), "{left_out}");
     }
@@ -946,7 +944,7 @@ fn the_three_execution_settings_give_one_output() {
     ];
     let doc = common::pipeline::doc(&registry, &texts);
     for workflow in [text::WORKFLOW, html::WORKFLOW] {
-        let plan = common::stdcore::plan(&registry, workflow, &Overrides::none());
+        let plan = common::stdlib::plan(&registry, workflow, &Overrides::none());
         let outputs: Vec<(String, Vec<String>)> = [RunOptions::sequential(), RunOptions::new()]
         .iter()
         .map(|options| {
@@ -977,9 +975,9 @@ fn a_heading_holding_an_image_is_identified_from_its_words_alone() {
     let alone = id(&common::html::fragment(&render(&registry, html::WORKFLOW, "\\section{Results }\n\nText.")));
     assert!(alone.starts_with("sec--Results~"), "{alone}");
     for (image, expected) in [
-        ("\\includegraphics{x.png}", vec![unknown_size()]),
-        ("\\includegraphics[alt=A plot, width=5cm]{x.png}", vec![resized()]),
-        ("\\includegraphics[alt=A plot]{x.png}", vec![unknown_size()]),
+        ("\\includegraphics{x.png}", vec![unchecked(), unknown_size()]),
+        ("\\includegraphics[alt=A plot, width=5cm]{x.png}", vec![unchecked(), resized()]),
+        ("\\includegraphics[alt=A plot]{x.png}", vec![unchecked(), unknown_size()]),
     ] {
         let run = render(&registry, html::WORKFLOW, &format!("\\section{{Results {image}}}\n\nText."));
         // An image is inline content in a heading's title: legitimate.

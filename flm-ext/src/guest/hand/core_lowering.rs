@@ -26,7 +26,7 @@ use crate::guest::abi;
 use crate::guest::abi::ToArg;
 use crate::guest::core::lowering::{LowerCx, Lowerer, LoweringRule};
 use crate::guest::registry;
-use crate::guest::lang::rewrites::userdefs::Staged;
+use crate::guest::lang::rewrites::userdefs::StagedNodes;
 use crate::guest::techy::node::Node;
 use crate::runtime::ExtError;
 
@@ -88,10 +88,10 @@ pub enum Lowering {
     /// The rule's default lowering.
     Default,
     /// The node is lowered to these staged nodes.
-    Emit(Vec<Staged>),
+    Emit(StagedNodes),
 }
 
-/// `"default"` or `{"emit": [staged, …]}`; the host's `lowering_from_value`
+/// `"default"` or `{"emit": staged}`; the host's `lowering_from_value`
 /// and `lowering_to_value`.
 impl JsonForm for Lowering {
     fn to_value(&self) -> Value {
@@ -133,13 +133,14 @@ pub enum PresTree {
         /// Its children.
         children: Vec<PresTree>,
     },
-    /// A node staged already.
-    Build(Staged),
+    /// Nodes staged already, placed here in order.
+    Build(StagedNodes),
     /// A text.
     Text(String),
 }
 
-/// `{"element", "payload", "children"}`, `{"build": staged}` or `{"text":
+/// `{"element", "payload", "children"}`, `{"build": staged}` (`staged` a
+/// staged node, a sequence of staged nodes or a joined list) or `{"text":
 /// text}`; read by the host's `pres_tree_from_value`.
 impl JsonForm for PresTree {
     fn to_value(&self) -> Value {
@@ -156,7 +157,7 @@ impl JsonForm for PresTree {
         const WHAT: &str = "a presentation tree";
         let map = object(WHAT, value)?;
         if let (Some(build), 1) = (map.get("build"), map.len()) {
-            return Ok(PresTree::Build(Staged::from_value(build)?));
+            return Ok(PresTree::Build(StagedNodes::from_value(build)?));
         }
         if let (Some(Value::String(text)), 1) = (map.get("text"), map.len()) {
             return Ok(PresTree::Text(text.clone()));
@@ -194,8 +195,10 @@ impl<'c> IntoApi<'c> for &PresTree {
 
 /// Mirrors `flm-core`'s `NodeAddr`: the address of a node, its tree's
 /// identifier and the node's index in it. The guest's own: the api's holds
-/// `flm-core`'s node identifier, which only a tree makes.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// `flm-core`'s node identifier, which only a tree makes. Its serde form is
+/// its data form, `{"tree", "node"}`, so that a guest's own data can hold an
+/// address.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct NodeAddr {
     /// The tree's identifier.
     pub tree: String,

@@ -15,11 +15,11 @@ use flm_core::core::registry::{
 };
 use flm_core::core::run::Run;
 use flm_core::model::names::Name;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html::{BACKEND as HTML_BACKEND, WORKFLOW as HTML_WORKFLOW};
-use flm_core::stdcore::features::cells::{self, CellStyle, CellsConfig, STYLES_SLOT};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html::{BACKEND as HTML_BACKEND, WORKFLOW as HTML_WORKFLOW};
+use flm_core::stdlib::features::cells::{self, CellStyle, CellsConfig, STYLES_SLOT};
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow};
 
 // ---------------------------------------------------------------------------------------------
 // registries and runs
@@ -27,7 +27,7 @@ use common::stdcore::{identifiers, run_workflow};
 
 /// The standard package with the `cells` environment wherever blocks stand.
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().cells(CellsConfig::new().global(true)))
+    common::stdlib::registry(StdlibConfig::new().cells(CellsConfig::new().global(true)))
 }
 
 /// The run of the `html` workflow over `document`.
@@ -35,10 +35,11 @@ fn html_run(document: &str) -> Run {
     run_workflow(&registry(), HTML_WORKFLOW, &[document], &Overrides::none())
 }
 
-/// The HTML fragment of `document`; the run must report nothing.
+/// The HTML fragment of `document`; the run must report nothing but the
+/// Warnings of its plan's unchecked output.
 fn html_output(document: &str) -> String {
     let run = html_run(document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     common::html::fragment(&run)
 }
 
@@ -138,14 +139,14 @@ fn the_stylesheet_is_in_a_page_holding_a_table_once_and_in_no_other() {
         "\\begin{cells}\\celldata<H>{A & B}\\cell<green>{C}\\cell<green>{D}\\end{cells}\n\n\
          \\begin{cells}\\cell{E}\\end{cells}",
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let page = common::html::page(&run);
     let marker = format!("data-flm-def=\"{}\"", cells::STYLE);
     assert_eq!(page.matches(&marker).count(), 1, "{page}");
     common::html::assert_golden("cells.page.html", &page);
 
     let run = html_run("A paragraph.\n");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(common::html::page(&run).matches(&marker).count(), 0);
 }
 
@@ -185,16 +186,16 @@ impl FlmFeature for HostStyles {
 /// and the host's feature.
 fn host_run(document: &str) -> Run {
     let mut features =
-        common::stdcore::package_features_but(StdcoreConfig::new().cells(CellsConfig::new().global(true)), "");
+        common::stdlib::package_features_but(StdlibConfig::new().cells(CellsConfig::new().global(true)), "");
     features.push(Arc::new(HostStyles));
-    let registry = common::stdcore::registry_over(features);
+    let registry = common::stdlib::registry_over(features);
     run_workflow(&registry, HTML_WORKFLOW, &[document], &Overrides::none())
 }
 
 #[test]
 fn a_host_s_custom_styles_are_written_as_attributes_and_require_its_chunk() {
     let run = host_run("\\begin{cells}\\cell<orange bold>{A}\\cell<warn>{B}\\cell<orange>{C}\\end{cells}");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let page = common::html::page(&run);
     // Each style an attribute of its own, in the order of the tokens, the
     // feature writing no code of its own for any of them.
@@ -207,7 +208,7 @@ fn a_host_s_custom_styles_are_written_as_attributes_and_require_its_chunk() {
 
     // A table using none of the host's styles requires nothing of the host.
     let run = host_run("\\begin{cells}\\cell<green>{A}\\end{cells}");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(common::html::page(&run).matches(&marker).count(), 0);
 }
 
@@ -265,7 +266,7 @@ fn the_marks_of_a_table_stand_before_it_one_per_thing_left_out() {
     let run = html_run("\\begin{cells}\nHello world\n\\cell{A}\\cell[1]{B}\n\\end{cells}");
     assert_eq!(
         identifiers(&run),
-        ["flm.cells.content-outside-cell", "flm.cells.overlap"],
+        [UNCHECKED_OUTPUT, "flm.cells.content-outside-cell", "flm.cells.overlap"],
         "{}",
         run.diagnostics().render_all()
     );
@@ -290,7 +291,7 @@ fn the_marks_of_a_table_stand_before_it_one_per_thing_left_out() {
 #[test]
 fn a_mark_stands_where_a_command_out_of_place_stood() {
     let run = html_run("\\begin{cells}\\celldata{\\emph{a \\\\ b} & c}\\end{cells}");
-    assert_eq!(identifiers(&run), ["flm.cells.outside-table"], "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.cells.outside-table"], "{}", run.diagnostics().render_all());
     let html = common::html::fragment(&run);
     let inside = format!("<em class=\"flm-pres-span\" data-flm-style=\"emph\">a {} b</em>", mark("outside-table", "\\\\ out of place"));
     assert!(html.contains(&inside), "{html}");

@@ -1,5 +1,5 @@
 % ===== latex-recomposed:document =====
-% flm: style file flmrecomposed.f13c8ec7.sty
+% flm: style file flmrecomposed.3ecfa39a.sty
 \flmHeading[toc=true]
 \section{Theorems}{\flmLabels{}}
 
@@ -43,9 +43,9 @@ A sketch.
 
 See \flmRef{ref1}, \flmRef{ref2} and \flmRef{ref4}.
 %%
-% ===== latex-recomposed:style flmrecomposed.f13c8ec7.sty =====
+% ===== latex-recomposed:style flmrecomposed.3ecfa39a.sty =====
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.f13c8ec7}
+\ProvidesPackage{flmrecomposed.3ecfa39a}
 % --- packages ---
 % flm.latex.pkg.amsthm
 \RequirePackage{amsthm}
@@ -316,21 +316,21 @@ See \flmRef{ref1}, \flmRef{ref2} and \flmRef{ref4}.
 % th@theoremlike (the theorems feature's, written from its configuration): declared unless \th@theoremlike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@theoremlike\endcsname\else\newtheoremstyle{theoremlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % theorem (the theorems feature's, written from its configuration): declared unless \theorem is already defined, so a definition made earlier under that name is kept
-\ifcsname theorem\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{theorem}[flmtheorem]{Theorem}\endgroup\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems},Name-sg-ab={Thm.},name-sg-ab={Thm.},Name-pl-ab={Thms.},name-pl-ab={Thms.}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={flmtheorem=theorem}}}\fi
+\ifcsname theorem\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{theorem}[flmtheorem]{Theorem}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{theorem}{Name-sg={Theorem},name-sg={theorem},Name-pl={Theorems},name-pl={theorems},Name-sg-ab={Thm.},name-sg-ab={Thm.},Name-pl-ab={Thms.},name-pl-ab={Thms.}}\AddToHook{env/theorem/begin}{\zcsetup{countertype={flmtheorem=theorem}}}\fi
 % proof (the theorems feature's, written from its configuration): declared unless \proof is already defined, so a definition made earlier under that name is kept
 \ifcsname proof\endcsname\else\newenvironment{proof}[1][{Proof}]{\begin{proof}[{#1}]}{\end{proof}}\fi
 % lemma (the theorems feature's, written from its configuration): declared unless \lemma is already defined, so a definition made earlier under that name is kept
-\ifcsname lemma\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\endgroup\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={flmtheorem=lemma}}}\fi
+\ifcsname lemma\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{lemma}[flmtheorem]{Lemma}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{lemma}{Name-sg={Lemma},name-sg={lemma},Name-pl={Lemmas},name-pl={lemmas},Name-sg-ab={Lem.},name-sg-ab={Lem.},Name-pl-ab={Lems.},name-pl-ab={Lems.}}\AddToHook{env/lemma/begin}{\zcsetup{countertype={flmtheorem=lemma}}}\fi
 % proposition (the theorems feature's, written from its configuration): declared unless \proposition is already defined, so a definition made earlier under that name is kept
-\ifcsname proposition\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{proposition}[flmtheorem]{Proposition}\endgroup\zcRefTypeSetup{proposition}{Name-sg={Proposition},name-sg={proposition},Name-pl={Propositions},name-pl={propositions},Name-sg-ab={Prop.},name-sg-ab={Prop.},Name-pl-ab={Props.},name-pl-ab={Props.}}\AddToHook{env/proposition/begin}{\zcsetup{countertype={flmtheorem=proposition}}}\fi
+\ifcsname proposition\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{proposition}[flmtheorem]{Proposition}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{proposition}{Name-sg={Proposition},name-sg={proposition},Name-pl={Propositions},name-pl={propositions},Name-sg-ab={Prop.},name-sg-ab={Prop.},Name-pl-ab={Props.},name-pl-ab={Props.}}\AddToHook{env/proposition/begin}{\zcsetup{countertype={flmtheorem=proposition}}}\fi
 % corollary (the theorems feature's, written from its configuration): declared unless \corollary is already defined, so a definition made earlier under that name is kept
-\ifcsname corollary\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{corollary}[flmtheorem]{Corollary}\endgroup\zcRefTypeSetup{corollary}{Name-sg={Corollary},name-sg={corollary},Name-pl={Corollaries},name-pl={corollaries},Name-sg-ab={Cor.},name-sg-ab={Cor.},Name-pl-ab={Cors.},name-pl-ab={Cors.}}\AddToHook{env/corollary/begin}{\zcsetup{countertype={flmtheorem=corollary}}}\fi
+\ifcsname corollary\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{corollary}[flmtheorem]{Corollary}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{corollary}{Name-sg={Corollary},name-sg={corollary},Name-pl={Corollaries},name-pl={corollaries},Name-sg-ab={Cor.},name-sg-ab={Cor.},Name-pl-ab={Cors.},name-pl-ab={Cors.}}\AddToHook{env/corollary/begin}{\zcsetup{countertype={flmtheorem=corollary}}}\fi
 % conjecture (the theorems feature's, written from its configuration): declared unless \conjecture is already defined, so a definition made earlier under that name is kept
-\ifcsname conjecture\endcsname\else\begingroup\theoremstyle{theoremlike}\newtheorem{conjecture}[flmtheorem]{Conjecture}\endgroup\zcRefTypeSetup{conjecture}{Name-sg={Conjecture},name-sg={conjecture},Name-pl={Conjectures},name-pl={conjectures},Name-sg-ab={Conj.},name-sg-ab={Conj.},Name-pl-ab={Conjs.},name-pl-ab={Conjs.}}\AddToHook{env/conjecture/begin}{\zcsetup{countertype={flmtheorem=conjecture}}}\fi
+\ifcsname conjecture\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{theoremlike}\newtheorem{conjecture}[flmtheorem]{Conjecture}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{conjecture}{Name-sg={Conjecture},name-sg={conjecture},Name-pl={Conjectures},name-pl={conjectures},Name-sg-ab={Conj.},name-sg-ab={Conj.},Name-pl-ab={Conjs.},name-pl-ab={Conjs.}}\AddToHook{env/conjecture/begin}{\zcsetup{countertype={flmtheorem=conjecture}}}\fi
 % th@definitionlike (the theorems feature's, written from its configuration): declared unless \th@definitionlike is already defined, so a definition made earlier under that name is kept
 \ifcsname th@definitionlike\endcsname\else\newtheoremstyle{definitionlike}{}{}{\itshape}{}{\bfseries}{.}{5pt plus 1pt minus 1pt}{}\fi
 % definition (the theorems feature's, written from its configuration): declared unless \definition is already defined, so a definition made earlier under that name is kept
-\ifcsname definition\endcsname\else\begingroup\theoremstyle{definitionlike}\newtheorem{definition}[flmtheorem]{Definition}\endgroup\zcRefTypeSetup{definition}{Name-sg={Definition},name-sg={definition},Name-pl={Definitions},name-pl={definitions},Name-sg-ab={Def.},name-sg-ab={Def.},Name-pl-ab={Defs.},name-pl-ab={Defs.}}\AddToHook{env/definition/begin}{\zcsetup{countertype={flmtheorem=definition}}}\fi
+\ifcsname definition\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{definitionlike}\newtheorem{definition}[flmtheorem]{Definition}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{definition}{Name-sg={Definition},name-sg={definition},Name-pl={Definitions},name-pl={definitions},Name-sg-ab={Def.},name-sg-ab={Def.},Name-pl-ab={Defs.},name-pl-ab={Defs.}}\AddToHook{env/definition/begin}{\zcsetup{countertype={flmtheorem=definition}}}\fi
 % remark (the theorems feature's, written from its configuration): declared unless \remark is already defined, so a definition made earlier under that name is kept
-\ifcsname remark\endcsname\else\begingroup\theoremstyle{definitionlike}\newtheorem{remark}[flmtheorem]{Remark}\endgroup\zcRefTypeSetup{remark}{Name-sg={Remark},name-sg={remark},Name-pl={Remarks},name-pl={remarks},Name-sg-ab={Rem.},name-sg-ab={Rem.},Name-pl-ab={Rems.},name-pl-ab={Rems.}}\AddToHook{env/remark/begin}{\zcsetup{countertype={flmtheorem=remark}}}\fi
+\ifcsname remark\endcsname\else\edef\flm@thm@style{\the\thm@style}\theoremstyle{definitionlike}\newtheorem{remark}[flmtheorem]{Remark}\thm@style\expandafter{\flm@thm@style}\zcRefTypeSetup{remark}{Name-sg={Remark},name-sg={remark},Name-pl={Remarks},name-pl={remarks},Name-sg-ab={Rem.},name-sg-ab={Rem.},Name-pl-ab={Rems.},name-pl-ab={Rems.}}\AddToHook{env/remark/begin}{\zcsetup{countertype={flmtheorem=remark}}}\fi
 \endinput

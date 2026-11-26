@@ -8,20 +8,20 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::backends::{lowering, text};
-use flm_core::stdcore::check_feature;
-use flm_core::stdcore::features::blocks::Blocks;
-use flm_core::stdcore::features::{headings, index, refpoints, refs};
+use flm_core::stdlib::backends::{lowering, text};
+use flm_core::stdlib::check_feature;
+use flm_core::stdlib::features::blocks::Blocks;
+use flm_core::stdlib::features::{headings, index, refpoints, refs};
 
 use common::lowering::text as text_of;
-use common::stdcore::{identifiers, registry_over, run_workflow};
+use common::stdlib::{identifiers, registry_over, run_workflow};
 
 /// A registry over the `headings` feature, the `refs` and `index` features it
 /// needs, the lowering machinery, the text backend and the `blocks` feature.
 fn registry() -> Arc<FlmRegistry> {
     registry_over(vec![
         lowering::feature(),
-        flm_core::stdcore::backends::pieces::feature(),
+        flm_core::stdlib::backends::pieces::feature(),
         text::feature(),
         check_feature(),
         Arc::new(Blocks::default()),

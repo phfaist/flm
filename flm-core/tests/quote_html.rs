@@ -12,12 +12,12 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{DefContent, FlmRegistry};
 use flm_core::core::run::Run;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html::{DEFINITIONS_TABLE, WORKFLOW as HTML_WORKFLOW};
-use flm_core::stdcore::backends::html::conventions::{BLOCK_TAGS, block_tag};
-use flm_core::stdcore::features::quote::{self, QuoteConfig, QuoteEnvironment, QuoteSection};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html::{DEFINITIONS_TABLE, WORKFLOW as HTML_WORKFLOW};
+use flm_core::stdlib::backends::html::conventions::{BLOCK_TAGS, block_tag};
+use flm_core::stdlib::features::quote::{self, QuoteConfig, QuoteEnvironment, QuoteSection};
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, run_workflow};
 
 // ---------------------------------------------------------------------------------------------
 // registries and runs
@@ -25,7 +25,7 @@ use common::stdcore::{identifiers, run_workflow};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The run of the `html` workflow over `document`.
@@ -34,10 +34,10 @@ fn html_run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
 }
 
 /// The HTML fragment of `document` under the default configuration; the run
-/// must report nothing.
+/// must report nothing but the Warnings of its plan's unchecked output.
 fn html_output(document: &str) -> String {
     let run = html_run(&std(), document);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     common::html::fragment(&run)
 }
 
@@ -195,7 +195,7 @@ Country
 #[test]
 fn the_html_of_tests_one_to_three_is_valid_and_requires_the_stylesheet_once() {
     let run = html_run(&std(), TESTS_ONE_TO_THREE);
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert!(requires_style(&run));
     let html = common::html::fragment(&run);
     assert_eq!(html.matches("<blockquote").count(), 5, "{html}");
@@ -222,7 +222,7 @@ fn the_html_of_tests_one_to_three_is_valid_and_requires_the_stylesheet_once() {
 #[test]
 fn a_page_holding_no_quotation_carries_no_stylesheet_of_the_feature() {
     let run = html_run(&std(), "A paragraph.\n");
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert!(!requires_style(&run));
 }
 
@@ -231,12 +231,12 @@ fn a_configured_environment_is_a_blockquote_and_requires_the_stylesheet() {
     let config = QuoteConfig::new()
         .environment("myquote", QuoteEnvironment::new([QuoteSection::Text]))
         .environment("aside", QuoteEnvironment::new([]).bare(QuoteSection::Block));
-    let registry = common::stdcore::registry(StdcoreConfig::new().quote(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().quote(config));
     let run = html_run(
         &registry,
         "\\begin{myquote}\\text{Mine.}\\end{myquote}\n\n\\begin{aside}Aside.\\end{aside}\n",
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert!(requires_style(&run));
     let html = common::html::fragment(&run);
     assert!(html.contains(&quotation("myquote")), "{html}");

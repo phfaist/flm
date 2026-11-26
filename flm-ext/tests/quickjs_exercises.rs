@@ -22,8 +22,8 @@ use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::aspects::ContentRef;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::{html, latex_recomposed};
-use flm_core::stdcore::features::toc;
+use flm_core::stdlib::backends::{html, latex_recomposed};
+use flm_core::stdlib::features::toc;
 use flm_ext::quickjs::{JsHost, JsSettings};
 
 use common::{latex_of, text_of};
@@ -112,10 +112,12 @@ fn latex_style_of(registry: &Arc<FlmRegistry>, source: &str) -> String {
 }
 
 /// Asserts that `diagnostics` holds the one report of the `\hint` outside
-/// every exercise.
-fn assert_only_the_unknown_hint(diagnostics: &[String]) {
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with(UNKNOWN_HINT) && diagnostics[0].contains("hint"), "{diagnostics:?}");
+/// every exercise, then the lines `unchecked` (the Warning of the run's
+/// unchecked formulas, where its plan keeps one).
+fn assert_only_the_unknown_hint(unchecked: &[&str], diagnostics: &[String]) {
+    assert_eq!(diagnostics.len(), unchecked.len() + 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[1..], *unchecked, "{diagnostics:?}");
+    assert_eq!(common::ids(&diagnostics[..1]), [UNKNOWN_HINT], "{diagnostics:?}");
 }
 
 /// The table of contents' entries of `text`, as `(level, title)`.
@@ -146,7 +148,7 @@ fn the_fixture_s_registry_builds_without_a_diagnostic() {
 #[test]
 fn the_fixture_renders_the_html_page() {
     let (page, diagnostics) = page_of(&registry(), DOCUMENT);
-    assert_only_the_unknown_hint(&diagnostics);
+    assert_only_the_unknown_hint(&[common::UNCHECKED_ON_HTML], &diagnostics);
     // The page's body, without the standard stylesheets of its head.
     let body = &page[page.find("<body").expect("a body")..];
     assert_text_golden(golden("exercises.page-body.html"), body);
@@ -155,7 +157,7 @@ fn the_fixture_renders_the_html_page() {
 #[test]
 fn the_fixture_renders_the_text() {
     let (text, diagnostics) = text_of(&registry(), DOCUMENT);
-    assert_only_the_unknown_hint(&diagnostics);
+    assert_only_the_unknown_hint(&[], &diagnostics);
     // The text wraps its lines; the words are compared.
     let words = text.split_whitespace().collect::<Vec<_>>().join(" ");
     for expected in [
@@ -174,7 +176,7 @@ fn the_fixture_renders_the_text() {
 fn the_fixture_renders_the_recomposed_latex_with_its_preamble_piece() {
     let registry = registry();
     let (latex, diagnostics) = latex_of(&registry, DOCUMENT);
-    assert_only_the_unknown_hint(&diagnostics);
+    assert_only_the_unknown_hint(&[common::UNCHECKED_ON_LATEX], &diagnostics);
     assert!(latex.contains("\\begin{exercise}[A title]\\flmLabels{\\label{ref1}}"), "{latex}");
     assert!(latex.contains("\\end{exercise}") && latex.contains("See \\flmRef{ref1} and \\flmRef[noprefix]{ref2}."), "{latex}");
     assert_text_golden(golden("exercises.tex"), &latex);
@@ -202,11 +204,16 @@ fn a_points_handler_that_throws_leaves_the_exercise_without_a_point() {
         |main| main.replace("function points(node) {", "function points(node) {\n  throw new Error(\"no points today\");"),
         &["exercises"],
     ));
-    let (text, diagnostics) = text_of(&registry, "\\begin{exercise}[A title]\\label{ex:first}\nSolve it.\n\\end{exercise}\n\nSee \\ref{ex:first}.");
+    let source = "\\begin{exercise}[A title]\\label{ex:first}\nSolve it.\n\\end{exercise}\n\nSee \\ref{ex:first}.";
+    let (text, diagnostics) = text_of(&registry, source);
     // Nothing is reported where the handler fails (the aspect has no place to report
     // to); the reference is the references feature's unresolved-reference Error, and
     // the heading has no number.
-    assert_eq!(diagnostics, ["flm.refs.unresolved: the reference points at the label `ex:first`, which is not defined"]);
+    assert_eq!(common::ids(&diagnostics), ["flm.refs.unresolved"], "{diagnostics:?}");
+    let run = common::run(&registry, flm_core::stdlib::backends::text::WORKFLOW, source);
+    flm_core::dump::diag::expect(run.diagnostics().iter(), "flm.refs.unresolved")
+        .data(serde_json::json!({ "label": "ex:first" }))
+        .once();
     assert!(text.contains("Exercise (A title)"), "{text}");
     assert!(text.contains("Solve it."), "{text}");
 }

@@ -18,22 +18,22 @@ use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::model::addr::TreeId;
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::pres::read::payload_of;
-use flm_core::stdcore::backends::pres::{BlockPayload, SpanPayload};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::annotations::{
+use flm_core::stdlib::backends::pres::read::payload_of;
+use flm_core::stdlib::backends::pres::{BlockPayload, SpanPayload};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::annotations::{
     ANNOTATION, AnnotationsConfig, AnnotationsRenderOptions, Annotator,
 };
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::NodeRef;
 
-use common::stdcore::{identifiers, plan, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, identifiers, plan, run_workflow};
 
 /// The two annotators these tests use: `phf` with the initials `PhF`,
 /// annotator 0, and `abc` with none, annotator 1.
-fn config() -> StdcoreConfig {
-    StdcoreConfig::new().annotations(
+fn config() -> StdlibConfig {
+    StdlibConfig::new().annotations(
         AnnotationsConfig::new()
             .annotator(Annotator::new("phf").initials("PhF"))
             .annotator(Annotator::new("abc")),
@@ -42,7 +42,7 @@ fn config() -> StdcoreConfig {
 
 /// The standard package under [`config`].
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(config())
+    common::stdlib::registry(config())
 }
 
 /// The render request hiding every annotation.
@@ -158,9 +158,9 @@ fn an_annotator_with_no_initials_stages_no_decoration() {
 /// the shape the HTML page and every other output start from.
 fn lowered_general(document: &str) -> Vec<String> {
     let html = run_workflow(&registry(), "html", &[document], &Overrides::none());
-    assert_eq!(identifiers(&html), Vec::<String>::new(), "{}", html.diagnostics().render_all());
+    assert_only_unchecked_output(&html);
     let tree = &html
-        .table(flm_core::stdcore::backends::lowering::lowered_table(&"html".into()))
+        .table(flm_core::stdlib::backends::lowering::lowered_table(&"html".into()))
         .expect("declared")
         .expect("written")
         .get(TreeId::tree(0))
@@ -354,7 +354,7 @@ fn an_annotation_in_a_user_definitions_template() {
     let definition =
         Definition::macro_("note", vec![ArgDef::mandatory("text")]).text("\\phf[#1]");
     let registry =
-        common::stdcore::registry(config().userdefs(UserdefsConfig::new().definition(definition)));
+        common::stdlib::registry(config().userdefs(UserdefsConfig::new().definition(definition)));
     let run = render_under(&registry, "word \\note{check} word", &Overrides::none());
     assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
     assert_eq!(common::lowering::text(&run), "word [PhF: check] word\n");

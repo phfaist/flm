@@ -19,8 +19,12 @@
 //!
 //! - [`source`]: where extensions come from — the host's [`ExtensionSource`]s
 //!   (a locator in, an extension out) and each extension's [`ExtensionFiles`],
-//!   with the in-memory [`MemorySource`] and [`MemoryFiles`];
-//!   [`paths`] is the relative-path arithmetic over an extension's files.
+//!   with the in-memory [`MemorySource`] and [`MemoryFiles`], and the rule
+//!   of a path inside an extension.
+//! - [`collection`]: the format of a collection, one WebAssembly module that
+//!   holds several extensions whole: the macro that writes the record of one
+//!   file in the module's custom section `flmextensions`, and the reader of
+//!   that section.
 //! - [`manifest`]: the manifest ([`Manifest`]): the `extension:` block
 //!   (description, author, required FLM version, engine, the keys of the
 //!   engines `js` and `wasm`)
@@ -39,10 +43,17 @@
 //!   ([`ExtensionLoader::with_host_service`]), which a package declares in its
 //!   `host` list and a handler calls through a handle; a package declaring a
 //!   service the host does not offer fails its load. The crate states the
-//!   protocol of one service, `files` (a file of the extension's folder or of
-//!   the document's folder); a host may offer others (the `flm` program also
-//!   offers `programs`, which finds and runs a program installed on the
+//!   protocols of two services: `files` (a file at a qualified path: of the
+//!   extension's folder, of another extension, of the document's folder) and
+//!   `download` (the file at an `https` address, through which a template
+//!   module ships such a file); a host may offer others (the `flm` program also
+//!   offers `cache`, which stores and reads the values of the caches a package
+//!   declares, and `programs`, which finds and runs a program installed on the
 //!   machine).
+//! - [`paths`]: the syntax of a path with a root (`self:`, `ext+NAME:`,
+//!   `std:`, `doc:`, `cwd:`, `https:`), a bare path joined to the place of
+//!   its text, and the files of the extensions of a preparation by use name
+//!   ([`paths::ExtensionsByName`]), which the loader fills.
 //! - [`loader`]: [`ExtensionLoader`], a package resolver of `flm-core` over
 //!   the sources and the engines, which a host adds to its package catalog;
 //!   it loads each extension once and answers a factory per package, and
@@ -91,26 +102,31 @@
 //! `wasm` (cargo feature `wasm`, over the interpreter wasmi) is the engine
 //! `wasm`: an extension whose code is one WebAssembly module, which reaches
 //! FLM through one import carrying the same requests the JavaScript prelude
-//! makes, and answers the same entry points, in JSON text. A loader gains it
+//! makes, and answers the same entry points, in JSON text. Every entry that
+//! the engine sends names the extension it is for, by its stem, so that one
+//! instance of a module can run several extensions. A loader gains the engine
 //! with `ExtensionLoader::with_wasm`; the module documentation states the
 //! interface between the host and the module, the limits (fuel per handler
 //! call, memory per instance) and the instances.
 //!
 //! `guest` (cargo feature `guest`, no dependency) is the guest client: the
 //! library an extension written in Rust is compiled against, the mirrored API
-//! as Rust types whose methods forward to the host, with the macro
-//! `extension!`. A crate written against [`api`] moves to it by changing its
-//! module paths and the façade types in its signatures. Its surface is
-//! generated from the sources of [`api`] by the same test as the prelude's.
-//! One crate written against it builds for `wasm32-unknown-unknown`, as a
+//! as Rust types whose methods forward to the host. A crate written against
+//! [`api`] moves to it by changing its module paths and the façade types in
+//! its signatures. Its surface is generated from the sources of [`api`] by the
+//! same test as the prelude's. A crate that is one extension invokes the macro
+//! `extension!` at its root. A crate that holds several extensions lists them
+//! in a *table of code*, a static slice of `guest::NamedExtension` rows (each
+//! an extension's stem and its code), and invokes the macro `extensions!`
+//! over the table. The same crate builds for `wasm32-unknown-unknown`, as a
 //! module of the engine `wasm`, and compiles unchanged into a program, built
 //! for any target, that carries the engine `native`.
 //!
 //! `native` (cargo feature `native`, which turns on `guest`) is the engine
-//! `native`: it runs the extensions compiled into the program, each a crate
-//! written against the guest client, in the same process, with no sandbox and
-//! no limit. A program lists the extensions it carries for the engine and
-//! adds it to a loader with `ExtensionLoader::with_engine`. The feature also
+//! `native`: it runs the extensions compiled into the program, each written
+//! against the guest client, in the same process, with no sandbox and no
+//! limit. A program gives the engine its table of code and adds it to a loader
+//! with `ExtensionLoader::with_engine`. The feature also
 //! chooses the guest client's route to FLM. With it, every request of an
 //! extension is a direct, typed call of [`api`] on the handle table of the
 //! running handler call, the lending of a handler object builds the host's
@@ -142,6 +158,27 @@
 //! (the module documentation of `flm_ext::native`, section "Limits and
 //! failures").
 //!
+//! # Extensions that a program carries
+//!
+//! A program can carry extensions itself, so that a document finds them by
+//! name with nothing installed. It describes them with two tables. The *table
+//! of files* is a static slice of [`source::BundledExtension`] rows: each
+//! extension's folder (`data`, `js` or `rust`), its stem and its files, the
+//! manifest among them. The *table of code* (cargo feature `guest`) holds the
+//! code of those written in Rust, which the engine `native` runs. The crate
+//! `flm-extensions` gives both tables for the extensions shipped with FLM, and
+//! the host library `flm-host` makes the source and the engine from them.
+//!
+//! A program can also offer the extensions of a *collection*: one
+//! WebAssembly module that holds several extensions whole, the code of those
+//! written in Rust and every file of each in its custom section
+//! `flmextensions` ([`collection`]). The program reads a collection with
+//! `wasm::Collection::read` (cargo feature `wasm`) and gives it to the engine
+//! `wasm`; no source opens a collection on its own. The manifest, the
+//! files and the code of an extension always come from the same source: its
+//! folder, a collection, or the tables built into the program. Files from two
+//! sources are never combined.
+//!
 //! # Trust
 //!
 //! An extension runs code. The sandbox of the engine `js` keeps a script
@@ -163,6 +200,7 @@ pub mod api;
 #[cfg(any(feature = "quickjs", feature = "wasm", feature = "native"))]
 pub(crate) mod binding;
 pub mod block;
+pub mod collection;
 pub mod data;
 pub mod engine;
 pub mod entry;

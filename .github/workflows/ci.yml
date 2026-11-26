@@ -11,6 +11,9 @@
 # the job shows the free disk at its end.
 #
 # `cargo fmt --check` is deliberately absent: the code is formatted by hand.
+#
+# The workflow `Release` (release.yml) runs these same checks, by calling this workflow,
+# before it publishes a release.
 
 name: CI
 
@@ -19,6 +22,7 @@ on:
     branches: [main-dev, main-rs]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 # A newer push to the same branch or pull request cancels the run in progress.
 concurrency:

@@ -1,5 +1,5 @@
 //! Settings declared from data (`SettingsDecl::config_data`,
-//! `config_data_read`, `options_data`, `merge_entries_data`) and the reads by name that go with them
+//! `config_data_read`, `options_data`, and the marks on the nodes of their schemas) and the reads by name that go with them
 //! (`OptionKey::Data`, `Needs::option_named`, `StageCx::option_named`,
 //! `RewriteCx::option_named`, `LoweringDecl::option_named`, the lowering
 //! façade's `option_named`): the keys a schema gives, the values kept as
@@ -16,14 +16,14 @@ use flm_core::core::lowering::{DefaultMark, Lowering};
 use flm_core::core::plan::{Overrides, Plan, PlanError, PlanRequest};
 use flm_core::core::registry::{BuildError, BuildPhase, FeatureBuilder, FeatureInfo, FlmFeature};
 use flm_core::core::run::RunOptions;
-use flm_core::core::settings::{ReadError, SettingsDecl, SettingsError, SettingsErrorKind};
+use flm_core::core::settings::{Mark, ReadError, SettingsDecl, SettingsError, SettingsErrorKind};
 use flm_core::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl};
 use flm_core::model::addr::TreeId;
-use flm_core::model::options::{Bind, DataValue, OptionKey, OptionValues};
-use flm_core::stdcore::backends::{lowering, pieces, text};
-use flm_core::stdcore::features::blocks::Blocks;
-use flm_core::stdcore::features::math;
-use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+use flm_core::model::options::{Bind, DataValue, OptionError, OptionKey, OptionValues};
+use flm_core::stdlib::backends::{lowering, pieces, text};
+use flm_core::stdlib::features::blocks::Blocks;
+use flm_core::stdlib::features::math;
+use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
 
 use common::lowering::{lowered, produces, render_with, rule};
 use common::macro_def;
@@ -129,16 +129,9 @@ fn a_data_configuration_s_reader_answers_the_value_kept_or_the_value_at_fault() 
 
     // A value at fault: its path below the feature's name, the reader's detail.
     let errors = decl.read(&map(json!({ "min_length": "three" }))).expect_err("a value at fault");
-    let found: Vec<(&str, SettingsErrorKind, &str)> =
-        errors.iter().map(|error| (error.path.as_str(), error.kind, error.detail.as_str())).collect();
-    assert_eq!(
-        found,
-        [(
-            "wc.min_length",
-            SettingsErrorKind::InvalidValue,
-            "the value of `wc.min_length` is invalid: must be a number, not `\"three\"`"
-        )]
-    );
+    let found: Vec<(&str, SettingsErrorKind)> =
+        errors.iter().map(|error| (error.path.as_str(), error.kind)).collect();
+    assert_eq!(found, [("wc.min_length", SettingsErrorKind::InvalidValue)]);
 }
 
 #[test]
@@ -150,14 +143,11 @@ fn a_key_outside_the_schema_s_properties_is_an_unknown_key() {
     let errors = decl
         .read(&map(json!({ "minlength": 3, "size": 2, "colour": 1 })))
         .expect_err("two unknown keys");
-    let found: Vec<(&str, SettingsErrorKind, &str)> =
-        errors.iter().map(|error| (error.path.as_str(), error.kind, error.detail.as_str())).collect();
+    let found: Vec<(&str, SettingsErrorKind)> =
+        errors.iter().map(|error| (error.path.as_str(), error.kind)).collect();
     assert_eq!(
         found,
-        [
-            ("wc.minlength", SettingsErrorKind::UnknownKey, "the feature `wc` has no setting `minlength`"),
-            ("wc.colour", SettingsErrorKind::UnknownKey, "the feature `wc` has no setting `colour`"),
-        ]
+        [("wc.minlength", SettingsErrorKind::UnknownKey), ("wc.colour", SettingsErrorKind::UnknownKey)]
     );
 }
 
@@ -186,67 +176,46 @@ fn a_data_option_goes_to_the_document_or_the_render_request_by_its_binding() {
 
 #[test]
 fn a_data_declaration_that_contradicts_itself_is_an_error() {
-    let check = |error: SettingsError, path: &str, detail: &str| {
-        assert_eq!(error.kind, SettingsErrorKind::InvalidDeclaration, "{detail}");
+    let check = |error: SettingsError, path: &str| {
+        assert_eq!(error.kind, SettingsErrorKind::InvalidDeclaration, "{error}");
         assert_eq!(error.path, path);
-        assert_eq!(error.detail, detail);
-        assert_eq!(error.to_string(), detail);
     };
     // S1: a schema without `properties`, for the configuration and for an option.
-    check(
-        invalid(SettingsDecl::new("wc").config_data(json!({ "type": "object" }), "")),
-        "wc",
-        "the schema of the configuration of the feature `wc` must be an object schema with \
-         `properties`, a map from each setting to its schema",
-    );
+    check(invalid(SettingsDecl::new("wc").config_data(json!({ "type": "object" }), "")), "wc");
     check(
         invalid(SettingsDecl::new("wc").options_data("wc.display", Bind::Document, json!(true), "")),
         "wc",
-        "the schema of the option `wc.display` of the feature `wc` must be an object schema with \
-         `properties`, a map from each setting to its schema",
     );
     // S2: a key declared twice, across a configuration and an option.
     let configured = SettingsDecl::new("wc").config_data(object_schema(&["a", "b"]), "").unwrap();
     check(
         invalid(configured.clone().options_data("wc.display", Bind::Render, object_schema(&["b"]), "")),
         "wc.b",
-        "the feature `wc` declares the setting `b` twice",
     );
     // S3: a second configuration.
-    check(
-        invalid(configured.config_data(object_schema(&["c"]), "")),
-        "wc",
-        "the feature `wc` declares two configurations",
-    );
+    check(invalid(configured.config_data(object_schema(&["c"]), "")), "wc");
     // S4: an option bound to the registry.
     check(
         invalid(SettingsDecl::new("wc").options_data("wc.fixed", Bind::Registry, object_schema(&["a"]), "")),
         "wc",
-        "the feature `wc` declares the option `wc.fixed` bound to the registry, and a value fixed \
-         when the registry is built belongs in the feature's configuration",
     );
-    // S5: a merge mark on a path below a key.
-    for path in ["kinds.words", "kinds.*"] {
-        check(
-            invalid(SettingsDecl::new("wc").merge_entries_data(path, Map::new())),
-            &format!("wc.{path}"),
-            &format!(
-                "the feature `wc` marks `{path}` as merged entry by entry, and only a setting \
-                 itself can be marked so, not a path below one"
-            ),
-        );
-    }
 }
 
 // --- the schema -----------------------------------------------------------------------------------
 
 #[test]
 fn the_schema_of_a_data_part_is_the_schema_given_with_its_binding_marks_and_defaults() {
+    let merged = json!(["merge-object-key-values", "remove-key-when-value-is-false"]);
     let schema = json!({
         "type": "object",
         "properties": {
-            "kinds": { "type": "object", "description": "The [kinds](crate::Kind) of words." },
-            "label": { "$ref": "#/$defs/Label" },
+            "kinds": {
+                "type": "object",
+                "description": "The [kinds](crate::Kind) of words.",
+                "default": { "word": { "min": 1 } },
+                "x-flm-marks": merged,
+            },
+            "label": { "$ref": "#/$defs/Label", "x-flm-marks": ["markup"] },
             "anything": true,
         },
         "$defs": { "Label": { "type": "string", "description": "A label, in `markup`." } },
@@ -254,14 +223,13 @@ fn the_schema_of_a_data_part_is_the_schema_given_with_its_binding_marks_and_defa
     let defaults = map(json!({ "word": { "min": 1 } }));
     let decl = SettingsDecl::new("wc")
         .config_data(schema, "The word count's configuration.")
-        .and_then(|decl| decl.merge_entries_data("kinds", defaults.clone()))
         .and_then(|decl| {
             decl.options_data("wc.display", Bind::Render, object_schema(&["size"]), "How it shows.")
         })
-        .expect("a sound declaration")
-        .markup("label");
+        .expect("a sound declaration");
     assert_eq!(decl.default_entries("kinds"), Some(&defaults));
-    assert!(decl.mark_at("kinds").is_some_and(|mark| mark.merge_entries));
+    assert!(decl.has_mark("kinds", Mark::MergeObjectKeyValues));
+    assert!(decl.has_mark("kinds", Mark::RemoveKeyWhenValueIsFalse));
     // The schema's description is the documentation texts the declaration gives.
     #[cfg(feature = "docs")]
     assert_eq!(
@@ -273,21 +241,51 @@ fn the_schema_of_a_data_part_is_the_schema_given_with_its_binding_marks_and_defa
                 "kinds": {
                     "type": "object",
                     "description": "The kinds of words.",
-                    "x-flm-bind": "registry",
                     "default": { "word": { "min": 1 } },
+                    "x-flm-marks": merged,
+                    "x-flm-bind": "registry",
                 },
-                "label": { "$ref": "#/$defs/Label", "x-flm-bind": "registry" },
+                "label": { "$ref": "#/$defs/Label", "x-flm-marks": ["markup"], "x-flm-bind": "registry" },
                 "anything": { "x-flm-bind": "registry" },
                 "size": { "type": "integer", "x-flm-bind": "render" },
             },
             "additionalProperties": false,
-            "x-flm-marks": [
-                { "path": "kinds", "merge_entries": true, "kind": "data" },
-                { "path": "label", "merge_entries": false, "kind": "markup" },
-            ],
             "$defs": { "Label": { "type": "string", "description": "A label, in `markup`." } },
         })
     );
+}
+
+#[test]
+fn each_mark_written_on_a_node_is_in_the_declaration_at_the_node_s_path_and_on_the_printed_node() {
+    // Each mark, on a node at the top level, below a key, and under `*` (through a
+    // definition of the schema's own `$defs`).
+    for mark in Mark::ALL {
+        let marks = json!([mark.name()]);
+        let schema = json!({
+            "type": "object",
+            "properties": {
+                "top": { "type": "object", "x-flm-marks": marks },
+                "outer": {
+                    "type": "object",
+                    "properties": { "inner": { "type": "object", "x-flm-marks": marks } },
+                },
+                "entries": { "type": "object", "additionalProperties": { "$ref": "#/$defs/Entry" } },
+            },
+            "$defs": {
+                "Entry": { "type": "object", "properties": { "text": { "type": "object", "x-flm-marks": marks } } },
+            },
+        });
+        let decl = SettingsDecl::new("wc").config_data(schema, "").expect("a sound declaration");
+        let paths: Vec<&str> = decl.marks().iter().map(|marked| marked.path.as_str()).collect();
+        assert_eq!(paths, ["top", "outer.inner", "entries.*.text"], "{mark}");
+        assert!(decl.marks().iter().all(|marked| marked.marks == [mark]), "{mark}");
+        let printed = decl.json_schema();
+        assert_eq!(printed["properties"]["top"]["x-flm-marks"], marks, "{mark}");
+        assert_eq!(printed["properties"]["outer"]["properties"]["inner"]["x-flm-marks"], marks, "{mark}");
+        assert_eq!(printed["$defs"]["Entry"]["properties"]["text"]["x-flm-marks"], marks, "{mark}");
+        assert_eq!(printed["properties"]["entries"]["additionalProperties"], json!({ "$ref": "#/$defs/Entry" }));
+        assert!(printed.get("x-flm-marks").is_none(), "{mark}");
+    }
 }
 
 // --- reads by name through a run ------------------------------------------------------------------
@@ -306,7 +304,10 @@ fn display_feature(needs: Needs) -> Arc<dyn FlmFeature> {
             |cx, out| {
                 let seen = match cx.option_named("t.display") {
                     Ok(value) => value.to_string(),
-                    Err(error) => error.to_string(),
+                    Err(OptionError::UndeclaredRead { stage, option, declared }) => {
+                        format!("undeclared read: {stage} {option} {declared:?}")
+                    }
+                    Err(other) => format!("{other:?}"),
                 };
                 out.table(LOG).expect("declared").0.push(seen);
             },
@@ -347,8 +348,7 @@ fn a_read_by_name_the_stage_did_not_declare_is_refused_with_the_name() {
     let request = PlanRequest::new().demand("t.log");
     assert_eq!(
         logged(&run(&doc, &plan_for(&undeclared, &request), &RunOptions::new())),
-        ["stage `t.report` must declare each option type it reads, but it reads `t.display` \
-          without declaring it; it declares: []"]
+        ["undeclared read: t.report t.display []"]
     );
     // At plan time, a declared read of a name no feature declares.
     let registry = registry(vec![display_feature(Needs::new().option_named("t.nothing"))]);
@@ -408,6 +408,21 @@ fn two_features_declaring_one_data_option_name_are_a_duplicate() {
 }
 
 #[test]
+fn a_declaration_with_a_key_named_enabled_is_refused() {
+    let check = |error: SettingsError| {
+        assert_eq!(error.kind, SettingsErrorKind::InvalidDeclaration, "{error}");
+        assert_eq!(error.path, "t.enabled");
+    };
+    check(invalid(SettingsDecl::new("t").config_data(object_schema(&["size", "enabled"]), "")));
+    check(invalid(SettingsDecl::new("t").options_data(
+        "t.display",
+        Bind::Document,
+        object_schema(&["enabled"]),
+        "",
+    )));
+}
+
+#[test]
 fn a_lowering_rule_reads_a_data_option_by_name() {
     let reading = rule(
         "t.foo.lower.default",
@@ -427,7 +442,7 @@ fn a_lowering_rule_reads_a_data_option_by_name() {
         lowering::feature(),
         pieces::feature(),
         text::feature(),
-        flm_core::stdcore::check_feature(),
+        flm_core::stdlib::check_feature(),
         Arc::new(Blocks::default()),
         Arc::new(Userdefs::new(UserdefsConfig::new())),
         math::feature(),
@@ -482,7 +497,7 @@ fn a_rust_part_and_a_data_part_live_in_one_declaration() {
             .options::<PageOptions>(Bind::Render, "")
             .options_data("page.extra", Bind::Document, object_schema(&["width"]), ""),
     );
-    assert_eq!(error.detail, "the feature `page` declares the setting `width` twice");
+    assert_eq!((error.kind, error.path.as_str()), (SettingsErrorKind::InvalidDeclaration, "page.width"));
 
     // The registry declares both option types.
     let registry = registry(vec![data_feature("page", decl, |_| Ok(()))]);

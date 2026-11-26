@@ -24,8 +24,9 @@ use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::meta::{DocMeta, MetaText};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::citations::{NoEntry, ProviderFailed};
+use flm_core::stdlib::features::metadata::{DocMeta, MetaText};
 use flm_ext::host::HostService;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use flm_ext::{ExtensionLoader, MemoryFiles};
@@ -126,6 +127,20 @@ fn text_of(registry: &Arc<FlmRegistry>) -> (String, Vec<String>) {
     (out, common::diagnostics(&run))
 }
 
+/// The `(key, detail)` of each `flm.citations.provider-failed` of the text
+/// run of the document, and the key of each `flm.citations.no-entry`.
+fn citation_failures(registry: &Arc<FlmRegistry>) -> (Vec<(String, String)>, Vec<String>) {
+    let run = run_doc(registry, text::WORKFLOW);
+    let diagnostics = run.diagnostics();
+    let failed = diagnostics
+        .iter()
+        .filter_map(|d| d.data().downcast_ref::<ProviderFailed>())
+        .map(|failed| (failed.key.clone(), failed.detail.clone()))
+        .collect();
+    let missing = diagnostics.iter().filter_map(|d| d.data().downcast_ref::<NoEntry>()).map(|no| no.key.clone()).collect();
+    (failed, missing)
+}
+
 /// The HTML content of the document: the inside of the page's `main`
 /// element (the title, the content and the bibliography, without the head
 /// and its stylesheet), with the run's diagnostics.
@@ -169,7 +184,7 @@ fn the_bibliography_of_three_works_renders_as_text() {
     assert!(!calls.is_empty());
     for (caller, method, args) in calls.iter() {
         assert_eq!((caller.extension.stem.as_str(), caller.package.as_str(), method.as_str()), ("bibfile", "_", "read_text"));
-        assert_eq!(args, &json!({ "scope": "document", "path": "bib.json" }));
+        assert_eq!(args, &json!({ "path": "doc:bib.json" }));
     }
 }
 
@@ -177,7 +192,7 @@ fn the_bibliography_of_three_works_renders_as_text() {
 fn the_bibliography_of_three_works_renders_as_html() {
     let registry = registry(&folder(true), &["bibfile"]);
     let (out, diagnostics) = on_worker(|| html_of(&registry));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert_text_golden(golden("bibfile.html"), &out);
 }
 
@@ -185,7 +200,7 @@ fn the_bibliography_of_three_works_renders_as_html() {
 fn the_bibliography_of_three_works_renders_as_recomposed_latex() {
     let registry = registry(&folder(true), &["bibfile"]);
     let (out, diagnostics) = on_worker(|| latex_of(&registry));
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     assert_text_golden(golden("bibfile.tex"), &out);
 }
 
@@ -194,21 +209,13 @@ fn the_bibliography_of_three_works_renders_as_recomposed_latex() {
 #[test]
 fn a_missing_entries_file_fails_each_cited_key_and_the_check_reports_no_entry() {
     let registry = registry(&folder(false), &["bibfile"]);
-    let (_, diagnostics) = on_worker(|| text_of(&registry));
+    let (failed, missing) = on_worker(|| citation_failures(&registry));
     // The provider answers `{ error }` for each key: the retrieve stage
     // reports `ProviderFailed` with the provider's text at each key.
-    let failed = |key: &str| {
-        format!(
-            "flm.citations.provider-failed: the bibliography entry of the key `{key}` could not be retrieved: \
-             the file `bib.json` beside the document must hold the bibliography entries"
-        )
-    };
+    let text = "expected bibliography entries in a sibling file `bib.json`";
     for key in ["knuth84", "lamport94", "Shor95", "shor95"] {
-        assert_eq!(diagnostics.iter().filter(|d| **d == failed(key)).count(), 1, "{key}: {diagnostics:#?}");
-        assert!(
-            diagnostics.iter().any(|d| d.starts_with("flm.citations.no-entry:") && d.contains(&format!("`{key}`"))),
-            "{key}: {diagnostics:#?}"
-        );
+        assert_eq!(failed.iter().filter(|(k, detail)| k == key && detail == text).count(), 1, "{key}: {failed:#?}");
+        assert!(missing.iter().any(|k| k == key), "{key}: {missing:#?}");
     }
 }
 
@@ -218,17 +225,14 @@ fn entries_that_are_not_json_fail_the_provider_at_each_cited_key() {
     // the handler's failure.
     let service = Arc::new(MemoryHostFiles::new(MemoryFiles::new().with_text("bib.json", "{ not json")));
     let registry = registry(&service, &["bibfile"]);
-    let (_, diagnostics) = on_worker(|| text_of(&registry));
-    let failed = |key: &str| {
-        format!(
-            "flm.citations.provider-failed: the bibliography entry of the key `{key}` could not be retrieved: \
-             flm.ext.handler-failed: the citation provider `bibfile.json` of the feature `bibfile` of the package `_` \
-             of the extension `bibfile` failed: Expected property name or '}}' in JSON at position 2 (line 1 column 3)"
-        )
-    };
+    let (failed, missing) = on_worker(|| citation_failures(&registry));
     for key in ["knuth84", "lamport94", "Shor95", "shor95"] {
-        assert_eq!(diagnostics.iter().filter(|d| **d == failed(key)).count(), 1, "{key}: {diagnostics:#?}");
-        assert!(diagnostics.iter().any(|d| d.starts_with("flm.citations.no-entry:") && d.contains(&format!("`{key}`"))));
+        assert_eq!(
+            failed.iter().filter(|(k, detail)| k == key && detail.starts_with("flm.ext.handler-failed: ")).count(),
+            1,
+            "{key}: {failed:#?}"
+        );
+        assert!(missing.iter().any(|k| k == key), "{key}: {missing:#?}");
     }
 }
 

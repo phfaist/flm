@@ -1,0 +1,13 @@
+===== check =====
+Error flm.citations.no-entry {"key":"unknown","reason":"no appropriate citation provider found"} — at `\cite{unknown}`
+===== text =====
+Error flm.citations.no-entry {"key":"unknown","reason":"no appropriate citation provider found"} — at `\cite{unknown}`
+Warning flm.graphics.unknown-size {"path":"figures/codes.png"} — at `\includegraphics{figures/codes.png}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.citations.no-entry {"key":"unknown","reason":"no appropriate citation provider found"} — at `\cite{unknown}`
+Warning flm.graphics.unknown-size {"path":"figures/codes.png"} — at `\includegraphics{figures/codes.png}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.citations.no-entry {"key":"unknown","reason":"no appropriate citation provider found"} — at `\cite{unknown}`
+Warning flm.graphics.unknown-size {"path":"figures/codes.png"} — at `\includegraphics{figures/codes.png}`

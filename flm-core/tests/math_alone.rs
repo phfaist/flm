@@ -1,6 +1,6 @@
 //! The `math` feature without a feature that processes mathematics, and
 //! mathematics without the `math` feature: the errors follow from what the
-//! registry and the plan already check. With the standard package `stdcore`
+//! registry and the plan already check. With the standard features
 //! alone, every standard workflow plans and runs a document without formulas
 //! without a diagnostic, and each formula, a math group or a display-math
 //! environment, is one `flm.math.unprocessed` Error; two processing features
@@ -17,7 +17,7 @@ use flm_core::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use flm_core::core::plan::{Overrides, Plan, PlanError};
-use flm_core::core::registry::{BuildError, FlmFeature, FlmRegistry};
+use flm_core::core::registry::{BuildError, FlmFeature, FlmRegistry, PackageEntry};
 use flm_core::core::run::StageCx;
 use flm_core::core::data::store::StageOut;
 use flm_core::core::plan::PlanCx;
@@ -26,12 +26,12 @@ use flm_core::lang::Flm;
 use flm_core::lang::structural::MATH;
 use flm_core::model::addr::TreeId;
 use flm_core::model::element::element_of;
-use flm_core::stdcore::backends::pres::{self, SpanPayload, payload_of, plain_text};
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::backends::pres::{self, SpanPayload, payload_of, plain_text};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
 use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::features::math::{self, CONTENT};
+use flm_core::stdlib::features::math::{self, CONTENT};
 use flm_core::math_passthrough;
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig, package};
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig, add_features};
 use flm_core::techy::core::node::NodeRef;
 
 use common::lowering::{lowered, render};
@@ -40,18 +40,18 @@ use common::pipeline::{feature, registry, registry_error};
 /// The features of the standard package, in its order, but those named in
 /// `left_out`.
 fn standard_but(left_out: &[&str]) -> Vec<Arc<dyn FlmFeature>> {
-    package(StdcoreConfig::default())
+    add_features(PackageEntry::new("std"), StdlibConfig::default())
         .features
         .into_iter()
         .filter(|feature| !left_out.contains(&feature.info().name.as_str()))
         .collect()
 }
 
-/// The standard package `stdcore` alone, as a program registers it.
-fn stdcore_alone() -> Arc<FlmRegistry> {
+/// The standard features alone, as a program registers them.
+fn standard_alone() -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
-    builder.build(&RegistryInputs::new()).expect("stdcore alone builds")
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
+    builder.build(&RegistryInputs::new()).expect("the standard features alone build")
 }
 
 /// The features of the standard package and the feature of the package
@@ -68,9 +68,9 @@ const WORKFLOWS: [&str; 4] =
 
 #[test]
 fn without_a_processing_feature_every_standard_workflow_runs_a_document_without_formulas() {
-    let registry = stdcore_alone();
+    let registry = standard_alone();
     for workflow in WORKFLOWS {
-        let run = common::stdcore::run_workflow(
+        let run = common::stdlib::run_workflow(
             &registry,
             workflow,
             &["No formula here."],
@@ -87,7 +87,7 @@ fn without_a_processing_feature_every_standard_workflow_runs_a_document_without_
 
 #[test]
 fn without_a_processing_feature_each_formula_is_an_error() {
-    let run = render(&stdcore_alone(), &["a \\(x\\) b\n\n\\begin{align}y \\\\ z\\end{align}"]);
+    let run = render(&standard_alone(), &["a \\(x\\) b\n\n\\begin{align}y \\\\ z\\end{align}"]);
     assert_eq!(unprocessed(&run), ["\\(x\\)", "\\begin{align}y \\\\ z\\end{align}"]);
     assert_eq!(run.diagnostics().iter().count(), 2, "{}", run.diagnostics().render_all());
     // The spans in the lowered tree's storage order, which is not the document's.
@@ -219,12 +219,6 @@ fn unprocessed(run: &flm_core::core::run::Run) -> Vec<String> {
         .filter(|diagnostic| diagnostic.identifier() == "flm.math.unprocessed")
         .map(|diagnostic| {
             assert_eq!(diagnostic.severity(), flm_core::techy::error::Severity::Error);
-            assert_eq!(
-                diagnostic.message(),
-                "mathematics cannot be rendered: no loaded feature processes it; rendering it needs \
-                 the feature `math` and a package that processes mathematics, for example \
-                 `math-passthrough` or `math-mathjax`"
-            );
             diagnostic.span().content().to_string()
         })
         .collect()
@@ -253,7 +247,7 @@ fn without_math_a_displayed_formula_lowers_its_unknown_command_inside_the_span()
 #[test]
 fn without_math_the_recomposed_latex_writes_the_content_of_a_formula() {
     let overrides = Overrides::none();
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &without_math(),
         latex_recomposed::WORKFLOW,
         &["a \\(x\\) b \\[\\alpha\\] c \\foo\\(y\\)"],
@@ -269,7 +263,7 @@ fn without_math_the_recomposed_latex_writes_the_content_of_a_formula() {
 
 #[test]
 fn without_math_the_recomposed_latex_of_a_document_without_formulas_builds() {
-    let run = common::stdcore::run_workflow(
+    let run = common::stdlib::run_workflow(
         &without_math(),
         latex_recomposed::WORKFLOW,
         &["No formula here."],

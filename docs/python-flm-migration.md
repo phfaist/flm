@@ -30,10 +30,10 @@ difference.
 | a document | a [`Doc`](crate::model::doc::Doc), plus a [`Run`](crate::core::run::Run) that processes it |
 | the render context | the [`Run`](crate::core::run::Run), and the [`StageCx`](crate::core::run::StageCx) through which a stage works |
 | a fragment renderer | a [backend](crate::core::registry::BackendDef): the elements its emitter writes natively, a lowering stage, an emit stage and a final stage; the features supply the [lowering rules](crate::core::lowering::LoweringRule) |
-| the pure-LaTeX recomposer (`FLMPureLatexRecomposer`) and the `flmlatex` workflow | the [`latex-recomposed`](crate::stdcore::backends::latex_recomposed) backend and workflow (see [Recomposing to LaTeX](#recomposing-to-latex)) |
-| the HTML fragment renderer (`HtmlFragmentRenderer`) and its options | the [`html`](crate::stdcore::backends::html) backend and workflow, whose classes and attributes are a new design (see [The HTML output](#the-html-output)) |
+| the pure-LaTeX recomposer (`FLMPureLatexRecomposer`) and the `flmlatex` workflow | the [`latex-recomposed`](crate::stdlib::backends::latex_recomposed) backend and workflow (see [Recomposing to LaTeX](#recomposing-to-latex)) |
+| the HTML fragment renderer (`HtmlFragmentRenderer`) and its options | the [`html`](crate::stdlib::backends::html) backend and workflow, whose classes and attributes are a new design (see [The HTML output](#the-html-output)) |
 | `substmacros` | [user definitions](crate::lang::rewrites::userdefs) |
-| the `endnotes` feature and its categories (`EndnoteCategory`) | the [`xnotes`](crate::stdcore::features::xnotes) feature and its xnote kinds ([`XnoteKind`](crate::stdcore::features::xnotes::XnoteKind)); see [Footnotes and other xnotes](#footnotes-and-other-xnotes) |
+| the `endnotes` feature and its categories (`EndnoteCategory`) | the [`xnotes`](crate::stdlib::features::xnotes) feature and its xnote kinds ([`XnoteKind`](crate::stdlib::features::xnotes::XnoteKind)); see [Footnotes and other xnotes](#footnotes-and-other-xnotes) |
 
 For each row of the table, the two implementations differ in structure, not
 only in names. The paragraphs below say what each item of this library is.
@@ -96,12 +96,12 @@ renderer is split in two:
 
 A feature that adds an element supplies a lowering rule for it; only a backend
 supplies an emitter. This library has four backends:
-[`text`](crate::stdcore::backends::text), which prints plain text through the
+[`text`](crate::stdlib::backends::text), which prints plain text through the
 [layout engine](crate::layout);
-[`latex-rendered`](crate::stdcore::backends::latex_rendered), which writes the
+[`latex-rendered`](crate::stdlib::backends::latex_rendered), which writes the
 document as resolved LaTeX for LuaLaTeX;
-[`latex-recomposed`](crate::stdcore::backends::latex_recomposed), which writes
-the document back as LaTeX source; and [`html`](crate::stdcore::backends::html),
+[`latex-recomposed`](crate::stdlib::backends::latex_recomposed), which writes
+the document back as LaTeX source; and [`html`](crate::stdlib::backends::html),
 which writes the document as a page for a browser.
 
 **Which stages run is computed, not written by hand.** A stage is one unit of
@@ -139,8 +139,8 @@ FLM text with placeholders (`#1`, `#{name}`, `#{body}`). The Python
 implementation calls the same construct `substmacros`.
 
 User definitions are part of the configuration of the
-[`userdefs`](crate::stdcore::features::userdefs) feature,
-[`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig): a
+[`userdefs`](crate::stdlib::features::userdefs) feature,
+[`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig): a
 feature's configuration is the plain Rust value the feature is constructed from,
 fixed when the registry is built ([settings, options and
 configuration](crate::guide::concepts_overview#settings-options-and-configuration)).
@@ -151,11 +151,11 @@ before the document is read.
 In settings written as data ([`settings`](crate::core::settings): a feature's
 configuration and option values written as one map per feature, from key to
 value), the settings of the `userdefs` feature are read as a
-[`UserdefsData`](crate::stdcore::features::userdefs::UserdefsData), and the
+[`UserdefsData`](crate::stdlib::features::userdefs::UserdefsData), and the
 definitions are written as in the Python implementation, in one map per kind:
 `macros`, `environments` and `specials`, each from a name (for a special
 character sequence, its characters) to the definition. The keys of a definition
-are this library's ([`DefinitionData`](crate::stdcore::features::userdefs::DefinitionData)).
+are this library's ([`DefinitionData`](crate::stdlib::features::userdefs::DefinitionData)).
 Its `content` is either one text, which is the template in both parsing modes
 and applies in each mode where it parses, or a map with the keys `text` and
 `math`, one or both written, where the Python implementation writes `textmode`
@@ -208,13 +208,15 @@ of `syntax` and `code`.
 A plan expands the use sites of a definition with the [expand
 pass](crate::lang::rewrites::userdefs::expand), which replaces every use site of
 a user definition by its template instantiated with the use site's arguments.
-It is one of the two rewrite passes that run before the trees are frozen (the
-other is the block-structure pass, which groups content into paragraphs and
-blocks). A plan for the recomposed LaTeX keeps the use sites of most definitions
-instead and writes them as calls (difference 2 below). A placeholder is replaced
-by the content of its argument, regardless of the form the argument was declared
-with: a verbatim argument gives the characters between its delimiters, so
-`\c{x%y}`, with the template `see #1`, gives the text `see x%y`.
+It is one of the three rewrite passes that run before the trees are frozen (the
+others are the splice pass, which inserts the content of included files in place
+of their `\input` commands, and the block-structure pass, which groups content
+into paragraphs and blocks). A plan for the recomposed LaTeX keeps the use sites
+of most definitions instead and writes them as calls (difference 2 below). A
+placeholder is replaced by the content of its argument, regardless of the form
+the argument was declared with: a verbatim argument gives the characters between
+its delimiters, so `\c{x%y}`, with the template `see #1`, gives the text
+`see x%y`.
 
 ### The three tests a template can write
 
@@ -252,7 +254,7 @@ the differences below are places where a familiar name behaves differently.
    and, for a `per-plan` definition, by the lowering rule that a plan selects
    among the definition's three: `expand-in-tree`, `emit-call` and
    `instantiate-at-lowering`
-   ([`userdefs::kept`](crate::stdcore::features::userdefs::kept)). A `per-plan`
+   ([`userdefs::kept`](crate::stdlib::features::userdefs::kept)). A `per-plan`
    definition is expanded on the plain-text and HTML outputs; on the recomposed
    LaTeX it is kept, and each use site is written as a call of the definition
    (see [Recomposing to LaTeX](#recomposing-to-latex)).
@@ -359,7 +361,7 @@ it.
 
 ## Verbatim content
 
-The [`verbatim` feature](crate::stdcore::features::verbatim) declares three
+The [`verbatim` feature](crate::stdlib::features::verbatim) declares three
 macros and two environments: `\verbtext{…}`, `\verbcode[lang]{…}`,
 `\verba[lang]{…}`, `{verbatimtext}` and `{verbatimcode}[lang]`. A macro's
 content is delimited by the first character after the command and its optional
@@ -380,14 +382,14 @@ neither the verbatim kind nor the language, which plain text has no way to show.
 
 The Python implementation's `baseformatting` feature is two features here:
 
-- [`textstyles`](crate::stdcore::features::textstyles) declares the inline
+- [`textstyles`](crate::stdlib::features::textstyles) declares the inline
   formatting commands `\emph`, `\textbf`, `\textit` and `\texttt`. `\texttt`, a
   monospaced face, has no counterpart in the Python implementation; it reaches a
   backend as a monospaced text style, and the text backend prints its content
   without marks, since plain text has no typefaces. `\emph` is an element of its
   own, different from `\textit`; the Python implementation treats the two as
   one.
-- [`literals`](crate::stdcore::features::literals) declares the commands that
+- [`literals`](crate::stdlib::features::literals) declares the commands that
   produce a single character (`\%`, `\#`, `\&`, `\$`, `\ `, `\{`, `\}`,
   `\textbackslash`, and the special character sequence `~` for a non-breaking
   space) and `\@`. These ten are the declarations Python's `baseformatting`
@@ -414,12 +416,12 @@ writes it back as `\@`, as the Python implementation's LaTeX output does.
 
 ## Headings
 
-The [`headings`](crate::stdcore::features::headings) feature declares the
+The [`headings`](crate::stdlib::features::headings) feature declares the
 heading commands. A *heading kind* is what a heading is (a section, a
 subsection), declared with a level
-([`HeadingDecl`](crate::stdcore::features::headings::HeadingDecl)); a *heading
+([`HeadingDecl`](crate::stdlib::features::headings::HeadingDecl)); a *heading
 command* is a macro that writes a heading of one kind
-([`HeadingCommand`](crate::stdcore::features::headings::HeadingCommand)). The
+([`HeadingCommand`](crate::stdlib::features::headings::HeadingCommand)). The
 differences:
 
 - **Five levels by default, not six.** The standard heading kinds are
@@ -428,7 +430,7 @@ differences:
   sixth, `\subsubparagraph`. Five is LaTeX's own set below `\chapter`. A document
   that writes `\subsubparagraph` is reported as using an unknown macro, and a
   host that wants a sixth kind declares it in the configuration
-  ([`HeadingsConfig::headings`](crate::stdcore::features::headings::HeadingsConfig::headings),
+  ([`HeadingsConfig::headings`](crate::stdlib::features::headings::HeadingsConfig::headings),
   a `HeadingDecl` with its name and level).
 - **The levels are the Python implementation's; level 0 and the root heading
   level are new.** The standard kinds keep the Python levels, `section` 1 to
@@ -438,7 +440,7 @@ differences:
   render writes as its first-level heading is the render option
   `root_heading_level` (a render option is an [option value](crate::model::options)
   set per render request), 1 by default, of the HTML output
-  ([`HtmlRenderOptions::root_heading_level`](crate::stdcore::backends::html::HtmlRenderOptions::root_heading_level))
+  ([`HtmlRenderOptions::root_heading_level`](crate::stdlib::backends::html::HtmlRenderOptions::root_heading_level))
   and of the text output. A heading above that level is an Error
   (`flm.pres.heading-above-root`) and is written as a first-level heading. The
   Python HTML renderer takes a heading's tag from a table that a host may set,
@@ -448,7 +450,7 @@ differences:
   every heading up or down, it sets `root_heading_level`; to give the headings
   of one kind a tag of their own on the page, it maps that kind, by its name
   rather than by its level, with the render option
-  [`heading_tags`](crate::stdcore::backends::html::HtmlRenderOptions::heading_tags).
+  [`heading_tags`](crate::stdlib::backends::html::HtmlRenderOptions::heading_tags).
   The text output's heading marks follow the root heading level and have no
   other setting.
 - **The star means "not numbered" and nothing else; a starred heading stays in
@@ -457,7 +459,7 @@ differences:
   `\section[numbered=false]{T}`. A heading is left out of the table of contents
   only when it says `toc=false` (`\section*[toc=false]{T}`) or when its kind is
   declared never to be listed
-  ([`skip_toc`](crate::stdcore::features::headings::HeadingDecl::skip_toc)).
+  ([`skip_toc`](crate::stdlib::features::headings::HeadingDecl::skip_toc)).
   Every heading command takes that optional bracket of key-value pairs, with the
   keys `numbered`, `toc` and `alt` (an alternative title, which the table of
   contents shows in place of the title); the key `pdfbookmark` is reserved and
@@ -475,21 +477,21 @@ differences:
 - **A heading is a block by default, and run-in headings are a setting.** A
   run-in heading is a heading set at the start of the paragraph it introduces,
   on the paragraph's first line, rather than on a line of its own (see
-  [`headings`](crate::stdcore::features::headings#run-in-headings)). The Python
+  [`headings`](crate::stdlib::features::headings#run-in-headings)). The Python
   implementation always sets `\paragraph` and `\subparagraph` that way
   (`Note:  Some content.`), as a property of the heading command itself, except
   in its Markdown output, which makes them blocks. Here a heading is a block at
   every level unless the host asks otherwise: the host declares the kinds it
   wants run in
-  ([`HeadingDecl::run_in`](crate::stdcore::features::headings::HeadingDecl::run_in),
+  ([`HeadingDecl::run_in`](crate::stdlib::features::headings::HeadingDecl::run_in),
   or by level with
-  [`HeadingsConfig::run_in_levels`](crate::stdcore::features::headings::HeadingsConfig::run_in_levels)).
+  [`HeadingsConfig::run_in_levels`](crate::stdlib::features::headings::HeadingsConfig::run_in_levels)).
   No standard kind is run in, so a document ported unchanged gets a heading
   block where the Python implementation gave a run-in heading. The level is the
   same either way: the level is what the heading *is*, and being run in is how a
   host chooses to set it. A run-in heading is lowered to a decoration, not to a
   second kind of heading (a decoration is a node whose element carries the
-  [`Decoration`](crate::stdcore::backends::pres::Decoration) aspect, which the
+  [`Decoration`](crate::stdlib::backends::pres::Decoration) aspect, which the
   lowering moves out of the content into an attached slot of the node around
   it).
 - **The stop after a run-in heading is a render option of each backend.** In
@@ -516,7 +518,7 @@ differences:
   `numbering_section_depth`: `False` numbers nothing, an integer numbers the
   levels down to it, `True` numbers all of them; it is set when the feature is
   constructed, and a render may override it. Here the same three choices are
-  [`HeadingsConfig::numbering`](crate::stdcore::features::headings::HeadingsConfig::numbering):
+  [`HeadingsConfig::numbering`](crate::stdlib::features::headings::HeadingsConfig::numbering):
   `HeadingNumbering::NothingNumbered`, `UpToDepth(n)` and `AllNumbered`, so the
   Python `numbering_section_depth=2` is `UpToDepth(2)`. It is fixed when the
   registry is built, and a render cannot override it, because the reference
@@ -529,12 +531,12 @@ differences:
   plain text keeps the space. The counter of each level is named after its
   command, so a host that wants numbers of another form replaces the counter's
   counter style by name, through
-  [`NumberingConfig`](crate::stdcore::features::numbering::NumberingConfig),
+  [`NumberingConfig`](crate::stdlib::features::numbering::NumberingConfig),
   rather than passing a formatter to the headings feature.
 - **The text between a heading's number and its title is a template of the
   heading kind.** The Python `heading_joiner` is one joining text. Here each
   heading kind has a heading title template,
-  [`HeadingDecl::title_number_format`](crate::stdcore::features::headings::HeadingDecl::title_number_format),
+  [`HeadingDecl::title_number_format`](crate::stdlib::features::headings::HeadingDecl::title_number_format),
   written in the [template
   language](crate::guide::concepts_overview#the-template-language-shared-by-features),
   in which `#{number}` is the number: `#{number}. ` by default, which prints
@@ -552,7 +554,7 @@ differences:
   that level 1 can be `\chapter`. Here a heading kind is declared by name with
   its level (`HeadingDecl`), and a command is mapped to a kind separately
   (`HeadingCommand`), both in
-  [`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig): a kind
+  [`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig): a kind
   `chapter` at level 1 written `\chapter` is one declaration of each, and two
   commands may write one kind, each with default key-values of its own.
 
@@ -566,14 +568,14 @@ the colon, must be one the point accepts (see [reference points, labels and
 anchors](crate::guide::concepts_overview#reference-points-labels-and-anchors)).
 As in the Python implementation, each element decides which label types its
 points accept; a heading accepts `sec` and `topic`
-([`LABEL_TYPES`](crate::stdcore::features::headings::LABEL_TYPES)), and a label of
+([`LABEL_TYPES`](crate::stdlib::features::headings::LABEL_TYPES)), and a label of
 any other type, such as `\label{eq:x}` on a section, labels nothing.
 
 **What happens with a label of a type that is not accepted.** In the Python
 implementation the document fails to parse, so there is no output at all. Here
 the label defines nothing: no reference resolves to it, and an element whose
 labels were all refused has no anchor, so nothing links to it. The label check
-of the [`refs`](crate::stdcore::features::refs) feature reports it as the Error
+of the [`refs`](crate::stdlib::features::refs) feature reports it as the Error
 `flm.refs.label-type-not-accepted`. That check runs under every workflow of the
 standard features, the rendering workflows included, so the error is reported
 wherever the document is processed. A reference to the label is reported as
@@ -603,7 +605,7 @@ numbers of one counter style are written together. Four things differ:
   `Eq. (1) and Thm. 1.1` where the Python implementation writes
   `Eq. (1), Thm. 1.1`, and three items read `Eq. (1), Thm. 1.1, and A note`.
   The join texts are the configuration of the references feature
-  ([`RefsConfig`](crate::stdcore::features::refs::RefsConfig)), declared in the
+  ([`RefsConfig`](crate::stdlib::features::refs::RefsConfig)), declared in the
   same form as a counter style's join texts.
 - Any option other than `S` and `noprefix` asks for a wording variant (a variant
   of the words written before a number), where the Python implementation reads
@@ -619,11 +621,11 @@ The label written on a reference point is **not** split: one `\label` declares
 one label, commas included.
 
 **An unresolved reference is never a link.** Under
-[`UnresolvedRefs::Allow`](crate::stdcore::features::refs::UnresolvedRefs) the
+[`UnresolvedRefs::Allow`](crate::stdlib::features::refs::UnresolvedRefs) the
 reference is reported as a Warning and shown as the label's own text, marked as
 unresolved, with no link target. The Python implementation writes a link to a
 `javascript:` address; this library never writes one, because nothing it
-produces may become a script that runs in a reader's browser.
+produces of its own may become a script that runs in a reader's browser.
 
 **References to other documents are data that a host installs, not code that
 this library calls.** The Python implementation takes a list of resolver
@@ -631,7 +633,7 @@ objects and calls each one, in order, for every reference the document cannot
 resolve itself, giving it the reference's type and label together with the
 resource and rendering context. Here a host installs one external table, the
 external index `flm.refs.external-index`
-([`EXTERNAL_INDEX`](crate::stdcore::features::refs::EXTERNAL_INDEX)), when it
+([`EXTERNAL_INDEX`](crate::stdlib::features::refs::EXTERNAL_INDEX)), when it
 constructs the run: a map from a label to a target, which holds a destination
 and the content to show. An external table is a table that no stage of the run
 writes; the caller installs its value
@@ -661,7 +663,7 @@ heading's title.
 
 A counter style says how a counter value is shown: the number template, the
 sub-levels, the prefix words with their variants, the delimiters and the join
-texts ([`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl);
+texts ([`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl);
 see [counters and counter
 styles](crate::guide::concepts_overview#counters-and-counter-styles)). The code
 that turns a counter's value into the number a reader sees is a port of the
@@ -669,7 +671,7 @@ Python implementation's `counter` module, and a configuration written for that
 module maps onto it almost key for key: the same eight number formats under the
 same names, the same single-letter number templates (`(a)` writes `(c)` for the
 number three;
-[`NumberTemplate::Initial`](crate::stdcore::features::numbering::NumberTemplate::Initial)),
+[`NumberTemplate::Initial`](crate::stdlib::features::numbering::NumberTemplate::Initial)),
 the same join specification with its thirteen texts, its four variables and its
 compact preset, the same sorting, the same collapsing of consecutive values into
 ranges, and the same rule that a lone pair of consecutive values is written `1
@@ -683,7 +685,7 @@ The differences:
    number in a number template are parsed once, when the counter style is
    compiled, and what they produce is content, not a string of markup. Writing a
    counter value produces a list of *segments*
-   ([`Segment`](crate::stdcore::features::numbering::Segment)), each a piece of
+   ([`Segment`](crate::stdlib::features::numbering::Segment)), each a piece of
    content together with the position of the value it links to. The Python
    implementation joins strings and calls a function to wrap each linked part.
 2. **A template is written `#{…}`, not `${…}`.** A counter style's number
@@ -724,7 +726,7 @@ The differences:
    structural.** The counter record of a reference point holds the ancestors'
    values, and a within-joiner (what a counter numbered within another writes
    of its ancestors before its own number;
-   [`Within`](crate::stdcore::features::numbering::Within)) writes them:
+   [`Within`](crate::stdlib::features::numbering::Within)) writes them:
    `Within::parent("flm.headings.subsection")` joins the subsection's number and
    a full stop, and a template's
    `#{flm.headings.subsection}` refers to an ancestor and writes its number, with
@@ -747,8 +749,8 @@ The differences:
    Within::parent("flm.headings.subsection").template("#{_parent}."))`, or,
    since that is the default joining text,
    `Within::parent("flm.headings.subsection")` alone
-   ([`NumberingOptions`](crate::stdcore::features::numbering::NumberingOptions),
-   [`Within`](crate::stdcore::features::numbering::Within)). A counter that
+   ([`NumberingOptions`](crate::stdlib::features::numbering::NumberingOptions),
+   [`Within`](crate::stdlib::features::numbering::Within)). A counter that
    nothing restarts is `within_nothing`. Two things have no Python counterpart:
    a counter may be numbered within whichever of several counters advanced most
    recently (`Within::parents`, `Within::parent_set`, `#{_parent}` in a
@@ -829,7 +831,7 @@ one parsing configuration is never read back under another.
 
 The Python implementation reads no command inside a formula: any command is accepted, and
 the source goes to the formula renderer. Here two features share that work. The
-[`math`](crate::stdcore::features::math) feature introduces mathematics into the
+[`math`](crate::stdlib::features::math) feature introduces mathematics into the
 language (the math groups, the display-math environments, their lines and numbers, the
 text commands) and processes none of it; a *processing feature* decides which commands a
 formula may hold, checks the formulas and writes them into the output. The library's
@@ -841,17 +843,27 @@ formula and carries the source to the output. Every name it registers carries
 `flm.math-passthrough.opaque`; the presentation element `flm.pres.math-passthrough`; the
 stylesheet `flm.html.style.math-passthrough`). A command that another feature declares
 (`\href`, `\section`) is declared for text only, so inside a formula it is an unknown
-command of mathematics, kept as written. The extension `math-mathjax` is a second
-processing feature, with no counterpart in the Python implementation: it accepts only the
-commands of MathJax's TeX packages ([mathematics processed by
-MathJax](crate::guide::command_line#mathematics-processed-by-mathjax)). The `flm` program
-uses `math-mathjax` by default (see [the command line](#the-command-line)).
+command of mathematics, kept as written. The Python implementation says nothing of the
+formulas it passes on unread; `math-passthrough` reports them with one Warning per run on
+the HTML page and the two LaTeX outputs, `flm.run.unchecked-output` ("Unchecked output
+for LuaLaTeX: feature ‘math-passthrough’ writes each formula's LaTeX source as is
+(backend ‘latex-rendered’)"), and none on the text output. The extension `math-mathjax`
+is a second processing feature, with no counterpart in the Python implementation: it
+accepts only the commands of MathJax's TeX packages ([mathematics processed by
+MathJax](crate::guide::command_line#mathematics-processed-by-mathjax)). The extension
+`math-techxt` is a third, with no counterpart either: it accepts only the commands of
+techxt's notation and renders each formula as Unicode text on the text and HTML outputs
+([mathematics rendered as Unicode
+text](crate::guide::command_line#mathematics-rendered-as-unicode-text)); on the
+two LaTeX outputs it writes the formulas as `math-passthrough` does, with the same
+Warning naming `math-techxt`. The `flm` program uses `math-mathjax` by default (see [the
+command line](#the-command-line)).
 
 ## Text inside mathematics is FLM content here
 
 `\text{…}` and the related commands `\textnormal`, `\textup`, `\textrm`,
 `\textmd`, `\textbf`, `\textit`, `\textsl`, `\textsc`, `\textsf`, `\texttt` and
-`\mbox` ([`COMMANDS`](crate::stdcore::features::math::text::COMMANDS)) are
+`\mbox` ([`COMMANDS`](crate::stdlib::features::math::text::COMMANDS)) are
 declared here for mathematics mode, each with one argument read in *text* mode.
 The argument is therefore ordinary FLM content: it is parsed as text, its
 whitespace is collapsed, the typographic substitutions apply to it, a reference
@@ -880,14 +892,14 @@ between two `\\`: its mathematics, its labels, its tag and its no-number mark;
 each line is one reference point (see [equation
 lines](crate::guide::concepts_overview#equation-lines)). Inside the body of a
 display-math environment (`equation`, `align`, `gather` and their starred
-forms), the [`math` feature](crate::stdcore::features::math::lines) declares
+forms), the [`math` feature](crate::stdlib::features::math::lines) declares
 `\\`, `\label`, `\tag` and `\nonumber` and reads the body as equation lines. The
 split into lines is the Python implementation's: a `\label` on a line of its own
 belongs to the line that the following `\\` ends; `\notag` is declared by
 neither implementation; and a `\label` or a `\tag` on a `\nonumber` line or
 anywhere in a starred environment is a parse error in both
 (`flm.math.label-without-number` here). Whether the lines are numbered at all
-is [`MathConfig::numbered_equations`](crate::stdcore::features::math::MathConfig),
+is [`MathConfig::numbered_equations`](crate::stdlib::features::math::MathConfig),
 `true` by default and fixed when the registry is built. Six things differ:
 
 1. **An empty line is an error** (`flm.math-passthrough.empty-line`). A line that
@@ -934,7 +946,7 @@ is [`MathConfig::numbered_equations`](crate::stdcore::features::math::MathConfig
    implementation reads the tag's braces as plain characters and writes them
    into the LaTeX output unchanged. Here the argument is ordinary inline content
    of the document
-   ([`Tag::content`](crate::stdcore::features::math::lines::Tag#structfield.content)
+   ([`Tag::content`](crate::stdlib::features::math::lines::Tag#structfield.content)
    is a run of nodes): a command inside it is read as a command and written by
    each output format, and a character that an output format must escape is
    escaped. `\tag{50\% \& more}` reaches LaTeX as `\tag*{(50\% \& more)}`, where
@@ -947,7 +959,7 @@ is [`MathConfig::numbered_equations`](crate::stdcore::features::math::MathConfig
 The environments are the Python implementation's three, `itemize`,
 `enumerate` and `description`, with its labels by depth (`•`, `-`, `▸`; `1.`,
 `(i)`, `a-`), and they are configured as there, per environment name, in
-[`ListsConfig`](crate::stdcore::features::lists::ListsConfig). `\item[…]`, and
+[`ListsConfig`](crate::stdlib::features::lists::ListsConfig). `\item[…]`, and
 `\label{item:…}` directly after an `\item`, are read as they are there, except
 for a bracket holding `=` (below). The differences:
 
@@ -1017,18 +1029,18 @@ for a bracket holding `=` (below). The differences:
 ## Footnotes and other xnotes
 
 The Python implementation's `endnotes` feature is the
-[`xnotes`](crate::stdcore::features::xnotes) feature here. An xnote is a piece of
+[`xnotes`](crate::stdlib::features::xnotes) feature here. An xnote is a piece of
 text set apart from the running text, marked where it belongs and shown
 elsewhere or in place (a footnote, an endnote, a side note); an xnote kind is
 one way of being an xnote, declared by the feature's configuration. An xnote
 kind takes the place of the Python *category*. `\footnote{…}` is written as
-there, and the standard package declares one xnote kind, `footnote`, by
-default. The differences:
+there, and the default configuration of the feature declares one xnote kind,
+`footnote`. The differences:
 
 - **The xnote kinds are declarations in the configuration.** The Python feature
-  takes a list of `EndnoteCategory` values; the standard package here takes
-  [`XnotesConfig`](crate::stdcore::features::xnotes::XnotesConfig), a list of
-  [`XnoteKind`](crate::stdcore::features::xnotes::XnoteKind) values, fixed when
+  takes a list of `EndnoteCategory` values; the feature here takes
+  [`XnotesConfig`](crate::stdlib::features::xnotes::XnotesConfig), a list of
+  [`XnoteKind`](crate::stdlib::features::xnotes::XnoteKind) values, fixed when
   the registry is built:
 
   | Python `EndnoteCategory` | `XnoteKind` |
@@ -1042,13 +1054,13 @@ default. The differences:
   A category that a feature added to a document at run time (the Python
   document manager's `add_endnote_category`) is here an xnote kind that another
   feature contributes when the registry is built, through
-  [`contribute_kind`](crate::stdcore::features::xnotes::contribute_kind); its
+  [`contribute_kind`](crate::stdlib::features::xnotes::contribute_kind); its
   xnotes are nodes of that feature's own elements rather than calls into the
   xnotes feature. The Python render options of the list of notes (whether a
   heading is written, at which level, a heading above all the lists) are the
   xnote kind's `title` and `title_level` here. There is one list per xnote
   kind, and a render leaves a list out through
-  [`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions).
+  [`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions).
 - **A footnote can be labeled and referred to.** In
   `\footnote[\label{fn:x}]{…}`, the optional argument holds `\label`s and
   nothing else (anything else is reported and ignored), and `\ref{fn:x}` shows
@@ -1073,7 +1085,7 @@ default. The differences:
   and inside every `\ref` that prints that template, while the other outputs
   write no mark there. A note in the template of a user definition that is kept
   as a call (a kept definition,
-  [`userdefs::kept`](crate::stdcore::features::userdefs::kept)) is written into
+  [`userdefs::kept`](crate::stdlib::features::userdefs::kept)) is written into
   that definition in the style file, so LaTeX sets it wherever the call is, as
   the other outputs do. A `\label` in such a template is an Error at each use
   of the definition (`flm.userdefs.kept-template-declares-point`): a kept
@@ -1121,7 +1133,7 @@ to LaTeX](#recomposing-to-latex)).
 ## Hyperlinks
 
 The Python implementation's `href` feature is the
-[`href`](crate::stdcore::features::href) feature here, with the same three
+[`href`](crate::stdlib::features::href) feature here, with the same three
 commands, `\href{address}{text}`, `\url{address}` and `\email{address}`, and the
 same display: `\url` and `\email` show the address without a leading `http://`,
 `https://` or `mailto:` and without trailing `/`, `#` and `?` characters. The
@@ -1134,13 +1146,13 @@ address is read as raw text in a document, as there. The differences:
   `\href{https://doi.org/#1}{#1}` in a template substitutes the argument, and a
   literal `#` there is written `##`.
 - **The plain-text output.** The Python option `display_href_urls` is
-  [`TextRenderOptions::link_addresses`](crate::stdcore::backends::text::TextRenderOptions::link_addresses),
+  [`TextRenderOptions::link_addresses`](crate::stdlib::backends::text::TextRenderOptions::link_addresses),
   on by default as there: a link prints its address after its text. One
   difference: a `\url` or an `\email` prints its display once,
   `\url{https://example.com}` printing `example.com` where the Python output is
   `example.com <https://example.com>`, because what it shows is already the
   address. The second option,
-  [`link_addresses_when_shown`](crate::stdcore::backends::text::TextRenderOptions::link_addresses_when_shown),
+  [`link_addresses_when_shown`](crate::stdlib::backends::text::TextRenderOptions::link_addresses_when_shown),
   off by default, prints the address after such a link too, which gives the
   Python output back.
 - **The recomposed LaTeX.** The Python recomposer writes `\href` and `\url`
@@ -1160,12 +1172,12 @@ address is read as raw text in a document, as there. The differences:
   because the three commands are fixed here and a host that wants another adds a
   feature of its own; and `ref_type`, the link type `href`, because every link
   the three commands write is of the kind `url` (`data-flm-kind="url"` on the
-  page; [`LINK_KIND`](crate::stdcore::features::href::LINK_KIND)).
+  page; [`LINK_KIND`](crate::stdlib::features::href::LINK_KIND)).
 
 ## Defined terms
 
 The Python implementation's definition terms are the
-[`defterm`](crate::stdcore::features::defterm) feature here:
+[`defterm`](crate::stdlib::features::defterm) feature here:
 `\begin{defterm}{term} … \end{defterm}` defines a term, and `\term[ref]{shown}`
 links to its definition. What carries over:
 
@@ -1189,7 +1201,7 @@ The differences:
   counterpart and matches only the term's own spelling.
 - **The lead-in is a template.** What a definition shows before its body is
   configured as a template in which `#{term}` is the term
-  ([`DeftermConfig`](crate::stdcore::features::defterm::DeftermConfig)),
+  ([`DeftermConfig`](crate::stdlib::features::defterm::DeftermConfig)),
   `#{term}: ` by default, rather than by the Python feature's two settings
   (which it passes to its environment class as that class's
   `render_with_term` and `render_with_term_suffix`). A suffix
@@ -1209,7 +1221,7 @@ The differences:
   Python implementation writes one, `\flmTerm{term}{safe label}{ref term}{shown}`.
   Here a term link is `\flmTerm{<safe label>}{<shown>}`, the two arguments
   LaTeX needs (a safe label is the key the recomposed LaTeX writes for a label;
-  see [`SafeLabels`](crate::stdcore::features::refs::SafeLabels)), and a term
+  see [`SafeLabels`](crate::stdlib::features::refs::SafeLabels)), and a term
   inside the definition of its own term is `\flmTermInDefterm{<shown>}`, the
   term being defined set apart with no link, for which the Python
   implementation has no form. The environment `defterm` is defined from the
@@ -1218,29 +1230,29 @@ The differences:
 ## Theorems
 
 The Python implementation's `theorems` feature is the
-[`theorems`](crate::stdcore::features::theorems) feature here: the environments
+[`theorems`](crate::stdlib::features::theorems) feature here: the environments
 `theorem`, `lemma`, `proof` and the others, with their title, their `\label`s,
 `\noproofref`, a proof's back-reference `[*lem:x]` or `[**lem:x]`, and the
 closing mark. What carries over:
 
 - The three sets of environments, `simpleset`, `defaultset` and `richset`, are
   configuration values:
-  [`TheoremsConfig::simpleset`](crate::stdcore::features::theorems::TheoremsConfig::simpleset),
-  [`TheoremsConfig::new`](crate::stdcore::features::theorems::TheoremsConfig::new)
+  [`TheoremsConfig::simpleset`](crate::stdlib::features::theorems::TheoremsConfig::simpleset),
+  [`TheoremsConfig::new`](crate::stdlib::features::theorems::TheoremsConfig::new)
   (the default set, which is the default here too) and
-  [`TheoremsConfig::richset`](crate::stdcore::features::theorems::TheoremsConfig::richset).
+  [`TheoremsConfig::richset`](crate::stdlib::features::theorems::TheoremsConfig::richset).
 - The shapes the Python sets give their environments are the theorem classes
   here, `theoremlike`, `definitionlike` and `prooflike`
-  ([`TheoremClass`](crate::stdcore::features::theorems::TheoremClass)), and the
+  ([`TheoremClass`](crate::stdlib::features::theorems::TheoremClass)), and the
   settings of a Python environment map to a theorem kind
-  ([`TheoremKind`](crate::stdcore::features::theorems::TheoremKind)) and its
+  ([`TheoremKind`](crate::stdlib::features::theorems::TheoremKind)) and its
   class: whether it is numbered and whether it shares the common counter
   (`shared_numbering: False` is `shared_counter: false`, a counter of the
   kind's own, `flm.theorems.counter.<kind>`), its title forms (`words`), the
   closing mark (`closing_mark`), and whether its title may refer to the
   statement it proves (`relation_ref`).
 - The accepted label prefixes, `allowed_ref_label_prefixes`, are the single list
-  [`label_types`](crate::stdcore::features::theorems::TheoremsConfig::label_types),
+  [`label_types`](crate::stdlib::features::theorems::TheoremsConfig::label_types),
   `thm, prop, cor, lem, rem, def, dfn, x, topic` by default, accepted by every
   numbered theorem kind.
 - A theorem reads `Theorem 1 (My theorem).` and a proof `Proof (Theorem 1).` or
@@ -1253,7 +1265,7 @@ The differences:
 
 - **The title forms are written out, never derived.** A theorem kind's words are
   the numbering feature's
-  [`PrefixWords`](crate::stdcore::features::numbering::PrefixWords): the
+  [`PrefixWords`](crate::stdlib::features::numbering::PrefixWords): the
   capitalized pair is the base (`Theorem`, `Theorems`), and named variants
   (`lowercase`, `capital`, `abbreviated`, or a name of the host's) hold the
   other forms, which `\ref[abbreviated]{thm:a}` asks for by name. The Python
@@ -1265,13 +1277,13 @@ The differences:
   implementation adds an `s`. Asking a theorem kind for a variant it does not
   declare is the references feature's Error `flm.refs.undeclared-variant`, and
   the usual wording is written.
-  [`TheoremKind::from_word`](crate::stdcore::features::theorems::TheoremKind::from_word)
+  [`TheoremKind::from_word`](crate::stdlib::features::theorems::TheoremKind::from_word)
   derives the two regular forms from one word, as the Python implementation
   does, and no abbreviation, because a derived abbreviation is wrong for many
   words.
 - **The heading is a template per theorem class.** How the theorem kind's name
   and number join the title is the class's theorem heading template
-  ([`TheoremClass::heading`](crate::stdcore::features::theorems::TheoremClass::heading)),
+  ([`TheoremClass::heading`](crate::stdlib::features::theorems::TheoremClass::heading)),
   `#{name}\IfValueT{#{title}}{ (#{title})}` by default, rather than the Python
   feature's two strings `heading_title_pre` (` (`) and `heading_title_post`
   (`)`). The template gives the same default and can also put the title first
@@ -1279,15 +1291,15 @@ The differences:
 - **No counter formatter.** The Python `counter_formatter` of each environment
   and `shared_counter_formatter` have no counterpart: every theorem kind's
   number is written in the single [number
-  format](crate::stdcore::features::theorems::TheoremsConfig::number_format),
+  format](crate::stdlib::features::theorems::TheoremsConfig::number_format),
   `#{arabic}` by default. A host that wants one kind's number written otherwise
   replaces that kind's counter style, `flm.theorems.style.<kind>`, through
-  [`NumberingConfig`](crate::stdcore::features::numbering::NumberingConfig), the
+  [`NumberingConfig`](crate::stdlib::features::numbering::NumberingConfig), the
   way every declared counter style is replaced. Numbering theorems within
   sections is a numbering option of the document, as for every counter, on the
   shared counter `flm.theorems.theorem` (the Python `_theorems_shared`).
 - **Whether a statement expects a proof is set per theorem kind**
-  ([`expects_proof`](crate::stdcore::features::theorems::TheoremKind::expects_proof)):
+  ([`expects_proof`](crate::stdlib::features::theorems::TheoremKind::expects_proof)):
   `theorem`, `proposition`, `lemma` and `corollary` do; a conjecture does not,
   since it has no proof by nature.
 - **`\noproofref` is read.** The Python implementation records `\noproofref`
@@ -1313,7 +1325,7 @@ The differences:
 ## Quotations
 
 The Python implementation's `quotation` feature is the
-[`quote`](crate::stdcore::features::quote) feature here: the environments
+[`quote`](crate::stdlib::features::quote) feature here: the environments
 `quote`, `blockquote` and `address`; the quotation-section commands `\text{…}`,
 `\lines{…}`, `\attributed{…}` and `\block{…}`, each of which writes one part of
 a quotation (a quotation section); and, inside a lines section, `\\`, which ends
@@ -1324,10 +1336,10 @@ a line, and `\indent`, which indents the line it starts. What carries over:
   no quotation-section command, its content being one block section; `address`
   accepts none either, its content being one lines section. A Python
   environment's list of accepted sections and its bare-content setting are a
-  [`QuoteEnvironment`](crate::stdcore::features::quote::QuoteEnvironment)'s
+  [`QuoteEnvironment`](crate::stdlib::features::quote::QuoteEnvironment)'s
   `sections` (a set: the order of the Python list has no meaning) and `bare`
-  ([`QuoteSection`](crate::stdcore::features::quote::QuoteSection)), configured
-  through [`QuoteConfig`](crate::stdcore::features::quote::QuoteConfig).
+  ([`QuoteSection`](crate::stdlib::features::quote::QuoteSection)), configured
+  through [`QuoteConfig`](crate::stdlib::features::quote::QuoteConfig).
 - A quotation-section command that an environment does not accept is not a
   command in its body, as in the Python implementation, which adds only the
   accepted sections to the parsing context of the body.
@@ -1349,9 +1361,9 @@ The differences:
   the bare-content setting, so the setting could only repeat or contradict that
   other setting.
 - **An indent is a length in tabs.** Each `\indent` is one tab of indentation, a
-  [`Length`](crate::stdcore::backends::pres::Length) whose unit each backend
+  [`Length`](crate::stdlib::backends::pres::Length) whose unit each backend
   gives a width (four columns on the text output,
-  [`tab_width`](crate::stdcore::backends::text::TextRenderOptions::tab_width)),
+  [`tab_width`](crate::stdlib::backends::text::TextRenderOptions::tab_width)),
   rather than a count of columns. On the page a line carries its indentation as
   the custom property `--flm-element-indent-left` of its `style` attribute, a
   multiple of `--flm-tab` (`2em` by default), which the stylesheet applies. The
@@ -1364,7 +1376,7 @@ The differences:
   is, and a kind token is a feature-owned name that classifies it further, so
   that a stylesheet or a host's lowering rule can select on them; the page
   writes the kind tokens in the attribute `data-flm-kind` (see
-  [`payload`](crate::stdcore::backends::pres::payload)). Each quotation section
+  [`payload`](crate::stdlib::backends::pres::payload)). Each quotation section
   is a `<div>` of its role's class: `flm-quote-attributed` where the Python
   renderer writes `quote-attributed`. The tag comes from the HTML backend's
   table of tags by role, never from the environment, so a stylesheet selects one
@@ -1409,7 +1421,7 @@ The differences:
 ## Annotations
 
 The Python implementation's `annotations` feature is the
-[`annotations`](crate::stdcore::features::annotations) feature here: a
+[`annotations`](crate::stdlib::features::annotations) feature here: a
 reviewer's command for each annotator, with `\phf{…}` and `\phf … \endphf`
 highlighting a passage and `\phf[…]` writing a reviewer's comment. What carries
 over: the three spellings and their meanings; the annotators, configured with a
@@ -1417,16 +1429,16 @@ command and initials and numbered in configuration order (the number on which
 an output keys a color); and `\phf{x}[y]`, a highlight of `x` followed by the
 text `[y]`, as in the Python implementation and in the `phfcc` LaTeX package.
 The configuration is
-[`AnnotationsConfig`](crate::stdcore::features::annotations::AnnotationsConfig),
+[`AnnotationsConfig`](crate::stdlib::features::annotations::AnnotationsConfig),
 an ordered list of
-[`Annotator`](crate::stdcore::features::annotations::Annotator)s. The
+[`Annotator`](crate::stdlib::features::annotations::Annotator)s. The
 differences:
 
 - **The initials are a decoration beside the text.** The Python implementation
   writes the initials inside the highlight's or the comment's span, as an
   inline span. Here they are a margin decoration at the start of the annotation
   (a decoration is a node whose element carries the
-  [`Decoration`](crate::stdcore::backends::pres::Decoration) aspect, which the
+  [`Decoration`](crate::stdlib::backends::pres::Decoration) aspect, which the
   lowering moves out of the content into an attached slot of the node around
   it), so that
   an output may set them beside the line, as `phfcc` does in the margin. The
@@ -1452,7 +1464,7 @@ differences:
   of the text around it, still highlighted.
 - **Hiding is a render option.** The Python feature's flag that hides every
   annotation is the render option
-  [`AnnotationsRenderOptions::hidden`](crate::stdcore::features::annotations::AnnotationsRenderOptions::hidden),
+  [`AnnotationsRenderOptions::hidden`](crate::stdlib::features::annotations::AnnotationsRenderOptions::hidden),
   set per render: a highlight is shown as its passage alone, and a comment not
   at all.
 - **Empty or blank initials are refused** when the registry is built; the
@@ -1466,12 +1478,12 @@ differences:
 
 The Python implementation's `\includegraphics`, which its `floats` feature
 offers inside a figure and which its `graphics_resource_provider` feature
-describes, is the [`graphics`](crate::stdcore::features::graphics) feature here.
+describes, is the [`graphics`](crate::stdlib::features::graphics) feature here.
 What carries over: the command inside a float's body by default; what is known
 about a file comes from the host, here through the graphics resolver and the
 inspector that a host contributes
-([`GraphicsResolver`](crate::stdcore::features::graphics::GraphicsResolver),
-[`GraphicsInspector`](crate::stdcore::features::graphics::GraphicsInspector)),
+([`GraphicsResolver`](crate::stdlib::features::graphics::GraphicsResolver),
+[`GraphicsInspector`](crate::stdlib::features::graphics::GraphicsInspector)),
 where the Python implementation's resource provider looked the file up; and the
 recomposed LaTeX's default of an image kept within the line's width
 (`max width=\linewidth`). The differences:
@@ -1499,7 +1511,7 @@ recomposed LaTeX's default of an image kept within the line's width
   `graphics_raster_magnification` and `graphics_vector_magnification` are the
   render option `graphics.magnification` here, a map from an output's name to
   `{raster: …, vector: …}`
-  ([`GraphicsRenderOptions::magnification`](crate::stdcore::features::graphics::GraphicsRenderOptions::magnification)):
+  ([`GraphicsRenderOptions::magnification`](crate::stdlib::features::graphics::GraphicsRenderOptions::magnification)):
   `graphics: {magnification: {html: {raster: 1.5, vector: 1.25}}}`. As in
   Python, every dimension of the image is multiplied, the `width=` and
   `height=` the author gave included, and an image whose type is not known
@@ -1514,7 +1526,7 @@ recomposed LaTeX's default of an image kept within the line's width
 - **The command anywhere, inline outside a float.** The Python implementation
   offers the command inside a float only, as a block, the float's content. Here
   a setting of the configuration (fixed when the registry is built),
-  [`GraphicsConfig::global`](crate::stdcore::features::graphics::GraphicsConfig::global),
+  [`GraphicsConfig::global`](crate::stdlib::features::graphics::GraphicsConfig::global),
   makes it an ordinary command too, written wherever text may be written. An
   image is a block only as a direct child of a float's body; everywhere else it
   is inline content, a word of the text around it: in a sentence, in a
@@ -1585,12 +1597,14 @@ recomposed LaTeX's default of an image kept within the line's width
     frame of a GIF or MNG image. Here the first page or frame of every image is
     converted: a PDF file of several pages makes one picture of its first page,
     the page whose size is measured.
-  - *No cache of conversions between runs.* The Python program kept its
-    conversions in a file beside its copies (`.flm-output-metainfo-cache.json`)
-    and reused them at the next run. Here a conversion is kept while the program
-    runs (an image shown twice is converted once, and so is an image that did
-    not change between two rebuilds of one preview), and a new run converts
-    again.
+  - *The cache of conversions.* The Python program kept its conversions in a
+    file beside its copies (`.flm-output-metainfo-cache.json`) and reused them
+    at the next run. Here the converted images are kept in the program's cache,
+    one folder shared by all documents (see [The
+    cache](crate::guide::command_line#the-cache)): an image shown twice, an image
+    that did not change between two builds, and an image that another document
+    converted are converted once. A conversion's key holds the version of
+    ImageMagick and the image's content, so a changed image is converted again.
   - *An image at a web address* (`https://…`) is written as it is and is not
     measured; the Python program downloaded it, measured it and copied it. An
     address beginning with `file:` is such an address too, written as it is;
@@ -1601,7 +1615,7 @@ recomposed LaTeX's default of an image kept within the line's width
 ## Floats
 
 The Python implementation's `floats` feature is the
-[`floats`](crate::stdcore::features::floats) feature here: `figure`, `table`
+[`floats`](crate::stdlib::features::floats) feature here: `figure`, `table`
 and the float types a host configures, each an environment whose body holds its
 content, a `\caption{…}` and `\label{…}`s, shown where it is written. What
 carries over: the two standard float types and their words (`Fig.~` and
@@ -1611,17 +1625,17 @@ admits (exactly one image for `figure`, one table of cells or one image for
 `table`, anything for a type that admits `any`), declared through content
 handlers (a content handler is a value that accepts a float's content or refuses
 it, contributed by the feature that owns that content;
-[`FloatContentHandler`](crate::stdcore::features::floats::FloatContentHandler));
+[`FloatContentHandler`](crate::stdlib::features::floats::FloatContentHandler));
 and the line under a numbered float's content, `Figure 1: ` followed
 by the caption. The configuration is
-[`FloatsConfig`](crate::stdcore::features::floats::FloatsConfig), an ordered
-list of [`FloatType`](crate::stdcore::features::floats::FloatType)s, each
+[`FloatsConfig`](crate::stdlib::features::floats::FloatsConfig), an ordered
+list of [`FloatType`](crate::stdlib::features::floats::FloatType)s, each
 declaring its content handlers and its accepted label types (its own name by
 default: `\label{figure:x}`). The differences:
 
 - **A float type has a numbering policy.** The Python implementation numbers a
   float when it carries a `\label`. Here each float type has a numbering policy
-  ([`FloatNumbering`](crate::stdcore::features::floats::FloatNumbering)):
+  ([`FloatNumbering`](crate::stdlib::features::floats::FloatNumbering)):
   `AutoNumbered`, the default of every type, `figure` and `table` included,
   numbers a float that carries a `\label` and no `\nonumber`, which is the
   Python behavior; `Numbered` numbers every float unless it carries
@@ -1681,7 +1695,7 @@ default: `\label{figure:x}`). The differences:
 ## Tables of cells
 
 The Python implementation's `cells` feature is the
-[`cells`](crate::stdcore::features::cells) feature here, ported step for step:
+[`cells`](crate::stdlib::features::cells) feature here, ported step for step:
 the `cells` environment; `\cell<styles>[placement]{content}`;
 `\celldata<styles>[mapping]{data}` with `\\` and `&`; `\merge{…}`; the small
 language of placements and mappings (`ROW;COL`, `2-4`, `2+3`, `1,2`, an open
@@ -1694,7 +1708,7 @@ each with its reason:
   `cells` everywhere in a document. Here it exists inside a `table` float by
   default, and wherever blocks may be written under the setting
   `cells: { global: true }`
-  ([`CellsConfig::global`](crate::stdcore::features::cells::CellsConfig::global)),
+  ([`CellsConfig::global`](crate::stdlib::features::cells::CellsConfig::global)),
   which gives the Python behavior: a host decides whether its authors write
   tables only inside a float.
 - **Blank lines in the body** are whitespace here, as an author of a long table
@@ -1812,14 +1826,14 @@ each with its reason:
 
 ## Citations
 
-The Python `cite` feature is the [`citations`](crate::stdcore::features::citations)
+The Python `cite` feature is the [`citations`](crate::stdlib::features::citations)
 feature here: `\cite[note]{keys}`; adjacent calls read as one citation chunk;
 each cited work numbered in order of first appearance and shown as a citation
 mark made of links to it (`[1,3–5]`); and its identifier `citation-<n>`, as in
-the Python implementation. The feature is in the standard package, so every
-host has it; the Python command line could not turn citations on at all. The
-Python settings map to its configuration
-([`CitationsConfig`](crate::stdcore::features::citations::CitationsConfig)):
+the Python implementation. The feature is one of the standard features, so
+every host that adds them has it; the Python command line could not turn
+citations on at all. The Python settings map to its configuration
+([`CitationsConfig`](crate::stdlib::features::citations::CitationsConfig)):
 
 - `citation_delimiters` to the delimiters of the citation counter style (the
   configuration's `style`, a counter style);
@@ -1835,7 +1849,7 @@ Python settings map to its configuration
 The Python implementation's external citation providers, asked in order through
 `get_citation_full_text_flm(prefix, key, resource_info)`, are the citation
 providers here: a
-[`CitationProvider`](crate::stdcore::features::citations::CitationProvider)
+[`CitationProvider`](crate::stdlib::features::citations::CitationProvider)
 contributed to the service slot `flm.citations.providers`. The providers are
 asked in order, the first answer decides, and a provider's error ends the lookup
 of the key, as in the Python implementation. The differences:
@@ -1845,7 +1859,7 @@ of the key, as in the Python implementation. The differences:
   implementation split the key at the first `:` and lowercased and trimmed the
   part before it.
 - The provider decides which keys refer to one work: its answer
-  ([`CitationAnswer`](crate::stdcore::features::citations::CitationAnswer))
+  ([`CitationAnswer`](crate::stdlib::features::citations::CitationAnswer))
   gives the work's identity, and keys answered with one identity are one work,
   with one number and one citation entry. The Python implementation ignored the
   letter case of the prefix but numbered by the key after the colon as written,
@@ -1855,12 +1869,12 @@ of the key, as in the Python implementation. The differences:
   answers is taken as its work's identity as written, so that a key written
   exactly as a work's identity is a key of that work.
 - A provider may be given all the keys of a document in one call
-  ([`answer_all`](crate::stdcore::features::citations::CitationProvider::answer_all)),
+  ([`answer_all`](crate::stdlib::features::citations::CitationProvider::answer_all)),
   so that a provider that fetches over the network asks for many at once.
 - A provider answers with a citation entry, parsed from FLM source through
-  [`ProviderCx::parse_entry`](crate::stdcore::features::citations::ProviderCx::parse_entry)
+  [`ProviderCx::parse_entry`](crate::stdlib::features::citations::ProviderCx::parse_entry)
   or built from parts through
-  [`ProviderCx::build_entry`](crate::stdcore::features::citations::ProviderCx::build_entry),
+  [`ProviderCx::build_entry`](crate::stdlib::features::citations::ProviderCx::build_entry),
   where the Python provider answered with a text or a fragment; an entry built
   from parts has no characters to escape.
 
@@ -1889,11 +1903,14 @@ The citation entries differ as this second table says:
 **The standard citation provider of the `flm` program.** The Python package
 `flm-citations`, which fetches the details of cited works from the arXiv and
 doi.org and reads bibliography files, is the feature `citations-standard` of the
-host's package `stdmain` here, part of every document that the `flm` program
-renders (the cargo feature `citations` of `flm-main`). Both fetch through the
+host's package `std` here, part of every document that the `flm` program
+renders (the cargo feature `citations` of `flm-host`). Both fetch through the
 same crate, `autocitefetch`, so the sources, the cache file
 `.flm-citations.jsonl`, its lifetimes, the batching of keys and the waiting
-between requests are the same. The differences:
+between requests are the same. Beside the cache file, the `flm` program also
+keeps every fetched record in a central cache shared by all documents, from
+which a document's cache file is filled (see
+[Citations](crate::guide::command_line#citations)). The differences:
 
 | Python implementation | This library | Reason |
 |---|---|---|
@@ -1910,7 +1927,7 @@ between requests are the same. The differences:
 | `manual_format`, the name of the markup a `manual:` key is written in | none: a `manual:` key is FLM | one meaning for the key |
 | the keys of a `\cite` read as a list separated by commas, the braces of a `manual:` key respected, so that `\cite{manual:{X et al., Journal of Future Results (2034)}}` is one key, which may hold a comma and a command; each key's text taken as written, so that two spellings of a key that differ only in their inner whitespace (`manual:{A   B}` and `manual:{A B}`) are two works | the braces respected too: the keys of a `\cite` are FLM content, split at the commas outside every group, each recomposed to the source written for it with every run of whitespace written as one space, so that two such spellings are one work; a key is read as any other content of the document, under the document's settings | a key is its FLM source, as a defined term's identity is, a run of whitespace counting as one space |
 | `ttl_policy`, `retry`, `max_chain_depth`, `refresh_batching`, `prune_cache` | not settings yet: the crate's defaults apply | not implemented yet |
-| the progress written to the logger `flm_citations.retrieve`, at its level `INFO` or `DEBUG`; `on_event`, a function receiving each event | a listener that the program embedding the host library gives; `flm render -v` writes each pass, request and wait to standard error | the host library prints nothing; the program decides what to show |
+| the progress written to the logger `flm_citations.retrieve`, at its level `INFO` or `DEBUG`; `on_event`, a function receiving each event | a row of the build's progress sheet for each pass that has keys to fetch, counted in those keys, and a log line at the level `Info` for each request and each wait, on the log sink that the program embedding the host library gives; `flm render` shows the count on its [progress line](crate::guide::command_line#progress-of-a-build), and under `-v` writes the log lines to standard error | the host library prints nothing; the program decides what to show |
 | citation entries set by the Python formatter `citeproc-py` in the package's patched style "American Physical Society - et al." | citation entries set by the Rust formatter `hayagriva` in a copy of the same style file, its information block and one empty `<else>` brought to the form the CSL schema requires | the Rust formatter of the Citation Style Language (CSL); two formatters reading one style may differ in small ways, such as a word with capitals inside it written in title case by a style (`The TeXbook` becomes `The Texbook`), in a title or in a container's name alike |
 | `bib_csl_style`, a style file | `style`: `{file: …}`, a style file, or `{name: …}`, a style of the formatter's archive | the archive's styles are available by name |
 | the links after a citation entry fixed: the DOI and the arXiv entry, the address only where neither exists | the same by default, each a setting: `doi_link`, `arxiv_link`, `url_link` (`always`, `never`, `only-if-no-other-link`) | new: a small addition, with the defaults unchanged |
@@ -1927,7 +1944,7 @@ between requests are the same. The differences:
 `\NoCaseChange{\protect\cite{a,b}\protect\cite[{Thm 4}]{c}}`: the keys without a
 note first, then one `\cite` per key with a note. Here each call is written as
 the author wrote it, through three LaTeX hooks that the style file defines
-([`citations::latex`](crate::stdcore::features::citations::latex)):
+([`citations::latex`](crate::stdlib::features::citations::latex)):
 `\cite[Thm 4]{a,b}\cite{c}` becomes
 `\flmCitePreSpace\flmCite[Thm 4]{a,b}\flmCite{c}`, and `\R[S]\cite{a,b}`
 becomes `\flmRefCite{Refs.~}{\flmCite{a,b}}`, the keys as typed. `\flmCite`
@@ -1950,7 +1967,7 @@ Its two halves map as follows:
   `text_macros: {hl: {text_formats: [textbf]}}`, is a [user
   definition](#user-definitions-and-the-template-language): a macro `hl` with
   one mandatory argument and the template `\textbf{#1}`, supplied through
-  [`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig)
+  [`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig)
   (`Definition::macro_("hl", vec![ArgDef::mandatory("text")]).text(r"\textbf{#1}")`).
   `\hl{word}` then reads as `\textbf{word}` on every output, and the recomposed
   LaTeX may keep it as a LaTeX definition.
@@ -2011,17 +2028,17 @@ end](crate::guide::extending#a-rust-extension-end-to-end)). The differences:
 
 The Python implementation's pure-LaTeX recomposer (`FLMPureLatexRecomposer`,
 run by the `flmlatex` workflow) is the
-[`latex-recomposed`](crate::stdcore::backends::latex_recomposed) backend here,
+[`latex-recomposed`](crate::stdlib::backends::latex_recomposed) backend here,
 run by the workflow of that name. It writes the document back as LaTeX source,
 close to what an author would have typed, and leaves numbering and
 cross-references to LaTeX. It writes each label as its safe label, the key that
 the recomposed LaTeX writes for an FLM label (`ref1`, `ref2`, … in order of
 first mention, one sequence for every label type;
-[`SafeLabels`](crate::stdcore::features::refs::SafeLabels)), and each reference
+[`SafeLabels`](crate::stdlib::features::refs::SafeLabels)), and each reference
 through the LaTeX hook `\flmRef`, which the style file defines over `\zcref`
 (difference 13 below). A LaTeX hook is a macro, or an environment such as `flmFloat`,
 that the recomposed LaTeX writes and the style file defines with a plain default, which
-a user redefines in the document's preamble ([hooks](crate::stdcore::backends::latex::preamble)).
+a user redefines in the document's preamble ([hooks](crate::stdlib::backends::latex::preamble)).
 The [rendering chapter](crate::guide::rendering#the-recomposed-latex-backend) describes
 that output; this section says where the recomposer's options went and where
 the recomposed LaTeX differs.
@@ -2030,20 +2047,20 @@ the recomposed LaTeX differs.
 
 | Python option | This library |
 |---|---|
-| `recomposer.safe_label_ref_types[domain][type]` | [`RefsRecomposeOptions::safe_label_types`](crate::stdcore::features::refs::RefsRecomposeOptions): per label type, `Safe` or `Raw`; the only domain is `ref` |
-| `refs.protect_surround` | [`protect`](crate::stdcore::features::refs::RefsRecomposeOptions): the wrapper is `\NoCaseChange{\protect …}` as there, and the style file requests the `textcase` package; **off by default** here (the Python implementation wraps every reference by default) |
+| `recomposer.safe_label_ref_types[domain][type]` | [`RefsRecomposeOptions::safe_label_types`](crate::stdlib::features::refs::RefsRecomposeOptions): per label type, `Safe` or `Raw`; the only domain is `ref` |
+| `refs.protect_surround` | [`protect`](crate::stdlib::features::refs::RefsRecomposeOptions): the wrapper is `\NoCaseChange{\protect …}` as there, and the style file requests the `textcase` package; **off by default** here (the Python implementation wraps every reference by default) |
 | `refs.emit_flm_macro` | none: its behavior is the default. Every reference is written through a LaTeX hook that the style file defines (`\flmRef` over `\zcref`, and `\flmHyperref` for a `\hyperref`), so a user who wants one macro to redefine already has it, defined rather than left to the user |
 | — | none for `ref_command` and `label_command`, which do not exist here: the reference command is written in one place, the definition of `\flmRef` in the style file, and a user redefines that macro instead of rendering the document again |
-| — | [`heading_hook`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`label_hooks`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions): the hooks, both on by default; with both off, headings, labels and references are written as the Python implementation writes them |
-| — | [`drop_math_labels_without_refs`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions): new here, off by default. When it is on, and only in a registry built without the references feature, the labels of an equation line are written nowhere at all; with that feature registered it does nothing. The Python implementation has no counterpart, and no registry without its references feature either |
-| `math.surround_display_math` | [`MathRecomposeOptions::surround_display_math`](crate::stdcore::features::math::MathRecomposeOptions) |
-| `math.emit_flm_math_environment_macro` | [`MathRecomposeOptions::emit_flm_math_environment_macro`](crate::stdcore::features::math::MathRecomposeOptions); the style file defines `\flmMathEnvironment` |
+| — | [`heading_hook`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`label_hooks`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions): the hooks, both on by default; with both off, headings, labels and references are written as the Python implementation writes them |
+| — | [`drop_math_labels_without_refs`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions): new here, off by default. When it is on, and only in a registry built without the references feature, the labels of an equation line are written nowhere at all; with that feature registered it does nothing. The Python implementation has no counterpart, and no registry without its references feature either |
+| `math.surround_display_math` | [`MathRecomposeOptions::surround_display_math`](crate::stdlib::features::math::MathRecomposeOptions) |
+| `math.emit_flm_math_environment_macro` | [`MathRecomposeOptions::emit_flm_math_environment_macro`](crate::stdlib::features::math::MathRecomposeOptions); the style file defines `\flmMathEnvironment` |
 | `verbatim.use_fvextra` | always on: every inline verbatim command is written through `\EscVerb`, and the style file defines what it needs (difference 5). `fvextra` 1.5 (2022) or later is required, and the style file does not test for it |
-| `headings.macroname_mapping` | [`HeadingsLatexOptions::latex_commands`](crate::stdcore::features::headings::latex::HeadingsLatexOptions): the LaTeX command each heading kind is written as, keyed by the kind's name; a kind not listed is written as the command of its own name. A heading is written by its kind, not by the command it was written with, and with a star when it is not numbered |
-| — | [`resolved_proof_refs`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions): new here, off by default. Off, a proof's back-reference is written as the author wrote it, `[*ref1]`, as the Python implementation writes it, for the `phfthm` package; on, it is resolved into the proof title hook, `[{\flmProofTitle{\flmRef{ref1}}}]`, for `amsthm` alone (difference 22) |
+| `headings.macroname_mapping` | [`HeadingsLatexOptions::latex_commands`](crate::stdlib::features::headings::latex::HeadingsLatexOptions): the LaTeX command each heading kind is written as, keyed by the kind's name; a kind not listed is written as the command of its own name. A heading is written by its kind, not by the command it was written with, and with a star when it is not numbered |
+| — | [`resolved_proof_refs`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions): new here, off by default. Off, a proof's back-reference is written as the author wrote it, `[*ref1]`, as the Python implementation writes it, for the `phfthm` package; on, it is resolved into the proof title hook, `[{\flmProofTitle{\flmRef{ref1}}}]`, for `amsthm` alone (difference 22) |
 | `cite.safe_labels` | none: a citation's keys are written as typed, never as safe labels, because they refer to the entries of the author's bibliography database, not to labels of the document (see [Citations](#citations)) |
-| `skip_packages` (the workflow's) | [`LatexRecomposedRenderOptions::skip_packages`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions) |
-| — | [`unicode`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`unicode_overrides`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`drop_comments`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`style_stem`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`style_file`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`extra_packages`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`extra_preamble`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`bare_names`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions), [`robust_names`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions): new here (below) |
+| `skip_packages` (the workflow's) | [`LatexRecomposedRenderOptions::skip_packages`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions) |
+| — | [`unicode`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`unicode_overrides`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`drop_comments`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`style_stem`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`style_file`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`extra_packages`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`extra_preamble`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`bare_names`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions), [`robust_names`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions): new here (below) |
 
 ### Differences in the recomposed LaTeX
 
@@ -2060,7 +2077,7 @@ the recomposed LaTeX differs.
    - the declarations of Unicode characters;
    - the definition pieces that the rules used (a definition piece is a unit of
      LaTeX definitions registered under an identifier;
-     [`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)),
+     [`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)),
      each one either guarded or a LaTeX hook;
    - the user definitions that the recomposed LaTeX calls, each guarded in the
      same way, except where the render option `bare_names` asked for the
@@ -2103,8 +2120,16 @@ the recomposed LaTeX differs.
    block of definitions to interpret, and passes the environments through,
    losing the first line of a `{verbatimcode}` block (its parser consumes the
    newline after `\begin`). Here inline content is
-   `\EscVerb[formatcom=\flmFmtVRB{<kind>}]{…}` in every case, and a block is the
-   `flmVerbatimCode` environment with the content on lines of its own. The
+   `\EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{<kind>}]{…}` in every
+   case, and a block is the `flmVerbatimCode` environment with the content on
+   lines of its own. **The verbatim kinds are set in different fonts.** In the
+   Python implementation, `fancyvrb` sets its typewriter family before the
+   kind's hook runs, so `\verbtext` content is in the typewriter family and
+   `\verba` content in typewriter italics. Here `fancyvrb` keeps the font family
+   of the surrounding text (`fontfamily=\flmVRBFamily`), and the kind's hook
+   alone sets the font: `\verbtext` content looks like the surrounding text,
+   `\verba` content is in italics, and `\verbcode` content is in the typewriter
+   family, as the defaults of the hooks state. The
    encoding escapes every printable ASCII character that is not a letter or a
    digit, and nothing else; the Python implementation's `use_fvextra` path
    escapes every character that is not alphanumeric, non-ASCII characters
@@ -2472,7 +2497,7 @@ the recomposed LaTeX differs.
 ## The LaTeX output for LuaLaTeX
 
 The Python implementation's LaTeX renderer (the format `-f latex`) is the
-[`latex-rendered`](crate::stdcore::backends::latex_rendered) backend here, run
+[`latex-rendered`](crate::stdlib::backends::latex_rendered) backend here, run
 by the workflow of that name. FLM resolves the numbering, the references, the
 table of contents and the notes itself and writes the result as LaTeX. The
 output is a new design, and no compatibility with the Python output is offered:
@@ -2528,7 +2553,7 @@ with this library's only after accounting for them:
 
 - **Line wrapping.** The Python implementation never wraps lines. Here the
   text backend wraps at a width in columns given by
-  [`TextRenderOptions`](crate::stdcore::backends::text::TextRenderOptions),
+  [`TextRenderOptions`](crate::stdlib::backends::text::TextRenderOptions),
   80 by default; `width: None` never wraps, and is the setting that makes the
   two outputs comparable line for line.
 - **The final newline.** The Python output ends where the content ends. Here
@@ -2552,7 +2577,7 @@ Both implementations write HTML, and the HTML this library writes is **not**
 the HTML the Python implementation writes. The class names, the identifiers and
 the structure of the page of the Python renderer are replaced here by one
 design derived from the document's own structure, the [HTML
-contract](crate::stdcore::backends::html::CONVENTIONS) (the classes and attributes
+contract](crate::stdlib::backends::html::CONVENTIONS) (the classes and attributes
 that a stylesheet may rely on). A stylesheet written for the Python
 implementation therefore does not fit this output. What the two keep in common
 is the *content*: which text appears, and in which order.
@@ -2563,14 +2588,15 @@ The differences a Python user would notice:
 |---|---|---|
 | text content | escapes `&`, `<`, `>`, `"` and `'`; writes seven invisible space characters as named references (`&nbsp;` and the others) | escapes `&`, `<` and `>`, and writes the same seven spaces, and the narrow no-break space (U+202F), as numeric references (`&#xA0;` and the others), which an XML parser reads too. A quotation mark needs no escaping between tags |
 | an attribute value | escaped partially: `&` only where something like an entity follows, `<` and `>` never | `&`, `<`, `>` and `"`, always, so the output is valid regardless of what the value holds |
+| a link's or an image's address | written as given, whatever its scheme | written when it has no scheme or a scheme that the render option [`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes) allows (by default `http`, `https`, `mailto`, `ftp` and `tel`; for an image, also `data:image/…`); any other address, `javascript:` above all, is left out, the link keeping its text, and reported as the Error `flm.html.refused-address`. A host lets its pages reference other schemes, or every address, by setting the option from Rust code |
 | `\textbf`, `\textit`, `\emph` | `<span class="textbf">`; `\emph` is treated as `\textit` | `<strong class="flm-pres-span" data-flm-style="bold">`, `<i … "italic">`, `<em … "emph">`: the tag follows the text style, the class and the attribute belong to the HTML contract, and `\emph` is kept apart from `\textit` |
 | a fragment holding one run of inline content | no `<p>` at all: the renderer decides from what it was given | no `<p>` either, because a fragment carries a declared layout, the block-structure pass builds paragraphs accordingly, and the emitter writes what the tree holds. A host that wants a paragraph parses the fragment with the blocks layout |
-| headings | `<h1 class="heading-level-1">` … `<h3>`; levels 4 to 6 a `<span class="heading-level-4 heading-inline">` followed by a space | `<hN class="flm-pres-block--heading" data-flm-heading="section" data-flm-level="N" data-flm-toc="true">` under the default root heading level, 1 (the tag counts from the render option `root_heading_level`), `<h6>` for every depth beyond the sixth, with the true level kept in the attribute, and a render option ([`heading_tags`](crate::stdcore::backends::html::HtmlRenderOptions::heading_tags)) that maps a heading kind to a tag of its own. Which heading kinds are run in is set in [`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig), and a run-in heading is a decoration span around a `<span class="flm-pres-runin--heading">` carrying the same attributes as a block heading, with the stop written inside the decoration span as text (the render option `run_in_stop`) and the space after it given by the stylesheet |
-| heading and label identifiers | `sec--<slug cut at 32 characters>` with `-2` counters, and a second, different sanitizer for other targets | the anchor computed for the reference point ([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)), written as the `id`: one encoder, one identifier per label, and no counter; the same prefix `sec--` before the title of a heading that has no label, with the same `-2`, `-3` numbering when a title repeats, the title read without the footnotes in it. A label whose own text begins with a hyphen, or whose type ends with one, is encoded in the encoder's second way (accents removed, the text turned into a slug, a short hash of the original appended), so that it cannot take the form of an identifier derived from a title or from a position: `\label{sec:-Foo}` is not `sec--Foo` |
+| headings | `<h1 class="heading-level-1">` … `<h3>`; levels 4 to 6 a `<span class="heading-level-4 heading-inline">` followed by a space | `<hN class="flm-pres-block--heading" data-flm-heading="section" data-flm-level="N" data-flm-toc="true">` under the default root heading level, 1 (the tag counts from the render option `root_heading_level`), `<h6>` for every depth beyond the sixth, with the true level kept in the attribute, and a render option ([`heading_tags`](crate::stdlib::backends::html::HtmlRenderOptions::heading_tags)) that maps a heading kind to a tag of its own. Which heading kinds are run in is set in [`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig), and a run-in heading is a decoration span around a `<span class="flm-pres-runin--heading">` carrying the same attributes as a block heading, with the stop written inside the decoration span as text (the render option `run_in_stop`) and the space after it given by the stylesheet |
+| heading and label identifiers | `sec--<slug cut at 32 characters>` with `-2` counters, and a second, different sanitizer for other targets | the anchor computed for the reference point ([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)), written as the `id`: one encoder, one identifier per label, and no counter; the same prefix `sec--` before the title of a heading that has no label, with the same `-2`, `-3` numbering when a title repeats, the title read without the footnotes in it. A label whose own text begins with a hyphen, or whose type ends with one, is encoded in the encoder's second way (accents removed, the text turned into a slug, a short hash of the original appended), so that it cannot take the form of an identifier derived from a title or from a position: `\label{sec:-Foo}` is not `sec--Foo` |
 | `\ref` and `\hyperref` | `<a href="#…" class="href-ref ref-sec">` | `<a class="flm-pres-link" data-flm-kind="ref" href="#…">` |
 | an unresolved reference | stops the render | an error-styled span and one Error, and the page is still computed, as on every backend here |
-| verbatim content | `<span>` or `<div>` chosen by an annotation; every backslash wrapped in a `<span>` to keep the formula renderer away; classes `verbatimcode verbatim-lang-python` | `<code>` inline, `<pre><code>` as a block, with `data-flm-kind`, `data-flm-display` and `data-flm-lang`; no wrapping of backslashes, because the formula renderer is restricted to the elements that hold mathematics |
-| mathematics | `<span class="display-math env-align">` even for a displayed formula; the source escaped; `\label` kept; a number written into the source as `\tag*{(n)}` in characters; the first line's identifier on the wrapper and no anchor on the other lines | `<span class="flm-pres-math--passthrough">` for every formula, inline and displayed alike, with `data-flm-display` telling them apart and `data-flm-env` giving the environment, the displayed form made a block by the stylesheet as in the Python renderer; the formula passed whole as the LaTeX the author wrote, between the delimiters this backend chose; a numbered line's number written as `\tag*{…}` around page content |
+| verbatim content | `<span>` or `<div>` chosen by an annotation; every backslash wrapped in a `<span>` to keep the formula renderer away; classes `verbatimcode verbatim-lang-python` | code: `<code>` inline, `<pre><code>` as a block; plain characters and an identifier: `<span>` inline, `<div>` as a block; with `data-flm-kind`, `data-flm-display` and `data-flm-lang`; no wrapping of backslashes, because the formula renderer is restricted to the elements that hold mathematics |
+| mathematics | `<span class="display-math env-align">` even for a displayed formula; the source escaped; `\label` kept; a number written into the source as `\tag*{(n)}` in characters; the first line's identifier on the wrapper and no anchor on the other lines | `<span class="flm-pres-math--passthrough flm-math-formula">` for every formula, inline and displayed alike, with `data-flm-display` telling them apart and `data-flm-env` giving the environment, the displayed form made a block by the stylesheet as in the Python renderer; the formula passed whole as the LaTeX the author wrote, between the delimiters this backend chose; a numbered line's number written as `\tag*{…}` around page content |
 | text inside a formula (`\text{…}`) | part of the source passed to the formula renderer, typeset by it as it can | FLM content: parsed as text, lowered like content anywhere else, and written as HTML *inside* the formula through the formula renderer's `<tex-html>` mechanism, so a reference or a styled span inside a formula is real markup, wherever the command is in the formula |
 | an equation line as a link target | the first line's identifier on the whole formula; the other lines cannot be linked to | every line of a display-math environment is a reference point that a `\ref` can refer to, written as an empty element at the start of that line inside the formula, so a link leads to the line itself |
 | `\label` inside a display-math environment | written into the source passed to the formula renderer | not written: it is the line's data, which the references feature turns into the line's anchor. `\nonumber` and `\notag` are not written either: a line that takes no number has none to suppress. The `\\` breaks and every alignment mark are the author's own and are written back unchanged; a `\tag` is written back as page content inside the formula |
@@ -2582,8 +2608,8 @@ The differences a Python user would notice:
 | floats | written with markup and classes of their own | a `<figure>` of the HTML contract's block class and the role `flm.floats.float`, its `data-flm-kind` the float type and `numbered` or `unnumbered` (`figure numbered`), holding the content in a `<div>` of the role `flm.floats.float.content` and, where the float is numbered or captioned, a `<figcaption>` of the role `flm.floats.float.caption` placed last, whose paragraph holds the number in a span of the role `flm.floats.float.number`; the feature's stylesheet sets the float apart and centers it |
 | tables of cells | `<table class="cells">`, each cell a `<td>` or a `<th>` carrying `cell`, a `cellstyle-<token>` class per cell style token and a `celltbledge-<edge>` class per edge of the table it touches | `<table class="flm-pres-cells">`, one `<tr>` per row, each cell a `<td>` or a `<th scope="col">` / `<th scope="row">` carrying `colspan`, `rowspan`, `data-flm-align`, `data-flm-rules` and one `data-flm-style-<name>` per custom cell style; no edge class, the outline drawn on the table by the feature's stylesheet ([Tables of cells](#tables-of-cells)) |
 | citations | written with markup and classes of their own | the citation mark a span of the role `flm.citations.mark`, its kind token `attached` or `standalone`, holding the numbers as links of kind `cite` to `#citation-<n>` (see [Citations](#citations)); the list of citation entries a block of role `flm.citations.bibliography` holding a heading and a labeled list, each entry carrying `citation-<n>`; the list carries `role="doc-bibliography"` and each number's link `role="doc-biblioref"`, the entries no role; the feature's stylesheet `flm.citations.style` only where a citation is written |
-| the whole output | a bare fragment by default; a page only under a template | a complete page, assembled by the HTML backend's final stage (see [output regions and the final stage](crate::guide::concepts_overview#output-regions-and-the-final-stage)). The HTML of each tree is a table that an embedding program reads ([`OUTPUT_TABLE`](crate::stdcore::backends::html::OUTPUT_TABLE)); the `flm` program assembles the same parts through a compose template (by default `simple`, a complete page; `flm render --help` lists the others) |
-| renderer options | eighteen attributes on the renderer | eight ([`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions)). Most of the eighteen configured what the HTML contract now fixes |
+| the whole output | a bare fragment by default; a page only under a template | a complete page, assembled by the HTML backend's final stage (see [output regions and the final stage](crate::guide::concepts_overview#output-regions-and-the-final-stage)). The HTML of each tree is a table that an embedding program reads ([`OUTPUT_TABLE`](crate::stdlib::backends::html::OUTPUT_TABLE)); the `flm` program assembles the same parts through a compose template (by default `simple`, a complete page; `flm render --help` lists the others) |
+| renderer options | eighteen attributes on the renderer | eight ([`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions)). Most of the eighteen configured what the HTML contract now fixes |
 | the default stylesheet | one stylesheet, always complete, selecting on bare `p`, `a`, `table`, `h1`–`h3` | several style definitions, one per concern, each included only where an element it styles is written, every selector under a class of the HTML contract, so that FLM output embedded in a page restyles nothing of the host's page |
 
 A number is never written into a formula's source as characters. The Python
@@ -2630,16 +2656,16 @@ the recomposed LaTeX, and HTML.
 
 ## The command line
 
-The `flm` program is built on the host library `flm-main` and the command-line
-crate `flm-cli`. `flm render FILE` renders the file, to HTML unless `-p` gives
-another profile; `-o` writes a file, and without it the output is printed on
-standard output followed by a newline, unless `-n` is given; `-c TEXT` gives the
-content on the command line; `-B` reads the content as paragraphs and blocks.
-The front matter of a file is the block of YAML between a first line `---` and
-the next `---` line: its key `flm` holds the document's settings, and its other
-keys are the author's metadata (title, authors, date); positions in messages
-count lines from the top of the file. See [the command-line
-chapter](crate::guide::command_line). The differences:
+The `flm` program is built on the host library `flm-host`. `flm render FILE`
+renders the file, to HTML unless `-p` gives another profile; `-o` writes a file,
+and without it the output is printed on standard output followed by a newline,
+unless `-n` is given; `-c TEXT` gives the content on the command line; `-B`
+reads the content as paragraphs and blocks. The front matter of a file is the
+block of YAML between a first line `---` and the next `---` line: its key `flm`
+holds the document's settings, and its other keys are the author's metadata
+(title, authors, date); positions in messages count lines from the top of the
+file. See [the command-line chapter](crate::guide::command_line). The
+differences:
 
 - **The program checks the commands of a formula by default.** The `flm` program's
   default math processor is `mathjax`: it uses the package `math-mathjax` after `std`
@@ -2649,10 +2675,10 @@ chapter](crate::guide::command_line). The differences:
   reader's browser; the setting `mode: mathml` of `math-mathjax` writes each formula into
   the page as MathML instead, typeset with no script.
 - **A document chooses its math processor with `math`.** The key `math` under `flm` in
-  the front matter, a math processor's name (`mathjax`, `passthrough`) or `false`, has no
-  counterpart in the Python program. A Python document's reading of formulas is
-  `math: passthrough` in its front matter, or `--math passthrough` on the command line
-  ([the packages a document
+  the front matter, a math processor's name (`mathjax`, `techxt`, `passthrough`) or
+  `false`, has no counterpart in the Python program. A Python document's reading of
+  formulas is `math: passthrough` in its front matter, or `--math passthrough` on the
+  command line ([the packages a document
   uses](crate::guide::command_line#the-packages-a-document-uses)). The program's default
   processor is not guaranteed to stay the same, so a document that needs a stable result
   writes its processor.
@@ -2689,28 +2715,36 @@ chapter](crate::guide::command_line). The differences:
   script defines no global name of its own (see [a page updated in
   place](crate::guide::rendering#a-page-updated-in-place)). An open page
   connects again by itself when the program is started again.
-- **The preview has a toolbar.** The Python program's panel of problems is a
-  toolbar with *Problems* (each problem with *Open in editor*, which that panel
-  does not have), *Rebuild*, *Outputs* and *Settings*, which have no Python
-  counterpart. *Settings* shows the document's features with what the front
-  matter writes for them, lets the user change those values, and saves them into
-  the document's file by editing its front matter in place (see [watching a
+- **The preview has a tools page.** The program opens the *tools page*, which shows
+  the document's page in a frame, beside a status bar and a panel of tabs, where the
+  Python program shows the page with a panel of problems. The *Problems* tab lists every
+  problem, each with *Open in editor*, which the Python panel does not have. The other
+  tabs have no Python counterpart: *Outline* (the headings and the labels), *Help* (the
+  pages of `flm info` for the document), *Metadata* and *Settings* (the front matter,
+  changed from the page and written into the document's file in place), *Export* (the
+  document written as `flm render` writes it) and *Viewer* (the viewer settings). The
+  document's page alone, at the address `/`, shows no tools (see [watching a
   document](crate::guide::command_line#watching-a-document-the-live-preview)).
-- **The clicks on the preview's page are the Python program's**: Ctrl or Cmd
-  together with Shift opens an element's place in the editor; Ctrl or Cmd copies a
-  reference to the nearest element around the click that carries a label. A
-  reference to a defined term is copied as `\ref{…}`, where the Python program
-  copies `\term{…}`. When the nearest element with an identifier has no label,
-  copying goes on to the elements further out, where the Python program copies
-  nothing.
-- **The editor is chosen in a menu of the preview's toolbar.** The menu lists
-  every editor found, and the browser remembers the choice; `--editor NAME`
-  selects the editor the menu shows at first (see [from the page to the
-  source](crate::guide::command_line#from-the-page-to-the-source)).
-- **The editors are `code`, `zed`, `emacsclient`, `subl` and `gvim`**, in this
-  order, where the Python program's list has no Zed and ends with `vim`. `vim`
-  is not accepted, by the menu or by `--editor`: the preview starts the editor
-  without a terminal, where Vim in a terminal cannot show the file.
+- **Ctrl or Cmd together with Shift opens an element's place in the editor**, as in the
+  Python program. A click with Ctrl or Cmd alone, which copies a reference in the
+  Python program, is left to the browser: `\ref{LABEL}` is copied from the *Outline*
+  tab, or from the card that *Inspect* shows for an element.
+- **The editor is a viewer setting.** The *Viewer* tab lists every editor found, and
+  the choice is written into the file `.flm/watch.json` of the home folder, so that it
+  holds for every document and every later run. `--editor NAME` chooses
+  the editor for one run, and `--editor-command` (or the key `editor_command` of that
+  file) gives the command of an editor of your own, with `{file}`, `{line}` and
+  `{column}` (see [opening the source in an
+  editor](crate::guide::command_line#opening-the-source-in-an-editor)).
+- **The editors are `code`, `cursor`, `codium`, `zed`, `emacsclient`, `subl`,
+  `gvim`, `mvim`, `vim` and `nvim`**, in this order, where the Python program's
+  list is `code`, `emacsclient`, `subl`, `gvim` and `vim`. gVim and Vim open the
+  place in the Vim already running, where the Python program started a new one:
+  `gvim` in the gVim already open, else in a new one, and `vim` in the Vim that
+  listens as the server `VIM`, since the preview starts the editor without a
+  terminal (see [opening the source in an
+  editor](crate::guide::command_line#opening-the-source-in-an-editor)). An editor
+  command can start any other editor.
 - **The default output is a complete page.** With no compose template given,
   the Python program prints the bare content; here the compose template
   `simple` is the default. On HTML, `-t none` gives the content and every part
@@ -2721,14 +2755,18 @@ chapter](crate::guide::command_line). The differences:
   authors and date were written by its `simple` template alone. For the content
   without them, leave the metadata's parts out of the render with the `pieces`
   setting:
-  `-t none -O 'pieces.exclude=[flm.meta.title, flm.meta.author, flm.meta.date]'`.
+  `-t none -O 'pieces.exclude=[flm.metadata.title, flm.metadata.author, flm.metadata.date]'`.
+- **The title of the `simple` page is larger.** It is set at `2rem`
+  (`--flm-metadata-title-size`), where the Python program's `simple` template set it
+  at `1.6rem`. The text size (16px), the authors and the date under the title, and the
+  line under them follow that template.
 - **The Python program's templates are not read**, nor is `-P`. The program's
   compose templates (`flm render --help` lists them) are written in the template
   language of the `minijinja` crate; they place the title, the authors, the date
   and the lists of notes as parts of their own, which the Python templates could
   not. A compose template's settings are given, as in the Python program, under
   the output's name and the template's name:
-  `-O 'compose.template_config={latex-rendered: {simple: {documentclass: report}}}'`.
+  `-O 'compose.template_config={latex-rendered: {article: {documentclass: report}}}'`.
 - **No file is read because of the folder the command runs in, and the
   names are this library's.** The Python program reads `flmconfig.yaml` from
   the current folder, with one more file per format and per workflow. Here a
@@ -2829,6 +2867,9 @@ chapter](crate::guide::command_line). The differences:
   `flmlatex` is `-p latex-recomposed`; the workflow `runlatexpdf` is `-p pdf-latex`
   ([The LaTeX output for LuaLaTeX](#the-latex-output-for-lualatex)); `-f markdown` and
   `-f pdf` have no counterpart (`-f` never chooses the profile here).
+- **Text for a terminal**, the profile `tty` (`flm render -p tty paper.flm | less -R`;
+  [Text for a terminal](crate::guide::command_line#text-for-a-terminal)), has no
+  counterpart in the Python program, which writes no output for a terminal.
 - **An empty command line prints the usage**, where the Python program waits
   for content on standard input; standard input is given as `-`.
 - **The settings schema is printed by a command**, `flm schema`, where the

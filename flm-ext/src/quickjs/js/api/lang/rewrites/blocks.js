@@ -2,7 +2,7 @@
 // `flm-ext/src/api/lang/rewrites/blocks.rs`; do not edit.
 //
 // Mirrors `flm_core::lang::rewrites::blocks`: block structure predicates.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 const MODULE = module("lang/rewrites/blocks");
 

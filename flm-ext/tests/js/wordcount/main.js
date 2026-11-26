@@ -8,7 +8,8 @@ import { StageDecl, Needs, Effect, Scope } from "flm:core/stage";
 import { ArgDef } from "flm:lang/mint";
 import { chars_text } from "flm:lang/text";
 import { Definition, UserDefinition, Expansion } from "flm:lang/rewrites/userdefs";
-import { element_name_under, expand_in_tree_rule_for } from "flm:stdcore/features/userdefs";
+import { element_name_under, expand_in_tree_rule_for } from "flm:stdlib/features/userdefs";
+import { NodeKindName } from "flm:techy/node";
 import { count_words } from "./helpers.js";
 
 // The settings the feature declares.
@@ -33,7 +34,6 @@ const SETTINGS = {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: {
       wordcount: { title: "Word count", docs: "Counts words, collects to-do markers, shouts.", settings: SETTINGS, register },
     },
@@ -85,7 +85,7 @@ function register(b, settings) {
     run(cx, out) {
       const min = cx.option("wordcount.counting").min_length ?? 1;
       let words = 0;
-      for (const node of cx.my_tree().root().descendants()) if (node.is_chars()) words += count_words(node.chars(), min);
+      for (const node of cx.my_tree().root().descendants().kinds([NodeKindName.Chars])) words += count_words(node.chars(), min);
       out.table(WORDS).push({ tree: cx.tree_id(), words });
       if (cx.option("wordcount.reporting").report_counts === true)
         out.diags({ id: "wordcount.count", severity: "note",

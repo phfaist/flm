@@ -5,7 +5,7 @@
 // node shapes no feature declares (text, comments, containers, groups, paragraphs, …). The module
 // holds names only. What differs: the element values (`StructuralElements` and
 // `StructuralElementSpecs`) are not mirrored.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // Mirrors `TEXT`: `flm.text`, the element of a run of characters.
 export const TEXT = "flm.text";

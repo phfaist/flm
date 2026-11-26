@@ -1,7 +1,9 @@
 //! The mapping table: the generator's one table from the Rust types of the
 //! inventory to their conversions and their TypeScript shapes, kept by hand.
 //!
-//! It holds the kind rows ([`KINDS`], one per handle kind), the opaque value
+//! It holds the kind rows ([`KINDS`], one per handle kind), the sequences of
+//! the lists of the typed API ([`LISTS`]), the lists of handles the interface
+//! hands an extension with their reasons ([`HANDLE_LISTS`]), the opaque value
 //! types ([`OPAQUE_TYPES`]), the type rows ([`TYPES`], one per leaf type that
 //! crosses or that a re-export or a data type names), the tokens of the unit
 //! enums ([`unit_enum_tokens`], evaluated through the crate), the frozen
@@ -42,6 +44,32 @@ pub enum Receiver {
     /// An entry recording how to ask for the object again (`TablePiece {
     /// out, name }`): every method is a hand-written arm.
     Recorded,
+    /// A traversal the table owns (a `TraversalEntry`) of items of the
+    /// type given, as the inventory writes a type, advanced through an
+    /// exclusive borrow (`entry!(…)`) by the generated arm `pull(max)`, which
+    /// answers the next items, at most `max`, fewer only at the end, and
+    /// keeps a copy of them in the entry. Each of its methods consumes it and
+    /// takes one more trailing argument, the count `unhanded` of the items of
+    /// that group its binding has not handed over: its receiver is the
+    /// traversal of the last `unhanded` kept items followed by the items not
+    /// pulled yet (`TraversalEntry::rest`), and the entry is left with none.
+    /// Its JavaScript class extends `Traversal`, its declaration is an
+    /// iterable iterator of the items, and its guest struct an `Iterator` of
+    /// `Result`s of them; the class and the struct send, last in each
+    /// method's request, the number of the items of their group not handed
+    /// over (`Traversal._release()`, `abi::Pulled::held`).
+    Pulled(&'static str),
+    /// A sequence the table owns of items of the type given, as the
+    /// inventory writes a type, read through an exclusive borrow
+    /// (`entry!(…)`): its methods by index, and the generated arm `pull(from,
+    /// max, bytes)`, which answers the items from the index `from`, at most
+    /// `max` of them and within `bytes` bytes of JSON text (the first
+    /// whatever its size), through its type's `group`. Its handle crosses
+    /// with its length; its JavaScript class extends `Sequence`, its
+    /// declaration is an iterable of the items with `len()` and
+    /// `is_empty()`, and its guest struct holds its length and iterates
+    /// `Result`s of the items.
+    Indexed(&'static str),
     /// A module handle: the free functions and the constructors.
     Module,
 }
@@ -62,12 +90,34 @@ pub struct KindRow {
     pub rehearsable: bool,
 }
 
+impl KindRow {
+    /// The type of the items of a traversal or of a sequence, which the kind
+    /// answers through its arm `pull`; `None` for any other kind. A pull is
+    /// the bindings' own: no item of `src/api/` declares it.
+    pub fn pulls(&self) -> Option<&'static str> {
+        match self.receiver {
+            Receiver::Pulled(items) | Receiver::Indexed(items) => Some(items),
+            _ => None,
+        }
+    }
+}
+
 /// A kind row.
 const fn kind(kind: &'static str, rust: &'static str, entry: &'static str, receiver: Receiver) -> KindRow {
     KindRow { kind, rust: Some(rust), entry: Some(entry), receiver, rehearsable: false }
 }
 
-/// The 31 handle kinds, in the order of `HandleKind` (`src/adapter/handles.rs`).
+/// The kind row of a traversal whose items are of the type `items`.
+const fn traversal(kind: &'static str, rust: &'static str, items: &'static str) -> KindRow {
+    KindRow { kind, rust: Some(rust), entry: Some(rust), receiver: Receiver::Pulled(items), rehearsable: false }
+}
+
+/// The kind row of a sequence whose items are of the type `items`.
+const fn sequence(kind: &'static str, rust: &'static str, items: &'static str) -> KindRow {
+    KindRow { kind, rust: Some(rust), entry: Some(rust), receiver: Receiver::Indexed(items), rehearsable: false }
+}
+
+/// The 59 handle kinds, in the order of `HandleKind` (`src/adapter/handles.rs`).
 pub const KINDS: &[KindRow] = &[
     KindRow { rehearsable: true, ..kind("feature_builder", "FeatureBuilder", "Builder", Receiver::LentMut) },
     kind("stage_cx", "StageCx", "StageCx", Receiver::LentRef),
@@ -128,12 +178,170 @@ pub const KINDS: &[KindRow] = &[
     // A tree shared through an `Arc`; taken as an argument, it is copied out
     // of the table, as a node is.
     kind("tree", "Tree", "Tree", Receiver::Boxed),
+    // The handles of the progress sheet: boxes the table owns; a method that
+    // starts or ends a row takes the `flm-core` handle out of its façade.
+    kind("progress_scope", "ProgressScope", "ProgressScope", Receiver::Boxed),
+    kind("pending", "Pending", "Pending", Receiver::Boxed),
+    kind("task", "Task", "Task", Receiver::Boxed),
+    kind("counted", "Counted", "Counted", Receiver::Boxed),
+    // The traversals: each pulled through its arm `pull`, its items lent as
+    // they are pulled.
+    traversal("walk", "Walk", "WalkEntry"),
+    traversal("descendants", "Descendants", "Box<dyn Node>"),
+    traversal("trees", "Trees", "(String, Box<dyn Tree>)"),
+    // The sequences: their length crosses with their handle, their items
+    // are pulled through their arm `pull`.
+    sequence("rows", "Rows", "Value"),
+    // The sequences a binding makes of a list of the typed API: their class
+    // is the binding's own ([`LISTS`]).
+    sequence("nodes", "Nodes", "Box<dyn Node>"),
+    sequence("staged_nodes", "StagedNodes", "Staged"),
 ];
 
 /// The kind row of the trait or type `rust`.
 pub fn kind_of(rust: &str) -> Option<&'static KindRow> {
     KINDS.iter().find(|row| row.rust == Some(rust))
 }
+
+/// A sequence that a binding makes of a list of the typed API, which keeps
+/// the list as a `Vec` (no item of `src/api/` stands for the sequence): its
+/// kind row ([`Receiver::Indexed`], `rust` naming the class) holds its
+/// entry, a `SequenceEntry` of the items (`src/adapter/handles.rs`). The
+/// dispatcher has the arms `pull(from, max, bytes)` and `get(i)` (a copy of
+/// the item, or `null`), generated; the JavaScript class extends `Sequence`
+/// with `get(i)`, and the declaration is the class of a sequence, both in the
+/// module `module`; the guest client's struct is written by hand in that
+/// module's file of `src/guest/hand/`, since an extension also joins one of
+/// its own ([`list`](ListRow::list) and `taken` are rows of [`GUEST_OWN`]).
+/// Where the typed API takes several items, the declarations take the
+/// sequence, or an array of items and sequences. Its class and its items are
+/// its kind row's ([`ListRow::class`], [`ListRow::items`]).
+#[derive(Debug, Clone, Copy)]
+pub struct ListRow {
+    /// The kind of its handle.
+    pub kind: &'static str,
+    /// The module of the surface whose stub, declarations and guest module
+    /// hold the class.
+    pub module: &'static str,
+    /// The type with which the typed API takes several items (a slice, or
+    /// the list type itself when it is taken by value): a row read as a
+    /// sequence, or as a joined list of items and sequences.
+    pub taken: &'static str,
+    /// The class's description, which the stub and the declarations carry.
+    pub doc: &'static str,
+}
+
+impl ListRow {
+    /// Its kind row, a sequence's.
+    fn row(&self) -> &'static KindRow {
+        KINDS
+            .iter()
+            .find(|row| row.kind == self.kind && matches!(row.receiver, Receiver::Indexed(_)))
+            .unwrap_or_else(|| panic!("the kind `{}` of `LISTS` must be a sequence of `KINDS`", self.kind))
+    }
+
+    /// Its class in the bindings, the guest's struct included: the `rust`
+    /// of its kind row.
+    pub fn class(&self) -> &'static str {
+        self.row().rust.expect("a sequence's kind row names its class")
+    }
+
+    /// The type of its items: its kind row's.
+    pub fn items(&self) -> &'static str {
+        self.row().pulls().expect("a sequence's kind row names its items")
+    }
+
+    /// The list type of the typed API that crosses as the sequence, a `Vec`
+    /// of its items: a row answered as one handle with its length.
+    pub fn list(&self) -> String {
+        format!("Vec<{}>", self.items())
+    }
+}
+
+/// The sequences of the lists of the typed API.
+pub const LISTS: &[ListRow] = &[
+    ListRow {
+        kind: "nodes",
+        module: "techy/node",
+        taken: "[Box<dyn Node>]",
+        doc: "A sequence of nodes: several nodes in order, which a method returns as one object, with `len()`, `is_empty()`, `get(i)` \
+              and iteration, which can be repeated. A function that takes several nodes takes a sequence, or an array of nodes and \
+              sequences, joined in order.",
+    },
+    ListRow {
+        kind: "staged_nodes",
+        module: "lang/rewrites/userdefs",
+        taken: "Vec<Staged>",
+        doc: "A sequence of staged nodes: several staged nodes in order, which a method returns as one object, with `len()`, \
+              `is_empty()`, `get(i)` and iteration, which can be repeated. A function that takes several staged nodes takes a \
+              sequence, or an array of staged nodes and sequences, joined in order.",
+    },
+];
+
+/// The list sequence of the kind `kind`, if it is one.
+pub fn list_of_kind(kind: &str) -> Option<&'static ListRow> {
+    LISTS.iter().find(|list| list.kind == kind)
+}
+
+/// The list sequence whose class is `class`, or whose list type
+/// ([`ListRow::list`]) or taken type ([`ListRow::taken`]) is `class`, if
+/// any.
+pub fn list_of(class: &str) -> Option<&'static ListRow> {
+    LISTS.iter().find(|list| list.class() == class || list.list() == class || list.taken == class)
+}
+
+/// A member of `src/api/` that hands an extension a list whose items hold
+/// handles, with the reason the list stays one: its length is bounded by one
+/// construct of the document, never by the document.
+#[derive(Debug, Clone, Copy)]
+pub struct HandleList {
+    /// The trait or type (an enum's variant as `Enum::Variant`; for a free
+    /// function, the module path).
+    pub owner: &'static str,
+    /// The method, the function or the field.
+    pub member: &'static str,
+    /// Why the list is bounded.
+    pub reason: &'static str,
+}
+
+/// The lists of handles the interface hands an extension. Every other list
+/// of handles crosses as a sequence ([`LISTS`]) or a traversal; the
+/// generator refuses one that is neither.
+pub const HANDLE_LISTS: &[HandleList] = &[
+    HandleList {
+        owner: "stdlib/features/math",
+        member: "equation_lines",
+        reason: "the lines of one display-math environment, as records; the content of each line is a sequence",
+    },
+    HandleList {
+        owner: "stdlib/features/math",
+        member: "line_frames",
+        reason: "the frames of the lines of one display-math environment, as records; the content of each line is a sequence",
+    },
+    HandleList { owner: "KeyVals", member: "iter", reason: "the entries of one key-value argument" },
+    HandleList {
+        owner: "KeyValEntry",
+        member: "value_pieces",
+        reason: "the pieces of the value of one entry of a key-value argument, a node or a text each",
+    },
+    HandleList { owner: "LineShows::Number", member: "segments", reason: "the number of one line: one tree per level of its counter" },
+    HandleList { owner: "Counters", member: "format", reason: "the number of one point: one segment per level of its counter" },
+    HandleList {
+        owner: "stdlib/features/math",
+        member: "group_tex",
+        reason: "the TeX of one formula: its TeX text between its text commands, and a hole for each of them",
+    },
+    HandleList {
+        owner: "LineTex",
+        member: "parts",
+        reason: "the TeX of one equation line: its TeX text between its text commands, and a hole for each of them",
+    },
+    HandleList {
+        owner: "ModeVariant",
+        member: "defaults",
+        reason: "the default values of the optional arguments of one definition, one per argument",
+    },
+];
 
 /// The opaque value types (rule 3 of `ItemClass`): `api` structs
 /// a binding cannot build from data. `DefinitionBindings` and `LoweringStage`
@@ -149,6 +357,10 @@ pub const OPAQUE_TYPES: &[&str] = &[
     "LoweringStage",
     "TemplateLanguage",
     "ValueBindings",
+    "Walk",
+    "Descendants",
+    "Trees",
+    "Rows",
 ];
 
 /// The opaque types with no kind of their own: only a constructor, which
@@ -223,6 +435,7 @@ pub const TYPES: &[TypeRow] = &[
     read("Option<String>", Ts::Text("string | null"), "the FromArg of Option<String>: null, or a string"),
     both("usize", Ts::Text("number"), "Args::index; a number"),
     answered("u32", Ts::Text("number"), "a number"),
+    read("u64", Ts::Text("number"), "the FromArg of u64: a number from 0 up"),
     both("bool", Ts::Text("boolean"), "Args::flag; a boolean"),
     TypeRow {
         rust: "[u8]",
@@ -248,13 +461,7 @@ pub const TYPES: &[TypeRow] = &[
     unit("Mode"),
     unit("StandardTable"),
     unit("Arity"),
-    TypeRow {
-        rust: "FilesScope",
-        from_arg: Some("FilesScope"),
-        into_reply: Some("FilesScope"),
-        ts: Ts::Union,
-        note: "JsonForm for FilesScope; its FromArg refuses another scope by name",
-    },
+    unit("Unit"),
     read(
         "Contributed",
         Ts::Text("any"),
@@ -303,20 +510,20 @@ pub const TYPES: &[TypeRow] = &[
     inside("Accepts", Ts::Text("type Accepts = \"all\" | string[]"), "template_description_from_value, inside TemplateDescription"),
     inside(
         "TemplateDescription",
-        Ts::Text("interface TemplateDescription { output: string; accepts: Accepts; requires?: string[]; config?: { [key: string]: any } }"),
+        Ts::Text("interface TemplateDescription { accepts: Accepts; requires?: string[]; config?: { [key: string]: any } }"),
         "template_description_from_value",
     ),
     inside(
         "TemplateFile",
         Ts::Text(
-            "type TemplateFile = { name: string; extension: string; media_type: string; text: string } | { name: string; file: string; scope: FilesScope; media_type?: string | null }",
+            "type TemplateFile = { name: string; extension: string; media_type: string; text: string } | { name: string; file: string; media_type?: string | null }",
         ),
         "template_files_from_value",
     ),
     inside(
         "TemplateContext",
         Ts::Text(
-            "interface TemplateContext { html: boolean; regions: [string, string][]; pieces: PieceValue[]; meta: any; config: { [key: string]: any }; artifacts: [string, string][] }",
+            "interface TemplateContext { html: boolean; regions: [string, string][]; pieces: PieceValue[]; metadata: any; config: { [key: string]: any }; artifacts: [string, string][] }",
         ),
         "template_context_to_value",
     ),
@@ -329,6 +536,11 @@ pub const TYPES: &[TypeRow] = &[
     read("StageDecl", Ts::Class, "JsonForm for StageDecl"),
     read("Needs", Ts::Class, "JsonForm for Needs"),
     read("LoweringDecl", Ts::Class, "JsonForm for LoweringDecl"),
+    inside(
+        "UncheckedOutputDecl",
+        Ts::Text("interface UncheckedOutputDecl { backend: string; written: string; reader: string }"),
+        "JsonForm for LoweringDecl, inside LoweringDecl",
+    ),
     read("DefaultMark", Ts::Text("\"everywhere\" | \"never\" | { on_backends: string[] }"), "JsonForm for DefaultMark"),
     both("ElementDef", Ts::Hand, "element_def_from_table; lent as Entry::ElementDef"),
     read("FallbackDef", Ts::Class, "fallback_def_from_table"),
@@ -352,16 +564,22 @@ pub const TYPES: &[TypeRow] = &[
         Ts::Text("interface Diagnostic { id: string; severity: Severity; message: string; data?: any; at?: Node }"),
         "diagnostic_from_value",
     ),
-    both("Expansion", Ts::Text("\"default\" | { emit: Staged[] }"), "expansion_from_value; expansion_to_value"),
-    both("Lowering", Ts::Text("\"default\" | { emit: Staged[] }"), "lowering_from_value; lowering_to_value"),
+    both("Expansion", Ts::Text("\"default\" | { emit: StagedNodes | (Staged | StagedNodes)[] }"), "expansion_from_value; expansion_to_value"),
+    both("Lowering", Ts::Text("\"default\" | { emit: StagedNodes | (Staged | StagedNodes)[] }"), "lowering_from_value; lowering_to_value"),
     read(
         "PresTree",
-        Ts::Text("type PresTree = { element: string; payload?: any; children?: PresTree[] } | { build: Staged } | { text: string }"),
+        Ts::Text("type PresTree = { element: string; payload?: any; children?: PresTree[] } | { build: Staged | StagedNodes | (Staged | StagedNodes)[] } | { text: string }"),
         "pres_tree_from_value",
     ),
-    both("Vec<Staged>", Ts::Text("Staged[]"), "staged_list_from_table; each lent as Entry::Staged"),
+    // The lists of staged nodes: a sequence (`LISTS`).
+    both(
+        "Vec<Staged>",
+        Ts::Text("StagedNodes"),
+        "lend_staged: lent as one Entry::StagedNodes, its length beside its handle; staged_list_from_table: a sequence, or a joined \
+         list of staged nodes and sequences",
+    ),
     both("Staged", Ts::Handle, "staged_from_table; lent as Entry::Staged"),
-    read("Vec<(String, Vec<Staged>)>", Ts::Text("[string, Staged[]][]"), "the reader of the pres_slots arm, in values.rs"),
+    read("Vec<(String, Vec<Staged>)>", Ts::Text("[string, StagedNodes | (Staged | StagedNodes)[]][]"), "the reader of the pres_slots arm, in values.rs"),
     answered("WalkEntry", Ts::Text("interface WalkEntry { addr: NodeAddr; node: Node }"), "walk_entry_to_value"),
     answered("NodeAddr", Ts::Text("interface NodeAddr { tree: string; node: number }"), "node_addr_to_value"),
     answered(
@@ -372,11 +590,24 @@ pub const TYPES: &[TypeRow] = &[
     answered("Span", Ts::Text("interface Span { start: number; end: number }"), "JsonForm for Span"),
     answered("CharsContent", Ts::Text("interface CharsContent { text: string | null; has_placeholder: boolean }"), "JsonForm for CharsContent"),
     answered("Option<(String, String)>", Ts::Text("[string, string] | null"), "Option, then the pair as a list"),
-    answered("Vec<(String, Box<dyn Tree>)>", Ts::Text("[string, Tree][]"), "each pair a list, the tree lent"),
+    answered("Vec<(String, String)>", Ts::Text("[string, string][]"), "each pair a list"),
+    answered("Walk", Ts::Handle, "lent as Entry::Walk"),
+    answered("Descendants", Ts::Handle, "lent as Entry::Descendants"),
+    answered("Trees", Ts::Handle, "lent as Entry::Trees"),
+    answered("Rows", Ts::Handle, "lent as Entry::Rows, its length beside its handle (sequence_to_value)"),
+    // The lists of nodes: a sequence (`LISTS`).
+    answered("Vec<Box<dyn Node>>", Ts::Text("Nodes"), "lend_nodes: lent as one Entry::Nodes, its length beside its handle"),
+    TypeRow {
+        rust: "[Box<dyn Node>]",
+        from_arg: Some("Vec<Box<dyn Node>>"),
+        into_reply: None,
+        ts: Ts::Text("Nodes | (Node | Nodes)[]"),
+        note: "nodes_from_value: a sequence, or a joined list of nodes and sequences, passed by reference",
+    },
     answered(
         "EquationLine",
         Ts::Text(
-            "interface EquationLine { span: Span | null; content: Node[]; labels: LabelUse[]; tag: Tag | null; nonumber: boolean; linebreak: LineBreak | null }",
+            "interface EquationLine { span: Span | null; content: Nodes; labels: LabelUse[]; tag: Tag | null; nonumber: boolean; linebreak: LineBreak | null }",
         ),
         "equation_line_to_value",
     ),
@@ -393,7 +624,7 @@ pub const TYPES: &[TypeRow] = &[
         ts: Ts::Text("LabelUse[]"),
         note: "the FromArg of Vec<LabelUse>, passed by reference",
     },
-    inside("Tag", Ts::Text("interface Tag { starred: boolean; content: Node[] }"), "equation_line_to_value, inside EquationLine"),
+    inside("Tag", Ts::Text("interface Tag { starred: boolean; content: Nodes }"), "equation_line_to_value, inside EquationLine"),
     inside("LineBreak", Ts::Text("interface LineBreak { spacing: string | null }"), "equation_line_to_value, inside EquationLine"),
     both(
         "LineFrame",
@@ -403,12 +634,16 @@ pub const TYPES: &[TypeRow] = &[
     inside(
         "LineShows",
         Ts::Text(
-            "type LineShows = { kind: \"nothing\" } | { kind: \"number\"; segments: Tree[]; text: string } | { kind: \"tag\"; starred: boolean; content: Node[] }",
+            "type LineShows = { kind: \"nothing\" } | { kind: \"number\"; segments: Tree[]; text: string } | { kind: \"tag\"; starred: boolean; content: Nodes }",
         ),
         "line_frame_to_value, inside LineFrame",
     ),
     inside("FrameReader", Ts::Text("StageCx | Lowerer"), "the hand-written arm line_frames"),
     answered("NormalizedLine", Ts::Text("interface NormalizedLine { text: string; trailing: string }"), "JsonForm for NormalizedLine"),
+    answered("WrittenPiece", Ts::Text("type WrittenPiece = { node: Node } | { text: string }"), "written_piece_to_value"),
+    answered("TexPart", Ts::Text("type TexPart = { tex: string } | { hole: TextHole }"), "tex_part_to_value"),
+    inside("TextHole", Ts::Text("interface TextHole { command: string; node: Node }"), "tex_part_to_value, inside TexPart"),
+    answered("LineTex", Ts::Text("interface LineTex { parts: TexPart[]; trailing: string }"), "line_tex_to_value"),
     TypeRow {
         rust: "ArgDef",
         from_arg: None,
@@ -517,7 +752,7 @@ pub const TYPES: &[TypeRow] = &[
     // answers are lent as their entries and taken out of the table by
     // `restage_invocation`, each once.
     read("RewriteDecl", Ts::Class, "JsonForm for RewriteDecl"),
-    both("Restage", Ts::Text("\"descend\" | { emit: Staged[] }"), "restage_from_value; restage_to_value"),
+    both("Restage", Ts::Text("\"descend\" | { emit: StagedNodes | (Staged | StagedNodes)[] }"), "restage_from_value; restage_to_value"),
     read("Arc<dyn RewriteStage>", Ts::Text("RewriteStage"), "the entry's Arc, cloned (Entry::RewriteStage)"),
     answered("Box<dyn RestagedArgument>", Ts::Handle, "lent as Entry::RestagedArgument"),
     answered("Box<dyn RestagedSlot>", Ts::Handle, "lent as Entry::RestagedSlot"),
@@ -550,7 +785,7 @@ pub const TYPES: &[TypeRow] = &[
     ),
     inside(
         "NumberSource",
-        Ts::Text("interface NumberSource { counter: string; instances: Node[]; style: string; advance: number[]; number_format: string | null }"),
+        Ts::Text("interface NumberSource { counter: string; instances: Nodes | (Node | Nodes)[]; style: string; advance: number[]; number_format: string | null }"),
         "inside RefPoint",
     ),
     inside(
@@ -687,8 +922,8 @@ pub fn unit_enum_tokens(rust: &str) -> Option<Vec<(&'static str, Value)>> {
         "Mode" => api::lang::mint::Mode: [Text, Math],
         "StandardTable" => api::core::registry::StandardTable: [LoweredTrees, LoweredPieces, Regions, ArtifactSet],
         "Arity" => api::core::services::Arity: [Single, OrderedMany],
-        "FilesScope" => api::host::FilesScope: [Extension, Document],
-        "LatexArgShape" => api::stdcore::backends::latex::LatexArgShape: [Star, Optional, Mandatory, EscVerb],
+        "Unit" => api::progress::Unit: [Items, Bytes],
+        "LatexArgShape" => api::stdlib::backends::latex::LatexArgShape: [Star, Optional, Mandatory, EscVerb],
     )
 }
 
@@ -729,7 +964,7 @@ pub const STATIC_OBJECTS: &[StaticObject] = &[
         reader: "restage_from_value",
         members: &[
             member("Descend", "Descend: \"descend\"", "Descend: \"descend\""),
-            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: Staged[]): { emit: Staged[] }"),
+            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: StagedNodes | (Staged | StagedNodes)[]): { emit: StagedNodes | (Staged | StagedNodes)[] }"),
         ],
     },
     StaticObject {
@@ -737,7 +972,7 @@ pub const STATIC_OBJECTS: &[StaticObject] = &[
         reader: "lowering_from_value",
         members: &[
             member("Default", "Default: \"default\"", "Default: \"default\""),
-            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: Staged[]): { emit: Staged[] }"),
+            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: StagedNodes | (Staged | StagedNodes)[]): { emit: StagedNodes | (Staged | StagedNodes)[] }"),
         ],
     },
     StaticObject {
@@ -745,7 +980,7 @@ pub const STATIC_OBJECTS: &[StaticObject] = &[
         reader: "expansion_from_value",
         members: &[
             member("Default", "Default: \"default\"", "Default: \"default\""),
-            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: Staged[]): { emit: Staged[] }"),
+            member("Emit", "Emit(staged) { return { emit: staged }; }", "Emit(staged: StagedNodes | (Staged | StagedNodes)[]): { emit: StagedNodes | (Staged | StagedNodes)[] }"),
         ],
     },
     StaticObject {
@@ -869,6 +1104,9 @@ const RUST_READER: &str = "a reader for Rust callers";
 pub const NOT_DISPATCHED: &[Exclusion] = &[
     excluded("Lowerer", "lower_region", "an address crosses as data that nothing takes back"),
     excluded("ExtTableRead", "items_at", "reached through `Lowerer.get_at`"),
+    excluded("Rows", "len", "a sequence's length crosses with its handle: each binding answers it"),
+    excluded("Rows", "is_empty", "a sequence's length crosses with its handle: each binding answers it"),
+    excluded("Rows", "iter", "each binding iterates a sequence by its pulls"),
     excluded("LoweringRule", "name", RUST_READER),
     excluded("LoweringRule", "element", RUST_READER),
     excluded("LoweringRule", "mark", RUST_READER),
@@ -1008,14 +1246,14 @@ pub const EXTRA_METHODS: &[Extra] = &[
     Extra {
         owner: "lowerer",
         name: "pres_tree",
-        ts: "pres_tree(cx: LowerCx, tree: PresTree): Staged",
+        ts: "pres_tree(cx: LowerCx, tree: PresTree): StagedNodes",
         js: Some("pres_tree(cx, tree) { return pres_tree(this, cx, tree); }"),
         reason: "a stub-only convenience forwarding to the free function `pres_tree`",
-        rust: "fn pres_tree(&mut self, cx: &mut LowerCx, tree: &PresTree) -> Result<Staged, ExtError>",
+        rust: "fn pres_tree(&mut self, cx: &mut LowerCx, tree: &PresTree) -> Result<StagedNodes, ExtError>",
         typed: None,
     },
     Extra {
-        owner: "stdcore/features/math",
+        owner: "stdlib/features/math",
         name: "line_frames",
         ts: "line_frames(reader: StageCx | Lowerer, anchors: boolean, counters: boolean, node: Node): LineFrame[]",
         js: None,
@@ -1164,7 +1402,8 @@ pub struct Hand {
 /// classes of `flm-core` types (`StyleDef` and `ScriptDef` among them: their row is the class) and the dual `ElementDef`,
 /// `DefinitionBindings`, and the two functions that answer an `ArgDef`
 /// (`arg_def_from_code`, `label_fields_arg`), which read their answer back
-/// as one.
+/// as one, and `host::path`, which takes a module's `import.meta` where Rust
+/// takes the module's path.
 pub const HAND_WRITTEN: &[Hand] = &[
     Hand { module: "core/registry", item: "FeatureBuilder.feature", ts: "feature(): string;" },
     Hand { module: "core/registry", item: "FeatureBuilder.stage", ts: "stage(stage: Stage): void;" },
@@ -1246,6 +1485,7 @@ pub const HAND_WRITTEN: &[Hand] = &[
   toJSON(): { id: ArtifactId; media_type: string; data: ArtifactData; entry: boolean; extension: string | null };
 }",
     },
+    Hand { module: "host", item: "path", ts: "export function path(meta: ImportMeta, relative: string): string;" },
     Hand { module: "core/registry", item: "FeatureBuilder.contribute_to", ts: "contribute_to(slot: string, value: Contributed): void;" },
     Hand {
         module: "core/registry",
@@ -1309,7 +1549,7 @@ pub const HAND_WRITTEN: &[Hand] = &[
     Hand { module: "lang/mint", item: "arg_def_from_code", ts: "export function arg_def_from_code(code: string): ArgDef;" },
     // `refs.label_fields_arg()` reads its answer back as an `ArgDef`, as
     // `arg_def_from_code` does.
-    Hand { module: "stdcore/features/refs", item: "label_fields_arg", ts: "export function label_fields_arg(): ArgDef;" },
+    Hand { module: "stdlib/features/refs", item: "label_fields_arg", ts: "export function label_fields_arg(): ArgDef;" },
     Hand {
         module: "lang/mint",
         item: "BodyDef",
@@ -1367,7 +1607,7 @@ pub const HAND_WRITTEN: &[Hand] = &[
 }",
     },
     Hand {
-        module: "stdcore/backends/lowering",
+        module: "stdlib/backends/lowering",
         item: "LoweringStage",
         // `extends LibraryStage` gives `LibraryStage` a protected constructor
         // in the declarations (`is_extended_by_hand`).
@@ -1418,9 +1658,9 @@ pub const HAND_WRITTEN: &[Hand] = &[
         module: "model/aspects",
         item: "NumberSource",
         ts: "export class NumberSource {
-  constructor(fields: { counter: string; style: string; advance: number[]; instances?: Node[]; number_format?: string | null });
+  constructor(fields: { counter: string; style: string; advance: number[]; instances?: Nodes | (Node | Nodes)[]; number_format?: string | null });
   counter: string;
-  instances: Node[];
+  instances: Nodes | (Node | Nodes)[];
   style: string;
   advance: number[];
   number_format: string | null;
@@ -1458,7 +1698,7 @@ export type ContentRef = { argument: number } | { argument_named: string } | \"b
 export type AcceptedRefTypes = \"any\" | { these: string[] };",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "CounterDecl",
         ts: "export class CounterDecl {
   constructor(name: string, default_style: string);
@@ -1471,7 +1711,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "CounterStyleDecl",
         ts: "export class CounterStyleDecl {
   constructor(name: string);
@@ -1490,7 +1730,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "ParentSetDecl",
         ts: "export class ParentSetDecl {
   constructor(name: string, counters: string[]);
@@ -1500,7 +1740,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "Within",
         ts: "export class Within {
   private constructor();
@@ -1518,7 +1758,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "PluralWords",
         ts: "export class PluralWords {
   constructor(one: string, other: string);
@@ -1528,7 +1768,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "PrefixWords",
         ts: "export class PrefixWords {
   constructor(one: string, other: string);
@@ -1539,7 +1779,7 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "Delimiters",
         ts: "export class Delimiters {
   constructor(open: string, close: string);
@@ -1549,13 +1789,13 @@ export type AcceptedRefTypes = \"any\" | { these: string[] };",
 }",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "NumberTemplate",
         ts: "export const NumberTemplate: Readonly<{ formats(text: string): { formats: string }; initial(text: string): { initial: string } }>;
 export type NumberTemplate = { formats: string } | { initial: string };",
     },
     Hand {
-        module: "stdcore/features/numbering",
+        module: "stdlib/features/numbering",
         item: "FormatOptions",
         ts: "export class FormatOptions {
   constructor();
@@ -1568,13 +1808,13 @@ export type NumberTemplate = { formats: string } | { initial: string };",
 }",
     },
     Hand {
-        module: "stdcore/backends/latex",
+        module: "stdlib/backends/latex",
         item: "LatexDefinitionKind",
         ts: "export const LatexDefinitionKind: Readonly<{ Macro: \"macro\"; Environment: \"environment\"; Declaration: \"declaration\" }>;
 export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";",
     },
     Hand {
-        module: "stdcore/backends/latex",
+        module: "stdlib/backends/latex",
         item: "LatexMacroPayload",
         ts: "export class LatexMacroPayload {
   constructor(name: string, args: LatexArgShape[]);
@@ -1585,7 +1825,7 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
 }",
     },
     Hand {
-        module: "stdcore/backends/latex",
+        module: "stdlib/backends/latex",
         item: "LatexEnvironmentPayload",
         ts: "export class LatexEnvironmentPayload {
   constructor(name: string, args: LatexArgShape[]);
@@ -1598,7 +1838,7 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
 }",
     },
     Hand {
-        module: "stdcore/backends/latex",
+        module: "stdlib/backends/latex",
         item: "LatexRawPayload",
         ts: "export class LatexRawPayload {
   constructor(text: string);
@@ -1607,7 +1847,7 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
 }",
     },
     Hand {
-        module: "stdcore/backends/latex",
+        module: "stdlib/backends/latex",
         item: "LatexDefinitionPayload",
         ts: "export class LatexDefinitionPayload {
   constructor(kind: LatexDefinitionKind, name: string, args: number);
@@ -1625,7 +1865,7 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
 }",
     },
     Hand {
-        module: "stdcore/backends/latex/preamble",
+        module: "stdlib/backends/latex/preamble",
         item: "LatexPreambleDef",
         ts: "export class LatexPreambleDef {
   constructor(name: string, content: string, docs?: string);
@@ -1637,7 +1877,7 @@ export type LatexDefinitionKind = \"macro\" | \"environment\" | \"declaration\";
 }",
     },
     Hand {
-        module: "stdcore/backends/latex/packages",
+        module: "stdlib/backends/latex/packages",
         item: "LatexPackageDef",
         ts: "export class LatexPackageDef {
   constructor(name: string, docs?: string);
@@ -1760,6 +2000,10 @@ pub const GUEST_OWN: &[&str] = &[
     "LineShows",
     "LineFrame",
     "FrameReader",
+    "WrittenPiece",
+    "TexPart",
+    "TextHole",
+    "LineTex",
     "RefPoint",
     "ContentRef",
     "NumberSource",
@@ -1768,6 +2012,11 @@ pub const GUEST_OWN: &[&str] = &[
     "CitationResult",
     "CitationAnswer",
     "HostHandle",
+    // Several items: a sequence the host answered, or one the extension
+    // joined (`LISTS`).
+    "Vec<Box<dyn Node>>",
+    "[Box<dyn Node>]",
+    "Vec<Staged>",
     // The dual types, data or a handle.
     "ElementDef",
     "Box<dyn CompiledTemplate>",
@@ -1830,12 +2079,14 @@ pub const GUEST_HAND: &[&str] = &[
 pub const GUEST_ADDED: &[(&str, &str)] = &[("lang/mint", "ArgListData")];
 
 /// The free functions of the api (by their module's path) that the guest
-/// client does not offer, because a constructor of a type of [`GUEST_OWN`]
-/// makes their answer where the guest runs, with no request; the dispatcher
-/// answers each for the JavaScript binding. `arg_def_from_code` is the
-/// guest's `ArgDef::from_code`, which reads the code with `flm-core`'s reader
-/// where the argument is made, `define` included.
-pub const GUEST_OMITTED: &[(&str, &str)] = &[("lang/mint", "arg_def_from_code")];
+/// client does not offer; the dispatcher answers each for the JavaScript
+/// binding. `arg_def_from_code` is the guest's `ArgDef::from_code`, which
+/// reads the code with `flm-core`'s reader where the argument is made,
+/// `define` included: a constructor of a type of [`GUEST_OWN`] makes the
+/// answer where the guest runs, with no request. `host::path` joins a path
+/// to the folder of a module of a script, which a compiled extension does
+/// not have: it writes its `self:` paths.
+pub const GUEST_OMITTED: &[(&str, &str)] = &[("lang/mint", "arg_def_from_code"), ("host", "path")];
 
 /// Whether the free function `function` of the module `path` is in
 /// [`GUEST_OMITTED`].
@@ -2006,11 +2257,13 @@ mod tests {
 
     #[test]
     fn the_structural_rules_find_the_leaves() {
-        let node = leaves("Result<Option<Vec<Box<dyn Node>>>, ExtError>");
+        let node = leaves("Result<Option<Box<dyn Node>>, ExtError>");
         assert_eq!((node.types.as_slice(), node.kinds.as_slice()), (&[][..], &["Node".to_string()][..]));
-        assert_eq!(leaves("&[Box<dyn Node>]").kinds, ["Node"]);
+        assert_eq!(leaves("Result<Option<Vec<Box<dyn Node>>>, ExtError>").types, ["Vec<Box<dyn Node>>"]);
+        assert_eq!(leaves("&[Box<dyn Node>]").types, ["[Box<dyn Node>]"]);
         assert_eq!(leaves("&mut dyn LowerCx").kinds, ["LowerCx"]);
-        assert_eq!(leaves("Vec<(String, Box<dyn Tree>)>").types, ["Vec<(String, Box<dyn Tree>)>"]);
+        let pairs = leaves("Vec<(String, Box<dyn Tree>)>");
+        assert_eq!((pairs.types.as_slice(), pairs.kinds.as_slice()), (&["String".to_string()][..], &["Tree".to_string()][..]));
         assert_eq!(leaves("Result<Result<String, NotCharacters>, ExtError>").types, ["String"]);
         assert_eq!(leaves("impl IntoIterator<Item = Mode>").types, ["Vec<Mode>"]);
         assert_eq!(leaves("impl Into<String>").types, ["String"]);

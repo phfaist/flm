@@ -15,9 +15,9 @@ use crate::adapter::values::JsonForm;
 use crate::api;
 use crate::guest::core::data::table::ExtTableRead;
 use crate::guest::core::stage::TreesTable;
-use crate::guest::stdcore::backends::lowering::LoweredTrees;
-use crate::guest::stdcore::features::numbering::Counters;
-use crate::guest::stdcore::features::refs::Anchors;
+use crate::guest::stdlib::backends::lowering::LoweredTrees;
+use crate::guest::stdlib::features::numbering::Counters;
+use crate::guest::stdlib::features::refs::Anchors;
 use crate::runtime::ExtError;
 
 /// Mirrors [`TableValue`](crate::api::core::data::table::TableValue): a table

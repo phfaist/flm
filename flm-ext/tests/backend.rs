@@ -12,12 +12,12 @@ use std::sync::{Arc, Mutex};
 use flm_core::core::artifact::{Artifact, ArtifactId, ArtifactSet};
 use flm_core::core::data::table::TableHandle;
 use flm_core::core::plan::{Overrides, Plan, PlanRequest};
-use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{BuildError, FlmRegistry, PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::cascade::workflow_def;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_ext::api::core::data::store::StageOut;
 use flm_ext::api::core::data::table::TableValue;
 use flm_ext::api::core::lowering::{DefaultMark, Lower, LowerCx, Lowerer, Lowering, LoweringDecl, LoweringRule};
@@ -27,8 +27,8 @@ use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_ext::api::lang::mint::{ArgDef, ElementDef, SyntaxDef};
 use flm_ext::api::lang::structural;
 use flm_ext::api::model::element::ElementSpec;
-use flm_ext::api::stdcore::backends::lowering::{lowered_table_name, LoweringStage};
-use flm_ext::api::stdcore::backends::pres;
+use flm_ext::api::stdlib::backends::lowering::{lowered_table_name, LoweringStage};
+use flm_ext::api::stdlib::backends::pres;
 use flm_ext::api::techy::node::Node;
 use flm_ext::ExtError;
 use serde_json::{json, Value};
@@ -174,7 +174,7 @@ fn final_stage() -> Arc<dyn flm_ext::api::core::stage::Stage> {
     let decl = StageDecl::new("tb.final", Effect::Compute, Scope::Document).writes("tb.document").docs("Writes the file.");
     stage(decl, Needs::new().reads("tb.output"), |cx, out| {
         let Some(TableValue::Ext(read)) = cx.get("tb.output")? else { return Ok(()) };
-        let text: String = read.items().iter().filter_map(Value::as_str).collect();
+        let text: String = read.items().iter().filter_map(|row| row.as_str().map(str::to_string)).collect();
         let artifact = json!({
             "id": { "owner": "tb", "name": "document" },
             "media_type": MEDIA_TYPE,
@@ -234,7 +234,7 @@ fn tb(log: &Log) -> PackageEntry {
 /// workflows of an extension's `flm` block.
 fn build(packages: Vec<PackageEntry>, workflow: Option<&Value>) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     for package in packages {
         builder.use_package(package);
@@ -317,17 +317,38 @@ fn the_registry_reports_a_native_element_no_feature_declares() {
     let mut names = native();
     names.push("tb.pres.never".to_string());
     let package = Double::new("tb").feature("backend", move |b| register_tb(b, &log, names.clone())).package();
-    let error = build(vec![package], None).expect_err("the build fails").to_string();
-    assert!(error.contains("the element `tb.pres.never`, but no feature declares this element"), "{error}");
+    let error = build(vec![package], None).expect_err("the build fails");
+    assert!(
+        error.errors.iter().any(|e| matches!(e, BuildError::Undeclared { kind: "element", name, .. } if *name == "tb.pres.never")),
+        "{error:?}"
+    );
 }
 
 // --- the name rule ----------------------------------------------------------------------------
 
-/// The error of the registry build of a package `tb` whose feature does
-/// `register`, rendered.
-fn build_error(register: impl Fn(&mut dyn FeatureBuilder) -> Result<(), ExtError> + Send + Sync + 'static) -> String {
+/// The errors of the registry build of a package `tb` whose feature does
+/// `register`, as (feature, detail).
+fn build_error(
+    register: impl Fn(&mut dyn FeatureBuilder) -> Result<(), ExtError> + Send + Sync + 'static,
+) -> Vec<(String, String)> {
     let package = Double::new("tb").feature("backend", register).package();
-    build(vec![package], None).expect_err("the build fails").to_string()
+    common::feature_errors(&build(vec![package], None).expect_err("the build fails"))
+}
+
+/// Whether `found` is the one error of the feature `backend`, a name the
+/// extension may not declare.
+fn outside(found: &[(String, String)]) -> bool {
+    matches!(found, [(feature, detail)] if feature == "backend" && detail.starts_with("flm.ext.name-outside-extension: "))
+}
+
+/// An error's data (`ExtError::data`) without its free text `detail`, as
+/// text.
+fn refusal(error: &ExtError) -> String {
+    let mut data = error.data();
+    if let Some(map) = data.as_object_mut() {
+        map.remove("detail");
+    }
+    data.to_string()
 }
 
 /// A backend named `name` whose three stages are the library's lowering
@@ -347,22 +368,13 @@ fn quiet_backend(name: &str, stages: &str) -> BackendDef {
 
 #[test]
 fn a_backend_or_an_output_named_outside_the_stem_is_refused() {
-    let error = build_error(|b| b.backend(quiet_backend("other", "tb.other")));
-    assert!(
-        error.contains("the backend `other` declared by the package `_` of the extension `tb` must be `tb` or begin with `tb.`"),
-        "{error}"
-    );
-    let error = build_error(|b| b.output(OutputDef::new("tbx", "tb.document", "tb.document", MEDIA_TYPE, "typ")));
-    assert!(
-        error.contains("the output `tbx` declared by the package `_` of the extension `tb` must be `tb` or begin with `tb.`"),
-        "{error}"
-    );
+    let found = build_error(|b| b.backend(quiet_backend("other", "tb.other")));
+    assert!(outside(&found), "{found:?}");
+    let found = build_error(|b| b.output(OutputDef::new("tbx", "tb.document", "tb.document", MEDIA_TYPE, "typ")));
+    assert!(outside(&found), "{found:?}");
     // An extension's own stage of a backend keeps the stem rule.
-    let error = build_error(|b| b.backend(quiet_backend("tb", "other")));
-    assert!(
-        error.contains("the stage `other.emit` declared by the package `_` of the extension `tb` must begin with `tb.`"),
-        "{error}"
-    );
+    let found = build_error(|b| b.backend(quiet_backend("tb", "other")));
+    assert!(outside(&found), "{found:?}");
 }
 
 #[test]
@@ -390,20 +402,24 @@ fn a_lowered_table_is_accepted_for_a_backend_of_the_extension_only() {
         .feature("tables", move |b| {
             for name in ["flm.lowered.tb", "flm.lowered.tb.a", "flm.lowered.other", "flm.lowered.", "flm.output.tb"] {
                 let answer = b.table_named(name, StandardTable::LoweredTrees, "Lowered trees.");
-                note(&seen, format!("{name}: {}", answer.map_or_else(|error| error.to_string(), |()| "ok".to_string())));
+                note(&seen, format!("{name}: {}", answer.map_or_else(|error| refusal(&error), |()| "ok".to_string())));
             }
             Ok(())
         })
         .package();
     build(vec![package], None).expect("the registry builds");
+    let outside = |name: &str| {
+        let data = json!({ "kind": "name_outside_extension", "what": "table", "name": name, "package": "_", "extension": "tb" });
+        format!("{name}: {data}")
+    };
     assert_eq!(
         lines(&log),
         [
-            "flm.lowered.tb: ok",
-            "flm.lowered.tb.a: ok",
-            "flm.lowered.other: the table `flm.lowered.other` declared by the package `_` of the extension `tb` must begin with `tb.`",
-            "flm.lowered.: the table `flm.lowered.` declared by the package `_` of the extension `tb` must begin with `tb.`",
-            "flm.output.tb: the table `flm.output.tb` declared by the package `_` of the extension `tb` must begin with `tb.`",
+            "flm.lowered.tb: ok".to_string(),
+            "flm.lowered.tb.a: ok".to_string(),
+            outside("flm.lowered.other"),
+            outside("flm.lowered."),
+            outside("flm.output.tb"),
         ]
     );
 }
@@ -418,7 +434,7 @@ fn tb_by_json(log: &Log) -> PackageEntry {
     let log = Arc::clone(log);
     JsonDouble::new("tb")
         .feature("backend", move |js, b| {
-            let lowering = module("stdcore/backends/lowering");
+            let lowering = module("stdlib/backends/lowering");
             let lowered = js.call(&lowering, "lowered_table_name", json!(["tb"]))?;
             note(&log, format!("lowered_table_name {lowered}"));
             js.call(b, "table_named", json!([lowered, "lowered-trees", "The lowered trees of `tb`."]))?;
@@ -432,11 +448,11 @@ fn tb_by_json(log: &Log) -> PackageEntry {
                 &json!({ "reads": ["flm.lowered.tb"] }),
                 move |js, cx, out| {
                     let read = js.call(cx, "get", json!(["flm.lowered.tb"]))?;
-                    let trees = js.call(&read["lowered"], "trees", json!([]))?;
+                    let trees = js.traverse(&read["lowered"], "trees", json!([]))?;
                     let mut text = String::new();
                     for pair in trees.as_array().into_iter().flatten() {
                         let root = js.call(&pair[1], "root", json!([]))?;
-                        for node in js.call(&root, "descendants", json!([]))?.as_array().into_iter().flatten() {
+                        for node in js.traverse(&root, "descendants", json!([]))?.as_array().into_iter().flatten() {
                             if js.call(node, "element_name", json!([]))? == json!(TBN_NOTE) {
                                 note(&emit_log, format!("payload {}", js.call(node, "payload", json!([]))?));
                             }
@@ -455,7 +471,7 @@ fn tb_by_json(log: &Log) -> PackageEntry {
                 &json!({ "reads": ["tb.output"] }),
                 |js, cx, out| {
                     let read = js.call(cx, "get", json!(["tb.output"]))?;
-                    let items = js.call(&read["ext"], "items", json!([]))?;
+                    let items = js.sequence(&read["ext"], "items", json!([]))?;
                     let artifact = json!({
                         "id": { "owner": "tb", "name": "document" },
                         "media_type": MEDIA_TYPE,
@@ -472,7 +488,7 @@ fn tb_by_json(log: &Log) -> PackageEntry {
             let wrong = json!({
                 "name": "tb", "native": native_with(TBN_NOTE), "lowering": library, "emit": b, "final_stage": final_stage,
             });
-            let refused = js.call(b, "backend", json!([wrong])).map_err(|error| error.to_string());
+            let refused = js.call(b, "backend", json!([wrong])).map_err(|error| refusal(&error));
             note(&log, format!("wrong kind {}", refused.err().unwrap_or_default()));
             let backend = json!({
                 "name": "tb", "native": native_with(TBN_NOTE), "lowering": library, "emit": emit, "final_stage": final_stage,
@@ -484,7 +500,7 @@ fn tb_by_json(log: &Log) -> PackageEntry {
             });
             js.call(b, "output", json!([output]))?;
             let refused = js.call(b, "output", json!([{ "name": "other", "capability": "tb.document", "table": "tb.document", "media_type": "", "extension": "x" }]));
-            note(&log, format!("output other {}", refused.err().map(|error| error.to_string()).unwrap_or_default()));
+            note(&log, format!("output other {}", refused.err().map(|error| refusal(&error)).unwrap_or_default()));
             Ok(())
         })
         .package()
@@ -537,8 +553,8 @@ fn the_dispatcher_declares_a_backend_and_an_output() {
         [
             r#"lowered_table_name "flm.lowered.tb""#,
             r#"library "library_stage""#,
-            "wrong kind `backend`: an object of the kind `library_stage` or `stage` is expected here, not one of the kind `feature_builder`",
-            "output other the output `other` declared by the package `_` of the extension `tb` must be `tb` or begin with `tb.`",
+            r#"wrong kind {"kind":"argument","method":"backend"}"#,
+            r#"output other {"kind":"name_outside_extension","what":"output","name":"other","package":"_","extension":"tb"}"#,
             r#"payload {"kind":"tip"}"#,
         ]
     );

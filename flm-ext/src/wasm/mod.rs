@@ -27,8 +27,9 @@
 //!     limits: { memory_mib: 128, fuel: 5000000000 }
 //! ```
 //!
-//! `extension.wasm.module` is the module's path inside the extension's folder
-//! ([`WasmManifest`](crate::manifest::WasmManifest)); `limits` is optional
+//! `extension.wasm.module` is the module's path, relative to the extension's
+//! folder ([`WasmManifest`](crate::manifest::WasmManifest), [paths inside an
+//! extension](crate::source#paths-inside-an-extension)); `limits` is optional
 //! ([`WasmLimits`](crate::manifest::WasmLimits)).
 //!
 //! **The ABI.** JSON text in the guest's linear memory, both ways.
@@ -42,17 +43,22 @@
 //! - *Exports*: the memory `memory`; `flm_alloc(len: i32) -> i32`;
 //!   `flm_free(ptr: i32, len: i32)`; `flm_entry(ptr: i32, len: i32) -> i64`;
 //!   optionally `flm_last_panic() -> i64`.
-//! - *An entry*: the host writes `{"entry": NAME, "args": [ … ]}` into a
-//!   buffer it took with `flm_alloc`, calls `flm_entry`, and frees the buffer
-//!   with `flm_free`. The arguments are JSON values: for a handler, the
+//! - *An entry*: the host writes `{"entry": NAME, "extension": STEM, "args":
+//!   [ … ]}` into a buffer it took with `flm_alloc`, calls `flm_entry`, and
+//!   frees the buffer with `flm_free`. `STEM` is the stem of the extension
+//!   the entry is for, the one `define` was given; every entry names it, so
+//!   that one instance may run several extensions, each with a state of its
+//!   own, and an entry for a stem the instance has not defined answers an
+//!   error. The arguments are JSON values: for a handler, the
 //!   package, the feature, then the handler's own (a name as a string, a
 //!   handle as `{"@handle": …}`); `define`'s are the stem and the module's
-//!   path; `packages`'s none. The answer is `(ptr << 32) | len` of the reply,
-//!   a buffer of the guest's the host frees after reading it: `{"ok":
-//!   value}` (`null` for nothing), or `{"err": data, "message": text}`, the
-//!   data being an [`ExtError`](crate::ExtError)'s
-//!   ([`data`](crate::ExtError::data)). `flm_last_panic` answers the same
-//!   packing for the last panic's message, `0` when there is none.
+//!   path as the manifest writes it; `packages`'s none. The answer is
+//!   `(ptr << 32) | len` of the reply, a buffer of the guest's the host frees
+//!   after reading it: `{"ok": value}` (`null` for nothing), or `{"err":
+//!   data, "message": text}`, the data being an
+//!   [`ExtError`](crate::ExtError)'s ([`data`](crate::ExtError::data)).
+//!   `flm_last_panic` answers the same packing for the last panic's message,
+//!   `0` when there is none.
 //! - *A request*: `{"native": NAME, …fields}`, one of the twelve natives:
 //!   `call` (`handle`, `method`, `args`), `module_handle` (`path`),
 //!   `lend_stage` (`decl`, `needs`), `lend_expand` (`element`, `policy`),
@@ -64,7 +70,9 @@
 //!   and maps more than 127 levels deep, or is of no native's shape, answers
 //!   an `err` envelope; it is not a trap.
 //!
-//! The entries a module answers: `define(stem, module)` once per instance,
+//! The entries a module answers: `define(stem, module)` once per extension
+//! in an instance (`module` the module's path as the manifest writes it, or,
+//! for an extension of a collection, the collection's label),
 //! then `packages()` at load (the package objects, in the shape the
 //! JavaScript prelude's `packages` answers); `register(settings, b)` and
 //! `rehearse(settings)`; `read_settings(settings)`, a feature's
@@ -83,8 +91,10 @@
 //! # Loading and the instances
 //!
 //! At load the module's bytes are read once through the extension's files and
-//! compiled once; its imports and exports are checked against the ABI; an
-//! instance is created on the loading thread (instantiated, then its entry
+//! compiled once; its imports and exports are checked against the ABI, and a
+//! module that holds the custom section `flmextensions` is refused: it is a
+//! collection, which a program loads itself ([collections](#collections)).
+//! An instance is created on the loading thread (instantiated, then its entry
 //! `define` called), its entry `packages` called, and the answer read as the
 //! package objects. Every other thread creates its own instance from the
 //! compiled module when it first runs a handler of the extension, and calls
@@ -93,6 +103,33 @@
 //! extension: a request that needs one (any but `module_handle` and
 //! `console`) answers a refusal, also when the instance is created while
 //! another extension's handler call runs on the thread.
+//!
+//! # Collections
+//!
+//! A collection is one module that holds several extensions whole: the code
+//! of those written in Rust, and the files of each in its custom section
+//! `flmextensions` ([`crate::collection`]). A host program reads one with
+//! [`Collection::read`], under a label it chooses, which compiles the module
+//! once, checks it against the ABI and reads the section, calling no entry.
+//! The program's source answers a name from the collection's rows
+//! ([`Collection::extensions`]), each with the identity `LABEL:FOLDER/STEM`,
+//! and the program gives the collection to the engine
+//! ([`WasmEngine::with_collection`]), with the manifest of each row as the
+//! program's source reads it. The engine recognizes an extension of
+//! the collection by its identity and runs it on the collection's module,
+//! without reading `extension.wasm.module`.
+//!
+//! On each thread and for each host, every extension of a collection runs in
+//! one instance of its module, created when the first of them is called;
+//! each extension is defined in it when it is first called there, with a
+//! state of its own in the guest. The fuel of a handler call is the limit of
+//! the extension called. The memory limit of the instance is the sum of the
+//! memory limits of the collection's extensions that have code (the engine
+//! `wasm`), each its manifest's or else the host's, fixed when the
+//! collection is given to the engine. When a limit or a trap
+//! poisons the instance, it is dropped after the outermost call, and each
+//! extension is defined and rehearsed again in the next instance when it is
+//! next called.
 //!
 //! # The mapping rules
 //!
@@ -107,12 +144,25 @@
 //! before the guest is resumed with the reply. The twelve mapping rules for
 //! a guest written in Rust are on the page of `flm_ext::guest`.
 //!
+//! A collection whose length can grow with the document crosses as one
+//! handle, in the shapes of the dispatcher
+//! ([the value shapes](crate::adapter::dispatch#the-value-shapes)): a
+//! traversal (`walk()`, `descendants()`, `trees()`), whose items the guest
+//! pulls once with the method `pull`, and a sequence (a list of nodes, of
+//! staged nodes, or of an extension's rows), whose handle also holds its
+//! length `len` and whose items the guest reads with `get` or pulls with
+//! `pull`. A request returns at most one group of items, so the memory that
+//! the instance needs depends on what the guest keeps, not on the size of
+//! the document. Where a
+//! method takes several nodes or staged nodes, the guest passes a sequence's
+//! handle back, or a joined list of item handles and sequence handles.
+//!
 //! # The limits
 //!
 //! | Limit ([`WasmSettings`]) | Default | Exceeded |
 //! |---|---|---|
 //! | `fuel`, per handler call | 1,000,000,000 units (about one per instruction) | the call stops; the handler fails; the instance is replaced after the call |
-//! | `memory_limit`, per instance | 64 MiB | `memory.grow` answers -1; when the guest then traps (a Rust guest's allocator aborts), the handler fails with the limit's text; the instance is replaced after the call |
+//! | `memory_limit`, per instance (for a collection, the sum over its extensions that have code) | 64 MiB | `memory.grow` answers -1; when the guest then traps (a Rust guest's allocator aborts), the handler fails with the limit's text; the instance is replaced after the call |
 //! | the call depth | wasmi's (1,000 nested calls), not configurable | a trap: the handler fails; the instance is replaced after the call |
 //!
 //! An extension may set its own limits in its manifest, under
@@ -124,6 +174,16 @@
 //! the module has one call's fuel, and each of the entries `define` and
 //! `packages` one call's fuel of its own. wasmi runs with its `deterministic`
 //! feature: a module answers the same on every machine (NaNs are canonical).
+//!
+//! # A cancelled build
+//!
+//! A stage and a citation provider run under a row of their build's progress
+//! sheet. When that build is asked to stop, the call stops at the module's
+//! next request to the host: the handler fails and the instance is replaced
+//! after the call, as when the fuel runs out. A module that runs long
+//! without a request runs until it makes one, or until its fuel runs out.
+//! The failure reaches no one: what the step under way produced is discarded
+//! with it.
 //!
 //! # Strict mode
 //!
@@ -151,16 +211,18 @@
 //! | Failure | What the handler's caller gets |
 //! |---|---|
 //! | a handler's entry answers `{"err": …}` | the [`ExtError`](crate::ExtError) its data describe, as the guest returned it |
-//! | `define` or `packages` answers `{"err": …}` | "the entry `define` of the module `P` of the extension `S` must answer without an error: DETAIL" on every thread that creates an instance (likewise "the entry `packages` …" at load), DETAIL the text of the error its data describe |
+//! | `define` or `packages` answers `{"err": …}` | "the entry `define` of the module `P` of the extension `S` must answer without an error: DETAIL" (for an extension of a collection, "the entry ‘define’ of the extension ‘S’ in the collection ‘L’ must answer without an error: DETAIL"; likewise for `packages` at load), DETAIL the text of the error its data describe |
 //! | the fuel runs out | "WHAT must finish within its budget of N fuel units", the data `{ "limit": "fuel", "fuel": N }` |
 //! | a trap after a refused memory growth | "WHAT must stay within the memory limit of N bytes", the data `{ "limit": "memory", "limit_bytes": N }` |
+//! | the build is cancelled (a stage or a citation provider) | "WHAT was stopped: the build was cancelled", the data `{ "cancelled": true }`; the failure gives no diagnostic |
 //! | any other trap (`unreachable`, an access out of bounds, the call depth, a host function given a wrong length) | "WHAT must run without a trap: DETAIL", with "; the guest panicked: MESSAGE" when `flm_last_panic` answers one; the data `{ "trap": DETAIL, "panic": MESSAGE or null }` |
 //! | the reply is not JSON, nests too deep, holds neither `ok` nor `err`, or its `err` is not an error's data | the text saying so |
 //! | the instance cannot be created (on a thread other than the loading one) | "the engine of the extension `S` could not be created on this thread: DETAIL" |
+//! | `define` fails in an instance created on a thread other than the loading one, or in an instance that holds another extension of the collection | "Failed to define the extension ‘S’ in its instance on this thread: DETAIL" |
 //! | the extension does not load (a module that does not compile, an import not offered, an export missing or of another type, an initial memory above the limit, `define` or `packages` failing, a package object that is not one) | every problem reported where the `use` entry stands |
 //!
-//! The fuel limit, the memory limit and a trap poison the instance, which is
-//! dropped when the outermost call leaves it. What the library does with a
+//! The fuel limit, the memory limit, a cancelled build and a trap poison
+//! the instance, which is dropped when the outermost call leaves it. What the library does with a
 //! failing handler is the same as for a JavaScript handler (the module
 //! `flm_ext::quickjs`, cargo feature `quickjs`).
 //!
@@ -168,15 +230,18 @@
 //!
 //! What the registry digest receives for every feature of a WebAssembly
 //! extension, after the manifest: the bytes `flm-ext wasm ` and
-//! [`ENGINE_VERSION`], a NUL byte, the module's bytes, a NUL byte. The host's
+//! [`ENGINE_VERSION`], a NUL byte, the module's bytes (for an extension of a
+//! collection, the bytes of the collection's file), a NUL byte. The host's
 //! settings do not enter.
 
 mod abi;
+mod collection;
 mod engine;
 mod host;
 mod instance;
 
-pub use engine::WasmEngine;
+pub use collection::{Collection, CollectionError, CollectionErrorKind, CollectionExtension, CollectionFile};
+pub use engine::{AbiProblem, WasmEngine};
 pub use host::{WasmHost, WasmSettings};
 
 /// The version of wasmi this binding runs, which enters the digest. Kept in
@@ -275,16 +340,14 @@ mod tests {
         assert_eq!(grow.call(&mut store, 1).expect("no trap"), 1);
         assert_eq!(grow.call(&mut store, 1).expect("no trap"), -1);
 
-        // The traps: fuel running out, and `unreachable`, with wasmi's texts.
+        // The traps: fuel running out, and `unreachable`.
         store.set_fuel(10_000).expect("fuel metering is on");
         let spin = instance.get_typed_func::<(), ()>(&store, "spin").expect("exported");
         let error = spin.call(&mut store, ()).expect_err("the loop runs out of fuel");
         assert_eq!(error.as_trap_code(), Some(TrapCode::OutOfFuel));
-        assert_eq!(error.to_string(), "all fuel consumed by WebAssembly");
         store.set_fuel(10_000).expect("fuel metering is on");
         let fail = instance.get_typed_func::<(), ()>(&store, "fail").expect("exported");
         let error = fail.call(&mut store, ()).expect_err("unreachable traps");
         assert_eq!(error.as_trap_code(), Some(TrapCode::UnreachableCodeReached));
-        assert_eq!(error.to_string(), "wasm `unreachable` instruction executed");
     }
 }

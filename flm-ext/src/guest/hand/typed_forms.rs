@@ -14,13 +14,13 @@ use std::sync::Arc;
 
 use serde_json::{json, Value};
 
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::{parse_fragment, Flm, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::addr::{NodeAddr as CoreNodeAddr, TreeId};
 use flm_core::model::aspects::PointId as CorePointId;
 use flm_core::model::doc::FragmentLayout;
-use flm_core::stdcore::features::refs::Anchors as CoreAnchors;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::features::refs::Anchors as CoreAnchors;
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_core::techy::core::node::NodeTree;
 
 use crate::adapter::aspects::{ref_point_from_value, ref_point_to_core};
@@ -31,13 +31,13 @@ use crate::adapter::tables::{AnchorsFacade, Seen};
 use crate::adapter::typed::{FromApi, IntoApi};
 use crate::adapter::values::{citation_results_from_value, handle_to_value, line_frame_to_value, Args, FromArg, IntoReply, JsonForm};
 use crate::api;
-use crate::api::stdcore::features::math as api_math;
+use crate::api::stdlib::features::math as api_math;
 use crate::guest;
 
 /// A parsed tree of `text`.
 fn tree(text: &str) -> Arc<NodeTree<Flm>> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder.build(&RegistryInputs::new()).expect("the registry builds");
     let source = Arc::new(FlmSource::new(text).with_origin(FlmOrigin::none()));
@@ -108,17 +108,17 @@ fn a_table_a_lowerer_answers_is_the_dispatcher_s_reply() {
 #[test]
 fn a_counter_record_and_a_number_segment_built_from_the_api_are_the_dispatcher_s_reply() {
     let parsed = tree("abc");
-    let record = api::stdcore::features::numbering::CounterRecord {
+    let record = api::stdlib::features::numbering::CounterRecord {
         counter: "equation".to_string(),
         value: vec![1, -2],
         style: "arabic".to_string(),
         instance: Some(root_addr(&parsed)),
     };
-    let (typed, replied) = from_api_and_reply::<_, guest::stdcore::features::numbering::CounterRecord>(record.clone(), record);
+    let (typed, replied) = from_api_and_reply::<_, guest::stdlib::features::numbering::CounterRecord>(record.clone(), record);
     assert_eq!(typed, replied);
     for link in [Some(CorePointId { addr: root_addr(&parsed), index: 2 }), None] {
-        let segment = || api::stdcore::features::numbering::NumberSegment { content: shared(&parsed), link };
-        let (typed, replied) = from_api_and_reply::<_, guest::stdcore::features::numbering::NumberSegment>(segment(), segment());
+        let segment = || api::stdlib::features::numbering::NumberSegment { content: shared(&parsed), link };
+        let (typed, replied) = from_api_and_reply::<_, guest::stdlib::features::numbering::NumberSegment>(segment(), segment());
         assert_eq!(typed, replied);
     }
 }
@@ -148,17 +148,17 @@ fn frame(parsed: &Arc<NodeTree<Flm>>, shows: usize) -> api_math::LineFrame<'stat
 #[test]
 fn an_equation_line_and_a_line_frame_built_from_the_api_are_the_dispatcher_s_reply() {
     let parsed = tree("x");
-    let (typed, replied) = from_api_and_reply::<_, guest::stdcore::features::math::EquationLine>(line(&parsed), line(&parsed));
+    let (typed, replied) = from_api_and_reply::<_, guest::stdlib::features::math::EquationLine>(line(&parsed), line(&parsed));
     assert_eq!(typed, replied);
     for shows in 0..3 {
-        let (typed, replied) = from_api_and_reply::<_, guest::stdcore::features::math::LineFrame>(frame(&parsed, shows), frame(&parsed, shows));
+        let (typed, replied) = from_api_and_reply::<_, guest::stdlib::features::math::LineFrame>(frame(&parsed, shows), frame(&parsed, shows));
         assert_eq!(typed, replied);
     }
 }
 
 #[test]
 fn a_line_frame_given_to_the_api_is_what_the_dispatcher_reads() {
-    use guest::stdcore::features::math::LineFrame;
+    use guest::stdlib::features::math::LineFrame;
     let parsed = tree("x");
     for shows in 0..3 {
         // The guest's frame, read from what the host wrote, in each table.
@@ -223,7 +223,7 @@ fn a_reference_point_s_number_given_to_the_api_is_what_the_host_reads() {
         anchor: AnchorPolicy::Auto { prefix: "a-".to_string() },
         number: Some(NumberSource {
             counter: "equation".to_string(),
-            instances: vec![node],
+            instances: vec![node].into(),
             style: "arabic".to_string(),
             advance: vec![1],
             number_format: Some("(#)".to_string()),
@@ -240,10 +240,10 @@ fn a_reference_point_s_number_given_to_the_api_is_what_the_host_reads() {
 
 #[test]
 fn a_citation_answer_given_to_the_api_is_what_the_host_reads() {
-    use guest::stdcore::features::citations::{CitationAnswer, CitationEntry, CitationResult};
+    use guest::stdlib::features::citations::{CitationAnswer, CitationEntry, CitationResult};
     let parsed = tree("Ann, 2001");
     let mut table = CallTable::new(1);
-    let core_entry = flm_core::stdcore::features::citations::CitationEntry::new(Arc::clone(&parsed));
+    let core_entry = flm_core::stdlib::features::citations::CitationEntry::new(Arc::clone(&parsed));
     let lent = table.lend(Entry::CitationEntry(Box::new(crate::adapter::citations::CitationEntryFacade(core_entry))));
     let entry = CitationEntry::from_value(&handle_to_value(lent)).expect("the guest reads the entry");
     let answer = CitationAnswer::new(entry).with_identity("ann2001").with_warning("a warning");
@@ -251,7 +251,7 @@ fn a_citation_answer_given_to_the_api_is_what_the_host_reads() {
     let data = results.to_value();
     let converted = results.into_api(&mut table).expect("the typed conversion");
     let read = citation_results_from_value(&mut table, &data).expect("the host reads the guest's results");
-    let shape = |results: &[api::stdcore::features::citations::CitationResult]| -> Vec<Option<(Option<String>, Vec<String>)>> {
+    let shape = |results: &[api::stdlib::features::citations::CitationResult]| -> Vec<Option<(Option<String>, Vec<String>)>> {
         results
             .iter()
             .map(|result| match result {

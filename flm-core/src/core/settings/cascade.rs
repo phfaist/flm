@@ -41,21 +41,36 @@
 //! The settings that several packages give a workflow follow the same rule, by
 //! the packages they are written in.
 //!
-//! # Keys merged entry by entry
+//! # Values combined key by key
 //!
-//! Some keys hold a collection of named things: a map from a name to an entry,
-//! which the feature marks in its declaration
-//! ([`SettingsDecl::merge_entries`]). Such a key is combined one entry at a
-//! time, by the same rule, with the feature's own entries
-//! ([`default_entries`](SettingsDecl::default_entries)) below every source. A
-//! source therefore adds an entry and leaves the others; the source of the
-//! highest rank that writes an entry replaces it whole (the fields it does not
-//! write come from the feature's own entry of that name, never from a lower
-//! source); an entry whose resulting value is `false` is removed; two peers that
-//! write two different values for one entry are a problem for that entry. The
-//! entries are ordered by source, lowest rank first, each source's entries in
-//! the order written, and a replaced entry keeps its position. Nothing else is
-//! combined inside a value.
+//! The marks of a feature's settings declaration ([`Mark`]) decide how a value
+//! is combined, at any depth below a key; the cascade names no feature and no
+//! key of its own.
+//!
+//! - **[`Mark::MergeObjectKeyValues`]**: the sources' values of an object that
+//!   carries the mark are combined key by key. Each key of the object is
+//!   decided by the rule above (the source of the highest rank that writes it
+//!   gives its value whole, and two peers must agree on it); where the node of
+//!   that key carries the mark too, the rule applies again one level down. The
+//!   feature's own default of the object (the default of its node,
+//!   [`default_entries`](SettingsDecl::default_entries), or the entry of the
+//!   default above it) is the lowest source, so that a source adds a key and
+//!   leaves the others. The keys are ordered by source, lowest rank first,
+//!   the default's first, each source's keys in the order written, and a
+//!   replaced key keeps its position. A value that is not an object where the
+//!   mark stands is a problem at its origin.
+//! - **[`Mark::RemoveKeyWhenValueIsFalse`]**: in an object that carries the
+//!   mark, a key whose combined value is `false` is left out, a key of the
+//!   feature's own default included.
+//! - **[`Mark::SetToDefaultWithNull`]**: a setting that carries the mark and
+//!   whose combined value is `null` is left out of the combined settings, so
+//!   that whatever reads them applies the setting's default.
+//!
+//! Nothing else is combined inside a value. Each value that the rule decides
+//! keeps the origin of the write that gives it, at every depth
+//! ([`KeyInEffect::entry_origins`], [`KeyInEffect::below`]), and
+//! [`Cascade::writes_at`] lists every source's value at one place, and
+//! [`Cascade::decided_at`] finds the place decided whole that holds it.
 //!
 //! # The fields of a workflow
 //!
@@ -75,21 +90,52 @@
 //!
 //! # Switching a feature off
 //!
-//! A source writes, for a feature, either `false` ([`Cascade::switch_off`]) or a
-//! map of its settings, an empty map included ([`Cascade::switch_on`]). The
-//! source of the highest rank that wrote either decides whether the feature is
-//! off, and two peers of which one wrote `false` and the other a map are a
-//! problem. So a higher source switches on, with an empty map, a feature that a
-//! package switched off. When the feature is on, its keys are combined over
+//! A source may switch a feature off ([`Cascade::switch_off`]) or on
+//! ([`Cascade::switch_on`]), and records the feature's keys apart
+//! ([`Cascade::set`]), whichever way it switches it: a source may set keys of a
+//! feature it switches off. The source of the highest rank that switches the
+//! feature decides whether it is off, and two peers of which one switches it off
+//! and the other on are a problem. So a higher source switches on a feature that
+//! a package switched off. When the feature is on, its keys are combined over
 //! every source by the rule above; when it is off, none of its keys is read,
-//! whatever source wrote it. A key recorded with [`Cascade::set`] alone does not
-//! switch a feature on.
+//! whatever source set it, the source that switched it off included. A key
+//! recorded with [`Cascade::set`] alone does not switch a feature on.
 //!
-//! `false` for a feature that no package in use has is accepted; since the name
-//! may be misspelled, each `false` written for such a feature is a warning at its
-//! origin, returned whether or not the reading finds problems
-//! ([`ReadSettings::warnings`], [`ReadFailure::warnings`]). Settings written for
-//! such a feature, an empty map included, are a problem.
+//! # A feature that no package in use has
+//!
+//! Whatever a source writes for a feature that no package in use has, a switch
+//! either way or any key, is accepted and read by nothing: a source may keep
+//! the settings of a package that the document does not use at the moment.
+//! Since the name may be misspelled, each source that writes such a feature
+//! gives one warning, at the first origin recorded for it, returned whether or
+//! not the reading finds problems ([`ReadSettings::warnings`],
+//! [`ReadFailure::warnings`]). A source is told apart from the others by its
+//! origins' rank, [`peer`](CascadeOrigin::peer) and
+//! [`workflow`](CascadeOrigin::workflow): in a rank in which the value written
+//! last wins, every origin is of one source. Such a feature has no entry among
+//! the settings in effect ([`Cascade::in_effect`]).
+//!
+//! # Entries that another feature declares
+//!
+//! A feature may declare the schema of one entry of a map that a key of
+//! another feature holds, at a place that the owner of the key opens
+//! ([`EntryDecl`], [`SettingsDecl::open_entries`], [`SettingsDecl::entry_data`]).
+//! The declaration of an entry is in force when its feature and the owner are
+//! among the features of the packages in use and neither is switched off; the
+//! cascade then combines and reads the owner's settings by the owner's
+//! declaration combined with those of its entries in force
+//! ([`declaration_in_force`]):
+//!
+//! - the marks of an entry's schema apply to the values written under the
+//!   entry;
+//! - a key written under an entry that the entry's schema does not declare is
+//!   left out of the combined settings, with a warning at the origin of each
+//!   write of it ([`WarningKind::UndeclaredKey`]);
+//! - an entry that nothing declares is accepted as written and read by
+//!   whatever reads the owner's key;
+//! - two features that declare one entry, and a declaration of an entry at a
+//!   place that the owner does not open, are problems of [`Cascade::read`]
+//!   without an origin, which name the features' packages.
 //!
 //! # Reading the combined settings
 //!
@@ -98,9 +144,9 @@
 //! package is built from and the option values set on the document and on the
 //! render request, with the warnings ([`ReadSettings`]), or, when it finds problems, those
 //! problems with the warnings ([`ReadFailure`]); [`Cascade::parsing`] reads the parsing
-//! settings ([`FlmParsing`]), combined key by key by the same rule. A relative
-//! path in a value that the feature marks as a path to a file
-//! ([`ValueKind::Path`]) is first resolved by its origin
+//! settings ([`FlmParsing`]), combined key by key by the same rule. Each path
+//! in a value that the feature marks as a path to a file ([`Mark::Path`]) is
+//! first given by its origin the form its reader receives
 //! ([`CascadeOrigin::resolve_path`]).
 //!
 //! Every feature of the packages in use that declares settings is read at each
@@ -117,13 +163,14 @@
 //! with where it was written ([`FeatureInEffect`]). A host uses it to show each
 //! setting's value and its origin.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use serde_json::{Map, Value};
 
 use crate::core::registry::{PackageFactory, WorkflowDef};
-use crate::core::settings::{PackageSettings, SettingsDecl, ValueKind};
+use crate::core::settings::{EntryDecl, Mark, PackageSettings, SettingsDecl, texts_at};
 use crate::lang::FlmParsing;
 use crate::model::names::Name;
 use crate::model::options::{Bind, OptionValues};
@@ -150,9 +197,15 @@ pub trait CascadeOrigin: Clone + fmt::Display + fmt::Debug + PartialEq {
     /// message names it ("the document's front matter"); `None` when there is
     /// none. The message about packages that disagree suggests it.
     fn higher_source(&self) -> Option<&str>;
-    /// A relative path in a value marked [`ValueKind::Path`], resolved against
-    /// where the origin was written; `None` leaves the path as written.
-    fn resolve_path(&self, path: &str) -> Option<String>;
+    /// A path in a value marked [`Mark::Path`], as its reader receives it,
+    /// given the place where the origin was written; `Ok(None)` leaves the
+    /// path as written.
+    ///
+    /// # Errors
+    ///
+    /// The text of a path that has no meaning where the origin was written,
+    /// which the cascade reports as a problem at the origin.
+    fn resolve_path(&self, path: &str) -> Result<Option<String>, String>;
 }
 
 /// Which packages each package *reaches*: for each package, by its factory's
@@ -174,8 +227,9 @@ pub struct SettingValue<O> {
 /// A problem with the settings: the message, and where the value at fault was
 /// written when that is known. Its `Display` text is
 /// [`detail`](Problem::detail). [`Cascade::read`] returns the problems that are
-/// errors in [`ReadFailure::errors`], and those that are warnings in
-/// [`ReadSettings::warnings`] or, beside errors, in [`ReadFailure::warnings`].
+/// errors in [`ReadFailure::errors`], and those that are warnings, each with its
+/// kind ([`Warning`]), in [`ReadSettings::warnings`] or, beside errors, in
+/// [`ReadFailure::warnings`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem<O> {
     /// Where the value at fault was written; `None` when that is not known,
@@ -183,6 +237,30 @@ pub struct Problem<O> {
     pub origin: Option<O>,
     /// The problem, as a text for a reader.
     pub detail: String,
+}
+
+/// A value that the settings accept and that may be a mistake, as
+/// [`Cascade::read`] finds it: what kind of value it is, where it was written
+/// and the message ([`ReadSettings::warnings`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Warning<O> {
+    /// What the value is.
+    pub kind: WarningKind,
+    /// Where the value was written, and the message.
+    pub problem: Problem<O>,
+}
+
+/// The kinds of [`Warning`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WarningKind {
+    /// A source writes a feature that no package in use has (see the [module
+    /// documentation](self#a-feature-that-no-package-in-use-has)): accepted and
+    /// read by nothing. One warning per source, at its first origin.
+    UnknownFeature,
+    /// A source writes, under an entry in force that another feature declares
+    /// ([`EntryDecl`]), a key that the entry does not declare: left out of the
+    /// combined settings. One warning per write of the key, at its origin.
+    UndeclaredKey,
 }
 
 impl<O> fmt::Display for Problem<O> {
@@ -212,38 +290,45 @@ struct Written<T, O> {
     disagreeing: Vec<(T, O)>,
 }
 
+/// Returns the position in `writes` (every value each source wrote for one
+/// setting, in the order written) of the resulting value by the rule of the
+/// ranks, with the positions of the values its peers wrote that differ from
+/// it. The sources of the highest rank that writes the setting decide. Within
+/// a rank without peers, the value written last results. Within a rank of
+/// peers, the sources that count are those over which no other wins
+/// ([`wins_over`], by `reach`); the first of them written results, and the
+/// others that differ from it are disagreeing. Which sources count does not
+/// depend on the order written.
+// Peers must agree, and a package changes another's value only by naming it
+// in its `use` list: a package added beside the others never silently
+// changes a value, and each value in force comes from one source.
+fn decide_at<T: PartialEq, O: CascadeOrigin>(writes: &[(&T, &O)], reach: &Reach) -> Option<(usize, Vec<usize>)> {
+    let top = writes.iter().map(|(_, origin)| origin.rank()).max()?;
+    let at_top: Vec<usize> = (0..writes.len()).filter(|at| writes[*at].1.rank() == top).collect();
+    if !at_top.iter().any(|at| writes[*at].1.peer().is_some()) {
+        return Some((*at_top.last()?, Vec::new()));
+    }
+    let mut counting =
+        at_top.iter().copied().filter(|at| !at_top.iter().any(|other| wins_over(reach, writes[*other].1, writes[*at].1)));
+    let first = counting.next()?;
+    let disagreeing = counting.filter(|at| writes[*at].0 != writes[first].0).collect();
+    Some((first, disagreeing))
+}
+
 impl<T: PartialEq + Clone, O: CascadeOrigin> Written<T, O> {
     /// Returns the resulting value among `writes`, every value each source wrote
-    /// for one setting, in the order written, by the rule of the ranks: the
-    /// sources of the highest rank that writes the setting decide. Within a rank
-    /// without peers, the value written last results. Within a rank of peers,
-    /// the sources that count are those over which no other wins
-    /// ([`wins_over`], by `reach`); the first of them written results, and the
-    /// others that differ from it are disagreeing. Which sources count does not
-    /// depend on the order written.
-    // Peers must agree, and a package changes another's value only by naming it
-    // in its `use` list: a package added beside the others never silently
-    // changes a value, and each value in force comes from one source.
+    /// for one setting, in the order written, by the rule of the ranks
+    /// ([`decide_at`]), with the values of its peers that differ from it.
     fn decide<'w>(writes: impl IntoIterator<Item = (&'w T, &'w O)>, reach: &Reach) -> Option<Written<T, O>>
     where
         T: 'w,
         O: 'w,
     {
         let writes: Vec<(&T, &O)> = writes.into_iter().collect();
-        let top = writes.iter().map(|(_, origin)| origin.rank()).max()?;
-        let at_top: Vec<(&T, &O)> = writes.into_iter().filter(|(_, origin)| origin.rank() == top).collect();
-        if !at_top.iter().any(|(_, origin)| origin.peer().is_some()) {
-            let (value, origin) = at_top.last()?;
-            return Some(Written { value: (*value).clone(), origin: (*origin).clone(), disagreeing: Vec::new() });
-        }
-        let mut counting =
-            at_top.iter().filter(|(_, origin)| !at_top.iter().any(|(_, other)| wins_over(reach, *other, *origin)));
-        let (value, origin) = counting.next()?;
-        let disagreeing = counting
-            .filter(|(other, _)| *other != *value)
-            .map(|(other, at)| ((*other).clone(), (*at).clone()))
-            .collect();
-        Some(Written { value: (*value).clone(), origin: (*origin).clone(), disagreeing })
+        let (first, disagreeing) = decide_at(&writes, reach)?;
+        let (value, origin) = writes[first];
+        let disagreeing = disagreeing.into_iter().map(|at| (writes[at].0.clone(), writes[at].1.clone())).collect();
+        Some(Written { value: value.clone(), origin: origin.clone(), disagreeing })
     }
 
     /// Returns the problem of peers that disagree, if they do: `what` identifies
@@ -278,20 +363,30 @@ impl<T: PartialEq + Clone, O: CascadeOrigin> Written<T, O> {
 }
 
 /// The settings of one feature: every value each source wrote for each key, in
-/// the order written, combined when they are read (a key merged entry by entry
-/// is combined one entry at a time, which only the feature's declaration says).
+/// the order written, combined when they are read (a value combined key by key
+/// is so by the marks of the feature's declaration alone).
 #[derive(Debug, Clone)]
 struct FeatureValues<O> {
     keys: BTreeMap<String, Vec<SettingValue<O>>>,
-    /// Whether the feature is off, as each source that wrote `false` (`true`
-    /// here) or a map (`false`) for it says, in the order written.
+    /// Whether the feature is off, as each source that switches it off (`true`
+    /// here) or on (`false`) says, in the order recorded.
     off: Vec<(bool, O)>,
+    /// The origin of every key and every switch recorded for the feature, in the
+    /// order recorded.
+    written: Vec<O>,
 }
 
 impl<O> Default for FeatureValues<O> {
     fn default() -> FeatureValues<O> {
-        FeatureValues { keys: BTreeMap::new(), off: Vec::new() }
+        FeatureValues { keys: BTreeMap::new(), off: Vec::new(), written: Vec::new() }
     }
+}
+
+/// Whether the origins `a` and `b` are of one source: of one rank, one peer and
+/// one workflow (see the [module
+/// documentation](self#a-feature-that-no-package-in-use-has)).
+fn same_source<O: CascadeOrigin>(a: &O, b: &O) -> bool {
+    a.rank() == b.rank() && a.peer() == b.peer() && a.workflow() == b.workflow()
 }
 
 /// The settings written in every source, each value with its origin, combined
@@ -337,11 +432,14 @@ pub struct ReadSettings<O> {
     /// The option values to set on the render request (the plan request's
     /// render options).
     pub render: OptionValues,
-    /// The values accepted that may be mistakes, each at its origin, in the
-    /// order found: one for each `false` written for a feature that no package
-    /// in use has (see the [module documentation](self#switching-a-feature-off)).
+    /// The values accepted that may be mistakes, each with its kind and its
+    /// origin, in the order found: one for each source that writes a feature
+    /// that no package in use has (see the [module
+    /// documentation](self#a-feature-that-no-package-in-use-has)), and one for
+    /// each write of a key that an entry in force does not declare (see the
+    /// [module documentation](self#entries-that-another-feature-declares)).
     /// The host reports each of them as a warning.
-    pub warnings: Vec<Problem<O>>,
+    pub warnings: Vec<Warning<O>>,
 }
 
 /// The error of [`Cascade::read`] when the settings have problems: the problems,
@@ -353,7 +451,7 @@ pub struct ReadFailure<O> {
     /// found in reading a feature that nothing is written for has no origin.
     pub errors: Vec<Problem<O>>,
     /// The values accepted that may be mistakes, as in [`ReadSettings::warnings`].
-    pub warnings: Vec<Problem<O>>,
+    pub warnings: Vec<Warning<O>>,
 }
 
 impl<O> Default for ReadSettings<O> {
@@ -373,7 +471,7 @@ impl<O> Default for ReadSettings<O> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FeatureInEffect<O> {
     /// Where the feature was switched off, when the source that decides
-    /// whether it is off wrote `false` (see the [module
+    /// whether it is off switches it off (see the [module
     /// documentation](self#switching-a-feature-off)). None of the keys of a
     /// feature switched off is in effect, so [`keys`](FeatureInEffect::keys) is
     /// then empty.
@@ -388,23 +486,108 @@ pub struct FeatureInEffect<O> {
 /// written.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KeyInEffect<O> {
-    /// The value, as data, with every relative path that the feature marks as
-    /// a path to a file resolved by its origin. For a key merged entry by
-    /// entry, the feature's own entries combined with every source's, one entry
-    /// at a time (see the [module
-    /// documentation](self#keys-merged-entry-by-entry)).
+    /// The value, as data, with every path that the feature marks as a path to
+    /// a file in the form its origin gives it ([`CascadeOrigin::resolve_path`]). For a key whose value is
+    /// combined key by key, the feature's own default combined with every
+    /// source's value, one key at a time, at every depth that the marks name
+    /// (see the [module documentation](self#values-combined-key-by-key)).
     pub value: Value,
-    /// Where the value was written. For a key merged entry by entry, the
-    /// origin of the highest rank among those that wrote the key (of several
-    /// of that rank, the one recorded last); each entry has its own origin in
-    /// [`entry_origins`](KeyInEffect::entry_origins).
+    /// Where the value was written. For a key whose value is combined key by
+    /// key, the origin of the highest rank among those that wrote the key (of
+    /// several of that rank, the one recorded last); each key of the value has
+    /// its own origin in [`entry_origins`](KeyInEffect::entry_origins).
     pub origin: O,
-    /// For a key merged entry by entry: where each entry that a source wrote
-    /// was written, by the entry's name. An entry of the feature's own that no
-    /// source wrote has no origin here; an entry that a source removed (its
-    /// resulting value is `false`) has one, and is absent from
-    /// [`value`](KeyInEffect::value). Empty for any other key.
+    /// For a key whose value is combined key by key: where each key of the
+    /// value that a source wrote was written, by its name (the origin of the
+    /// write that gives its value). A key of the feature's own default that no
+    /// source wrote has no origin here; a key that is left out of
+    /// [`value`](KeyInEffect::value) (its combined value is `false` in an
+    /// object marked [`Mark::RemoveKeyWhenValueIsFalse`], or `null` where
+    /// [`Mark::SetToDefaultWithNull`] stands) has one. Empty for any other
+    /// key.
     pub entry_origins: BTreeMap<String, O>,
+    /// For each key of the value that is itself combined key by key, the
+    /// origins of the values below it, in the same form, at every depth: the
+    /// levels below [`entry_origins`](KeyInEffect::entry_origins). A key
+    /// whose value no source writes below it is absent.
+    pub below: BTreeMap<String, EntryOrigins<O>>,
+}
+
+/// Where the keys of a value combined key by key were written, one level of
+/// the origins that [`KeyInEffect`] gives below a key.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntryOrigins<O> {
+    /// Where each key of the value that a source wrote was written, by its
+    /// name, as [`KeyInEffect::entry_origins`] gives them for a key.
+    pub entry_origins: BTreeMap<String, O>,
+    /// For each key of the value that is itself combined key by key, the
+    /// origins of the values below it.
+    pub below: BTreeMap<String, EntryOrigins<O>>,
+}
+
+impl<O> Default for EntryOrigins<O> {
+    fn default() -> EntryOrigins<O> {
+        EntryOrigins { entry_origins: BTreeMap::new(), below: BTreeMap::new() }
+    }
+}
+
+impl<O> EntryOrigins<O> {
+    /// Whether no origin is recorded at any depth.
+    fn is_empty(&self) -> bool {
+        self.entry_origins.is_empty() && self.below.is_empty()
+    }
+}
+
+impl<O> KeyInEffect<O> {
+    /// Returns where the value at `path` below the key was written (`path`
+    /// holds the names of the keys, outermost first): the origin of the write
+    /// that gives that value, or, for a value that no source wrote at that
+    /// place (a value of the feature's own default) or a place inside a value
+    /// decided whole, the origin of the closest value above it.
+    pub fn origin_at(&self, path: &[&str]) -> &O {
+        let mut origin = &self.origin;
+        let (mut origins, mut below) = (&self.entry_origins, &self.below);
+        for name in path {
+            match origins.get(*name) {
+                Some(at) => origin = at,
+                None => break,
+            }
+            match below.get(*name) {
+                Some(level) => (origins, below) = (&level.entry_origins, &level.below),
+                None => break,
+            }
+        }
+        origin
+    }
+}
+
+/// One value that a source wrote at a place of the settings, as
+/// [`Cascade::writes_at`] lists them: the value at that place, as written, where
+/// it was written, and whether it is the value in effect there.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WriteAt<O> {
+    /// The value the write holds at the place, as written (a path marked
+    /// [`Mark::Path`] as written too).
+    pub value: Value,
+    /// Where the value was written.
+    pub origin: O,
+    /// Whether this write gives the value in effect at the place, by the rule
+    /// of the ranks.
+    pub in_effect: bool,
+}
+
+/// The place decided whole that holds a place of the settings, as
+/// [`Cascade::decided_at`] finds it: how deep it lies, and what gives its
+/// value.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecidedAt<O> {
+    /// The number of names below the key that lead to the place (`0` for the
+    /// key itself).
+    pub depth: usize,
+    /// The origin of the write that gives the value there, by the rule of the
+    /// ranks; `None` when no source writes there, and the feature's own
+    /// default gives it.
+    pub origin: Option<O>,
 }
 
 /// Returns the values `writes` of one key, in the order written, combined whole
@@ -414,130 +597,362 @@ fn whole<O: CascadeOrigin>(writes: &[SettingValue<O>], reach: &Reach) -> Option<
     Written::decide(writes.iter().map(|write| (&write.value, &write.origin)), reach)
 }
 
-/// The values the sources wrote for one entry, each with its origin, in the
-/// order written.
-type EntryWrites<'w, O> = Vec<(&'w Value, &'w O)>;
+/// Whether the path `pattern` of a mark ([`KeyMark`](crate::core::settings::KeyMark),
+/// `*` naming every key and every item) names the place `path`.
+pub(super) fn names(pattern: &str, path: &[String]) -> bool {
+    let segments: Vec<&str> = pattern.split('.').collect();
+    segments.len() == path.len() && segments.iter().zip(path).all(|(segment, name)| *segment == "*" || segment == name)
+}
 
-/// Returns the values `writes` of the key at `path` (`FEATURE.KEY`), which is
-/// merged entry by entry, combined one entry at a time over `defaults`, the
-/// feature's own entries: each entry by the rule of the ranks, `reach` deciding
-/// between packages; the entries in the order of the sources, lowest first, the
-/// defaults first, a replaced entry keeping its position; and an entry whose
-/// resulting value is `false` left out. The problems found (a value that is not
-/// a map, peers that disagree on an entry) are added to `problems`.
-// An entry is replaced whole, never merged below, so that its value in force
-// comes from one source, which a problem can name.
-fn by_entries<O: CascadeOrigin>(
-    path: &str,
-    writes: &[SettingValue<O>],
-    defaults: Map<String, Value>,
-    reach: &Reach,
-    problems: &mut Vec<Problem<O>>,
-) -> Option<KeyInEffect<O>> {
-    let mut sorted: Vec<&SettingValue<O>> = writes.iter().collect();
-    sorted.sort_by_key(|write| write.origin.rank());
-    // Each entry: its name, the feature's default, and what the sources wrote.
-    let mut entries: Vec<(String, Option<Value>, EntryWrites<'_, O>)> =
-        defaults.into_iter().map(|(name, value)| (name, Some(value), Vec::new())).collect();
-    for write in &sorted {
-        let Value::Object(map) = &write.value else {
-            problems.push(Problem {
-                origin: Some(write.origin.clone()),
-                detail: format!("the value of `{path}` must be a map from each entry's name to the entry"),
-            });
-            continue;
+/// The values the sources wrote at one place, each with its origin, in the
+/// order written.
+type Writes<'w, O> = Vec<(&'w Value, &'w O)>;
+
+/// A value combined from the sources' values at one place: the value, where it
+/// was written (for a value combined key by key, the origin of the highest
+/// rank among those written there) and the origins below it.
+struct Combined<O> {
+    value: Value,
+    origin: O,
+    below: EntryOrigins<O>,
+}
+
+/// Combines the sources' values of the settings of one feature by the marks
+/// of its declaration, and by the entries in force in it
+/// ([`SettingsDecl::entry_in_force`]).
+struct Combiner<'c> {
+    feature: &'c str,
+    decl: &'c SettingsDecl,
+    reach: &'c Reach,
+}
+
+/// What combining finds beside the combined values: the problems, and the
+/// warnings (a key written under an entry in force that the entry does not
+/// declare).
+struct Found<O> {
+    problems: Vec<Problem<O>>,
+    warnings: Vec<Warning<O>>,
+}
+
+impl<O> Default for Found<O> {
+    fn default() -> Found<O> {
+        Found { problems: Vec::new(), warnings: Vec::new() }
+    }
+}
+
+impl Combiner<'_> {
+    /// Returns the place `path` as messages name it: the feature, then the
+    /// names joined by `.`.
+    fn dotted(&self, path: &[String]) -> String {
+        format!("{}.{}", self.feature, path.join("."))
+    }
+
+    /// Returns the values `writes` at the place `path` combined by the rule of
+    /// the ranks, `default` being the feature's own value there, or `None` when
+    /// no source writes the place. Where `path` carries
+    /// [`Mark::MergeObjectKeyValues`], the values are combined key by key, each
+    /// key by this rule one level down, over `default` (or the default entries
+    /// of the place's node) as the lowest source; elsewhere the value is
+    /// decided whole. Under an entry in force, a key that the entry does not
+    /// declare is left out, with a warning at the origin of each write of it.
+    /// The problems found (a value that is not an object where it is combined
+    /// key by key, peers that disagree) and the warnings are added to `found`.
+    // A value decided whole is never merged below, so that it comes from one
+    // source, which a problem can name.
+    fn combine<O: CascadeOrigin>(
+        &self,
+        path: &mut Vec<String>,
+        writes: Writes<'_, O>,
+        default: Option<&Value>,
+        found: &mut Found<O>,
+    ) -> Option<Combined<O>> {
+        let entry = self.decl.entry_in_force(&path.join("."));
+        if !self.decl.is_marked(path, Mark::MergeObjectKeyValues) {
+            let written = Written::decide(writes, self.reach)?;
+            let what = match path.split_last() {
+                Some((name, parent)) if !parent.is_empty() => {
+                    format!("the entry `{name}` of `{}`", self.dotted(parent))
+                }
+                _ => format!("`{}`", self.dotted(path)),
+            };
+            found.problems.extend(written.disagreement(&what, shown, true));
+            let mut value = written.value;
+            if let (Some(entry), Value::Object(map)) = (entry, &mut value) {
+                map.retain(|name, _| {
+                    let declared = entry.keys().contains(name);
+                    if !declared {
+                        found.warnings.push(self.undeclared(path, name, &written.origin));
+                    }
+                    declared
+                });
+            }
+            self.leave_out(path, &mut value);
+            return Some(Combined { value, origin: written.origin, below: EntryOrigins::default() });
+        }
+        let mut sorted = writes;
+        sorted.sort_by_key(|(_, origin)| origin.rank());
+        let origin = sorted.last()?.1.clone();
+        let defaults = match default {
+            Some(Value::Object(entries)) => Some(entries),
+            _ => self
+                .decl
+                .marks()
+                .iter()
+                .filter(|marks| marks.has(Mark::MergeObjectKeyValues) && names(&marks.path, path))
+                .find_map(|marks| self.decl.default_entries(&marks.path)),
         };
-        for (name, value) in map {
-            let at = match entries.iter().position(|(entry, _, _)| entry == name) {
-                Some(at) => at,
+        // Each key: its name, the feature's default, and what the sources wrote.
+        let mut entries: Vec<(String, Option<&Value>, Writes<'_, O>)> = defaults
+            .into_iter()
+            .flatten()
+            .map(|(name, value)| (name.clone(), Some(value), Vec::new()))
+            .collect();
+        for (value, origin) in &sorted {
+            let Value::Object(map) = value else {
+                found.problems.push(Problem {
+                    origin: Some((*origin).clone()),
+                    detail: format!(
+                        "the value of `{}` must be a map from each entry's name to the entry",
+                        self.dotted(path)
+                    ),
+                });
+                continue;
+            };
+            for (name, value) in map {
+                if entry.is_some_and(|entry| !entry.keys().contains(name)) {
+                    found.warnings.push(self.undeclared(path, name, origin));
+                    continue;
+                }
+                let at = match entries.iter().position(|(entry, _, _)| entry == name) {
+                    Some(at) => at,
+                    None => {
+                        entries.push((name.clone(), None, Vec::new()));
+                        entries.len() - 1
+                    }
+                };
+                entries[at].2.push((value, *origin));
+            }
+        }
+        let remove_false = self.decl.is_marked(path, Mark::RemoveKeyWhenValueIsFalse);
+        let mut value = Map::new();
+        let mut below = EntryOrigins::default();
+        for (name, default, writes) in entries {
+            path.push(name.clone());
+            let in_force = match self.combine(path, writes, default, found) {
+                Some(combined) => {
+                    below.entry_origins.insert(name.clone(), combined.origin);
+                    if !combined.below.is_empty() {
+                        below.below.insert(name.clone(), combined.below);
+                    }
+                    combined.value
+                }
                 None => {
-                    entries.push((name.clone(), None, Vec::new()));
-                    entries.len() - 1
+                    let mut value = default.cloned().unwrap_or(Value::Null);
+                    self.leave_out(path, &mut value);
+                    value
                 }
             };
-            entries[at].2.push((value, &write.origin));
-        }
-    }
-    let origin = sorted.last()?.origin.clone();
-    let mut value = Map::new();
-    let mut origins = BTreeMap::new();
-    for (name, default, writes) in entries {
-        let in_force = match Written::decide(writes, reach) {
-            Some(written) => {
-                problems.extend(written.disagreement(&format!("the entry `{name}` of `{path}`"), shown, true));
-                origins.insert(name.clone(), written.origin);
-                written.value
+            let to_default = in_force.is_null() && self.decl.is_marked(path, Mark::SetToDefaultWithNull);
+            path.pop();
+            if !to_default && !(remove_false && in_force == Value::Bool(false)) {
+                value.insert(name, in_force);
             }
-            None => default.unwrap_or(Value::Null),
-        };
-        if in_force != Value::Bool(false) {
-            value.insert(name, in_force);
+        }
+        Some(Combined { value: Value::Object(value), origin, below })
+    }
+
+    /// The warning for the key `name`, written at `origin` under the entry in
+    /// force at `path`, which does not declare it.
+    fn undeclared<O: CascadeOrigin>(&self, path: &[String], name: &str, origin: &O) -> Warning<O> {
+        let detail = format!("Unknown setting ‘{name}’ in ‘{}’", self.dotted(path));
+        Warning { kind: WarningKind::UndeclaredKey, problem: Problem { origin: Some(origin.clone()), detail } }
+    }
+
+    /// Leaves out, inside `value` (the value at the place `path`, decided
+    /// whole), each key whose value is `false` in an object marked
+    /// [`Mark::RemoveKeyWhenValueIsFalse`], and each value `null` marked
+    /// [`Mark::SetToDefaultWithNull`].
+    fn leave_out(&self, path: &mut Vec<String>, value: &mut Value) {
+        match value {
+            Value::Object(map) => {
+                let remove_false = self.decl.is_marked(path, Mark::RemoveKeyWhenValueIsFalse);
+                map.retain(|name, item| {
+                    path.push(name.clone());
+                    self.leave_out(path, item);
+                    let to_default = item.is_null() && self.decl.is_marked(path, Mark::SetToDefaultWithNull);
+                    path.pop();
+                    !to_default && !(remove_false && *item == Value::Bool(false))
+                });
+            }
+            Value::Array(items) => {
+                for (at, item) in items.iter_mut().enumerate() {
+                    path.push(at.to_string());
+                    self.leave_out(path, item);
+                    path.pop();
+                }
+            }
+            _ => {}
         }
     }
-    Some(KeyInEffect { value: Value::Object(value), origin, entry_origins: origins })
 }
 
 /// Rewrites, in `combined` (the value of the key `key` of the feature that
-/// `decl` declares), every relative path at a place that `decl` marks as a path
-/// to a file ([`ValueKind::Path`]), as the origin of the value resolves it
-/// ([`CascadeOrigin::resolve_path`]). An entry of a key merged entry by entry
-/// is resolved by its own origin; the feature's own entries, written in no
-/// source, are left unchanged.
+/// `decl` declares), every path at a place that `decl` marks as a path to a
+/// file ([`Mark::Path`]), as the origin of the value resolves it
+/// ([`CascadeOrigin::resolve_path`]), and adds to `problems` each path that
+/// the origin refuses, at the origin. A value combined key by key is resolved
+/// by the origin of each of its keys; the values of the feature's own default,
+/// written in no source, are left unchanged.
 // Paths are resolved here, where the origin of each value is known, so that one
 // rule serves every feature and a path written in a file is relative to the
 // file's folder.
-fn resolve_paths<O: CascadeOrigin>(decl: &SettingsDecl, key: &str, combined: &mut KeyInEffect<O>) {
-    let merged = decl.default_entries(key).is_some();
-    for mark in decl.marks().iter().filter(|mark| mark.kind == ValueKind::Path) {
+fn resolve_paths<O: CascadeOrigin>(
+    decl: &SettingsDecl,
+    key: &str,
+    combined: &mut KeyInEffect<O>,
+    problems: &mut Vec<Problem<O>>,
+) {
+    for mark in decl.marks().iter().filter(|mark| mark.has(Mark::Path)) {
         let mut segments = mark.path.split('.');
         if segments.next() != Some(key) {
             continue;
         }
         let below: Vec<&str> = segments.collect();
-        if !merged {
-            resolve_at(&mut combined.value, &below, &combined.origin);
-            continue;
-        }
-        let Value::Object(entries) = &mut combined.value else { continue };
-        for (name, entry) in entries.iter_mut() {
-            let (Some(origin), rest) = (combined.entry_origins.get(name), below.as_slice()) else { continue };
-            match rest.split_first() {
-                None => resolve_at(entry, &[], origin),
-                Some((first, rest)) if *first == "*" || first == name => resolve_at(entry, rest, origin),
-                Some(_) => {}
-            }
-        }
+        let mut path = vec![key.to_string()];
+        let origins = (&combined.entry_origins, &combined.below);
+        resolve_in(decl, &mut path, &mut combined.value, &below, &combined.origin, origins, problems);
+    }
+}
+
+/// Resolves, in `value` (the value at the place `path`, written at `origin`),
+/// every text at the place that `segments` designates below it, as
+/// [`resolve_at`] does; where `path` is combined key by key, each key by its
+/// own origin among `origins` (and the origins below it), a key that no source
+/// wrote left unchanged; adds to `problems` each path refused.
+fn resolve_in<O: CascadeOrigin>(
+    decl: &SettingsDecl,
+    path: &mut Vec<String>,
+    value: &mut Value,
+    segments: &[&str],
+    origin: &O,
+    origins: (&BTreeMap<String, O>, &BTreeMap<String, EntryOrigins<O>>),
+    problems: &mut Vec<Problem<O>>,
+) {
+    if !decl.is_marked(path, Mark::MergeObjectKeyValues) {
+        resolve_at(value, segments, origin, problems);
+        return;
+    }
+    let Value::Object(map) = value else { return };
+    let none = EntryOrigins::default();
+    for (name, entry) in map.iter_mut() {
+        let Some(entry_origin) = origins.0.get(name) else { continue };
+        let rest = match segments.split_first() {
+            None => segments,
+            Some((first, rest)) if *first == "*" || first == name => rest,
+            Some(_) => continue,
+        };
+        let below = origins.1.get(name).unwrap_or(&none);
+        path.push(name.clone());
+        resolve_in(decl, path, entry, rest, entry_origin, (&below.entry_origins, &below.below), problems);
+        path.pop();
     }
 }
 
 /// Resolves, in `value`, every text at the place that `segments` designates
-/// below it (`*` matching every entry of a map and every item of a list), as
-/// written at `origin`; when the value at that place is a list or a map, every
-/// text inside it.
-fn resolve_at<O: CascadeOrigin>(value: &mut Value, segments: &[&str], origin: &O) {
-    match (segments.split_first(), value) {
-        (None, Value::String(text)) => {
-            if let Some(resolved) = origin.resolve_path(text) {
-                *text = resolved;
-            }
-        }
-        (None, Value::Array(items)) => items.iter_mut().for_each(|item| resolve_at(item, &[], origin)),
-        (None, Value::Object(map)) => map.values_mut().for_each(|item| resolve_at(item, &[], origin)),
-        (Some((&"*", rest)), Value::Array(items)) => items.iter_mut().for_each(|item| resolve_at(item, rest, origin)),
-        (Some((&"*", rest)), Value::Object(map)) => map.values_mut().for_each(|item| resolve_at(item, rest, origin)),
-        (Some((name, rest)), Value::Object(map)) => {
-            if let Some(item) = map.get_mut(*name) {
-                resolve_at(item, rest, origin);
-            }
-        }
-        _ => {}
-    }
+/// below it ([`texts_at`]), as written at `origin`. A text that the origin
+/// refuses is left as written, and its problem added to `problems`.
+fn resolve_at<O: CascadeOrigin>(value: &mut Value, segments: &[&str], origin: &O, problems: &mut Vec<Problem<O>>) {
+    texts_at(value, segments, &mut |text| match origin.resolve_path(text) {
+        Ok(Some(resolved)) => *text = resolved,
+        Ok(None) => {}
+        Err(detail) => problems.push(Problem { origin: Some(origin.clone()), detail }),
+    });
+}
+
+/// Returns the value at `path` inside `value` (`path` holds the names of the
+/// keys, outermost first, and the positions of the items of a list), if
+/// `value` holds one there.
+fn value_at<'v>(value: &'v Value, path: &[&str]) -> Option<&'v Value> {
+    path.iter().try_fold(value, |value, name| match value {
+        Value::Object(map) => map.get(*name),
+        Value::Array(items) => items.get(name.parse::<usize>().ok()?),
+        _ => None,
+    })
 }
 
 /// Returns the factory among `factories` that holds the feature `feature`, if
 /// one does.
 fn holder<'f>(factories: &[&'f PackageFactory], feature: &str) -> Option<&'f PackageFactory> {
     factories.iter().copied().find(|factory| factory.features().iter().any(|entry| entry.name == feature))
+}
+
+/// Returns the settings declaration of the feature `feature` among
+/// `factories` (`None` when no factory holds it or it takes no settings),
+/// combined with the declarations of its entries in force
+/// ([`SettingsDecl::with_entries`]): those that the features of `factories`
+/// declare, each feature for which `off` answers `false`.
+///
+/// This is the declaration by which the cascade combines and reads the
+/// feature's settings, `off` answering whether the settings switch a feature
+/// off; a host that describes the settings of the packages in use (a JSON
+/// Schema of a front matter) gives `off` that answers `false` for every
+/// feature.
+pub fn declaration_in_force<'f>(
+    factories: &[&'f PackageFactory],
+    feature: &str,
+    off: impl Fn(&str) -> bool,
+) -> Option<Cow<'f, SettingsDecl>> {
+    entries_in_force(factories, feature, off, &mut Vec::new())
+}
+
+/// The declaration of [`declaration_in_force`], adding to `problems` the
+/// faults of the declarations of entries: an entry that two features declare
+/// (the problem names the entry by its label, [`EntryDecl::label`], and both
+/// features by their packages), and an entry at a place that the owner does
+/// not open ([`SettingsDecl::open_entries`]).
+fn entries_in_force<'f>(
+    factories: &[&'f PackageFactory],
+    feature: &str,
+    off: impl Fn(&str) -> bool,
+    problems: &mut Vec<String>,
+) -> Option<Cow<'f, SettingsDecl>> {
+    let owner = holder(factories, feature)?.settings(feature)?;
+    let mut declared: Vec<(&Name, &str, &EntryDecl)> = Vec::new();
+    for factory in factories {
+        for entry in factory.features() {
+            let Some(decl) = &entry.settings else { continue };
+            if off(&entry.name) {
+                continue;
+            }
+            for declaration in decl.entries().iter().filter(|declaration| declaration.owner().as_str() == feature) {
+                let path = declaration.path();
+                if !owner.opens(path) {
+                    problems.push(format!(
+                        "Misconfigured feature ‘{}’: the feature ‘{feature}’ does not allow other features to \
+                         declare an entry at ‘{feature}.{path}’",
+                        entry.name
+                    ));
+                    continue;
+                }
+                let label = declaration.label();
+                match declared.iter().find(|(_, _, other)| other.path() == path) {
+                    Some((package, other, _)) if *package == factory.name() => problems.push(format!(
+                        "Duplicate {label} (features ‘{other}’ and ‘{}’ of the package ‘{package}’)",
+                        entry.name
+                    )),
+                    Some((package, _, _)) => problems.push(format!(
+                        "Duplicate {label} (packages ‘{package}’ and ‘{}’)",
+                        factory.name()
+                    )),
+                    None => declared.push((factory.name(), entry.name.as_str(), declaration)),
+                }
+            }
+        }
+    }
+    if declared.is_empty() {
+        return Some(Cow::Borrowed(owner));
+    }
+    Some(Cow::Owned(owner.with_entries(declared.into_iter().map(|(_, _, declaration)| declaration))))
 }
 
 /// Returns a value as a message shows it: its one-line JSON form, between
@@ -568,21 +983,31 @@ impl<O: CascadeOrigin> Cascade<O> {
     /// the feature on.
     pub fn set(&mut self, feature: &str, key: &str, value: Value, origin: O) {
         let values = self.features.entry(feature.to_string()).or_default();
+        values.written.push(origin.clone());
         values.keys.entry(key.to_string()).or_default().push(SettingValue { value, origin });
     }
 
-    /// Records that `origin` switches the feature `feature` off (its source
-    /// wrote `false`); the rule of the ranks decides between the sources that
-    /// switch the feature on or off.
+    /// Records that `origin` switches the feature `feature` off; the keys its
+    /// source sets for the feature are recorded apart, with [`Cascade::set`],
+    /// and are not read while the feature is off. The rule of the ranks decides
+    /// between the sources that switch the feature on or off.
     pub fn switch_off(&mut self, feature: &str, origin: O) {
-        self.features.entry(feature.to_string()).or_default().off.push((true, origin));
+        self.switch(feature, true, origin);
     }
 
-    /// Records that `origin` switches the feature `feature` on (its source
-    /// wrote a map of the feature's settings); the rule of the ranks decides
-    /// between the sources that switch the feature on or off.
+    /// Records that `origin` switches the feature `feature` on; the keys its
+    /// source sets for the feature are recorded apart, with [`Cascade::set`].
+    /// The rule of the ranks decides between the sources that switch the
+    /// feature on or off.
     pub fn switch_on(&mut self, feature: &str, origin: O) {
-        self.features.entry(feature.to_string()).or_default().off.push((false, origin));
+        self.switch(feature, false, origin);
+    }
+
+    /// Records that `origin` switches the feature `feature` off (`off`) or on.
+    fn switch(&mut self, feature: &str, off: bool, origin: O) {
+        let values = self.features.entry(feature.to_string()).or_default();
+        values.written.push(origin.clone());
+        values.off.push((off, origin));
     }
 
     /// Records `value` for the parsing setting `key` ([`FlmParsing`]), written
@@ -607,16 +1032,16 @@ impl<O: CascadeOrigin> Cascade<O> {
 
     /// Returns the resulting value of the key `key` of the feature `feature`,
     /// combined whole, with its origin, if a source wrote one. When peers
-    /// disagree, it is the first written. A key merged entry by entry is
-    /// combined one entry at a time only when the settings are
-    /// [read](Cascade::read), which has the feature's declaration.
+    /// disagree, it is the first written. A value marked as combined key by key
+    /// is combined so only when the settings are [read](Cascade::read), which
+    /// has the feature's declaration.
     pub fn value(&self, feature: &str, key: &str) -> Option<SettingValue<O>> {
         let written = whole(self.features.get(feature)?.keys.get(key)?, &self.reach)?;
         Some(SettingValue { value: written.value, origin: written.origin })
     }
 
     /// Returns where the feature `feature` was switched off, if the source that
-    /// decides its switch wrote `false`.
+    /// decides its switch switches it off.
     pub fn switched_off(&self, feature: &str) -> Option<O> {
         let off = self.decide(&self.features.get(feature)?.off)?;
         if off.value { Some(off.origin) } else { None }
@@ -651,6 +1076,20 @@ impl<O: CascadeOrigin> Cascade<O> {
             .collect()
     }
 
+    /// The declaration of the feature `feature` among `factories` by which its
+    /// settings are combined and read: with its entries in force, those that
+    /// the features of `factories` that are not switched off declare
+    /// ([`declaration_in_force`]). The faults of the declarations of entries
+    /// are added to `problems`.
+    fn declaration<'f>(
+        &self,
+        factories: &[&'f PackageFactory],
+        feature: &str,
+        problems: &mut Vec<String>,
+    ) -> Option<Cow<'f, SettingsDecl>> {
+        entries_in_force(factories, feature, |name| self.switched_off(name).is_some(), problems)
+    }
+
     /// Returns the resulting value among `writes`, by the rule of the ranks and
     /// the packages' reach.
     fn decide<T: PartialEq + Clone>(&self, writes: &[(T, O)]) -> Option<Written<T, O>> {
@@ -681,13 +1120,28 @@ impl<O: CascadeOrigin> Cascade<O> {
         })
     }
 
+    /// Returns the resulting value of each parsing setting that a source wrote,
+    /// by its key, with its origin: the value that
+    /// [`parsing`](Cascade::parsing) reads for the key. When peers disagree, it
+    /// is the first written. A key that no source wrote is absent.
+    pub fn parsing_in_effect(&self) -> BTreeMap<String, SettingValue<O>> {
+        self.parsing
+            .iter()
+            .filter_map(|(key, writes)| {
+                let written = self.decide(writes)?;
+                Some((key.clone(), SettingValue { value: written.value, origin: written.origin }))
+            })
+            .collect()
+    }
+
     /// Returns the settings in effect for the package factories `factories`,
     /// by the feature's name: for each feature that a source wrote and that one
     /// of the factories holds, whether it is switched off and where, and the
     /// value in effect of each key written, combined from every source by the
     /// rule of the ranks, with where it was written ([`FeatureInEffect`]). A
-    /// key merged entry by entry is combined one entry at a time, each entry
-    /// with its origin, and relative paths are resolved (see the [module
+    /// value marked as combined key by key is combined so, each key with its
+    /// origin, at every depth (see the [module
+    /// documentation](self#values-combined-key-by-key)), and relative paths are resolved (see the [module
     /// documentation](self#reading-the-combined-settings)). This is the data
     /// that [`read`](Cascade::read) reads through the features' settings
     /// declarations, combined by the same code.
@@ -699,15 +1153,133 @@ impl<O: CascadeOrigin> Cascade<O> {
     /// problems. A feature that no factory holds, and the keys of a feature
     /// that takes no settings, are left out.
     pub fn in_effect(&self, factories: &[&PackageFactory]) -> BTreeMap<String, FeatureInEffect<O>> {
-        // The problems are those `read` reports; they are not returned here.
-        let mut problems = Vec::new();
+        // The problems and the warnings are those `read` reports; they are not returned here.
+        let mut found = Found::default();
         self.features
             .iter()
             .filter_map(|(feature, values)| {
-                let factory = holder(factories, feature)?;
-                Some((feature.clone(), self.combine(feature, values, factory.settings(feature), &mut problems)))
+                holder(factories, feature)?;
+                let decl = self.declaration(factories, feature, &mut Vec::new());
+                Some((feature.clone(), self.combine(feature, values, decl.as_deref(), &mut found)))
             })
             .collect()
+    }
+
+    /// Returns every value that a source wrote at the place `path` below the
+    /// key `key` of the feature `feature` (`path` holds the names of the keys,
+    /// outermost first; empty for the key itself), lowest rank first and, within
+    /// a rank, in the order written: each write of the key that holds a value
+    /// at that place, with that value as written, its origin, and whether it
+    /// gives the value in effect there.
+    ///
+    /// The value in effect is decided as [`in_effect`](Cascade::in_effect)
+    /// decides it, by the marks of `decl`, the declaration in force of the
+    /// feature ([`declaration_in_force`], whose `off` answers whether this
+    /// cascade switches a feature off; `None` for a feature that takes no
+    /// settings or that no factory holds): down the path, through each place
+    /// combined key by key, to the first place decided whole, where the write
+    /// that the rule of the ranks chooses gives the value in effect when it
+    /// holds a value at `path`. No write is in effect at a place combined key
+    /// by key (its value is made of several writes), at a place that no source
+    /// writes (where the feature's own default is in effect), nor in a feature
+    /// switched off, without settings, or that no factory holds. When peers
+    /// disagree, the first written is in effect, as for
+    /// [`value`](Cascade::value). A host that lists the writes at several
+    /// places of one feature computes the declaration once.
+    pub fn writes_at(
+        &self,
+        decl: Option<&SettingsDecl>,
+        feature: &str,
+        key: &str,
+        path: &[&str],
+    ) -> Vec<WriteAt<O>> {
+        let Some(writes) = self.features.get(feature).and_then(|values| values.keys.get(key)) else {
+            return Vec::new();
+        };
+        let in_effect = match decl {
+            Some(decl) if self.switched_off(feature).is_none() => self.write_in_effect(decl, key, path, writes),
+            _ => None,
+        };
+        let mut found: Vec<(usize, Value)> = writes
+            .iter()
+            .enumerate()
+            .filter_map(|(at, write)| Some((at, value_at(&write.value, path)?.clone())))
+            .collect();
+        found.sort_by_key(|(at, _)| writes[*at].origin.rank());
+        found
+            .into_iter()
+            .map(|(at, value)| WriteAt { value, origin: writes[at].origin.clone(), in_effect: in_effect == Some(at) })
+            .collect()
+    }
+
+    /// Returns the place decided whole that holds the place `path` below the
+    /// key `key` of the feature `feature` (as for
+    /// [`writes_at`](Cascade::writes_at), whose `decl` it takes too): the
+    /// first place, down the path through each place combined key by key, that
+    /// is not combined so, with the origin of the write that gives its value
+    /// by the rule of the ranks, or no origin when no source writes there (the
+    /// feature's own default then gives it, an entry of its default of the
+    /// value combined key by key above it when the place lies below the key).
+    /// The value at `path` lies at the place returned or inside it. There is
+    /// none when `path` is itself combined key by key or lies in such a place
+    /// along its names, and in a feature switched off, without settings, or
+    /// that no factory holds. [`writes_at`](Cascade::writes_at) lists the
+    /// writes there.
+    pub fn decided_at(
+        &self,
+        decl: Option<&SettingsDecl>,
+        feature: &str,
+        key: &str,
+        path: &[&str],
+    ) -> Option<DecidedAt<O>> {
+        let decl = decl.filter(|_| self.switched_off(feature).is_none())?;
+        let writes = self.features.get(feature).and_then(|values| values.keys.get(key));
+        let writes = writes.map(Vec::as_slice).unwrap_or_default();
+        let (depth, decided) = self.decide_whole(decl, key, path, writes)?;
+        Some(DecidedAt { depth, origin: decided.map(|(at, _)| writes[at].origin.clone()) })
+    }
+
+    /// Returns the position among `writes` (the writes of the key `key` of the
+    /// feature that `decl` declares) of the write that gives the value in
+    /// effect at `path` below the key, if one does (see
+    /// [`writes_at`](Cascade::writes_at)).
+    fn write_in_effect(
+        &self,
+        decl: &SettingsDecl,
+        key: &str,
+        path: &[&str],
+        writes: &[SettingValue<O>],
+    ) -> Option<usize> {
+        let (depth, (at, value)) = match self.decide_whole(decl, key, path, writes)? {
+            (depth, Some(decided)) => (depth, decided),
+            (_, None) => return None,
+        };
+        value_at(value, &path[depth..]).map(|_| at)
+    }
+
+    /// Returns the place decided whole that holds `path` below the key `key`
+    /// ([`decided_at`](Cascade::decided_at)), `writes` being the key's writes
+    /// and `decl` the declaration in force: the number of names of `path` that
+    /// lead to it, and the position among `writes` of the write that the rule
+    /// of the ranks chooses there with its value at that place, if a write
+    /// holds a value there.
+    fn decide_whole<'w>(
+        &self,
+        decl: &SettingsDecl,
+        key: &str,
+        path: &[&str],
+        writes: &'w [SettingValue<O>],
+    ) -> Option<(usize, Option<(usize, &'w Value)>)> {
+        let mut place = vec![key.to_string()];
+        let mut level: Vec<(usize, &Value)> = writes.iter().enumerate().map(|(at, write)| (at, &write.value)).collect();
+        while decl.is_marked(&place, Mark::MergeObjectKeyValues) {
+            let name = path.get(place.len() - 1)?;
+            level = level.into_iter().filter_map(|(at, value)| Some((at, value.as_object()?.get(*name)?))).collect();
+            place.push(name.to_string());
+        }
+        let candidates: Vec<(&Value, &O)> = level.iter().map(|(at, value)| (*value, &writes[*at].origin)).collect();
+        let decided = decide_at(&candidates, &self.reach).map(|(first, _)| level[first]);
+        Some((place.len() - 1, decided))
     }
 
     /// Returns the settings in effect of the feature `feature`, from `values`,
@@ -715,21 +1287,23 @@ impl<O: CascadeOrigin> Cascade<O> {
     /// (`None` for a feature that takes no settings, whose keys are then left
     /// out): whether it is switched off and where, and, when it is not, each
     /// key's value combined by the rule of the ranks, its paths resolved.
-    /// Adds to `problems` those found on the way: peers that disagree on
-    /// whether the feature is off, on a key or on an entry; a key merged entry
-    /// by entry whose value is not a map; a key that a workflow's settings set
-    /// and that is not set per render request.
+    /// Adds to `found` the problems found on the way (peers that disagree on
+    /// whether the feature is off, on a key or on a value below one; a value
+    /// that is not an object where it is combined key by key; a key that a
+    /// workflow's settings set and that is not set per render request), and
+    /// the warnings (a key written under an entry in force that the entry does
+    /// not declare, left out).
     fn combine(
         &self,
         feature: &str,
         values: &FeatureValues<O>,
         decl: Option<&SettingsDecl>,
-        problems: &mut Vec<Problem<O>>,
+        found: &mut Found<O>,
     ) -> FeatureInEffect<O> {
         let mut in_effect = FeatureInEffect { switched_off: None, keys: BTreeMap::new() };
         if let Some(off) = self.decide(&values.off) {
             let state = |off: &bool| String::from(if *off { "`false`" } else { "settings" });
-            problems.extend(off.disagreement(&format!("the feature `{feature}`"), state, true));
+            found.problems.extend(off.disagreement(&format!("the feature `{feature}`"), state, true));
             // A feature switched off is absent: none of its keys is in effect, whatever
             // source wrote them.
             if off.value {
@@ -742,26 +1316,30 @@ impl<O: CascadeOrigin> Cascade<O> {
             for write in writes {
                 if let (Some(workflow), Some(declared)) = (write.origin.workflow(), decl.key(key)) {
                     if declared.bind != Bind::Render {
-                        problems.push(Problem {
+                        found.problems.push(Problem {
                             origin: Some(write.origin.clone()),
                             detail: format!("the settings of the workflow `{workflow}` must not set `{feature}.{key}`: a workflow's settings may set only keys that are set per render request, and `{feature}.{key}` is not one"),
                         });
                     }
                 }
             }
-            let combined = match decl.default_entries(key) {
-                None => whole(writes, &self.reach).map(|written| {
-                    problems.extend(written.disagreement(&format!("`{feature}.{key}`"), shown, true));
-                    KeyInEffect { value: written.value, origin: written.origin, entry_origins: BTreeMap::new() }
-                }),
-                Some(defaults) => {
-                    by_entries(&format!("{feature}.{key}"), writes, defaults.clone(), &self.reach, problems)
-                }
-            };
-            if let Some(mut combined) = combined {
-                resolve_paths(decl, key, &mut combined);
-                in_effect.keys.insert(key.clone(), combined);
+            let combiner = Combiner { feature, decl, reach: &self.reach };
+            let mut path = vec![key.clone()];
+            let written = writes.iter().map(|write| (&write.value, &write.origin)).collect();
+            let Some(combined) = combiner.combine(&mut path, written, None, found) else { continue };
+            // A setting whose value `null` gives it its default is left out, so that its
+            // reader applies the default.
+            if combined.value.is_null() && decl.is_marked(&path, Mark::SetToDefaultWithNull) {
+                continue;
             }
+            let mut combined = KeyInEffect {
+                value: combined.value,
+                origin: combined.origin,
+                entry_origins: combined.below.entry_origins,
+                below: combined.below.below,
+            };
+            resolve_paths(decl, key, &mut combined, &mut found.problems);
+            in_effect.keys.insert(key.clone(), combined);
         }
         in_effect
     }
@@ -779,23 +1357,35 @@ impl<O: CascadeOrigin> Cascade<O> {
     /// Every factory gets an entry in [`ReadSettings::packages`], which holds
     /// the settings read of each of its features that declares settings,
     /// written or not; a feature switched off is recorded as such in its
-    /// package's settings. Each `false` written for a feature that no factory
-    /// holds is a warning at its origin, and nothing else: in
-    /// [`ReadSettings::warnings`], or in [`ReadFailure::warnings`] when the
-    /// reading finds problems.
+    /// package's settings. What a source writes for a feature that no factory
+    /// holds is read by nothing: each source that writes such a feature gives
+    /// one warning ([`WarningKind::UnknownFeature`]), at the first origin
+    /// recorded for it, and nothing else (see the [module
+    /// documentation](self#a-feature-that-no-package-in-use-has)). A key
+    /// written under an entry in force that the entry does not declare is left
+    /// out of the combined settings, with one warning
+    /// ([`WarningKind::UndeclaredKey`]) at the origin of each write of it (see
+    /// the [module documentation](self#entries-that-another-feature-declares)).
+    /// The warnings are in [`ReadSettings::warnings`], or in
+    /// [`ReadFailure::warnings`] when the reading finds problems.
     ///
     /// # Errors
     ///
     /// A [`ReadFailure`] with every problem found, each at the origin of the
     /// value at fault, and the warnings found beside them. The problems: settings
-    /// written for a feature that no factory holds, or for a feature that takes
-    /// no settings; peers that disagree on
-    /// a key or on whether a feature is off; a key the feature does not
+    /// written for a feature that takes no settings; peers that disagree on
+    /// a key, on a value below one, or on whether a feature is off; a value
+    /// that is not an object where the feature's declaration combines it key
+    /// by key ([`Mark::MergeObjectKeyValues`]); a key the feature does not
     /// declare, or a value its declaration cannot read; a key that a workflow's
     /// settings set and that is not set per render request; peers that disagree
-    /// on a field of a workflow. A problem found in reading a feature nothing
-    /// is written for (a configuration reader that refuses the empty map) has
-    /// no origin.
+    /// on a field of a workflow; an entry that two features in use declare, and
+    /// a declaration of an entry at a place that the owner does not open
+    /// ([`SettingsDecl::open_entries`]); a path in a value marked
+    /// [`Mark::Path`] that its origin refuses
+    /// ([`CascadeOrigin::resolve_path`]). A problem found in reading a
+    /// feature nothing is written for (a configuration reader that refuses the
+    /// empty map), and a fault of the declarations of entries, have no origin.
     pub fn read(&self, factories: &[&PackageFactory]) -> Result<ReadSettings<O>, ReadFailure<O>> {
         let mut read = ReadSettings::default();
         for factory in factories {
@@ -822,32 +1412,28 @@ impl<O: CascadeOrigin> Cascade<O> {
                 .map(|write| write.origin.clone())
                 .or(values.off.first().map(|(_, origin)| origin.clone()));
             let Some(factory) = holder(factories, feature) else {
-                // `false` alone is accepted, with a warning for each `false` written, since
-                // the name may be misspelled; any settings are a problem, at the first written.
-                for (off, origin) in &values.off {
-                    if *off {
-                        read.warnings.push(Problem {
-                            origin: Some(origin.clone()),
-                            detail: format!("`{feature}` is switched off, but no package in use has a feature `{feature}`"),
-                        });
+                // Accepted and read by nothing, with one warning for each source that writes
+                // it, at the first origin of that source, since the name may be misspelled.
+                let mut firsts: Vec<&O> = Vec::new();
+                for origin in &values.written {
+                    if !firsts.iter().any(|first| same_source(*first, origin)) {
+                        firsts.push(origin);
                     }
                 }
-                let settings_origin = values
-                    .keys
-                    .values()
-                    .find_map(|writes| writes.first())
-                    .map(|write| write.origin.clone())
-                    .or(values.off.iter().find(|(off, _)| !off).map(|(_, origin)| origin.clone()));
-                if let Some(origin) = settings_origin {
-                    problems.push(Problem {
-                        origin: Some(origin),
-                        detail: format!("`{feature}` must be the name of a feature of a package the document uses"),
-                    });
-                }
+                read.warnings.extend(firsts.into_iter().map(|origin| Warning {
+                    kind: WarningKind::UnknownFeature,
+                    problem: Problem {
+                        origin: Some(origin.clone()),
+                        detail: format!("Unknown feature ‘{feature}’: no package in use has this feature"),
+                    },
+                }));
                 continue;
             };
-            let decl = factory.settings(feature);
-            let in_effect = self.combine(feature, values, decl, &mut problems);
+            let decl = self.declaration(factories, feature, &mut Vec::new()).filter(|decl| decl.takes_settings());
+            let mut found = Found::default();
+            let in_effect = self.combine(feature, values, decl.as_deref(), &mut found);
+            problems.extend(found.problems);
+            read.warnings.extend(found.warnings);
             if in_effect.switched_off.is_some() {
                 read.packages.entry(factory.name().clone()).or_default().switch_off(feature.as_str());
             } else if decl.is_some() {
@@ -864,10 +1450,12 @@ impl<O: CascadeOrigin> Cascade<O> {
         for factory in factories {
             let package = read.packages.entry(factory.name().clone()).or_default();
             for entry in factory.features() {
-                let Some(decl) = &entry.settings else { continue };
-                if package.is_off(&entry.name) {
+                if entry.settings.is_none() || package.is_off(&entry.name) {
                     continue;
                 }
+                let mut declared = Vec::new();
+                let Some(decl) = self.declaration(factories, &entry.name, &mut declared) else { continue };
+                problems.extend(declared.into_iter().map(|detail| Problem { origin: None, detail }));
                 let (in_effect, first_origin) = match written_features.get(entry.name.as_str()) {
                     Some((in_effect, first_origin)) => (Some(in_effect), first_origin.as_ref()),
                     None => (None, None),
@@ -888,8 +1476,8 @@ impl<O: CascadeOrigin> Cascade<O> {
                         // first value written for the feature; nowhere when nothing is.
                         let mut path = error.path.split('.').skip(1);
                         let at = path.next().and_then(|key| in_effect?.keys.get(key)).map(|combined| {
-                            let entry_origin = path.next().and_then(|name| combined.entry_origins.get(name));
-                            entry_origin.unwrap_or(&combined.origin).clone()
+                            let below: Vec<&str> = path.collect();
+                            combined.origin_at(&below).clone()
                         });
                         Problem { origin: at.or_else(|| first_origin.cloned()), detail: error.detail }
                     })),

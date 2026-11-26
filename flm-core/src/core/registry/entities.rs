@@ -173,8 +173,8 @@ impl CapabilityDef {
 }
 
 /// A collection declaration. A **collection** is a name for a set of
-/// capabilities that any feature may add to, such as the standard package's
-/// `flm.validated` ([`VALIDATED`](crate::stdcore::VALIDATED)), which every
+/// capabilities that any feature may add to, such as the standard features'
+/// `flm.validated` ([`VALIDATED`](crate::stdlib::VALIDATED)), which every
 /// check of the standard features joins.
 ///
 /// Demanding a collection demands every one of its members. A feature uses a
@@ -1008,6 +1008,10 @@ impl std::error::Error for LateInitError {}
 /// definition again wherever a document uses it.) Returning `Err` means that the hook itself could not do its work, and the
 /// registry build fails.
 ///
+/// A value that the hook builds against the language (a compiled template, a
+/// parsed tree) and that an element's data or aspect reads is stored in a
+/// [`LangOwned`](crate::lang::LangOwned) cell, so that the language owns it.
+///
 /// Register a hook with
 /// [`FeatureBuilder::late_init`](super::FeatureBuilder::late_init).
 pub trait LateInit: Send + Sync {
@@ -1059,7 +1063,7 @@ pub trait LateInit: Send + Sync {
 ///   and the check runs after the aspects that features attach to other
 ///   features' elements have been merged in.
 ///
-/// The `lowering` feature of the standard package declares the two
+/// The standard feature `lowering` declares the two
 /// implications described above. A feature whose lowering driver, emitter or
 /// rules create nodes of an element without declaring it in a rule's
 /// `produces` should declare an implication for it. Register one with
@@ -1073,7 +1077,7 @@ pub trait LateInit: Send + Sync {
 ///
 /// ```
 /// use flm_core::core::registry::{NativeImplication, NativeImplicationKind};
-/// use flm_core::stdcore::backends::pres::{self, Decoration};
+/// use flm_core::stdlib::backends::pres::{self, Decoration};
 ///
 /// let marker = NativeImplication::aspect::<dyn Decoration>(pres::DECO_MARK)
 ///     .docs("a backend claiming a decoration must claim the marker left in its place");

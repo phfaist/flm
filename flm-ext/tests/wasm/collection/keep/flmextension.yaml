@@ -1,0 +1,6 @@
+extension:
+  description: Keeps a value in the module's memory, traps, and grows its memory
+  engine: wasm
+  wasm:
+    module: ./collection.wasm
+    limits: { memory_mib: 8 }

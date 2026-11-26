@@ -5,4 +5,4 @@
 // differs: a feature of an extension declares its settings as data, in its report
 // (`SettingsReport`), and the adapter turns the report into the feature's declaration, so the
 // declaration and the settings read are not mirrored.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";

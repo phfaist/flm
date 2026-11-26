@@ -21,7 +21,7 @@
 //!
 //! The pass runs before every other rewrite, so that user definitions, block
 //! structure and every later stage see the included content as part of the
-//! surrounding text. The `input` feature ([`crate::stdcore::features::input`])
+//! surrounding text. The `input` feature ([`crate::stdlib::features::input`])
 //! places the pass in a plan as its rewrite stage `flm.input.splice`.
 
 use std::sync::Arc;
@@ -133,9 +133,9 @@ fn run_pass(tree: &NodeTree<Flm>, policy: GuardPolicy) -> Result<Arc<NodeTree<Fl
 /// becomes [`SpliceFailure::Failed`].
 fn failure(error: RestageError<RestageFailure>, at: FlmSpan) -> SpliceFailure {
     let refusal = match &error {
-        RestageError::DescentLimitExceeded { detail } => Some(detail.clone()),
+        RestageError::DescentLimitExceeded { detail, .. } => Some(detail.clone()),
         RestageError::Visitor(RestageFailure(inner)) => match inner.as_ref() {
-            RestageError::DescentLimitExceeded { detail } => Some(detail.clone()),
+            RestageError::DescentLimitExceeded { detail, .. } => Some(detail.clone()),
             _ => None,
         },
         _ => None,

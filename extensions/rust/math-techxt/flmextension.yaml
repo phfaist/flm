@@ -1,0 +1,9 @@
+# The manifest of the extension `math-techxt` in its WebAssembly form: the module that
+# `extensions/rust/build-wasm.sh` builds, beside this file. The `flm` program also carries
+# the extension compiled in; it then reads this file with the engine `native` in place of
+# `wasm`, and without the module.
+extension:
+  description: Mathematics rendered as Unicode text by techxt, for the text and HTML outputs
+  engine: wasm
+  wasm:
+    module: math_techxt.wasm

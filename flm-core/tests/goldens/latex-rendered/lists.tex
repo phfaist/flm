@@ -1,7 +1,7 @@
 % ===== latex-rendered:document =====
-% flm: latex-rendered; style file flmx.b637a3a0.sty
+% flm: latex-rendered; style file flmx.0baafad1.sty
 \documentclass{article}
-\usepackage{flmx.b637a3a0}
+\usepackage{flmx.0baafad1}
 \begin{document}
 \flmxHeading[kind=section, level=1, toc=true, anchor=sec--Lists, plain={Lists}]{Lists}
 \begin{flmxList}[kinds={numbered enumerate labeled}, depth=1]
@@ -51,9 +51,9 @@ Roman.
 See \flmxLink[kind=ref, href={\#item-first}, target=item-first]{Item 1}.
 \end{flmxList}
 \end{document}
-% ===== latex-rendered:style flmx.b637a3a0.sty =====
+% ===== latex-rendered:style flmx.0baafad1.sty =====
 \NeedsTeXFormat{LaTeX2e}[2022/06/01]
-\ProvidesPackage{flmx.b637a3a0}
+\ProvidesPackage{flmx.0baafad1}
 % the definitions of a document written by FLM's latex-rendered backend
 % the engine: LuaLaTeX
 \RequirePackage{iftex}
@@ -844,13 +844,13 @@ See \flmxLink[kind=ref, href={\#item-first}, target=item-first]{Item 1}.
 % verbatim text may stand anywhere: in a list item, a footnote, a table
 % cell, a template's argument. The elements:
 %   \flmxVerbatim[kind, lang]{<text>}
-%       inline verbatim text; default: the text in \flmxVerbatimFont.
+%       inline verbatim text; default: the text in the font of its kind.
 %   \begin{flmxVerbatimBlock}[kind, lang]
 %   \flmxVerbLine{<line>}
 %   ...
 %   \end{flmxVerbatimBlock}
 %       a block, one \flmxVerbLine per line (an empty line is
-%       \flmxVerbLine{}); default: a paragraph group in \flmxVerbatimFont
+%       \flmxVerbLine{}); default: a paragraph group in the font of its kind
 %       with \parindent and \parskip zero, ragged right, each line
 %       \par\noindent\strut<line>, between the hooks \flmxVerbatimBlockBegin
 %       and \flmxVerbatimBlockEnd (empty by default; redefine them for a
@@ -860,25 +860,38 @@ See \flmxLink[kind=ref, href={\#item-first}, target=item-first]{Item 1}.
 %          such as a keyword or a name);
 %   lang   the language the text is written in, where one was given.
 %
-% The three kinds share one default. A template distinguishes them, or a
-% language, by registering a look per kind:
+% Fonts. Each kind of verbatim text has its own font switch, registered with
+%   \flmxDefineVerbatimFont{<kind>}{<font switch>}
+% (a later registration wins). This chunk registers \ttfamily for the kind
+% code and \itshape for the kind a. A kind with no registered font, text
+% included, keeps the font of the surrounding text. Both defaults apply the
+% font registered for the element's kind.
+%
+% A template distinguishes the kinds, or a language, by registering a look
+% per kind, which then sets its own font:
 %   \flmxDefineVerbatim{<kind>}{<code over #1, the text>}
 %   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
-% and replaces the font with \renewcommand\flmxVerbatimFont{...} (the font
-% switch, \ttfamily by default), the defaults with
-% \flmxDefineVerbatimDefault{<code over #1>} and
-% \flmxDefineVerbatimBlockDefault{<begin>}{<end>}, and the line with
+% It replaces the defaults with \flmxDefineVerbatimDefault{<code over #1>}
+% and \flmxDefineVerbatimBlockDefault{<begin>}{<end>}, and the line with
 % \renewcommand\flmxVerbLine[1]{...}.
 
 \ExplSyntaxOn
 
-\NewDocumentCommand \flmxVerbatimFont { } { \ttfamily }
+% The font switch of each kind, run by both defaults; a kind with none
+% registered keeps the font of the surrounding text.
+\NewDocumentCommand \flmxDefineVerbatimFont { m +m }
+  { \cs_set_protected:cpn { __flmx_verbatimfont_reg_#1 } {#2} }
+\cs_new_protected:Npn \__flmx_verbatim_font:
+  { \cs_if_exist_use:c { __flmx_verbatimfont_reg_ \flmxKey { kind } } }
+\flmxDefineVerbatimFont { code } { \ttfamily }
+\flmxDefineVerbatimFont { a } { \itshape }
+
 \NewDocumentCommand \flmxVerbatimBlockBegin { } { }
 \NewDocumentCommand \flmxVerbatimBlockEnd { } { }
 
 \NewDocumentCommand \flmxVerbatim { O { } +m }
   { \__flmx_command:nnnn { verbatim } { kind } {#1} {#2} }
-\flmxDefineVerbatimDefault { { \flmxVerbatimFont #1 } }
+\flmxDefineVerbatimDefault { { \__flmx_verbatim_font: #1 } }
 
 \NewDocumentEnvironment { flmxVerbatimBlock } { O { } }
   { \__flmx_env_begin:nnn { verbatimblock } { kind } {#1} }
@@ -887,7 +900,7 @@ See \flmxLink[kind=ref, href={\#item-first}, target=item-first]{Item 1}.
   {
     \par
     \flmxVerbatimBlockBegin
-    \flmxVerbatimFont
+    \__flmx_verbatim_font:
     \setlength \parindent { 0pt }
     \setlength \parskip { 0pt }
     \raggedright

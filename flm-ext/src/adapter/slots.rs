@@ -1,4 +1,4 @@
-//! The data-valued slots: the service slots of the standard package whose
+//! The data-valued slots: the service slots of the standard features whose
 //! value type is plain data, each with the reader that builds the value from
 //! its data form.
 //!
@@ -35,8 +35,8 @@ use std::sync::Arc;
 
 use flm_core::core::registry::{BuildError, FeatureBuilder as CoreFeatureBuilder};
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::latex::{packages, preamble, LatexPackageDef, LatexPreambleDef};
-use flm_core::stdcore::features::numbering::{
+use flm_core::stdlib::backends::latex::{packages, preamble, LatexPackageDef, LatexPreambleDef};
+use flm_core::stdlib::features::numbering::{
     CounterDecl, CounterStyleDecl, ParentSetDecl, Within, WithinJoinerSpec, COUNTERS_SLOT, PARENT_SETS_SLOT, STYLES_SLOT,
 };
 use serde_json::Value;
@@ -334,6 +334,6 @@ mod tests {
     #[test]
     fn a_bad_field_is_named() {
         let error = read(PARENT_SETS_SLOT, &json!({ "name": "x.p", "counters": "x.a" })).expect("a slot").unwrap_err();
-        assert_eq!(error.to_string(), "the field `counters` of a parent set declaration must be a list of texts, not `\"x.a\"`");
+        assert_eq!(error.kind(), "value", "{error}");
     }
 }

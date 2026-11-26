@@ -2,27 +2,28 @@
 //! `define` declared, what each feature's `register` recorded, and the record
 //! of the `register` running now; compiled into a program (the cargo feature
 //! `native`), also the loaded extension the instance belongs to ([`Loaded`]:
-//! its identity, its load's number and its console sink), which the typed
-//! route reads to find the frame of the running handler call and to write a
-//! line of `console` output.
+//! its identity, its load's number and where its console output goes),
+//! which the typed route reads to find the frame of the running handler
+//! call and to write a line of `console` output.
 //!
-//! **One state per instance.** In an extension's own WebAssembly module, one
-//! module is one extension, and the thread's one state is the module's.
-//! Compiled into a program (the engine `native`, cargo feature `native`, on any
-//! target, `wasm32` included), several extensions
-//! share the guest client's code: each instance of each extension owns a
-//! state of its own, which the engine installs as the thread's current state
-//! (`install`) for the length of one entry, and while it drops the objects
-//! the instance recorded; the previous state is restored afterwards, also
-//! when the code unwinds. A nested entry (a handler of another extension, or
-//! of the same one, run while a request of this one runs) installs its own
-//! state over it and restores it on its way out, so every instance finds its
-//! own state whenever its code runs.
+//! **One state per extension.** In a WebAssembly module, the instance keeps a
+//! state for each extension defined in it, by the extension's stem
+//! ([`defined`], [`keep`]): the entry `define` makes the state of its stem,
+//! and each entry, which names its extension, installs that state as the
+//! current state ([`install`]) for its length; the state current before is
+//! restored afterwards, also when the code unwinds. Compiled into a program
+//! (the engine `native`, cargo feature `native`, on any target, `wasm32`
+//! included), several extensions share the guest client's code: each
+//! instance of each extension owns a state of its own, which the engine
+//! installs likewise for the length of one entry, and while it drops the
+//! objects the instance recorded. A nested entry (a handler of another
+//! extension, or of the same one, run while a request of this one runs)
+//! installs its own state over it and restores it on its way out, so every
+//! extension finds its own state whenever its code runs.
 //!
-//! When no native instance's state is installed (in an extension's own
-//! WebAssembly module, in the guest client's own tests, on a thread an
-//! extension started) the current state is the thread's own, which belongs
-//! to no loaded extension.
+//! When no entry's state is installed (outside the entries, in the guest
+//! client's own tests, on a thread an extension started) the current state
+//! is the thread's own, which belongs to no extension.
 //!
 //! **The thread's end.** Compiled into a program, an extension's code can
 //! still run while the thread's thread-locals are being destroyed: the `Drop`
@@ -46,11 +47,11 @@ use std::rc::Rc;
 #[cfg(feature = "native")]
 use crate::engine::ExtensionIdentity;
 #[cfg(feature = "native")]
-use crate::host::ConsoleSink;
+use crate::host::Console;
 use crate::guest::entry::Defined;
 use crate::guest::registry::Shared;
 
-/// The guest runtime's state on one instance.
+/// The guest runtime's state of one extension in one instance.
 #[derive(Default)]
 pub(crate) struct State {
     /// What `define` declared.
@@ -72,8 +73,8 @@ pub(crate) struct State {
 /// refusal of a request sent outside its handler calls names; the load's
 /// number, which finds the frame of its running handler call
 /// ([`frames::with_current`](crate::binding::frames::with_current)), where
-/// its requests and lendings run (`abi::in_frame`); and its console sink,
-/// where its `console` output goes.
+/// its requests and lendings run (`abi::in_frame`); and where its `console`
+/// output goes.
 #[cfg(feature = "native")]
 pub(crate) struct Loaded {
     /// The extension's identity.
@@ -81,7 +82,7 @@ pub(crate) struct Loaded {
     /// The load's number ([`Binding::id`](crate::binding::Binding::id)).
     pub(crate) load: u64,
     /// Where the extension's `console` output goes.
-    pub(crate) console: ConsoleSink,
+    pub(crate) console: Console,
 }
 
 #[cfg(feature = "native")]
@@ -107,9 +108,12 @@ impl State {
 }
 
 thread_local! {
-    /// The current state: the one an entry of the engine `native` installed,
-    /// else the thread's own.
+    /// The current state: the one an entry installed, else the thread's own.
     static CURRENT: RefCell<Rc<State>> = RefCell::new(Rc::new(State::default()));
+
+    /// The state of each extension defined in this instance of a module, by
+    /// its stem.
+    static DEFINED: RefCell<BTreeMap<String, Rc<State>>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 /// The current state, shared; the thread-local's borrow is released before
@@ -119,15 +123,27 @@ pub(crate) fn current() -> Rc<State> {
     CURRENT.try_with(|current| Rc::clone(&current.borrow())).unwrap_or_else(|_| Rc::new(State::default()))
 }
 
+/// The state of the extension `stem` that the entry `define` made in this
+/// instance of a module, if it made one. Once the thread-local is destroyed
+/// (at the thread's end), `None`.
+pub(crate) fn defined(stem: &str) -> Option<Rc<State>> {
+    DEFINED.try_with(|defined| defined.borrow().get(stem).cloned()).ok().flatten()
+}
+
+/// Keeps `state` as the state of the extension `stem` in this instance of a
+/// module, in place of the one kept before. Once the thread-local is
+/// destroyed (at the thread's end), changes nothing.
+pub(crate) fn keep(stem: &str, state: Rc<State>) {
+    let _ = DEFINED.try_with(|defined| defined.borrow_mut().insert(stem.to_string(), state));
+}
+
 /// Restores the state that was current before [`install`] when dropped.
-#[cfg(feature = "native")]
 #[must_use = "the state is current only until this guard drops"]
 pub(crate) struct Installed {
     /// The state current before.
     previous: Option<Rc<State>>,
 }
 
-#[cfg(feature = "native")]
 impl Drop for Installed {
     fn drop(&mut self) {
         if let Some(previous) = self.previous.take() {
@@ -140,13 +156,12 @@ impl Drop for Installed {
 /// Makes `state` the current state until the answered guard is dropped,
 /// which restores the state current before (also when the entry unwinds).
 /// Once the thread-local is destroyed (at the thread's end), changes nothing.
-#[cfg(feature = "native")]
 pub(crate) fn install(state: Rc<State>) -> Installed {
     let previous = CURRENT.try_with(|current| std::mem::replace(&mut *current.borrow_mut(), state)).ok();
     Installed { previous }
 }
 
-#[cfg(all(test, feature = "native"))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

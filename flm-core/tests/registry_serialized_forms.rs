@@ -14,10 +14,10 @@ use flm_core::core::registry::{
 use flm_core::core::stage::{Effect, Needs, RewriteDecl, Scope, StageDecl};
 use flm_core::lang::mint::{BodyLayout, CallableKind, Symbol};
 use flm_core::model::options::{Bind, OptionDecl, OptionRef};
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::refs::{LABELS, Labels};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::refs::{LABELS, Labels};
 
-use common::stdcore::{plan, registry};
+use common::stdlib::{plan, registry};
 
 fn written(value: impl serde::Serialize) -> serde_json::Value {
     serde_json::to_value(value).expect("every plain-data type serializes")
@@ -122,13 +122,24 @@ fn names_kinds_warnings_and_exclusions_have_one_spelling_each() {
         written(&warning),
         json!({"kind": "ignored-preference", "stage": "t.b", "excluded_by": "t.a", "over": "t.done", "workflow": null})
     );
+    let warning = PlanWarning::UncheckedOutput {
+        backend: "html".into(),
+        feature: "t.math".into(),
+        written: "each formula".into(),
+        reader: "a renderer".into(),
+        workflow: Some("w".into()),
+    };
+    assert_eq!(
+        written(&warning),
+        json!({"kind": "unchecked-output", "backend": "html", "feature": "t.math", "written": "each formula", "reader": "a renderer", "workflow": "w"})
+    );
     let excluded = Excluded { stage: "t.b".into(), excluded_by: "t.a".into(), over: "t.done".into() };
     assert_eq!(written(&excluded), json!({"stage": "t.b", "excluded_by": "t.a", "over": "t.done"}));
 }
 
 #[test]
 fn every_stage_plan_of_a_standard_plan_is_written() {
-    let registry = registry(StdcoreConfig::default());
+    let registry = registry(StdlibConfig::default());
     let plan = plan(&registry, "html", &Overrides::default());
     assert!(!plan.manifests().is_empty());
     for (idx, stage) in plan.manifests() {

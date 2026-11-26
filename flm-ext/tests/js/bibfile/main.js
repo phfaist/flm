@@ -6,7 +6,7 @@
 // workflow `noted`, which runs that stage.
 import { StageDecl, Effect, Scope } from "flm:core/stage";
 import { Arity } from "flm:core/services";
-import { PROVIDERS_SLOT } from "flm:stdcore/features/citations";
+import { PROVIDERS_SLOT } from "flm:stdlib/features/citations";
 
 const NOTES = "bibfile.notes";
 
@@ -33,9 +33,9 @@ function provider(file) {
   return {
     name: "bibfile.json",
     answer_all(requests, cx) {
-      const text = cx.host("files").read_text("document", file);
+      const text = cx.host("files").read_text(`doc:${file}`);
       if (text === null)
-        return requests.map(() => ({ error: `the file \`${file}\` beside the document must hold the bibliography entries` }));
+        return requests.map(() => ({ error: `expected bibliography entries in a sibling file \`${file}\`` }));
       const records = JSON.parse(text);
       return requests.map(({ key }) => {
         const record = records[key.toLowerCase()];
@@ -48,7 +48,6 @@ function provider(file) {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     host: ["files"],
     flm: { workflows: { noted: { extends: "text", demands: ["flm.validated", NOTES], docs: "The text output, with the notes reported." } } },
     features: {

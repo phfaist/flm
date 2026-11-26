@@ -6,17 +6,17 @@
 //! parser produced, the tree after the rewrite stages, the presentation tree a backend
 //! built, or the data a stage computed. It reads no front matter and no settings: the
 //! document is the text given, and the registry is built from the library's standard
-//! package under its default configuration. The command `flm dump` of the `flm` program is
-//! the program's view of this engine: the program parses its command line into a
-//! [`Request`], reads the file, calls [`dump`] and prints what the engine gives it.
+//! features under their default configuration. The command `flm dump` of the `flm`
+//! program is the program's view of this engine: the program parses its command line
+//! into a [`Request`], reads the file, calls [`dump`] and prints what the engine gives it.
 //!
 //! # What the engine does
 //!
 //! In order, [`dump`]:
 //!
 //! 1. builds a [registry](flm_core::core::registry), the frozen record of everything the
-//!    language and the pipeline consult for a set of features, from the standard package
-//!    ([`flm_core::stdcore::package`]) under its default configuration and the package
+//!    language and the pipeline consult for a set of features, from the standard features
+//!    ([`flm_core::stdlib::add_features`]) under their default configuration and the package
 //!    `math-passthrough` ([`flm_core::math_passthrough::package`]), which processes the
 //!    mathematics;
 //! 2. parses the text into a [`Fragment`], its origin naming the file, and places that one
@@ -45,7 +45,7 @@
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::dump::project::{ProjectOptions, Projector, project_table, project_tree};
 use flm_core::dump::session::{write_fragment, write_tree, writer};
@@ -55,9 +55,9 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::doc::{Doc, DocContent, Fragment, FragmentLayout};
 use flm_core::model::names::BackendName;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::lowering::lowered_table;
-use flm_core::stdcore::backends::text::{self, TextRenderOptions};
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::backends::lowering::lowered_table;
+use flm_core::stdlib::backends::text::{self, TextRenderOptions};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use flm_core::techy::core::node::NodeTree;
 use flm_core::techy::source::Source;
 
@@ -71,7 +71,7 @@ pub enum At {
     Frozen,
     /// The tree that the named backend built from the frozen tree for its output: the
     /// same content rewritten into elements that the backend writes natively, such as the
-    /// presentation elements of [`flm_core::stdcore::backends::pres`]. The string is the
+    /// presentation elements of [`flm_core::stdlib::backends::pres`]. The string is the
     /// backend's name.
     Lowered(String),
 }
@@ -186,10 +186,11 @@ pub fn dump(request: &Request, text: String, origin: &str, print: &mut (dyn FnMu
     }
 }
 
-/// Builds the registry that the engine works from: the standard package ([`package`])
-/// under its default configuration ([`StdcoreConfig::new`]) and `math-passthrough`, and
-/// nothing else, since the engine reads no settings. The build's diagnostics go to `print`;
-/// a registry built from the whole standard package reports none.
+/// Builds the registry that the engine works from: a package `std` holding the standard
+/// features ([`add_features`]) under their default configuration ([`StdlibConfig::new`]),
+/// and `math-passthrough`, and nothing else, since the engine reads no settings. The
+/// build's diagnostics go to `print`; a registry built from every standard feature
+/// reports none.
 ///
 /// # Errors
 ///
@@ -197,7 +198,7 @@ pub fn dump(request: &Request, text: String, origin: &str, print: &mut (dyn FnMu
 /// error's text.
 fn build_registry(print: &mut (dyn FnMut(Printed<'_>) + Send)) -> Result<Arc<FlmRegistry>, Error> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new()));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder
         .build(&RegistryInputs::new())

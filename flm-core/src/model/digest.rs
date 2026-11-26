@@ -43,7 +43,7 @@
 //!   table produced under a different registry or a different reading of the
 //!   document.
 //! - **Names derived from content**: the name of the LaTeX style file
-//!   ([`content_hash`](crate::stdcore::backends::latex::style::content_hash))
+//!   ([`content_hash`](crate::stdlib::backends::latex::style::content_hash))
 //!   and the names of the image copies the graphics feature publishes.
 //!
 //! # Position of this module

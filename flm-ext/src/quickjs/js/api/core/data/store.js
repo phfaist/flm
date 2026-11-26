@@ -2,7 +2,7 @@
 // `flm-ext/src/api/core/data/store.rs`; do not edit.
 //
 // Mirrors `flm_core::core::data::store`: what a stage writes through.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // Mirrors `StageOut`: what a running stage writes — table pieces and diagnostics.
 export class StageOut extends Handle {

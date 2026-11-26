@@ -84,8 +84,8 @@ every aspect:
   them [`BlockRoleAspect`](crate::model::aspects::BlockRoleAspect),
   [`Referenceable`](crate::model::aspects::Referenceable) and
   [`Sectioning`](crate::model::aspects::Sectioning).
-- [`Decoration`](crate::stdcore::backends::pres::Decoration) and
-  [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent) — the two
+- [`Decoration`](crate::stdlib::backends::pres::Decoration) and
+  [`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent) — the two
   aspects that rendering consults.
 
 [`ElementSpec`]: crate::model::element::ElementSpec
@@ -208,7 +208,7 @@ therefore cannot be used under another without notice.
   at its command.
 - [`Externals`](crate::core::run::Externals),
   [`Stamp`](crate::core::run::Stamp) and
-  [`EXTERNAL_INDEX`](crate::stdcore::features::refs::EXTERNAL_INDEX) — what a
+  [`EXTERNAL_INDEX`](crate::stdlib::features::refs::EXTERNAL_INDEX) — what a
   caller installs to process a corpus.
 
 ## Verbatim regions
@@ -251,9 +251,9 @@ and inside a label or a reference target.
   declares that an argument or a body is raw text.
 - [`RestrictedInterior`](crate::lang::RestrictedInterior) — what the interior of a
   region, and of a characters-only argument, still recognizes.
-- [`crate::stdcore::features::verbatim`] — the standard feature that offers
+- [`crate::stdlib::features::verbatim`] — the standard feature that offers
   verbatim commands and environments, and
-  [`VerbatimKind`](crate::stdcore::backends::pres::VerbatimKind), the kind of
+  [`VerbatimKind`](crate::stdlib::backends::pres::VerbatimKind), the kind of
   verbatim content a backend receives.
 
 ## Opaque regions
@@ -286,7 +286,7 @@ body declared with
 every characters-only group
 ([`ArgStdKind::CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup)); the reader of a
 proof's title places one around a title that begins with a star (see
-[`theorems`](crate::stdcore::features::theorems::elements#a-starred-title-is-kept-as-typed)).
+[`theorems`](crate::stdlib::features::theorems::elements#a-starred-title-is-kept-as-typed)).
 The content is parsed as usual, commands included; the wrapper only keeps it as written. It
 serves an argument whose text an element reads as typed: the keys of `\cite`, the label
 written in `\label` and in `\ref`, the target of `\hyperref`, a proof's back-reference. Two
@@ -341,14 +341,14 @@ keys to write a citation mark.
 - [`ArgDef::with_opaque_wrapper`](crate::lang::mint::ArgDef::with_opaque_wrapper) and
   [`BodyDef::with_opaque_wrapper`](crate::lang::mint::BodyDef::with_opaque_wrapper) —
   how a feature declares that an argument's or a body's content is kept as written.
-- [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent) — the aspect by
+- [`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent) — the aspect by
   which lowering copies such a subtree unchanged, and
-  [`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque) — the
+  [`ContentInOpaque`](crate::stdlib::backends::pres::ContentInOpaque) — the
   aspect of a node inside such a subtree that is content and is lowered.
-- [`ENVIRONMENT`](crate::stdcore::features::math::ENVIRONMENT) and
+- [`ENVIRONMENT`](crate::stdlib::features::math::ENVIRONMENT) and
   [`OPAQUE`](crate::math_passthrough::OPAQUE) — the standard elements whose
   content is opaque (the second is the element `math-passthrough` gives to a command of
-  mathematics that no feature declares); [`text`](crate::stdcore::features::math::text) — the text
+  mathematics that no feature declares); [`text`](crate::stdlib::features::math::text) — the text
   commands of mathematics mode, whose argument is content inside an opaque region.
 
 ## Paragraphs, blocks and displayed items
@@ -418,7 +418,7 @@ A *block-transparent* element is laid out as if its content were written directl
 in the content around it: a paragraph break inside its content is a paragraph break
 of the surrounding content, and a block inside it, such as a list, is a block of the
 surrounding content. It never becomes a block of its own. A reviewer's highlight of
-a passage ([`annotations`](crate::stdcore::features::annotations)) is the typical
+a passage ([`annotations`](crate::stdlib::features::annotations)) is the typical
 case: the highlighted passage may cross a paragraph boundary, and the highlight
 continues across it into the next paragraph.
 
@@ -477,7 +477,7 @@ line](#equation-lines) are written inside a display-math environment's body.
   [`field_name`](crate::lang::mint::field_name) reads the name of a field node.
 - [`ArgStdKind::TackOn`](crate::lang::mint::ArgStdKind::TackOn) — the tack-on
   argument that absorbs fields.
-- [`FieldRule`](crate::stdcore::backends::lowering::FieldRule) — the only lowering
+- [`FieldRule`](crate::stdlib::backends::lowering::FieldRule) — the only lowering
   rule of the field element, which reports a field that no construct read.
 
 ## Equation lines
@@ -503,11 +503,11 @@ the environment reads, not content at their position.
 Three consumers use the lines. The rules of the processing feature write an
 environment line by line: on the `latex-recomposed` backend, `math-passthrough` writes
 each line back with its labels, as their [safe
-labels](crate::stdcore::features::refs::SafeLabels), at the line's end, and on every
+labels](crate::stdlib::features::refs::SafeLabels), at the line's end, and on every
 other backend its rule of a display-math environment
 ([`ENVIRONMENT_RULE`](crate::math_passthrough::ENVIRONMENT_RULE)) writes each
 line with its anchor, its tag or its number, and its line break. The `math` feature's
-library ([`frame`](crate::stdcore::features::math::frame)) gives any processing
+library ([`frame`](crate::stdlib::features::math::frame)) gives any processing
 feature each line's anchor and number. And each
 line can be referred to on its own: the environment declares one reference point
 per line, and a line that can be numbered carries that line's labels, so
@@ -523,13 +523,13 @@ source](crate::model::aspects::NumberSource) (the counter and the counter style)
 the [numbering](crate::guide::numbering) feature computes the numbers, and a
 reference to a numbered line shows that line's number.
 
-- [`equation_lines`](crate::stdcore::features::math::lines::equation_lines) and
-  [`EquationLine`](crate::stdcore::features::math::lines::EquationLine) — the
+- [`equation_lines`](crate::stdlib::features::math::lines::equation_lines) and
+  [`EquationLine`](crate::stdlib::features::math::lines::EquationLine) — the
   reader, and what one line holds.
 - [`EmptyLine`](crate::math_passthrough::EmptyLine) and
-  [`LabelWithoutNumber`](crate::stdcore::features::math::lines::LabelWithoutNumber)
+  [`LabelWithoutNumber`](crate::stdlib::features::math::lines::LabelWithoutNumber)
   — the error of `math-passthrough`'s check and the parse-time error.
-- [`crate::stdcore::features::math::lines`] — the scoped package that declares
+- [`crate::stdlib::features::math::lines`] — the scoped package that declares
   `\\`, `\label`, `\tag` and `\nonumber` inside those bodies only, and the syntax
   chapter's [description of them](crate::guide::language_syntax#inside-a-display-math-environment).
 
@@ -584,7 +584,7 @@ is not a rewrite of a frozen tree.
   [`ComputedView`](crate::core::data::store::ComputedView) and
   [`StageOut`](crate::core::data::store::StageOut) — the store, the reading side and
   the writing side.
-- [`LoweredTrees`](crate::stdcore::backends::lowering::LoweredTrees) — the value
+- [`LoweredTrees`](crate::stdlib::backends::lowering::LoweredTrees) — the value
   type of the lowered trees of one backend.
 
 ## Stages, capabilities, and plans
@@ -649,7 +649,7 @@ reads and writes and nothing else. Four registered declarations decide the rest:
 - a capability may **refine** another: a stage providing the refinement satisfies a
   demand for the parent ([refinement](crate::guide::pipeline#refinement));
 - a capability may be **declared by one feature and provided by another**: the `math`
-  feature declares [`flm.math.content`](crate::stdcore::features::math::CONTENT), "the
+  feature declares [`flm.math.content`](crate::stdlib::features::math::CONTENT), "the
   mathematics of the document has been checked", and provides it with no stage of its
   own; the feature that processes mathematics provides it with its check stage
   (`math-passthrough`'s
@@ -658,7 +658,7 @@ reads and writes and nothing else. Four registered declarations decide the rest:
   feature is registered;
 - a **collection** is a name for a set of capabilities that any feature may join.
   `flm.validated` gathers that way every check a registry holds, and every workflow
-  the standard package registers demands it, so a render runs the same checks as the
+  of the standard features demands it, so a render runs the same checks as the
   `check` workflow;
 - an **ordering** declaration adds edges that only order stages, for a feature that
   must place its stage relative to another feature's stage without needing its
@@ -760,9 +760,9 @@ this: a stage that must also work inside a value *and* needs data about the whol
 document must read a table that no per-tree stage of the catch-up writes, in
 practice a table that a document-scope stage writes. The `refs` feature does so:
 its resolve stage reads
-[`REF_TARGETS`](crate::stdcore::features::refs::REF_TARGETS), written once for the
+[`REF_TARGETS`](crate::stdlib::features::refs::REF_TARGETS), written once for the
 document, rather than the reference points of
-[`REFPOINTS`](crate::stdcore::features::refpoints::REFPOINTS), written per tree.
+[`REFPOINTS`](crate::stdlib::features::refpoints::REFPOINTS), written per tree.
 
 The diagnostics a catch-up produces are returned to the consumer with the result,
 and the consumer records them: a catch-up writes nothing into the run.
@@ -801,7 +801,7 @@ applying the lowering rule selected for each element, in rounds, until only
 elements the backend writes natively remain; the result is computed data in the
 table `flm.lowered.<backend>`. A presentation tree is built from a small set of
 *presentation elements* that every backend shares
-([`crate::stdcore::backends::pres`]), plus the elements a backend writes natively.
+([`crate::stdlib::backends::pres`]), plus the elements a backend writes natively.
 Where the frozen tree holds a paragraph, the lowered tree holds `flm.pres.par`;
 where it holds a heading, `flm.pres.block-heading`; where it holds a reference, a
 `flm.pres.link` around the content the reference displays. The frozen tree itself
@@ -882,27 +882,27 @@ shared presentation element carries.
 
 The library ships four backends:
 
-- [`text`](crate::stdcore::backends::text) builds a document for the [layout
+- [`text`](crate::stdlib::backends::text) builds a document for the [layout
   engine](crate::layout) and prints it at a chosen width.
-- [`html`](crate::stdcore::backends::html) writes the document as an HTML page for
+- [`html`](crate::stdlib::backends::html) writes the document as an HTML page for
   a browser. Every byte goes through one typed sink, which escapes document text
   where it writes it. The CSS classes and the attributes a stylesheet may rely on
   are derived from the names of the presentation elements rather than written a
   second time. Each element requires the [style
   definitions](#style-and-script-definitions) it needs by identifier. The HTML
-  construct element ([`crate::stdcore::backends::html::construct`]) holds one HTML
+  construct element ([`crate::stdlib::backends::html::construct`]) holds one HTML
   tag as structured data.
-- [`latex-recomposed`](crate::stdcore::backends::latex_recomposed) writes the
+- [`latex-recomposed`](crate::stdlib::backends::latex_recomposed) writes the
   document back as LaTeX source, close to what an author would have typed, from the
   trees without block structure (no paragraphs built), and leaves numbering and
   cross-references to LaTeX.
   Its rules stage the construct elements of the LaTeX family
-  ([`crate::stdcore::backends::latex::construct`]): a macro call, an environment,
+  ([`crate::stdlib::backends::latex::construct`]): a macro call, an environment,
   raw text, a definition. Its output is the recomposed LaTeX together with a style
   file that holds exactly the definitions the recomposed LaTeX needs; see [LaTeX
   package requests, definition pieces and
   hooks](#latex-package-requests-definition-pieces-and-hooks).
-- [`latex-rendered`](crate::stdcore::backends::latex_rendered) writes the document as
+- [`latex-rendered`](crate::stdlib::backends::latex_rendered) writes the document as
   LaTeX for the LuaLaTeX engine, from the trees laid out in paragraphs, with everything
   FLM resolves already resolved: numbers, cross-references, the table of contents, the
   notes. Each presentation element is written as one `\flmx…` command or environment
@@ -930,34 +930,34 @@ and definition pieces).
   [`Lower`](crate::core::lowering::Lower) and
   [`Lowerer`](crate::core::lowering::Lowerer) — what a lowering rule is, and the
   only interface it has to the run.
-- [`crate::stdcore::backends::pres`] — the presentation elements every backend
+- [`crate::stdlib::backends::pres`] — the presentation elements every backend
   shares.
-- [`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage) and
-  [`lower_tree`](crate::stdcore::backends::lowering::lower_tree) — the lowering
+- [`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage) and
+  [`lower_tree`](crate::stdlib::backends::lowering::lower_tree) — the lowering
   stage and its driver.
-- [`crate::stdcore::backends::text`] — the plain-text backend, with
-  [`TextBackend`](crate::stdcore::backends::text::TextBackend),
-  [`TextEmitStage`](crate::stdcore::backends::text::TextEmitStage) and
-  [`TextFinalStage`](crate::stdcore::backends::text::TextFinalStage).
-- [`crate::stdcore::backends::html`] — the HTML backend, with
-  [`HtmlBackend`](crate::stdcore::backends::html::HtmlBackend),
-  [`emit_tree`](crate::stdcore::backends::html::emit_tree),
-  [`HtmlEmitStage`](crate::stdcore::backends::html::HtmlEmitStage) and
-  [`HtmlFinalStage`](crate::stdcore::backends::html::HtmlFinalStage); its typed
-  sink [`HtmlSink`](crate::stdcore::backends::html::HtmlSink), and the classes and
+- [`crate::stdlib::backends::text`] — the plain-text backend, with
+  [`TextBackend`](crate::stdlib::backends::text::TextBackend),
+  [`TextEmitStage`](crate::stdlib::backends::text::TextEmitStage) and
+  [`TextFinalStage`](crate::stdlib::backends::text::TextFinalStage).
+- [`crate::stdlib::backends::html`] — the HTML backend, with
+  [`HtmlBackend`](crate::stdlib::backends::html::HtmlBackend),
+  [`emit_tree`](crate::stdlib::backends::html::emit_tree),
+  [`HtmlEmitStage`](crate::stdlib::backends::html::HtmlEmitStage) and
+  [`HtmlFinalStage`](crate::stdlib::backends::html::HtmlFinalStage); its typed
+  sink [`HtmlSink`](crate::stdlib::backends::html::HtmlSink), and the classes and
   attributes a stylesheet may rely on, stated as data
-  ([`crate::stdcore::backends::html::conventions`]).
-- [`crate::stdcore::backends::latex_recomposed`] — the LaTeX backend, with
-  [`LatexRecomposed`](crate::stdcore::backends::latex_recomposed::LatexRecomposed),
-  [`emit_tree`](crate::stdcore::backends::latex_recomposed::emit_tree),
-  [`LatexRecomposedEmitStage`](crate::stdcore::backends::latex_recomposed::LatexRecomposedEmitStage)
-  and [`LatexRecomposedFinalStage`](crate::stdcore::backends::latex_recomposed::LatexRecomposedFinalStage);
-  [`crate::stdcore::backends::latex`] — the LaTeX family the backend is built on,
+  ([`crate::stdlib::backends::html::conventions`]).
+- [`crate::stdlib::backends::latex_recomposed`] — the LaTeX backend, with
+  [`LatexRecomposed`](crate::stdlib::backends::latex_recomposed::LatexRecomposed),
+  [`emit_tree`](crate::stdlib::backends::latex_recomposed::emit_tree),
+  [`LatexRecomposedEmitStage`](crate::stdlib::backends::latex_recomposed::LatexRecomposedEmitStage)
+  and [`LatexRecomposedFinalStage`](crate::stdlib::backends::latex_recomposed::LatexRecomposedFinalStage);
+  [`crate::stdlib::backends::latex`] — the LaTeX family the backend is built on,
   with its construct elements.
-- [`crate::stdcore::backends::latex_rendered`] — the rendered LaTeX backend, with
-  [`LatexRendered`](crate::stdcore::backends::latex_rendered::LatexRendered),
-  [`emit_tree`](crate::stdcore::backends::latex_rendered::emit_tree) and its contract,
-  stated as data ([`crate::stdcore::backends::latex_rendered::contract`]).
+- [`crate::stdlib::backends::latex_rendered`] — the rendered LaTeX backend, with
+  [`LatexRendered`](crate::stdlib::backends::latex_rendered::LatexRendered),
+  [`emit_tree`](crate::stdlib::backends::latex_rendered::emit_tree) and its contract,
+  stated as data ([`crate::stdlib::backends::latex_rendered::contract`]).
 - [`Artifact`](crate::core::artifact::Artifact),
   [`ArtifactSet`](crate::core::artifact::ArtifactSet) and
   [`ArtifactNamer`](crate::core::artifact::ArtifactNamer) — what a run publishes,
@@ -989,10 +989,10 @@ option leaves a piece out or adds a piece declared as off by default.
 - [`crate::core::piece`] — [`Piece`](crate::core::piece::Piece),
   [`PieceDecl`](crate::core::piece::PieceDecl) and
   [`PiecePlace`](crate::core::piece::PiecePlace).
-- [`crate::stdcore::backends::pieces`] — the `pieces` feature, its render option,
-  [`selected_pieces`](crate::stdcore::backends::pieces::selected_pieces) and the
+- [`crate::stdlib::backends::pieces`] — the `pieces` feature, its render option,
+  [`selected_pieces`](crate::stdlib::backends::pieces::selected_pieces) and the
   pieces stage of each backend,
-  [`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage).
+  [`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage).
 - [the rendering chapter](crate::guide::rendering#pieces) — where the text and HTML
   backends place pieces.
 
@@ -1010,28 +1010,29 @@ A *package* is a named bundle of features together with the packages it builds o
 ([`PackageEntry`](crate::core::registry::PackageEntry)). A program chooses what FLM
 can do by choosing which packages and features it registers.
 
-The library ships two packages. The standard package `stdcore` holds the features that
-have one canonical implementation, which every document is expected to use: the
-language's constructs, the structure and the checks of a document, numbering,
-references, floats, the standard backends and workflows. It reads where a formula
-begins and ends, but processes no mathematics. That is the work of a *math processor*,
-a package whose feature decides which commands a formula may hold, checks the formulas
-and writes them into the outputs. Several math processors do the same job in different
-ways, and each changes what a formula may legally contain, so the choice is made for
-the document as a whole, never per workflow, and a registry holds exactly one. The
-library's math processor, [`math-passthrough`](crate::math_passthrough), reads nothing
-inside a formula and carries its source to the output; the extension `math-mathjax`,
-which runs MathJax and accepts only the commands MathJax knows, is another. A host
-chooses the default math processor for its documents, and the author may choose another
-with the key `math` of the front matter.
+The library ships the standard features, in its module [`stdlib`](crate::stdlib), and
+one package, the math processor `math-passthrough` (below). The standard features are
+those that have one canonical implementation, which every document is expected to use:
+the language's constructs, the structure and the checks of a document, numbering,
+references, floats, the standard backends and workflows. A program adds them to a
+package it declares ([`stdlib::add_features`](crate::stdlib::add_features)). They read
+where a formula begins and ends, but process no mathematics. That is the work of a *math
+processor*, a package whose feature decides which commands a formula may hold, checks
+the formulas and writes them into the outputs. Several math processors do the same job
+in different ways, and each changes what a formula may legally contain, so the choice is
+made for the document as a whole, never per workflow, and a registry holds exactly one.
+The library's math processor, [`math-passthrough`](crate::math_passthrough), reads
+nothing inside a formula and carries its source to the output; the extension
+`math-mathjax`, which runs MathJax and accepts only the commands MathJax knows, is
+another. A host chooses the default math processor for its documents, and the author may
+choose another with the key `math` of the front matter.
 
-The host library `flm-main` adds its own package `stdmain` (writing the output's files,
-the live preview, the compose templates, image files and citations), and `std`, a
-package with no features of its own that uses `stdcore` and `stdmain`. A document uses
-the packages of an *initial list*, which the host gives and the document or the
-command line may replace, then the package of its math processor, then those its front
-matter lists under `use`
-([the packages a document uses](crate::guide::command_line#the-packages-a-document-uses)).
+The host library `flm-host` declares one package, `std`: the standard features, then its
+own (writing the output's files, the live preview, the compose templates, image files
+and citations). A document uses the packages of an *initial list*, which the host gives
+and the document or the command line may replace, then the package of its math
+processor, then those its front matter lists under `use` ([the packages a document
+uses](crate::guide::command_line#the-packages-a-document-uses)).
 
 The standard features have no special status: they register exactly as an added
 feature does, through the same builder, with the same abilities. A program can
@@ -1144,7 +1145,7 @@ competing lowering rules: workflows decide those.
 - [`Finalizer`](crate::core::registry::Finalizer) and
   [`LateInit`](crate::core::registry::LateInit) — declaring something that needs
   the assembled services or the finished language.
-- [`crate::stdcore`] — the standard package.
+- [`crate::stdlib`] — the standard features.
 - [`crate::math_passthrough`] — the library's math processor.
 
 ## Extensions
@@ -1230,6 +1231,63 @@ has recorded an error stops before the first stage that has such effects.
 - [`crate::dump::diag`] — asserting on diagnostics in a test.
 - [`crate::guide::panics`] — the list of the items that can panic, and the
   requirement each of them states.
+
+## Progress, cancellation and log lines
+
+The *progress sheet* of a build is the record of what the build is doing and how
+far it has gone, as a tree of rows; the work writes it, and the *host*, the code
+that starts the build and shows its progress (the `flm` program, the live
+preview, a site generator), reads it when it chooses and may ask the build to
+stop.
+
+These terms describe a sheet:
+
+- A **row** is one entry of the sheet, for one piece of work a person may wait
+  for: a stage, a conversion, a network fetch, a program run. It has a state
+  (pending, running, finished, failed, or not run), optionally a count of units
+  done out of a total fixed when it starts, and the times at which it started and
+  ended when the host gave them. Every row but the root has a parent: the row under
+  which it was declared.
+- The **owner** of a row is the code that declared it. The owner alone starts and
+  ends the row.
+- The **kind** of a row is a dotted name for the sort of work, the same for every
+  row of that sort (`flm.graphics.convert`). Its **title** is an optional fixed
+  text for a person that says what rows of the kind do ("Converting graphics").
+  The **label** of a row is an optional text that tells it from the other rows of
+  its kind (a file, a citation key).
+- The **observer** is the host's three optional functions that the sheet calls:
+  when a row starts, when it ends, and before each check of the cancellation. It
+  is never called when a count advances.
+- A **scope** is the handle through which code adds rows under one row, checks
+  whether the build is cancelled, and writes a log line.
+
+The rules that hold for a sheet:
+
+- **The work writes the sheet and never reads it**, except for whether the build
+  was cancelled. Reporting never changes what is computed: a run produces the same
+  tables, diagnostics and output with a sheet and without one.
+- **A cancelled step produces nothing.** A run discards the step under way when
+  the build is cancelled, as when a stage panics, and ends with an outcome of its
+  own. A cancellation is not a problem of the document, and produces no
+  diagnostic.
+- **The sheet holds facts only.** The percentage of a build is an estimate that
+  the host computes from a snapshot of the sheet and a table of expected durations
+  by kind.
+- **A log line is text for a person** about what the build does, received by the
+  host's *log sink*. A problem of the document is always a
+  [diagnostic](#diagnostics), never a log line.
+
+- [`crate::progress`] — the sheet, its handles, the observer, the log sink and the
+  estimate.
+- [`Run::with_progress`](crate::core::run::Run::with_progress) and
+  [`RunOutcome`](crate::core::run::RunOutcome) — a run on a sheet, and its three
+  outcomes.
+- [`StageCx::progress`](crate::core::run::StageCx::progress) — the scope a stage
+  reports under.
+- [Following a build](crate::guide::embedding#following-a-build) and [reporting
+  progress from a stage or a
+  service](crate::guide::extending#reporting-progress-from-a-stage-or-a-service) —
+  the host's side and the work's side.
 
 ## Services and service slots
 
@@ -1371,15 +1429,15 @@ a link points at, computed once for every point; and a reference site (`\ref`,
 An element declares its reference points per occurrence through the
 [`Referenceable`](crate::model::aspects::Referenceable) aspect, and the `refpoints`
 feature records them for every tree in the table
-[`REFPOINTS`](crate::stdcore::features::refpoints::REFPOINTS)
+[`REFPOINTS`](crate::stdlib::features::refpoints::REFPOINTS)
 ([`RefPoint`](crate::model::aspects::RefPoint)).
 
 A label is written after a construct, which reads it as a
 [field](#fields-data-a-construct-reads) and attaches it to its reference point; the
 label type, the part before the colon, must be one the point accepts, and a label
 may be written only once in a document. A construct that accepts labels declares the
-tack-on argument [`label_fields_arg`](crate::stdcore::features::refs::label_fields_arg)
-and reads its labels with [`label_uses`](crate::stdcore::features::refs::label_uses).
+tack-on argument [`label_fields_arg`](crate::stdlib::features::refs::label_fields_arg)
+and reads its labels with [`label_uses`](crate::stdlib::features::refs::label_uses).
 
 The element of a reference point says how its anchor is formed
 ([`AnchorPolicy`](crate::model::aspects::AnchorPolicy)): `<type>-<label>` from the
@@ -1389,7 +1447,7 @@ unlabeled equation line, `<prefix>--<position><four letters>` from its position.
 point whose policy yields no identifier (a point with no label under the label-only
 policy, or the second of two labels that encode alike) has no anchor. The `refs`
 feature computes the anchors once, in its anchors stage, and the backends write them
-as link targets ([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)).
+as link targets ([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)).
 
 A reference site is declared per occurrence through the
 [`Referencing`](crate::model::aspects::Referencing) aspect and resolved by the `refs`
@@ -1398,13 +1456,13 @@ feature ([`RefSite`](crate::model::aspects::RefSite)).
 - [`RefPoint`](crate::model::aspects::RefPoint) and
   [`RefSite`](crate::model::aspects::RefSite) — a reference point and a reference
   site.
-- [`label_fields_arg`](crate::stdcore::features::refs::label_fields_arg) and
-  [`label_uses`](crate::stdcore::features::refs::label_uses) — declaring the
+- [`label_fields_arg`](crate::stdlib::features::refs::label_fields_arg) and
+  [`label_uses`](crate::stdlib::features::refs::label_uses) — declaring the
   `\label` field and reading it.
-- [`ANCHORS`](crate::stdcore::features::refs::ANCHORS) — the table of anchors.
-- [`REFPOINTS`](crate::stdcore::features::refpoints::REFPOINTS) — the table of
+- [`ANCHORS`](crate::stdlib::features::refs::ANCHORS) — the table of anchors.
+- [`REFPOINTS`](crate::stdlib::features::refpoints::REFPOINTS) — the table of
   reference points.
-- [`crate::stdcore::features::refs`] — the feature that resolves references.
+- [`crate::stdlib::features::refs`] — the feature that resolves references.
 
 ## Counters and counter styles
 
@@ -1418,25 +1476,25 @@ A counter value is a number with optional sub-numbers under it. A counter style
 holds the number template, the sub-levels, the prefix words with their variants, the
 delimiters and the texts that join several numbers, each text written in FLM and
 parsed once, when the counter style is compiled
-([`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl)); the
+([`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl)); the
 number template
-([`NumberTemplate`](crate::stdcore::features::numbering::NumberTemplate)) is written
+([`NumberTemplate`](crate::stdlib::features::numbering::NumberTemplate)) is written
 in the [template language](#the-template-language-shared-by-features) (`#{arabic}`)
 or as a single letter standing for its number format (`a`, `i`, `1`). A
 counter is numbered within its parent counter through a
-[`Within`](crate::stdcore::features::numbering::Within), which also says how the
+[`Within`](crate::stdlib::features::numbering::Within), which also says how the
 parent's number is written before the counter's own: a joining text, a within
 template, nothing, or a joiner registered by name. The numbering feature records every
 point's counter value in the counter table `flm.counters`
-([`COUNTERS`](crate::stdcore::features::numbering::COUNTERS)).
+([`COUNTERS`](crate::stdlib::features::numbering::COUNTERS)).
 
 A feature declares its counters and counter styles through [peer
 contributions](#services-and-service-slots) to the numbering feature's service slots,
 so the declaring feature still registers where no numbering feature is present.
 
-- [`crate::stdcore::features::numbering`] — the numbering feature.
-- [`CounterDecl`](crate::stdcore::features::numbering::CounterDecl) and
-  [`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl) —
+- [`crate::stdlib::features::numbering`] — the numbering feature.
+- [`CounterDecl`](crate::stdlib::features::numbering::CounterDecl) and
+  [`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl) —
   declaring a counter and a counter style.
 - [`NumberSource`](crate::model::aspects::NumberSource) — what a reference point is
   numbered by.
@@ -1476,11 +1534,11 @@ macros and environments carry the elements `flm.unknown.macro` and
 `flm.unknown.environment`. The structural elements are ordinary element values, so a
 feature may attach aspects to them. Each standard backend lists the structural
 elements it emits natively, without a lowering rule, in a `FLOW_THROUGH` constant (for
-example [`text::FLOW_THROUGH`](crate::stdcore::backends::text::FLOW_THROUGH)).
+example [`text::FLOW_THROUGH`](crate::stdlib::backends::text::FLOW_THROUGH)).
 
 - [`StructuralElements`](crate::lang::structural::StructuralElements) — the set of
   structural elements, and [`crate::lang::structural`], their names.
-- [`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature) — the
+- [`LoweringFeature`](crate::stdlib::backends::lowering::LoweringFeature) — the
   feature that registers their default lowering rules.
 
 ## The recursion guard and worker threads
@@ -1523,8 +1581,8 @@ nodes and nothing else. Each feature that uses the template language says which
 placeholders its templates may contain.
 
 - [`crate::lang::rewrites::userdefs::template`] — the template language, compiled.
-- [`NumberTemplate`](crate::stdcore::features::numbering::NumberTemplate) and
-  [`Within`](crate::stdcore::features::numbering::Within) — the numbering feature's
+- [`NumberTemplate`](crate::stdlib::features::numbering::NumberTemplate) and
+  [`Within`](crate::stdlib::features::numbering::Within) — the numbering feature's
   number templates and within templates.
 - [the template language](crate::guide::language_syntax#the-template-language) in the
   syntax chapter — the language as an author writes it.
@@ -1541,7 +1599,7 @@ lowering rule can select on them.
 An attached slot is a slot of a presentation node, named after a decoration's element,
 that holds the decoration nodes the lowering driver moved out of the node's content; the
 attached slots follow the content slots, the named groups of the node's children
-([`read`](crate::stdcore::backends::pres::read)). The `flm.pres.deco-mark` node, the
+([`read`](crate::stdlib::backends::pres::read)). The `flm.pres.deco-mark` node, the
 decoration mark, records which attached slot holds the decoration, and an emitter writes
 the decoration at the mark's position. A backend that writes any decoration element
 natively must therefore write `flm.pres.deco-mark` natively too, which the registry
@@ -1550,17 +1608,17 @@ build checks.
 A role is a feature-owned dotted name on a presentation payload that says what a
 container is (a theorem's heading, a quotation's attribution), and kinds are
 feature-owned names that classify it further. A document role
-([`DocRole`](crate::stdcore::backends::pres::DocRole)) is different: it is one of a
+([`DocRole`](crate::stdlib::backends::pres::DocRole)) is different: it is one of a
 small fixed set of structural roles (a list of notes, a link to a cited work) that a
 backend with such a notion renders.
 
-- [`Decoration`](crate::stdcore::backends::pres::Decoration) — the aspect that makes
+- [`Decoration`](crate::stdlib::backends::pres::Decoration) — the aspect that makes
   an element a decoration.
-- [`crate::stdcore::backends::pres::payload`] — the payloads of the presentation
+- [`crate::stdlib::backends::pres::payload`] — the payloads of the presentation
   elements, with their role and kind fields.
-- [`crate::stdcore::backends::pres::read`] — reading a presentation node's content
+- [`crate::stdlib::backends::pres::read`] — reading a presentation node's content
   slots and attached slots.
-- [`DocRole`](crate::stdcore::backends::pres::DocRole) — the document roles.
+- [`DocRole`](crate::stdlib::backends::pres::DocRole) — the document roles.
 
 ## Style and script definitions
 
@@ -1581,7 +1639,7 @@ none.
 - [`StyleDef`](crate::core::registry::StyleDef) and
   [`ScriptDef`](crate::core::registry::ScriptDef) — a style definition and a script
   definition.
-- [`DEFINITIONS_TABLE`](crate::stdcore::backends::html::DEFINITIONS_TABLE) — the
+- [`DEFINITIONS_TABLE`](crate::stdlib::backends::html::DEFINITIONS_TABLE) — the
   table in which the HTML backend lists the definitions a document requires, each with
   its delivery.
 
@@ -1597,16 +1655,16 @@ A node region is one of a node's arguments or one of its slots
 ([`NodeRegion`](crate::core::lowering::NodeRegion)). Because the content is lowered
 where the pointer is placed and not copied, it is shown as the document's own content.
 
-- [`ContentPointer`](crate::stdcore::backends::lowering::ContentPointer) — the
+- [`ContentPointer`](crate::stdlib::backends::lowering::ContentPointer) — the
   payload.
-- [`lower_content_pointer`](crate::stdcore::backends::lowering::lower_content_pointer)
+- [`lower_content_pointer`](crate::stdlib::backends::lowering::lower_content_pointer)
   — lowering the content a pointer shows.
 - [`NodeRegion`](crate::core::lowering::NodeRegion) — an argument or a slot of a
   node.
 
 ## LaTeX package requests, definition pieces and hooks
 
-The LaTeX family ([`crate::stdcore::backends::latex`]) is what every LaTeX backend
+The LaTeX family ([`crate::stdlib::backends::latex`]) is what every LaTeX backend
 shares: the construct elements, the escaping of document text, and the service slots
 that resolve package requests and definition pieces, registered once by the `latex`
 feature. A lowering rule of a
@@ -1622,18 +1680,18 @@ A package request is a LaTeX package that a lowering rule or an emitter requires
 identifier (`flm.latex.pkg.<name>`), resolved through the service slot
 `flm.latex.packages` to a package definition and merged with every other request for
 that package into one `\RequirePackage` line per package and LaTeX engine (pdfLaTeX,
-LuaLaTeX, XeLaTeX; [`ENGINES`](crate::stdcore::backends::latex::packages::ENGINES))
-([`crate::stdcore::backends::latex::packages`]).
+LuaLaTeX, XeLaTeX; [`ENGINES`](crate::stdlib::backends::latex::packages::ENGINES))
+([`crate::stdlib::backends::latex::packages`]).
 
 A definition piece is a unit of LaTeX definitions that a feature registers under an
 identifier `flm.latex.def.<name>`, together with the identifiers it needs in turn; a
 lowering rule requires it by identifier, and the style file holds the text of every
 piece the document requires, in registration order
-([`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)).
+([`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)).
 
 A definition piece may also **deliver** a feature's style identifier, the identifier
 under which the feature registers its stylesheet for HTML (`flm.theorems.style`)
-([`delivers`](crate::stdcore::backends::latex::LatexPreambleDef::delivers)). A feature's
+([`delivers`](crate::stdlib::backends::latex::LatexPreambleDef::delivers)). A feature's
 general lowering rule requires that identifier wherever it writes the feature's content,
 whatever the backend; the HTML backend writes the stylesheet, and the rendered LaTeX
 writes every definition piece that delivers the identifier, so that the feature's LaTeX
@@ -1645,7 +1703,7 @@ A LaTeX hook is a macro that the recomposed LaTeX writes and the style file defi
 with a plain default (`\flmHeading`, `\flmLabels`, `\flmRef`, `\flmHyperref`, and one
 or more per feature such as `\flmXN<kind>`), which a user redefines in the document's
 preamble to change what the recomposed LaTeX does at that point
-([`crate::stdcore::backends::latex::preamble`]). The four hooks of the LaTeX family
+([`crate::stdlib::backends::latex::preamble`]). The four hooks of the LaTeX family
 serve these purposes:
 
 - `\flmHeading` makes a heading's labels refer to the heading: by its number where
@@ -1660,14 +1718,14 @@ serve these purposes:
 
 A user may redefine a LaTeX hook in the preamble, or turn the heading hook and the
 label hooks off with the render options
-[`heading_hook`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::heading_hook)
+[`heading_hook`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::heading_hook)
 and
-[`label_hooks`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions::label_hooks),
+[`label_hooks`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions::label_hooks),
 to get plain LaTeX back.
 
-- [`crate::stdcore::backends::latex`] — the LaTeX family.
-- [`crate::stdcore::backends::latex::packages`] — package requests.
-- [`crate::stdcore::backends::latex::preamble`] and
-  [`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef) —
+- [`crate::stdlib::backends::latex`] — the LaTeX family.
+- [`crate::stdlib::backends::latex::packages`] — package requests.
+- [`crate::stdlib::backends::latex::preamble`] and
+  [`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef) —
   definition pieces and the LaTeX hooks.
-- [`crate::stdcore::backends::latex::style`] — the style file.
+- [`crate::stdlib::backends::latex::style`] — the style file.

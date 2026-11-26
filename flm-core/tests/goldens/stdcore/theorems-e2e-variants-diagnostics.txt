@@ -1,5 +1,0 @@
-===== check =====
-===== text =====
-===== html =====
-===== latex-recomposed, authored =====
-===== latex-recomposed, resolved =====

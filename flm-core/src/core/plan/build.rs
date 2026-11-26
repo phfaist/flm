@@ -6,8 +6,9 @@
 //! [`PlanRequest`]; [`Plan::for_workflow`] first turns a registered workflow into a
 //! plan request ([`workflow_request`]) and then builds it. Every reason a plan
 //! cannot be built is a [`PlanError`] that identifies the stages, capabilities,
-//! elements or names involved; a preference the plan cannot honor is a
-//! [`PlanWarning`] kept in the plan. See [`crate::core::plan`] for the whole
+//! elements or names involved; a preference the plan cannot honor, or output of a
+//! selected lowering rule that nothing checks, is a [`PlanWarning`] kept in the
+//! plan. See [`crate::core::plan`] for the whole
 //! process.
 //!
 //! # What a plan holds
@@ -110,7 +111,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::model::names::{
-    BackendName, CapName, ElementName, Name, OutputName, RuleName, StageName, WorkflowName,
+    BackendName, CapName, ElementName, FeatureName, Name, OutputName, RuleName, StageName,
+    WorkflowName,
 };
 use crate::model::options::{BindSite, OptionError, OptionRef};
 use crate::core::plan::cx::PlanCx;
@@ -471,8 +473,8 @@ fn join<'a>(names: impl IntoIterator<Item = &'a Name>) -> String {
 /// request for workflow `w`" when the request was made from the workflow `w`
 /// ([`PlanRequest::workflow`]), and "the plan request" for a request built by
 /// hand. The request of a workflow merges the workflow's fields with the
-/// caller's overrides, so what it asks for may come from either. The messages of [`PlanError`] and [`PlanWarning`], and those of the
-/// run's diagnostics built from the warnings, take their subject from here.
+/// caller's overrides, so what it asks for may come from either. The messages of [`PlanError`] and of the preference variants of [`PlanWarning`], and those of the
+/// run's diagnostics built from those warnings, take their subject from here.
 pub(crate) fn request_subject(workflow: Option<&str>) -> String {
     match workflow {
         Some(workflow) => format!("the plan request for workflow `{workflow}`"),
@@ -692,7 +694,9 @@ impl fmt::Display for PlanError {
 
 impl std::error::Error for PlanError {}
 
-/// A preference of the plan request that the plan could not honor.
+/// A warning the plan keeps about what it was built from: a preference of the
+/// plan request that the plan could not honor, or output of a selected lowering
+/// rule that nothing checks.
 ///
 /// A plan request may prefer something the registry cannot give: a lowering rule
 /// that is set aside (excluded from rule selection; see [`PeerName`]), a lowering
@@ -700,15 +704,19 @@ impl std::error::Error for PlanError {}
 /// other backends, or a stage that provider selection had to rule out. The plan
 /// is still built, without that preference, and the plan keeps one warning per
 /// such preference, because the caller asked for something it did not get.
+/// The plan also keeps one [`UncheckedOutput`](PlanWarning::UncheckedOutput)
+/// per backend that takes part and feature whose selected rules declare that
+/// backend in
+/// [`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output).
 ///
 /// Read the warnings from [`Plan::warnings`]. The runner reports each one as a
 /// diagnostic of Warning severity at the start of every run of the plan
 /// ([`Run`](crate::core::run::Run)). The `Display` text describes the warning
 /// for a person; the runner's diagnostic carries its own message. Each variant
-/// holds the workflow the plan request was made from ([`PlanRequest::workflow`]),
-/// and both messages name it in the subject of the sentence ("the plan request
-/// for workflow `html` prefers …"; "the plan request prefers …" for a request
-/// built by hand).
+/// holds the workflow the plan request was made from ([`PlanRequest::workflow`]).
+/// The messages of the three preference variants name it in the subject of the
+/// sentence ("the plan request for workflow `html` prefers …"; "the plan
+/// request prefers …" for a request built by hand).
 ///
 /// It is written to data with `Serialize`; see [serialized
 /// forms](crate::core::registry#serialized-forms).
@@ -761,6 +769,42 @@ pub enum PlanWarning {
         /// built by hand ([`PlanRequest::workflow`]).
         workflow: Option<WorkflowName>,
     },
+    /// Lowering rules of one feature, selected on a backend that takes part,
+    /// write output there that nothing checks before the program reading it
+    /// does
+    /// ([`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output)).
+    ///
+    /// The plan keeps one such warning per backend and feature, however many of
+    /// the feature's selected rules declare the backend; `written` and `reader`
+    /// come from the first of them in rule-name order.
+    UncheckedOutput {
+        /// The backend whose output holds what the rules write.
+        backend: BackendName,
+        /// The feature that registered the rules.
+        feature: FeatureName,
+        /// What the rules write, as the rule declares it.
+        written: String,
+        /// What reads the output, as the rule declares it.
+        reader: String,
+        /// The workflow the plan request was made from, or `None` for a request
+        /// built by hand ([`PlanRequest::workflow`]).
+        workflow: Option<WorkflowName>,
+    },
+}
+
+/// The message of an unchecked output: the `Display` text of
+/// [`PlanWarning::UncheckedOutput`] and the message of the run's diagnostic
+/// built from it.
+pub(crate) fn unchecked_output_message(
+    feature: &str,
+    backend: &str,
+    written: &str,
+    reader: &str,
+) -> String {
+    format!(
+        "Unchecked output for {reader}: feature ‘{feature}’ writes {written} as is \
+         (backend ‘{backend}’)"
+    )
 }
 
 impl fmt::Display for PlanWarning {
@@ -787,6 +831,14 @@ impl fmt::Display for PlanWarning {
                  stage may provide each capability",
                 request_subject(name_of(workflow))
             ),
+            PlanWarning::UncheckedOutput { backend, feature, written, reader, workflow: _ } => {
+                f.write_str(&unchecked_output_message(
+                    feature.as_str(),
+                    backend.as_str(),
+                    written,
+                    reader,
+                ))
+            }
         }
     }
 }
@@ -850,7 +902,8 @@ fn serialize_manifest<S: serde::Serializer>(manifest: &Arc<Manifest>, serializer
 /// it is checked.
 ///
 /// Besides the order of the stages, a plan exposes the record of how it was
-/// built: [`Plan::warnings`] for the preferences it could not honor,
+/// built: [`Plan::warnings`] for the preferences it could not honor and the
+/// output nothing checks,
 /// [`Plan::excluded`] and [`Plan::commit_order`] for the provider choices,
 /// [`Plan::selections`] for the lowering rules, and [`Plan::render`] for all of
 /// it as stable text.
@@ -859,11 +912,11 @@ fn serialize_manifest<S: serde::Serializer>(manifest: &Arc<Manifest>, serializer
 ///
 /// ```
 /// use flm_core::core::plan::{Overrides, Plan};
-/// use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-/// use flm_core::stdcore::{self, StdcoreConfig};
+/// use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+/// use flm_core::stdlib::{self, StdlibConfig};
 ///
 /// let mut builder = RegistryBuilder::new();
-/// builder.use_package(stdcore::package(StdcoreConfig::new()));
+/// builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 /// builder.use_package(flm_core::math_passthrough::package());
 /// let registry = builder.build(&RegistryInputs::new())?;
 ///
@@ -1016,7 +1069,8 @@ impl Plan {
         // --- a lowering rule is chosen per element, for every backend ---------------------------
         let mut selections: BTreeMap<BackendName, SelectedRules> = BTreeMap::new();
         let mut selection_errors: BTreeMap<BackendName, PlanError> = BTreeMap::new();
-        // Per backend, the preferences that backend cannot honor. Only the
+        // Per backend, its selection warnings: the preferences it cannot honor and
+        // the unchecked outputs of its chosen rules. Only the
         // backends that take part are reported on, for the same reason that a
         // failure to choose their rules matters only for those.
         let mut selection_warnings: BTreeMap<BackendName, Vec<PlanWarning>> = BTreeMap::new();
@@ -1545,9 +1599,10 @@ impl Plan {
         self.externals.iter().map(|id| self.registry.table(*id).def.name.clone()).collect()
     }
 
-    /// The preferences this plan could not honor ([`PlanWarning`]): first the
-    /// lowering rule preferences of the backends that take part, in backend name
-    /// order, then the stage preferences.
+    /// The warnings of this plan ([`PlanWarning`]): first, for each backend that
+    /// takes part, in backend name order, its lowering rule preferences that
+    /// could not be honored, then its unchecked outputs in feature name order;
+    /// then the stage preferences that could not be honored.
     pub fn warnings(&self) -> &[PlanWarning] {
         &self.warnings
     }

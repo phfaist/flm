@@ -1,5 +1,5 @@
 //! The equation lines of the `math` feature
-//! (`flm_core::stdcore::features::math::lines`): the four commands an author
+//! (`flm_core::stdlib::features::math::lines`): the four commands an author
 //! writes inside a display-math environment's body — `\\`, `\label`, `\tag`,
 //! `\nonumber` — exist inside those bodies only, and `equation_lines` splits a
 //! body into lines by this library's rules: a `\\` ends a line, a label, tag
@@ -25,37 +25,37 @@ use flm_core::techy::serialize::SerialValue;
 use flm_core::model::doc::Fragment;
 use flm_core::lang::structural;
 use flm_core::model::element::element_of;
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::text;
 use flm_core::lang::mint::field_name;
-use flm_core::stdcore::features::math::lines::{
+use flm_core::stdlib::features::math::lines::{
     EquationLine, PACKAGE, equation_lines, line_break, tag_of,
 };
-use flm_core::stdcore::features::math::{self, ENVIRONMENT};
+use flm_core::stdlib::features::math::{self, ENVIRONMENT};
 use flm_core::math_passthrough::OPAQUE;
 use flm_core::model::aspects::Label;
-use flm_core::stdcore::features::refs::{
+use flm_core::stdlib::features::refs::{
     self, ANCHORS, LABELS, REF_TARGETS, label_use,
 };
-use flm_core::stdcore::features::refpoints::REFPOINTS;
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig};
-use flm_core::stdcore::features::headings::{HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::features::refpoints::REFPOINTS;
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig};
+use flm_core::stdlib::features::headings::{HeadingNumbering, HeadingsConfig};
 use flm_core::techy::core::node::NodeRef;
 use flm_core::lang::Flm;
 use serde_json::json;
 
 use common::lowering::text as text_of;
-use common::stdcore::{identifiers, projection, registry, run_workflow};
+use common::stdlib::{identifiers, projection, registry, run_workflow};
 
 /// The standard package, whose `math` and `refs` features are the ones under
 /// test.
 fn std() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::default())
+    registry(StdlibConfig::default())
 }
 
 /// The standard package with every heading kind numbered.
 fn numbered_headings() -> Arc<FlmRegistry> {
     registry(
-        StdcoreConfig::default()
+        StdlibConfig::default()
             .headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)),
     )
 }
@@ -167,7 +167,7 @@ fn notag_inside_a_body_is_opaque_content_and_not_a_no_number_mark() {
 #[test]
 fn the_six_environments_all_see_the_commands() {
     let registry = std();
-    for (name, _) in flm_core::stdcore::features::math::ENVIRONMENTS {
+    for (name, _) in flm_core::stdlib::features::math::ENVIRONMENTS {
         let text = format!("\\begin{{{name}}} a \\\\ b \\end{{{name}}}");
         let fragment = common::parse(registry.lang(), &text);
         assert!(fragment.diags().is_empty(), "{name}: {:?}", fragment.diags());
@@ -813,8 +813,9 @@ fn a_label_written_on_a_heading_and_on_an_equation_line_is_a_duplicate() {
     let document =
         "\\begin{align}\n  a &= b \\label{eq:same}\\\\\n  c &= d \\label{eq:same}\n\\end{align}\n";
     let run = run_workflow(&std(), CHECK_WORKFLOW, &[document], &Overrides::none());
-    let diagnostic = expect(run.diagnostics().iter(), "flm.refs.duplicate-label").once();
-    assert!(diagnostic.message().contains("eq:same"), "{}", diagnostic.message());
+    expect(run.diagnostics().iter(), "flm.refs.duplicate-label")
+        .data(serde_json::json!({ "label": "eq:same" }))
+        .once();
 }
 
 /// A `\nonumber` line and a line of a starred environment, each with a label

@@ -21,9 +21,10 @@
 //! the Rust types its settings are read into, each with its
 //! [binding](crate::model::options::Bind) (where a value may be set: fixed with
 //! the registry, on the document, on the render request, or on either), and marks
-//! on some keys ([`KeyMark`]). Every field of those types is one settings key of
-//! the feature: the keys of the `html` feature, for example, are the fields of
-//! its render options, `title`, `lang`, `heading_tags` and so on. The declaration
+//! on some keys or on values below them ([`Mark`], [`KeyMark`]). Every field of
+//! those types is one settings key of the feature: the keys of the `html`
+//! feature, for example, are the fields of its render options, `title`, `lang`,
+//! `heading_tags` and so on. The declaration
 //! lists the keys ([`SettingsDecl::keys`]), reads a map of them
 //! ([`SettingsDecl::read`]) and describes them as a JSON Schema
 //! ([`SettingsDecl::json_schema`]), with the descriptions taken from the Rust
@@ -53,26 +54,44 @@
 //! which a value was written: a host, which records where each value was
 //! written, adds that place when it reports the error.
 //!
+//! The key [`ENABLED_KEY`] (`enabled`) is reserved: a source of settings
+//! writes it beside a feature's settings to switch the feature on or off, and
+//! a declaration refuses a key of that name, as it refuses a key declared
+//! twice.
+//!
 //! # Collections of named things
 //!
 //! A collection of named things, such as the xnote kinds or the float types, is
 //! written in data as a map from a name to an entry, in the order written;
 //! [`named`] provides the function that reads such a field
 //! ([`named::deserialize`]). Its feature marks
-//! the key as merged entry by entry ([`SettingsDecl::merge_entries`]) and gives
-//! its default entries as data ([`SettingsDecl::default_entries`]). A host that
-//! combines several sources of settings combines such a key one entry at a time,
-//! with the default entries as the lowest source, instead of letting one
-//! source's value replace another's whole. This module reads one map per
-//! feature, already combined.
+//! the key as combined key by key ([`SettingsDecl::merge_entries`]), giving
+//! its default entries as data ([`SettingsDecl::default_entries`]), and as one
+//! in which an entry written `false` is removed
+//! ([`SettingsDecl::remove_false`]). A host that combines several sources of
+//! settings combines such a key one entry at a time, with the default entries
+//! as the lowest source, instead of letting one source's value replace
+//! another's whole. This module reads one map per feature, already combined.
+//!
+//! # Marks
+//!
+//! A mark ([`Mark`]) says how sources of settings combine a value, or what the
+//! value means. It is written on the node of the JSON Schema that it concerns,
+//! as the list of the mark names under [`MARKS_KEYWORD`] (`x-flm-marks`):
+//! `{"type": "object", "x-flm-marks": ["merge-object-key-values",
+//! "remove-key-when-value-is-false"]}`. The declaration keeps each mark with
+//! the path of its node ([`KeyMark`]). A declaration written in Rust sets marks
+//! by path, with one method per mark; a part declared from data writes them on
+//! the nodes of its schema. Either way, the schema that
+//! [`SettingsDecl::json_schema`] prints carries every mark on its node.
 //!
 //! # Settings declared from data
 //!
 //! A feature whose settings have no Rust types, such as a feature written in a
 //! script, declares them from data instead: its configuration with
 //! [`SettingsDecl::config_data`] and each option type with
-//! [`SettingsDecl::options_data`], each from a JSON Schema of an object, and a
-//! key merged entry by entry with [`SettingsDecl::merge_entries_data`]. Such a
+//! [`SettingsDecl::options_data`], each from a JSON Schema of an object, with
+//! the marks written on the nodes of that schema. Such a
 //! part of the declaration is a *data part*; it lives in one declaration beside
 //! the parts declared with Rust types, and everything above holds for it alike:
 //! its keys are the `properties` of its schema, it is read, declared to the
@@ -98,9 +117,15 @@
 //!   fault, which is reported as the conversion errors of
 //!   [`SettingsDecl::config_from`] are, at that value's path. This is the twin of
 //!   reading a Rust type `D` and converting it with `C::try_from`.
+//! - **The marks.** The declaration reads the marks from the nodes of the
+//!   schema, each at its node's path ([`KeyMark`]): a property `K` of an
+//!   object adds the segment `K`, `additionalProperties` and `items` add the
+//!   segment `*`, and a `$ref` into the schema's own `$defs` is followed. The
+//!   default entries of an object combined key by key are the `default` of its
+//!   node, the empty map when it has none.
 //! - **The schema.** [`SettingsDecl::json_schema`] takes the keys' schemas from
-//!   the schema given, with the binding and the marks added as for a Rust type;
-//!   the schema's own `$defs` join those of the result.
+//!   the schema given, with the binding added as for a Rust type and the marks
+//!   written on their nodes; the schema's own `$defs` join those of the result.
 //! - **Mistakes.** The data constructors return a [`SettingsError`] of the kind
 //!   [`SettingsErrorKind::InvalidDeclaration`] where the constructors taking a
 //!   Rust type panic: their input comes from outside the program, and nothing it
@@ -112,8 +137,8 @@
 //! defaults, the packages a document uses, its front matter, a command line),
 //! combines them with [`cascade`]: every value is recorded with where it was
 //! written, the source of the highest rank decides each key, a package wins
-//! over the packages it uses and its peers must agree, a key marked merged entry
-//! by entry is combined one entry at a time over its default entries, and the
+//! over the packages it uses and its peers must agree, a key marked as combined
+//! key by key is combined one entry at a time over its default entries, and the
 //! result is read through the declarations above, each problem placed where the
 //! value at fault was written. The host keeps its sources and the texts that
 //! name them; the cascade reads no file.
@@ -127,7 +152,7 @@
 use std::any::Any;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
@@ -137,17 +162,16 @@ use crate::model::names::{FeatureName, Name};
 use crate::model::options::{Bind, DataValue, OptionKey, Options, OptionValues};
 
 pub mod cascade;
+mod marks;
 pub mod named;
 
-/// The message for a merge mark set on `path`, a path below a key of the
-/// feature `feature`: one text for [`SettingsDecl::merge_entries`]'s panic and
-/// [`SettingsDecl::merge_entries_data`]'s error.
-fn merge_path_detail(feature: &FeatureName, path: &str) -> String {
-    format!(
-        "the feature `{feature}` marks `{path}` as merged entry by entry, and only a setting itself \
-         can be marked so, not a path below one"
-    )
-}
+/// The key that switches a feature on or off in a source of settings
+/// (`citations: {enabled: false}`), reserved in every feature's settings: a
+/// [`SettingsDecl`] refuses a key of this name (the constructors that take a
+/// Rust type panic, those that take data return a [`SettingsError`] of the
+/// kind [`SettingsErrorKind::InvalidDeclaration`]). The host that reads the
+/// sources of settings reads the key itself; the feature never receives it.
+pub const ENABLED_KEY: &str = "enabled";
 
 /// The bounds a Rust type must meet for settings to be read into it from data.
 ///
@@ -160,53 +184,89 @@ fn merge_path_detail(feature: &FeatureName, path: &str) -> String {
 pub trait SettingsData: DeserializeOwned + schemars::JsonSchema + Any + Send + Sync {}
 impl<T: DeserializeOwned + schemars::JsonSchema + Any + Send + Sync> SettingsData for T {}
 
-/// What a settings key's value means, beyond its shape: plain data, text in FLM
-/// markup, or a path to a file.
+/// The keyword under which a node of a JSON Schema lists its marks
+/// ([`Mark`]), as the names of the marks: `{"type": "object", "x-flm-marks":
+/// ["merge-object-key-values", "remove-key-when-value-is-false"]}`.
+pub const MARKS_KEYWORD: &str = "x-flm-marks";
+
+/// A mark that a declaration sets on one of its settings, or on a value at any
+/// depth below one: how sources of settings combine the value, or what the
+/// value means.
 ///
-/// A feature sets it on a key with a [`KeyMark`]. The kind says how the value
-/// is meant; the value itself is read as the field's Rust type says. A host
-/// uses the kind, for example to resolve a relative path against the folder of
-/// the file in which it was written before passing the value on.
+/// A mark is written on the node of the JSON Schema that it concerns, under
+/// [`MARKS_KEYWORD`] (`x-flm-marks`), as its name ([`Mark::name`]); see
+/// [`KeyMark`] for the path of the node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ValueKind {
-    /// Plain data: a number, a switch, a name, a map.
-    Data,
-    /// Text written in FLM markup, which the feature parses.
-    Markup,
-    /// A path to a file.
+pub enum Mark {
+    /// `merge-object-key-values`, on an object: sources of settings are
+    /// combined key by key. The `default` of the object's node is its default
+    /// entries ([`SettingsDecl::default_entries`]).
+    MergeObjectKeyValues,
+    /// `remove-key-when-value-is-false`, on an object: a key whose value is
+    /// `false` is removed.
+    RemoveKeyWhenValueIsFalse,
+    /// `set-to-default-with-null`, on one setting: a value of `null` gives the
+    /// setting its default.
+    SetToDefaultWithNull,
+    /// `path`, on a text or on a value that holds texts: each text is the path
+    /// of a file. The origin of the value gives each such text the form its
+    /// reader receives ([`CascadeOrigin::resolve_path`](cascade::CascadeOrigin::resolve_path)).
     Path,
+    /// `markup`, on a text or on a value that holds texts: each text is
+    /// written in FLM markup, which the feature parses.
+    Markup,
 }
 
-impl ValueKind {
-    /// The kind's name as the JSON Schema writes it: `data`, `markup` or
-    /// `path`.
-    pub fn label(self) -> &'static str {
+impl Mark {
+    /// Every mark, in the order in which a node lists them.
+    pub const ALL: [Mark; 5] =
+        [Mark::MergeObjectKeyValues, Mark::RemoveKeyWhenValueIsFalse, Mark::SetToDefaultWithNull, Mark::Path, Mark::Markup];
+
+    /// The mark's name, as a schema writes it under [`MARKS_KEYWORD`].
+    pub fn name(self) -> &'static str {
         match self {
-            ValueKind::Data => "data",
-            ValueKind::Markup => "markup",
-            ValueKind::Path => "path",
+            Mark::MergeObjectKeyValues => "merge-object-key-values",
+            Mark::RemoveKeyWhenValueIsFalse => "remove-key-when-value-is-false",
+            Mark::SetToDefaultWithNull => "set-to-default-with-null",
+            Mark::Path => "path",
+            Mark::Markup => "markup",
         }
+    }
+
+    /// The mark named `name`, or `None` when no mark has that name.
+    pub fn from_name(name: &str) -> Option<Mark> {
+        Mark::ALL.into_iter().find(|mark| mark.name() == name)
     }
 }
 
-/// A mark a feature sets on one of its settings keys, or on a value at any depth
-/// below one: whether two sources of settings combine the key's value entry by
-/// entry, and what the value means ([`ValueKind`]).
+impl fmt::Display for Mark {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// The marks ([`Mark`]) that a declaration sets on one of its settings, or on
+/// a value at any depth below one.
 ///
-/// A feature sets marks with [`SettingsDecl::merge_entries`],
-/// [`SettingsDecl::markup`] and [`SettingsDecl::path`]; a host reads them with
-/// [`SettingsDecl::marks`] and [`SettingsDecl::mark_at`], and the JSON Schema
-/// lists them under `x-flm-marks`.
+/// A declaration written in Rust sets marks with
+/// [`SettingsDecl::merge_entries`], [`SettingsDecl::remove_false`],
+/// [`SettingsDecl::default_on_null`], [`SettingsDecl::markup`] and
+/// [`SettingsDecl::path`]; a part declared from data writes them on the nodes
+/// of its schema. A host reads them with [`SettingsDecl::marks`] and
+/// [`SettingsDecl::mark_at`], and the JSON Schema writes each on its node
+/// ([`SettingsDecl::json_schema`]).
 ///
 /// The marked value is identified by its path below the feature's name, its
 /// segments joined by `.`. The segment `*` means every entry of a map and every
 /// item of a list (`kinds.*.words`, a key of the theorems feature, marks the
 /// `words` of every theorem kind, `labels.*`
 /// every item of the list `labels`); a variant of an enumeration written as a
-/// map of one key is a segment of its own (`nesting.template`). A key merged
-/// entry by entry is always a settings key itself, a path of one segment (see
-/// [`merge_entries`](SettingsDecl::merge_entries)); deeper paths and the segment
-/// `*` serve the marks that say what a value means.
+/// map of one key is a segment of its own (`nesting.template`). In the schema,
+/// a property `K` of an object is the segment `K`, `additionalProperties` and
+/// `items` are the segment `*`, and the alternatives of a node (`anyOf`,
+/// `oneOf`, `allOf`) and the definition its `$ref` names in the schema's own
+/// `$defs` are at the node's path. A path that reaches no node of the
+/// declaration's schema is a mistake of the declaration.
 ///
 /// A mark on a value that holds several texts (a list, a map, a structure) says
 /// what every text inside it is: `environments.*.labels` (the lists feature)
@@ -220,12 +280,70 @@ pub struct KeyMark {
     /// separated by `.`, with `*` meaning every entry of a map and every item of
     /// a list.
     pub path: String,
-    /// Whether two sources of settings combine the value, a map from a name to
-    /// an entry, entry by entry, instead of a higher-ranked source replacing it
-    /// whole. Only a settings key itself, a path of one segment, is marked so.
-    pub merge_entries: bool,
-    /// What the value means.
-    pub kind: ValueKind,
+    /// The marks of the value, each once, in the order of [`Mark::ALL`].
+    pub marks: Vec<Mark>,
+}
+
+impl KeyMark {
+    /// Whether the value carries `mark`.
+    pub fn has(&self, mark: Mark) -> bool {
+        self.marks.contains(&mark)
+    }
+}
+
+/// Rewrites, in `data` (settings that `schema`, the object schema of a part
+/// declared from data, describes), every text at a node that the schema marks
+/// with `mark`, by `rewrite`; where the value at the node is a list or a map,
+/// every text inside it. The paths of the marked nodes are read as
+/// [`KeyMark`] says. A schema whose marks cannot be read marks nothing here:
+/// its declaration reports the fault ([`SettingsDecl::entry_data`]).
+///
+/// # Errors
+///
+/// The text of the first `Err` of `rewrite`, which leaves the text unchanged.
+pub(crate) fn rewrite_marked(
+    schema: &Value,
+    mark: Mark,
+    data: &mut Map<String, Value>,
+    rewrite: &mut dyn FnMut(&str) -> Result<String, String>,
+) -> Result<(), String> {
+    let Ok(read) = marks::read(schema) else { return Ok(()) };
+    let mut failed = None;
+    for node in read.iter().filter(|node| node.marks.contains(&mark)) {
+        let mut segments = node.path.split('.');
+        let Some(value) = segments.next().and_then(|key| data.get_mut(key)) else { continue };
+        let below: Vec<&str> = segments.collect();
+        texts_at(value, &below, &mut |text| {
+            if failed.is_some() {
+                return;
+            }
+            match rewrite(text) {
+                Ok(rewritten) => *text = rewritten,
+                Err(error) => failed = Some(error),
+            }
+        });
+    }
+    failed.map_or(Ok(()), Err)
+}
+
+/// Calls `visit` on every text in `value` at the place that `segments`
+/// designates below it (`*` matching every entry of a map and every item of a
+/// list); where the value at that place is a list or a map, on every text
+/// inside it.
+pub(crate) fn texts_at(value: &mut Value, segments: &[&str], visit: &mut dyn FnMut(&mut String)) {
+    match (segments.split_first(), value) {
+        (None, Value::String(text)) => visit(text),
+        (None, Value::Array(items)) => items.iter_mut().for_each(|item| texts_at(item, &[], visit)),
+        (None, Value::Object(map)) => map.values_mut().for_each(|item| texts_at(item, &[], visit)),
+        (Some((&"*", rest)), Value::Array(items)) => items.iter_mut().for_each(|item| texts_at(item, rest, visit)),
+        (Some((&"*", rest)), Value::Object(map)) => map.values_mut().for_each(|item| texts_at(item, rest, visit)),
+        (Some((name, rest)), Value::Object(map)) => {
+            if let Some(item) = map.get_mut(*name) {
+                texts_at(item, rest, visit);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// One settings key of a feature, as [`SettingsDecl::keys`] and
@@ -305,17 +423,20 @@ pub struct ReadError {
 ///
 /// Create one with [`SettingsDecl::new`], then add at most one configuration
 /// ([`config`](SettingsDecl::config) or [`config_from`](SettingsDecl::config_from)),
-/// any number of option types ([`options`](SettingsDecl::options)) and marks
-/// ([`merge_entries`](SettingsDecl::merge_entries),
+/// any number of option types ([`options`](SettingsDecl::options)) and marks on
+/// the values they declare ([`merge_entries`](SettingsDecl::merge_entries),
+/// [`remove_false`](SettingsDecl::remove_false),
+/// [`default_on_null`](SettingsDecl::default_on_null),
 /// [`markup`](SettingsDecl::markup), [`path`](SettingsDecl::path)), each method
-/// taking and returning the declaration. Two types that declare the same key
-/// make these methods panic: a declaration that contradicts itself is a mistake
-/// in the feature's code. The parts declared from data
+/// taking and returning the declaration. Two types that declare the same key,
+/// and a mark whose path reaches no node of the schema, make these methods
+/// panic: a declaration that contradicts itself is a mistake in the feature's
+/// code. The parts declared from data
 /// ([`config_data`](SettingsDecl::config_data),
 /// [`config_data_read`](SettingsDecl::config_data_read),
-/// [`options_data`](SettingsDecl::options_data),
-/// [`merge_entries_data`](SettingsDecl::merge_entries_data)) return the same
-/// conditions as errors instead. See the [module documentation](self).
+/// [`options_data`](SettingsDecl::options_data)) read their marks from the
+/// nodes of their schema, and return a fault of the declaration as an error.
+/// See the [module documentation](self).
 ///
 /// # Examples
 ///
@@ -347,10 +468,87 @@ pub struct SettingsDecl {
     parts: Vec<Part>,
     marks: Vec<KeyMark>,
     defaults: Vec<(String, Map<String, Value>)>,
+    /// The places where other features declare entries
+    /// ([`open_entries`](SettingsDecl::open_entries)).
+    open: Vec<String>,
+    /// The entries of other features' keys that this feature declares
+    /// ([`entry_data`](SettingsDecl::entry_data)).
+    entries: Vec<EntryDecl>,
+    /// The entries in force of this feature's own keys, which other features
+    /// declare ([`with_entries`](SettingsDecl::with_entries)).
+    in_force: Vec<EntryDecl>,
+    /// The schema of the parts, against which the paths of the marks set by
+    /// method are checked: made on the first mark set after a part is added.
+    /// It holds no mark set by method; a data part keeps the `x-flm-marks` of
+    /// its own schema there.
+    bare: OnceLock<Arc<Value>>,
 }
 
-/// A function that returns the default entries of a key merged entry by entry:
-/// the entries the key holds when no source of settings writes it.
+/// The declaration of one entry of a map that a key of another feature holds:
+/// the schema of that entry, which a feature gives in its own settings
+/// declaration ([`SettingsDecl::entry_data`]).
+///
+/// The feature that holds the key, the *owner*, states in its declaration the
+/// places where other features declare entries
+/// ([`SettingsDecl::open_entries`]); an entry is declared at one place that
+/// such a path names, by its concrete path below the owner's name (each `*`
+/// replaced by the entry's name). A declaration of an entry is in force when
+/// its feature and the owner are among the features of the packages in use and
+/// neither is switched off; the [`cascade`] then combines the owner's
+/// declaration with it ([`SettingsDecl::with_entries`]):
+///
+/// - the marks of the entry's schema apply to the values written under the
+///   entry, as the owner's own marks do;
+/// - a key written under the entry that the schema's `properties` lack is left
+///   out of the combined settings, with a warning at its origin;
+/// - the owner's JSON Schema ([`SettingsDecl::json_schema`]) holds the entry's
+///   schema at its place.
+///
+/// The values written under the entry are not checked against the types of
+/// the schema, as for any part declared from data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntryDecl {
+    owner: FeatureName,
+    path: String,
+    /// What the entry is, in the words of the person who writes its schema
+    /// ([`SettingsDecl::entry_data`]).
+    label: String,
+    schema: Value,
+    keys: Vec<String>,
+    /// The marks of the schema, each path relative to the entry.
+    marks: Vec<KeyMark>,
+    /// The default entries of the objects of the schema combined key by key,
+    /// each path relative to the entry.
+    defaults: Vec<(String, Map<String, Value>)>,
+}
+
+impl EntryDecl {
+    /// The name of the feature that holds the key the entry belongs to.
+    pub fn owner(&self) -> &FeatureName {
+        &self.owner
+    }
+
+    /// The entry's path below the owner's name, its segments joined by `.`
+    /// (`template_config.html.base`).
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// What the entry is, in the words of the person who writes its schema,
+    /// without an article (`compose template ‘base’ for the output ‘html’`).
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    /// The keys the entry declares: the names of the `properties` of its
+    /// schema, in their order.
+    pub fn keys(&self) -> &[String] {
+        &self.keys
+    }
+}
+
+/// A function that returns the default entries of an object combined key by
+/// key: the entries the object holds when no source of settings writes it.
 ///
 /// The function returns the entries as data, a map from each entry's name to the
 /// rest of the entry, or a text saying why they cannot be written as data.
@@ -361,7 +559,16 @@ impl SettingsDecl {
     /// Creates the declaration of the settings of the feature named `feature`,
     /// with no key yet.
     pub fn new(feature: impl Into<FeatureName>) -> SettingsDecl {
-        SettingsDecl { feature: feature.into(), parts: Vec::new(), marks: Vec::new(), defaults: Vec::new() }
+        SettingsDecl {
+            feature: feature.into(),
+            parts: Vec::new(),
+            marks: Vec::new(),
+            defaults: Vec::new(),
+            open: Vec::new(),
+            entries: Vec::new(),
+            in_force: Vec::new(),
+            bare: OnceLock::new(),
+        }
     }
 
     /// Adds the feature's configuration, the type `C` its constructor takes,
@@ -376,9 +583,9 @@ impl SettingsDecl {
     ///
     /// # Panics
     ///
-    /// When a field of `C` has the name of a key already declared, when the
-    /// declaration already has a configuration, or when `C` is not read from a
-    /// map of named fields.
+    /// When a field of `C` has the name of a key already declared or is named
+    /// [`ENABLED_KEY`] (`enabled`), when the declaration already has a
+    /// configuration, or when `C` is not read from a map of named fields.
     pub fn config<C: SettingsData + Options>(self, docs: impl Into<String>) -> SettingsDecl {
         self.config_from::<C, C>(docs)
     }
@@ -393,9 +600,9 @@ impl SettingsDecl {
     ///
     /// # Panics
     ///
-    /// When a field of `D` has the name of a key already declared, when the
-    /// declaration already has a configuration, or when `D` is not read from a
-    /// map of named fields.
+    /// When a field of `D` has the name of a key already declared or is named
+    /// [`ENABLED_KEY`] (`enabled`), when the declaration already has a
+    /// configuration, or when `D` is not read from a map of named fields.
     pub fn config_from<D, C>(self, docs: impl Into<String>) -> SettingsDecl
     where
         D: SettingsData,
@@ -453,8 +660,14 @@ impl SettingsDecl {
     ///
     /// A [`SettingsError`] of the kind [`SettingsErrorKind::InvalidDeclaration`]
     /// when `schema` has no `properties` map, when one of its properties is a
-    /// key declared already, or when the declaration has a configuration
-    /// already.
+    /// key declared already or is named [`ENABLED_KEY`] (`enabled`), when
+    /// the declaration has a configuration already, or when the marks of its
+    /// nodes are not a list of mark names, lie outside every setting (on the
+    /// schema's root, or under a keyword that no path follows), mark an
+    /// object as combined key by key with a `default` that is not a map, or
+    /// are read while a definition of `$defs` that refers to itself is read
+    /// (a mark is kept with its path, and a path names one depth of the
+    /// definition).
     pub fn config_data(self, schema: Value, docs: impl Into<String>) -> Result<SettingsDecl, SettingsError> {
         self.data_config(schema, docs.into(), Arc::new(|data: Value| Ok(ReadValue::Config(Arc::new(DataValue(data))))))
     }
@@ -510,8 +723,9 @@ impl SettingsDecl {
             keys,
             read,
             declare: declare_named(name),
-            schema: data_schema(schema),
-        })
+            schema: data_schema(schema.clone()),
+        })?
+        .with_read_marks(&schema)
     }
 
     /// Adds the option type named `name`, declared from data, with the binding
@@ -575,8 +789,9 @@ impl SettingsDecl {
                 Ok(ReadValue::Option(Box::new(move |values: &mut OptionValues| values.set_named(name, data))))
             }),
             declare: declare_named(name),
-            schema: data_schema(schema),
-        })
+            schema: data_schema(schema.clone()),
+        })?
+        .with_read_marks(&schema)
     }
 
     /// Adds the option type `O` of the feature, with the binding `bind` and the
@@ -587,8 +802,9 @@ impl SettingsDecl {
     ///
     /// When `bind` is [`Bind::Registry`] (a value fixed with the registry is
     /// the feature's configuration: see [`config`](SettingsDecl::config)), when
-    /// a field of `O` has the name of a key already declared, or when `O` is
-    /// not read from a map of named fields.
+    /// a field of `O` has the name of a key already declared or is named
+    /// [`ENABLED_KEY`] (`enabled`), or when `O` is not read from a map of named
+    /// fields.
     pub fn options<O: SettingsData + Options>(
         self,
         bind: Bind,
@@ -633,9 +849,18 @@ impl SettingsDecl {
         }
     }
 
-    /// Adds `part`, or returns the contradiction it makes with the parts
-    /// already declared: a key declared twice, or a second configuration.
+    /// Adds `part`, or returns the fault it makes: a key named
+    /// [`ENABLED_KEY`], or a contradiction with the parts already declared (a
+    /// key declared twice, or a second configuration).
     fn try_part(mut self, part: Part) -> Result<SettingsDecl, SettingsError> {
+        if part.keys.iter().any(|key| key == ENABLED_KEY) {
+            let detail = format!(
+                "the feature ‘{}’ declares the setting ‘{ENABLED_KEY}’, a name reserved for \
+                 switching a feature on or off",
+                self.feature
+            );
+            return Err(self.invalid(ENABLED_KEY.to_string(), detail));
+        }
         for key in &part.keys {
             if self.part_of(key).is_some() {
                 let detail = format!("the feature `{}` declares the setting `{key}` twice", self.feature);
@@ -647,6 +872,7 @@ impl SettingsDecl {
             return Err(self.invalid(String::new(), detail));
         }
         self.parts.push(part);
+        self.bare = OnceLock::new();
         Ok(self)
     }
 
@@ -658,113 +884,372 @@ impl SettingsDecl {
         SettingsError { path, kind: SettingsErrorKind::InvalidDeclaration, detail }
     }
 
-
-    /// Marks the settings key `key` as merged entry by entry, and returns the
-    /// declaration: its value is a map from a name to an entry, and a host that
-    /// combines two sources of settings combines that map one entry at a time.
+    /// Marks the object at `path` as combined key by key
+    /// ([`Mark::MergeObjectKeyValues`]), and returns the declaration: a host that
+    /// combines two sources of settings combines that object one key at a time.
+    /// See [`KeyMark`] for the form of the path, which reaches a value at any
+    /// depth.
     ///
-    /// The key is one of the feature's own settings keys, never a path below
-    /// one: a host combines the feature's keys, and combines nothing inside a
-    /// key's value except the entries of a key marked so.
-    ///
-    /// `default_entries` returns, as data, the entries the key holds when no
+    /// `default_entries` returns, as data, the entries the object holds when no
     /// source writes it: the feature's own default. A host treats them as the
     /// lowest-ranked source, so an entry a source writes replaces the default
     /// entry of that name, and the default entries no source writes stay. The
     /// function usually writes the default of the key's Rust field as data
     /// ([`named::to_data`] for a list of named entries). Read them back with
-    /// [`default_entries`](SettingsDecl::default_entries).
+    /// [`default_entries`](SettingsDecl::default_entries); the JSON Schema
+    /// gives them as the `default` of the object's node.
+    ///
+    /// A collection of named things is also marked with
+    /// [`remove_false`](SettingsDecl::remove_false).
     ///
     /// # Panics
     ///
-    /// When `key` is a path below a key (it contains a `.` or a `*`), and when
+    /// When `path` reaches no node of the declaration's schema, and when
     /// `default_entries` fails or returns something other than a map: both are
     /// mistakes in the feature's code, not in any data.
-    pub fn merge_entries(self, key: impl Into<String>, default_entries: DefaultEntries) -> SettingsDecl {
-        let path = key.into();
-        if path.contains('.') || path.contains('*') {
-            panic!("{}", merge_path_detail(&self.feature, &path));
-        }
+    pub fn merge_entries(self, path: impl Into<String>, default_entries: DefaultEntries) -> SettingsDecl {
+        let path = path.into();
+        let decl = self.mark(path.clone(), Mark::MergeObjectKeyValues);
         let entries = match default_entries() {
             Ok(Value::Object(entries)) => entries,
             Ok(other) => panic!(
-                "the default entries of `{}.{path}` must be written as a map, not `{other}`",
-                self.feature
+                "the default entries of ‘{}.{path}’ must be written as a map, not ‘{other}’",
+                decl.feature
             ),
-            Err(detail) => {
-                panic!("the default entries of `{}.{path}` cannot be written as data: {detail}", self.feature)
-            }
+            Err(detail) => panic!(
+                "the default entries of ‘{}.{path}’ cannot be written as data: {detail}",
+                decl.feature
+            ),
         };
-        self.merge_mark(path, entries)
+        decl.with_default(path, entries)
     }
 
-    /// Marks the settings key `key` as merged entry by entry, with the default
-    /// entries `default_entries` given as data, and returns the declaration:
-    /// [`merge_entries`](SettingsDecl::merge_entries) for a feature whose
-    /// settings are declared from data.
-    ///
-    /// # Errors
-    ///
-    /// A [`SettingsError`] of the kind [`SettingsErrorKind::InvalidDeclaration`]
-    /// when `key` is a path below a key (it contains a `.` or a `*`).
-    pub fn merge_entries_data(
-        self,
-        key: impl Into<String>,
-        default_entries: Map<String, Value>,
-    ) -> Result<SettingsDecl, SettingsError> {
-        let path = key.into();
-        if path.contains('.') || path.contains('*') {
-            let detail = merge_path_detail(&self.feature, &path);
-            return Err(self.invalid(path, detail));
-        }
-        Ok(self.merge_mark(path, default_entries))
+    /// Records `entries` as the default entries of the object at `path`.
+    fn with_default(mut self, path: String, entries: Map<String, Value>) -> SettingsDecl {
+        self.defaults.retain(|(marked, _)| *marked != path);
+        self.defaults.push((path, entries));
+        self
     }
 
-    /// Sets the merge mark on `path` and records its default entries.
-    fn merge_mark(self, path: String, entries: Map<String, Value>) -> SettingsDecl {
-        let mut decl = self.mark(path.clone(), true, None);
-        decl.defaults.retain(|(marked, _)| *marked != path);
-        decl.defaults.push((path, entries));
-        decl
-    }
-
-    /// The default entries of the settings key `path`, marked as merged entry by
-    /// entry: the entries the key holds when no source of settings writes it, as
-    /// a map from each entry's name to the rest of the entry, in the feature's
-    /// order. Returns `None` when the key is not marked as merged entry by
-    /// entry.
+    /// The default entries of the object at `path`, marked as combined key by
+    /// key ([`Mark::MergeObjectKeyValues`]): the entries it holds when no source
+    /// of settings writes it, as a map from each entry's name to the rest of the
+    /// entry, in the feature's order. Returns `None` when the object is not
+    /// marked so.
     pub fn default_entries(&self, path: &str) -> Option<&Map<String, Value>> {
         self.defaults.iter().find(|(marked, _)| marked == path).map(|(_, entries)| entries)
     }
 
-    /// Marks the value at `path` as text in FLM markup ([`ValueKind::Markup`])
-    /// and returns the declaration. See [`KeyMark`] for the form of the path.
-    pub fn markup(self, path: impl Into<String>) -> SettingsDecl {
-        self.mark(path.into(), false, Some(ValueKind::Markup))
+    /// Marks the object at `path` as one in which a key whose value is `false`
+    /// is removed ([`Mark::RemoveKeyWhenValueIsFalse`]) and returns the
+    /// declaration. See [`KeyMark`] for the form of the path.
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    pub fn remove_false(self, path: impl Into<String>) -> SettingsDecl {
+        self.mark(path.into(), Mark::RemoveKeyWhenValueIsFalse)
     }
 
-    /// Marks the value at `path` as a path to a file ([`ValueKind::Path`]) and
+    /// Marks the setting at `path` as one that a value of `null` gives its
+    /// default ([`Mark::SetToDefaultWithNull`]) and returns the declaration. See
+    /// [`KeyMark`] for the form of the path.
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    pub fn default_on_null(self, path: impl Into<String>) -> SettingsDecl {
+        self.mark(path.into(), Mark::SetToDefaultWithNull)
+    }
+
+    /// Marks the value at `path` as text in FLM markup ([`Mark::Markup`]) and
     /// returns the declaration. See [`KeyMark`] for the form of the path.
-    pub fn path(self, path: impl Into<String>) -> SettingsDecl {
-        self.mark(path.into(), false, Some(ValueKind::Path))
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    pub fn markup(self, path: impl Into<String>) -> SettingsDecl {
+        self.mark(path.into(), Mark::Markup)
     }
 
-    fn mark(mut self, path: String, merge: bool, kind: Option<ValueKind>) -> SettingsDecl {
-        if let Some(mark) = self.marks.iter_mut().find(|mark| mark.path == path) {
-            mark.merge_entries |= merge;
-            if let Some(kind) = kind {
-                mark.kind = kind;
+    /// Marks the value at `path` as a path to a file ([`Mark::Path`]) and
+    /// returns the declaration. See [`KeyMark`] for the form of the path.
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    pub fn path(self, path: impl Into<String>) -> SettingsDecl {
+        self.mark(path.into(), Mark::Path)
+    }
+
+    /// Sets `mark` on the value at `path` and returns the declaration: the
+    /// methods above. A mark set on a value that carries it already changes
+    /// nothing.
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    fn mark(self, path: String, mark: Mark) -> SettingsDecl {
+        let bare = Arc::clone(self.bare.get_or_init(|| Arc::new(self.bare_schema())));
+        if !marks::reaches(&bare, &path) {
+            panic!("missing setting ‘{path}’ for the mark ‘{mark}’ of the feature ‘{}’", self.feature);
+        }
+        self.with_mark(path, mark)
+    }
+
+    /// Adds `mark` to the marks of the value at `path`.
+    fn with_mark(mut self, path: String, mark: Mark) -> SettingsDecl {
+        match self.marks.iter_mut().find(|marked| marked.path == path) {
+            Some(marked) => {
+                if !marked.has(mark) {
+                    marked.marks.push(mark);
+                    marked.marks.sort();
+                }
             }
-        } else {
-            self.marks.push(KeyMark {
-                path,
-                merge_entries: merge,
-                kind: kind.unwrap_or(ValueKind::Data),
-            });
+            None => self.marks.push(KeyMark { path, marks: vec![mark] }),
         }
         self
     }
 
+    /// Adds the marks that the schema `schema` of a part declared from data
+    /// writes on its nodes, each with its default entries.
+    fn with_read_marks(mut self, schema: &Value) -> Result<SettingsDecl, SettingsError> {
+        let read = read_marks(schema, &self.feature, "", &format!("the feature ‘{}’", self.feature))?;
+        for written in read {
+            for mark in written.marks {
+                self = self.with_mark(written.path.clone(), mark);
+            }
+            if let Some(entries) = written.default {
+                self = self.with_default(written.path, entries);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Marks the places `path` (see [`KeyMark`] for its form) as those where
+    /// other features declare entries ([`entry_data`](SettingsDecl::entry_data),
+    /// [`EntryDecl`]), and returns the declaration: `template_config.*.*`
+    /// lets another feature declare the schema of `template_config.html.base`.
+    ///
+    /// # Panics
+    ///
+    /// When `path` reaches no node of the declaration's schema.
+    pub fn open_entries(self, path: impl Into<String>) -> SettingsDecl {
+        let path = path.into();
+        let bare = Arc::clone(self.bare.get_or_init(|| Arc::new(self.bare_schema())));
+        if !marks::reaches(&bare, &path) {
+            panic!("missing setting ‘{path}’ for the entries that the feature ‘{}’ opens", self.feature);
+        }
+        let mut decl = self;
+        if !decl.open.contains(&path) {
+            decl.open.push(path);
+        }
+        decl
+    }
+
+    /// Whether another feature may declare the entry at `path` (its segments
+    /// joined by `.`, with no `*`): one of the places
+    /// [`open_entries`](SettingsDecl::open_entries) gives names it.
+    pub fn opens(&self, path: &str) -> bool {
+        let segments: Vec<String> = path.split('.').map(str::to_string).collect();
+        self.open.iter().any(|open| cascade::names(open, &segments))
+    }
+
+    /// Declares the schema of the entry at `path` of a key of the feature
+    /// `owner`, and returns the declaration (see [`EntryDecl`]). `path` is the
+    /// entry's path below the owner's name, its segments joined by `.`, each
+    /// segment the name of an entry (`template_config.html.base`); `label` is
+    /// what the entry is, in the words of the person who writes its schema and
+    /// without an article (`compose template ‘base’ for the output ‘html’`),
+    /// which the messages about the entry name it by; `schema` is
+    /// a JSON Schema of an object, whose `properties` are the keys of the
+    /// entry, with the marks written on its nodes, read as those of a part
+    /// declared from data are (see the [module
+    /// documentation](self#settings-declared-from-data)). An entry is not a
+    /// key of the declaring feature: a declaration with entries and no key of
+    /// its own describes a feature that takes no settings
+    /// ([`takes_settings`](SettingsDecl::takes_settings)).
+    ///
+    /// # Errors
+    ///
+    /// A [`SettingsError`] of the kind [`SettingsErrorKind::InvalidDeclaration`]
+    /// when `path` holds `*` or an empty segment, when the declaration already
+    /// declares that entry, when `schema` has no `properties` map, or when the
+    /// marks of its nodes are faulty as [`config_data`](SettingsDecl::config_data)
+    /// states.
+    pub fn entry_data(
+        mut self,
+        owner: impl Into<FeatureName>,
+        path: impl Into<String>,
+        label: impl Into<String>,
+        schema: Value,
+    ) -> Result<SettingsDecl, SettingsError> {
+        let (owner, path, label) = (owner.into(), path.into(), label.into());
+        let at = |detail: String| SettingsError {
+            path: format!("{owner}.{path}"),
+            kind: SettingsErrorKind::InvalidDeclaration,
+            detail,
+        };
+        if path.split('.').any(|segment| segment.is_empty() || segment == "*") {
+            return Err(at(format!(
+                "Invalid entry ‘{owner}.{path}’ declared by the feature ‘{}’: each part of the path must name one entry",
+                self.feature
+            )));
+        }
+        if self.entries.iter().any(|entry| entry.owner == owner && entry.path == path) {
+            return Err(at(format!("Duplicate {label} (feature ‘{}’)", self.feature)));
+        }
+        let Some(keys) = schema_keys(&schema) else {
+            return Err(at(format!(
+                "Invalid settings schema of the {label}: it must be an object schema with ‘properties’, a map \
+                 from each setting to its schema"
+            )));
+        };
+        let mut marks: Vec<KeyMark> = Vec::new();
+        let mut defaults = Vec::new();
+        for written in read_marks(&schema, &owner, &path, &format!("the {label}"))? {
+            match marks.iter_mut().find(|marked| marked.path == written.path) {
+                Some(marked) => {
+                    marked.marks.extend(written.marks);
+                    marked.marks.sort();
+                    marked.marks.dedup();
+                }
+                None => marks.push(KeyMark { path: written.path.clone(), marks: written.marks }),
+            }
+            if let Some(entries) = written.default {
+                defaults.push((written.path, entries));
+            }
+        }
+        self.entries.push(EntryDecl { owner, path, label, schema, keys, marks, defaults });
+        Ok(self)
+    }
+
+    /// The entries of other features' keys that this feature declares
+    /// ([`entry_data`](SettingsDecl::entry_data)), in the order declared.
+    pub fn entries(&self) -> &[EntryDecl] {
+        &self.entries
+    }
+
+    /// Returns this declaration combined with the declarations of its entries
+    /// `entries`, those in force (see [`EntryDecl`]): each entry of `entries`
+    /// whose owner is this feature and whose path this declaration opens
+    /// ([`opens`](SettingsDecl::opens)); the others are ignored.
+    ///
+    /// The result carries the marks of each entry's schema at their paths
+    /// below the entry, with their default entries; the marks that this
+    /// declaration sets on the places of the entry and of the maps above it,
+    /// by a path with `*`, also at the entry's own path, so that its JSON
+    /// Schema writes them on the entry's node; and the entry's schema at its
+    /// place in its JSON Schema ([`json_schema`](SettingsDecl::json_schema)),
+    /// its `$defs` joining those of the result under names of the entry's
+    /// own (its path, a `.` and the definition's name). [`entry_in_force`](SettingsDecl::entry_in_force)
+    /// gives each entry back. The cascade makes it from the entries declared by
+    /// the features in use.
+    pub fn with_entries<'e>(&self, entries: impl IntoIterator<Item = &'e EntryDecl>) -> SettingsDecl {
+        let mut decl = self.clone();
+        for entry in entries {
+            if entry.owner != self.feature || !self.opens(&entry.path) || decl.entry_in_force(&entry.path).is_some() {
+                continue;
+            }
+            let segments: Vec<String> = entry.path.split('.').map(str::to_string).collect();
+            for depth in 2..=segments.len() {
+                let place = &segments[..depth];
+                let concrete = place.join(".");
+                let owned: Vec<KeyMark> =
+                    self.marks.iter().filter(|marked| cascade::names(&marked.path, place)).cloned().collect();
+                for marked in owned {
+                    for mark in &marked.marks {
+                        decl = decl.with_mark(concrete.clone(), *mark);
+                    }
+                    if let Some(entries) = self.default_entries(&marked.path) {
+                        decl = decl.with_default(concrete.clone(), entries.clone());
+                    }
+                }
+            }
+            for marked in &entry.marks {
+                for mark in &marked.marks {
+                    decl = decl.with_mark(format!("{}.{}", entry.path, marked.path), *mark);
+                }
+            }
+            for (path, entries) in &entry.defaults {
+                decl = decl.with_default(format!("{}.{path}", entry.path), entries.clone());
+            }
+            decl.in_force.push(entry.clone());
+        }
+        decl
+    }
+
+    /// The entry in force at `path` (its segments joined by `.`), declared by
+    /// another feature and combined with this declaration by
+    /// [`with_entries`](SettingsDecl::with_entries), if there is one.
+    pub fn entry_in_force(&self, path: &str) -> Option<&EntryDecl> {
+        self.in_force.iter().find(|entry| entry.path == path)
+    }
+}
+
+/// The marks that `schema`, a schema given as data, writes on its nodes, each
+/// at its path; `prefix` is the path of the schema below the feature `feature`
+/// (empty for a part of the feature's own settings, the entry's path for a
+/// declaration of an entry, [`SettingsDecl::entry_data`]), and the paths read
+/// are relative to it. The messages name the schema's holder by `holder`
+/// (`the feature ‘X’`, or the label of the entry with its article) and each
+/// node by its path relative to `prefix`.
+///
+/// # Errors
+///
+/// A fault of the marks, as a [`SettingsError`] of the kind
+/// [`SettingsErrorKind::InvalidDeclaration`] at the place it concerns.
+fn read_marks(
+    schema: &Value,
+    feature: &FeatureName,
+    prefix: &str,
+    holder: &str,
+) -> Result<Vec<marks::ReadMark>, SettingsError> {
+    let full = |path: &str| match (prefix.is_empty(), path.is_empty()) {
+        (true, _) => path.to_string(),
+        (false, true) => prefix.to_string(),
+        (false, false) => format!("{prefix}.{path}"),
+    };
+    marks::read(schema).map_err(|fault| {
+        let (path, detail) = match fault {
+            marks::Fault::NotAList(path) => {
+                let detail = format!("‘{MARKS_KEYWORD}’ on ‘{path}’ of {holder} must be a list of mark names");
+                (full(&path), detail)
+            }
+            marks::Fault::Unknown(path, name) => {
+                let names: Vec<String> = Mark::ALL.iter().map(|mark| format!("‘{mark}’")).collect();
+                let detail = format!("unknown mark ‘{name}’ on ‘{path}’ of {holder} (the marks are {})", names.join(", "));
+                (full(&path), detail)
+            }
+            marks::Fault::DefaultNotAMap(path) => {
+                let detail = format!(
+                    "the default of ‘{path}’ of {holder} must be a map (mark ‘{}’)",
+                    Mark::MergeObjectKeyValues
+                );
+                (full(&path), detail)
+            }
+            marks::Fault::Outside(pointer) => {
+                let place = if pointer.is_empty() { "on the root".to_string() } else { format!("at ‘{pointer}’") };
+                let detail = format!(
+                    "misplaced ‘{MARKS_KEYWORD}’ {place} of the settings schema of {holder}: marks must be written on \
+                     a setting or on a value below one"
+                );
+                (prefix.to_string(), detail)
+            }
+            marks::Fault::Recursive(path, definition) => {
+                let detail = format!(
+                    "invalid mark on ‘{path}’ of {holder}: \
+                     marks may not be placed inside the recursive definition ‘{definition}’"
+                );
+                (full(&path), detail)
+            }
+        };
+        let path = if path.is_empty() { feature.to_string() } else { format!("{feature}.{path}") };
+        SettingsError { path, kind: SettingsErrorKind::InvalidDeclaration, detail }
+    })
+}
+
+impl SettingsDecl {
     /// The name of the feature whose settings this declaration describes.
     pub fn feature(&self) -> &FeatureName {
         &self.feature
@@ -777,6 +1262,15 @@ impl SettingsDecl {
         self.parts
             .iter()
             .flat_map(|part| part.keys.iter().map(|name| KeyDecl { name: name.clone(), bind: part.bind }))
+    }
+
+    /// Whether the feature takes settings: whether the declaration has a key
+    /// of its own ([`keys`](SettingsDecl::keys)). A declaration that only
+    /// declares entries of another feature's keys
+    /// ([`entry_data`](SettingsDecl::entry_data)) describes a feature that
+    /// takes no settings.
+    pub fn takes_settings(&self) -> bool {
+        self.keys().next().is_some()
     }
 
     /// The Rust types the settings are read into, each identified by its option
@@ -792,16 +1286,28 @@ impl SettingsDecl {
         self.keys().find(|key| key.name == name)
     }
 
-    /// The marks on the feature's settings keys, in the order they were first
-    /// set.
+    /// The marks on the feature's settings and the values below them, one
+    /// [`KeyMark`] per marked path, in the order each path was first marked.
     pub fn marks(&self) -> &[KeyMark] {
         &self.marks
     }
 
-    /// The mark on the value at `path` (see [`KeyMark`]), or `None` when no mark
-    /// is set there.
+    /// Whether a mark of the declaration sets `mark` on the place `place`, the
+    /// key first, then the names below it: a mark's path names the place when
+    /// each of its segments is the place's name there, or `*` (see [`KeyMark`]).
+    pub fn is_marked(&self, place: &[String], mark: Mark) -> bool {
+        self.marks.iter().any(|marks| marks.has(mark) && cascade::names(&marks.path, place))
+    }
+
+    /// The marks on the value at `path` (see [`KeyMark`]), or `None` when no
+    /// mark is set there.
     pub fn mark_at(&self, path: &str) -> Option<&KeyMark> {
         self.marks.iter().find(|mark| mark.path == path)
+    }
+
+    /// Whether the value at `path` carries `mark`.
+    pub fn has_mark(&self, path: &str, mark: Mark) -> bool {
+        self.mark_at(path).is_some_and(|marked| marked.has(mark))
     }
 
     fn part_of(&self, key: &str) -> Option<&Part> {
@@ -895,15 +1401,30 @@ impl SettingsDecl {
     /// with each Rust type of the declaration. Its properties are the feature's
     /// settings keys, each with the description from its field's Rust
     /// documentation and its binding under `x-flm-bind`; no other property is
-    /// allowed. The default of a key merged entry by entry is its default
-    /// entries ([`default_entries`](SettingsDecl::default_entries)). The marks
-    /// are listed under `x-flm-marks`, one object per mark with its `path`,
-    /// `merge_entries` and `kind`. The schemas of the types the keys are read
-    /// into are under `$defs`.
+    /// allowed. The schemas of the types the keys are read into are under
+    /// `$defs`.
+    ///
+    /// Every mark ([`marks`](SettingsDecl::marks)) is written on the node at
+    /// its path, under [`MARKS_KEYWORD`] (`x-flm-marks`), as the list of the
+    /// mark names; the default of an object combined key by key is its default
+    /// entries ([`default_entries`](SettingsDecl::default_entries)). A mark is
+    /// written at no other place: where the path of a mark passes through a
+    /// definition of `$defs` that another place refers to as well, and the
+    /// marks below the two places differ, the definition is written out in
+    /// place along that path; otherwise the marks are written in the
+    /// definition.
     ///
     /// For a part declared from data, each key's schema is the one its
     /// `properties` give, with its binding added, and the part's own `$defs`
     /// join those of the result; its description is the `docs` given.
+    ///
+    /// The schema of each entry in force ([`with_entries`](SettingsDecl::with_entries))
+    /// stands at its place: each map on the way to it gets the property of the
+    /// entry's name beside its `additionalProperties`, and the entry's
+    /// property is the entry's schema, with its marks and those that this
+    /// declaration sets on the entry's place; the entry's own `$defs` join
+    /// those of the result, each named by the entry's path, a `.` and its own
+    /// name.
     ///
     /// Every description is the Rust documentation turned into plain text, for
     /// any reader of the schema: a link is written as its words alone, without
@@ -911,6 +1432,19 @@ impl SettingsDecl {
     /// first heading on (`# Examples`, `# Panics`). The rest is kept as written,
     /// including code spans in backticks.
     pub fn json_schema(&self) -> Value {
+        let mut root = self.bare_schema();
+        for entry in &self.in_force {
+            marks::graft(&mut root, &entry.path, &entry.schema);
+        }
+        marks::print(&mut root, &self.marks, |path| self.default_entries(path));
+        plain_descriptions(&mut root);
+        root
+    }
+
+    /// The JSON Schema of the feature's settings, as
+    /// [`json_schema`](SettingsDecl::json_schema) gives it before the marks
+    /// are written and the descriptions made plain text.
+    fn bare_schema(&self) -> Value {
         let mut generator = schemars::SchemaGenerator::default();
         let mut properties = Map::new();
         for part in &self.parts {
@@ -927,13 +1461,6 @@ impl SettingsDecl {
                     object.insert("x-flm-bind".into(), Value::from(part.bind.label()));
                     property = Value::Object(object);
                 }
-                // A key merged entry by entry states its default entries as
-                // data, which is what the schema's default is.
-                if let Some(entries) = self.default_entries(key) {
-                    if let Value::Object(object) = &mut property {
-                        object.insert("default".into(), Value::Object(entries.clone()));
-                    }
-                }
                 properties.insert(key.clone(), property);
             }
         }
@@ -945,27 +1472,11 @@ impl SettingsDecl {
         root.insert("type".into(), Value::from("object"));
         root.insert("properties".into(), Value::Object(properties));
         root.insert("additionalProperties".into(), Value::Bool(false));
-        if !self.marks.is_empty() {
-            let marks = self
-                .marks
-                .iter()
-                .map(|mark| {
-                    serde_json::json!({
-                        "path": mark.path,
-                        "merge_entries": mark.merge_entries,
-                        "kind": mark.kind.label(),
-                    })
-                })
-                .collect();
-            root.insert("x-flm-marks".into(), Value::Array(marks));
-        }
         let definitions = generator.take_definitions(true);
         if !definitions.is_empty() {
             root.insert("$defs".into(), Value::Object(definitions));
         }
-        let mut root = Value::Object(root);
-        plain_descriptions(&mut root);
-        root
+        Value::Object(root)
     }
 }
 
@@ -1315,8 +1826,8 @@ pub enum SettingsErrorKind {
     /// ([`SettingsDecl::config_from`], [`SettingsDecl::config_data_read`]).
     InvalidValue,
     /// A declaration of settings from data contradicts itself or is malformed
-    /// ([`SettingsDecl::config_data`], [`SettingsDecl::config_data_read`], [`SettingsDecl::options_data`],
-    /// [`SettingsDecl::merge_entries_data`]): no data was read.
+    /// ([`SettingsDecl::config_data`], [`SettingsDecl::config_data_read`], [`SettingsDecl::options_data`]):
+    /// no data was read.
     InvalidDeclaration,
 }
 
@@ -1360,7 +1871,7 @@ impl std::error::Error for SettingsError {}
 /// inserts the result here. The package's build function decides what a
 /// feature with no settings here becomes, and leaves every switched-off feature
 /// out ([`PackageFactory::new`](crate::core::registry::PackageFactory::new));
-/// the standard package builds a feature with no settings from its defaults.
+/// the standard features are built from their defaults where the settings give none.
 #[derive(Debug, Clone, Default)]
 pub struct PackageSettings {
     features: BTreeMap<FeatureName, FeatureSettings>,

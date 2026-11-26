@@ -161,7 +161,7 @@ of it: `flm.blocks.structured` refines `flm.blocks`. Providing the refinement al
 satisfies a demand for the parent, so a caller that just wants block structure does not
 have to know which of several ways of structuring exists. At most one refinement of a
 parent may be marked its **default**: the one a demand for the parent selects when
-nothing else decides. In the standard package, `flm.blocks` is refined by
+nothing else decides. In the standard features, `flm.blocks` is refined by
 `flm.blocks.structured` (the default) and by `flm.blocks.raw`, which leaves the trees
 without block structure.
 
@@ -182,10 +182,10 @@ the capabilities a stage provides, or among those a stage requires — is refuse
 
 ```rust
 # use flm_core::core::plan::{Plan, PlanRequest};
-# use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-# use flm_core::stdcore::{self, StdcoreConfig};
+# use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+# use flm_core::stdlib::{self, StdlibConfig};
 # let mut builder = RegistryBuilder::new();
-# builder.use_package(stdcore::package(StdcoreConfig::new()));
+# builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 # builder.use_package(flm_core::math_passthrough::package());
 # let registry = builder.build(&RegistryInputs::new())?;
 // `flm.validated` is a collection: demanding it demands each of its members.
@@ -217,7 +217,7 @@ A feature may also place an edge on *another* feature's stage with
 order it does not own. An edge to a capability that has refinements follows whichever
 refinement the plan scheduled.
 
-In the standard package, the rewrite of the `input` feature, which inserts the content
+In the standard features, the rewrite of the `input` feature, which inserts the content
 of included files in place of their `\input` commands, declares ordering-only edges
 before the expansion of user definitions and before block structure. It requires
 neither, but when either runs, the content of included files must already be in place.
@@ -253,8 +253,8 @@ about it through [`Overrides`](crate::core::plan::Overrides). An **output**
 ([`OutputDef`](crate::core::registry::OutputDef)) is a name a caller can ask for, such
 as `text`. It ties together the capability the plan must reach, the table in which the
 resulting artifacts are found, and the media type and file extension of the entry
-artifact. Demanding an output is demanding its capability. The standard package
-registers five workflows, `check`, `text`, `latex-recomposed`, `latex-rendered` and
+artifact. Demanding an output is demanding its capability. The standard features
+register five workflows, `check`, `text`, `latex-recomposed`, `latex-rendered` and
 `html`, and four outputs, `text`, `latex-recomposed`, `latex-rendered` and `html`.
 
 [`Plan::for_workflow`](crate::core::plan::Plan::for_workflow) turns a workflow into a
@@ -275,11 +275,11 @@ that produce the same request share a plan.
 
 ```rust
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -371,8 +371,14 @@ the choices were made; both serve to follow how a plan was built.
 [`Plan::warnings`](crate::core::plan::Plan::warnings) holds the preferences the plan
 could not honor — a preferred lowering rule that is set aside (excluded from rule
 selection; see [`PeerName`](crate::core::registry::PeerName)) or belongs to another
-backend, a preferred stage that a forced choice ruled out; the runner reports each as a
-diagnostic of Warning severity at the start of the run.
+backend, a preferred stage that a forced choice ruled out — and the output of the
+selected lowering rules that nothing checks before the program reading the output does,
+one warning per backend and feature (a rule declares such output in
+[`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output);
+the formulas of `math-passthrough` on `html`, `latex-rendered` and `latex-recomposed` are
+such output, and so are those of `math-techxt` on `latex-rendered` and
+`latex-recomposed`). The runner reports each as a diagnostic of Warning severity at the start of
+the run.
 [`Plan::render`](crate::core::plan::Plan::render) prints all of this as a few lines of
 stable text, for a report or a test that compares two plans.
 
@@ -475,16 +481,61 @@ Execution then proceeds in the batches the plan fixed:
    stages — stops, unless
    [`RunOptions::continue_with_errors`](crate::core::run::RunOptions#structfield.continue_with_errors)
    is set. A document with errors therefore produces no effects outside the store unless
-   the caller asks for them. The standard package registers no `Io` stage — its
+   the caller asks for them. The standard features register no `Io` stage — their
    rendering stages write their artifacts into tables, and the embedding program
-   decides where they go — so a plan built from it alone has no gate to stop at, and
+   decides where they go — so a plan built from them alone has no gate to stop at, and
    [`Plan::first_io_batch`] returns `None`.
 
-[`Run::execute`](crate::core::run::Run::execute) runs to the end and reports whether the
-error gate stopped it; [`Run::step`](crate::core::run::Run::step) runs one batch and
-returns [`Step::More`](crate::core::run::Step) or `Step::Done`. Stepping changes when the
-work happens, never what is computed: the batches are fixed and the folds do not depend
-on timing.
+[`Run::execute`](crate::core::run::Run::execute) runs to the end and returns how the run
+ended; [`Run::step`](crate::core::run::Run::step) runs one batch and returns
+[`Step::More`](crate::core::run::Step) or `Step::Done`. Stepping changes when the work
+happens, never what is computed: the batches are fixed and the folds do not depend on
+timing. Once the run is over, [`Run::outcome`](crate::core::run::Run::outcome) returns the
+same [`RunOutcome`](crate::core::run::RunOutcome), which is one of three:
+
+- `Finished`: the run executed every batch of its plan.
+- `HaltedAtGate`: the error gate stopped the run.
+- `Cancelled`: the build was cancelled through its progress sheet (below).
+
+### Progress and cancellation of a run
+
+A host that shows the progress of a build, such as the `flm` program, creates a *progress
+sheet* ([`flm_core::progress`](crate::progress)): a tree of *rows*, one for each piece of
+work a person may wait for, each with a state and optionally a count of units done. The
+work writes the rows; the host reads them when it chooses, and may ask the build to stop.
+[Following a build](crate::guide::embedding#following-a-build) describes the host's side.
+
+[`Run::with_progress`](crate::core::run::Run::with_progress) gives a run the
+[`Scope`](crate::progress::Scope) of a row of the sheet, before the first step. The run
+then declares its own rows under that row at once, so that the host sees the work to come:
+
+- one row of kind `flm.run.rewrites` ([`REWRITES_KIND`](crate::core::run::REWRITES_KIND)),
+  counted in items, the trees that the rewrites run over, advanced as each tree is done;
+- one row for each scheduled stage, in the plan's order, whose kind is the stage's name.
+  The row starts when the stage's first call begins and ends when its last call returns.
+  The row of a per-tree stage counts the trees of the run, and advances as each call
+  returns; the row of a document stage has no count.
+
+A stage receives the scope of its row through
+[`StageCx::progress`](crate::core::run::StageCx::progress) and declares the rows of its own
+slow work under it ([Reporting progress from a stage or a
+service](crate::guide::extending#reporting-progress-from-a-stage-or-a-service)). A
+rewrite stage receives no scope: the run counts the trees for it. The stages that run
+during [value catch-up](#value-catch-up) declare no row. A run that is given no scope
+reports nowhere, and computes the same.
+
+The row of a stage that the error gate keeps from running ends as `NotRun`. The row of a
+stage that panics, and every row still running when the build is cancelled, ends as
+`Failed`.
+
+The run checks whether the build was cancelled at the start of each step, before each
+call of a stage (each per-tree call, and each tree of the rewrites), and once when the
+calls of a step have returned. When the build was cancelled, the calls not yet begun are
+skipped, and everything the step computed or reported is discarded, as when a stage
+panics. The run is then over, with the outcome `Cancelled`. The tables and the diagnostics
+of the steps completed before stay readable. A cancellation is not a problem of the
+document, and produces no diagnostic. A run that completes a step therefore produces what
+it would have produced without a sheet: reporting never changes what is computed.
 
 [`RunOptions`](crate::core::run::RunOptions) does not change what is computed either. It
 says whether to run on one thread even where the parallel build allows more, whether to
@@ -515,14 +566,14 @@ use std::sync::Arc;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Plan, PlanCx, PlanRequest};
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder, RegistryInputs,
 };
 use flm_core::core::run::{Externals, Run, RunOptions, StageCx, Step};
 use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_core::core::data::store::StageOut;
 use flm_core::core::data::table::{Table, TableName};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 
 // The table: one typed value. `absorb` says how the pieces of the per-tree
 // runs combine into the one table the store holds.
@@ -574,7 +625,7 @@ impl FlmFeature for Counting {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.feature(Arc::new(Counting));
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -617,7 +668,7 @@ from outside one document reaches the stages of a run this way, for example an i
 the labels defined in the other documents of a collection, so that references between
 the documents resolve. A feature declares an external table with
 [`external_table`](crate::core::registry::FeatureBuilder::external_table); the standard
-example is [`EXTERNAL_INDEX`](crate::stdcore::features::refs::EXTERNAL_INDEX).
+example is [`EXTERNAL_INDEX`](crate::stdlib::features::refs::EXTERNAL_INDEX).
 
 Plan construction treats the capability of an external table as satisfied by
 installation, and lists the tables that must be installed in

@@ -185,6 +185,9 @@ pub trait FlmFeature: Send + Sync {
     /// [`register`](FlmFeature::register); `register` must not declare them
     /// again, or the build reports a duplicate option type. A
     /// [`PackageFactory`] lists this declaration next to the feature's name.
+    /// The name [`ENABLED_KEY`](crate::core::settings::ENABLED_KEY) is
+    /// reserved for switching a feature on or off: a [`SettingsDecl`] refuses
+    /// a key of that name.
     fn settings(&self) -> Option<SettingsDecl> {
         None
     }
@@ -240,8 +243,9 @@ type BuildFn = dyn Fn(&PackageSettings) -> Result<PackageEntry, PackageError> + 
 /// combines them over all its sources, and then builds the package once with
 /// [`build`](PackageFactory::build). The factory lists the packages it uses by
 /// name only: the program builds each of them from its own factory, so the
-/// entry that `build` returns should use no package. [`crate::stdcore::factory`]
-/// returns the factory of the standard package.
+/// entry that `build` returns should use no package. A package that holds the
+/// standard features builds them in its build function with
+/// [`crate::stdlib::add_features_from_settings`].
 ///
 /// The factory finds its features by building the package once, when it is
 /// created, from empty settings: it lists each feature of that entry, in
@@ -782,8 +786,8 @@ impl fmt::Debug for PackageCatalog {
 /// packages it builds on.
 ///
 /// A package is the unit in which features are shipped and registered
-/// together; [`crate::stdcore::package`] returns the standard package. Pass a
-/// package to
+/// together; [`crate::stdlib::add_features`] adds the standard features to a
+/// package. Pass a package to
 /// [`RegistryBuilder::use_package`](super::RegistryBuilder::use_package),
 /// which adds the features of the packages it uses first, then its own
 /// features, in order, together with the chains of the feature order each

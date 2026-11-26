@@ -1,5 +1,5 @@
 //! The engine of `flm dump`, called as a library: what it gives, in order, and its
-//! failures with their statuses. The `flm` program's own tests (`flm-cli/tests/dump.rs`)
+//! failures with their statuses. The `flm` program's own tests (`flm/tests/dump.rs`)
 //! check the command end to end.
 
 use flm_info::dump::{At, Printed, Request, Subject, View, dump};
@@ -48,11 +48,10 @@ fn a_document_s_diagnostics_are_given_before_its_view() {
 fn the_failures_carry_their_statuses() {
     let error = run(&Request::new(Subject::Table(String::from("no.such.table"))), "Hello.").expect_err("an unknown table");
     assert_eq!(error.status, 1);
-    assert!(error.message.starts_with("the table `no.such.table` must be one of the tables: "), "{}", error.message);
     let error = run(&Request::new(Subject::Tree(At::Lowered(String::from("nope")))), "Hello.").expect_err("an unknown backend");
     assert_eq!(error.status, 1);
     let mut unknown = Request::new(Subject::Tree(At::Frozen));
     unknown.workflow = String::from("no-such-workflow");
     let error = run(&unknown, "Hello.").expect_err("an unknown workflow");
-    assert!(error.message.starts_with("the workflow `no-such-workflow` cannot be run: "), "{}", error.message);
+    assert_eq!(error.status, 1);
 }

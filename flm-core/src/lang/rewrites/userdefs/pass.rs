@@ -12,7 +12,7 @@
 //! through this pass again, one level deeper), and replaces a use site that has
 //! a problem by its literal source text, with a diagnostic.
 //!
-//! The [`userdefs` feature](crate::stdcore::features::userdefs) runs the pass as
+//! The [`userdefs` feature](crate::stdlib::features::userdefs) runs the pass as
 //! two rewrite stages, `flm.userdefs.expand-always` and `flm.userdefs.expand`.
 //! A caller may also run it on any other tree, such as the tree of a short text
 //! parsed on its own.
@@ -75,7 +75,7 @@ use crate::lang::rewrites::userdefs::template::CompiledTemplate;
 /// inside one another before a use site is replaced by its literal source text
 /// and reported with `flm.userdefs.recursion-limit`. The configuration of the
 /// `userdefs` feature
-/// ([`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig)) uses
+/// ([`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig)) uses
 /// it unless it sets another limit.
 pub const DEFAULT_RECURSION_LIMIT: usize = 32;
 
@@ -144,7 +144,7 @@ impl std::error::Error for ExpandFailure {}
 /// The expand pass replaces every use site of a user definition by its template
 /// instantiated with the use site's arguments (substitute, re-source, then
 /// expand one level deeper), as a plain function that the
-/// [`userdefs` feature](crate::stdcore::features::userdefs) wraps in two
+/// [`userdefs` feature](crate::stdlib::features::userdefs) wraps in two
 /// rewrite stages.
 ///
 /// It can be called on a document's tree and on any other tree alike. A use site
@@ -229,7 +229,7 @@ fn run_pass(
 /// the pass's own failure.
 fn failure(error: RestageError<ExpandError>, at: FlmSpan) -> ExpandFailure {
     let refusal = match &error {
-        RestageError::DescentLimitExceeded { detail } => Some(detail.clone()),
+        RestageError::DescentLimitExceeded { detail, .. } => Some(detail.clone()),
         RestageError::Visitor(inner) => inner.descent_refusal().map(String::from),
         _ => None,
     };

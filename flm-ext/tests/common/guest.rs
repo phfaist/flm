@@ -1,12 +1,14 @@
 //! The guest crates of `flm-ext/tests/wasm/` (`wordcount`, case 1 compiled from
-//! Rust, and `failing`) and the stub of `flm-ext/tests/native/stub/`, built for the
+//! Rust, `failing`, `pair`, a module that holds two extensions, and `collection`, a
+//! collection of two extensions) and the stub of `flm-ext/tests/native/stub/`, built for the
 //! target `wasm32-unknown-unknown` in release by the gated tests that load their
-//! modules: `flm-ext/tests/wasm_case1.rs`, `flm-ext/tests/native.rs`,
-//! `flm-ext/tests/native_wasm32.rs` (which also builds the program of
-//! `flm-ext/tests/native/program/` itself, under the same gate) and
-//! `flm-cli/tests/extensions_wasm.rs`, which includes this file by its path.
-//! Those tests run only with `FLM_TESTS_WASM_GUEST=1` and the target installed
-//! (building a guest compiles `flm-core` for the target in release); otherwise
+//! modules: `flm-ext/tests/wasm_case1.rs`, `flm-ext/tests/wasm_collection.rs`,
+//! `flm-ext/tests/native.rs`, `flm-ext/tests/native_wasm32.rs` (which also builds the
+//! program of `flm-ext/tests/native/program/` itself, under the same gate),
+//! `flm/tests/extensions_wasm.rs`, which includes this file by its path, and the tests of
+//! the program and of `flm-host` that run `extensions/rust/build-wasm.sh`, which include it
+//! for [`skipped`]. Those tests run only with `FLM_TESTS_WASM_GUEST=1` and the target
+//! installed (building a guest compiles `flm-core` for the target in release); otherwise
 //! each writes one line beginning `skipped:` and passes.
 //!
 //! A guest is built with `cargo build --manifest-path flm-ext/tests/wasm/NAME/Cargo.toml

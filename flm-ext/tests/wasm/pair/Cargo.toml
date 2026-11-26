@@ -1,0 +1,35 @@
+# A module that holds two extensions: the extensions `first` and `second`, written against
+# the guest client `flm_ext::guest` and compiled to one WebAssembly module whose exports
+# the macro `extensions!` writes over a table of code of two rows. A standalone crate (its
+# own empty workspace, outside the repository's), built by the gated test
+# `flm-ext/tests/wasm_case1.rs` with
+#
+#     cargo build --manifest-path flm-ext/tests/wasm/pair/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked
+#
+# The lockfile `Cargo.lock` beside this file is committed, and the build is `--locked`: when
+# the version or the dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/wasm/pair/Cargo.toml --offline
+[package]
+name = "pair"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../..", default-features = false, features = ["guest"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

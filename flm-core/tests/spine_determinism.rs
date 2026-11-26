@@ -10,7 +10,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::run::{Externals, Run, RunOptions};
-use flm_core::stdcore::features::refs::UnresolvedRefs;
+use flm_core::stdlib::features::refs::UnresolvedRefs;
 
 use common::lowering::output;
 use common::pipeline;

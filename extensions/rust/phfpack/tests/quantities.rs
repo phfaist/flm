@@ -12,6 +12,7 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::registry::FlmRegistry;
+use flm_core::stdlib::backends::{html, latex_recomposed};
 
 use common::{
     compile_under_both_engines, compiling_enabled, html_of, latex_of, registry, registry_with, text_of,
@@ -160,7 +161,7 @@ fn each_quantity_macro_is_replaced_in_the_formula_the_web_page_hands_the_rendere
     let registry = registry();
     for (use_, expected) in uses() {
         let (html, diagnostics) = html_of(&registry, &format!(r"\({use_}\)"));
-        assert!(diagnostics.is_empty(), "{use_}: {diagnostics:?}");
+        common::assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
         assert!(html.contains(&format!(r"\({expected}\)")), "{use_}: {html}");
     }
 }
@@ -170,7 +171,7 @@ fn each_quantity_macro_is_replaced_in_the_recomposed_latex() {
     let registry = registry();
     for (use_, expected) in uses() {
         let (latex, diagnostics) = latex_of(&registry, &format!(r"\({use_}\)"));
-        assert!(diagnostics.is_empty(), "{use_}: {diagnostics:?}");
+        common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
         assert!(latex.contains(&format!(r"\({expected}\)")), "{use_}: {latex}");
     }
 }
@@ -184,7 +185,7 @@ fn the_recomposed_latex_of_each_quantity_macro_compiles_under_both_engines() {
     let registry = registry();
     let source: String = uses().map(|(use_, _)| format!("\\({use_}\\)\n\n")).collect();
     let (body, diagnostics) = latex_of(&registry, &source);
-    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    common::assert_only_unchecked_output(&common::workflow_plan(&registry, latex_recomposed::WORKFLOW), &diagnostics);
     for (use_, expected) in uses() {
         assert!(body.contains(expected), "{use_}: {body}");
     }

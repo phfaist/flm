@@ -28,16 +28,20 @@
 //!    declare further entities derived from what other features contributed.
 //! 3. **Validate.** The build drops the members added to collections that no
 //!    feature declares, and applies the fields registered for workflows by
-//!    name. It resolves the [peer declarations](super::PeerName): a signature
-//!    mismatch is an error; an unresolved declaration is a Note
-//!    ([`UnresolvedPeer`]) among the build diagnostics; the lowering rules
-//!    that depend on it are set aside (excluded from rule selection; see
-//!    [`PeerName`]), and a stage that writes an unresolved peer table is not
-//!    registered. Then the checks over all the collected declarations run,
-//!    and the aspects that features attach to other features' elements are
-//!    merged into the element values. Finally,
-//!    every backend's native set is checked against the declared [native-set
-//!    implications](super::NativeImplication), with the merged aspects.
+//!    name. It checks the documentation texts of element types
+//!    ([`FeatureBuilder::element_type_text`](super::FeatureBuilder::element_type_text)):
+//!    a text from a feature that does not declare the type, and a second text
+//!    for one type, are errors. It resolves the [peer
+//!    declarations](super::PeerName): a signature mismatch is an error; an
+//!    unresolved declaration is a Note ([`UnresolvedPeer`]) among the build
+//!    diagnostics; the lowering rules that depend on it are set aside
+//!    (excluded from rule selection; see [`PeerName`]), and a stage that
+//!    writes an unresolved peer table is not registered. Then the checks over
+//!    all the collected declarations run, and the aspects that features
+//!    attach to other features' elements are merged into the element values.
+//!    Finally, every backend's native set is checked against the declared
+//!    [native-set implications](super::NativeImplication), with the merged
+//!    aspects.
 //! 4. **Language.** The build creates the language that documents are parsed
 //!    with (the commands and their syntax, and the parsing settings;
 //!    [`FlmRegistry::lang`]) from the element, fallback, scoped-package and
@@ -537,6 +541,10 @@ impl RegistryBuilder {
             .extend(self.workflow_fields.into_iter().map(|def| (FeatureName::from(HOST_FEATURE), def)));
         apply_workflow_fields(&mut roster);
         validate::merge_repeated_peers(&mut roster);
+        // The texts of element types are checked against the features that
+        // declare each type, which the peer element values set apart below
+        // do not.
+        let type_text_errors = validate::element_type_texts(&mut roster, &structural::NAMES);
         // A value of an element type nobody declares is dropped before any
         // check sees it; one Note per feature and element type.
         for (feature, element) in validate::resolve_peer_element_values(&mut roster, &structural::NAMES) {
@@ -564,6 +572,7 @@ impl RegistryBuilder {
         remove_stages(&mut roster, &set_aside_stages);
         let mut errors = validate::validate(&roster, &structural::NAMES);
         errors.extend(peer_errors);
+        errors.extend(type_text_errors);
         for (feature, name, rules) in unresolved {
             let stages = set_aside_stages
                 .iter()

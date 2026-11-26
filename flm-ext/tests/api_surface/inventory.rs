@@ -233,6 +233,12 @@ pub struct Param {
 pub enum FirstStatement {
     /// `self.<field>.push(…);`
     Push(String),
+    /// `self.<field>.push(S { a: a.into(), b, … });`, each field of the
+    /// struct literal given the parameter of its name (or its `into()`): the
+    /// builder of a list of records, which takes one parameter per field
+    /// (`LoweringDecl::unchecked_output`). The names are the literal's
+    /// fields, in order.
+    PushRecord(String, Vec<String>),
     /// `self.<field> = …;`
     Set(String),
     /// `self.<field> = <a boolean literal>;`, the setter of a flag, which
@@ -249,6 +255,7 @@ impl FirstStatement {
     pub fn text(&self) -> String {
         match self {
             FirstStatement::Push(field) => format!("push {field}"),
+            FirstStatement::PushRecord(field, names) => format!("push {field} {{ {} }}", names.join(", ")),
             FirstStatement::Set(field) => format!("set {field}"),
             FirstStatement::SetTo(field, value) => format!("set {field} = {value}"),
             FirstStatement::Get(field) => format!("get {field}"),
@@ -287,7 +294,7 @@ impl Inventory {
     /// The names of the submodules of the module `path` that are modules of
     /// the surface (a file one level below it with items), in path order: a
     /// stub exports each as a namespace (`export * as preamble from
-    /// "flm:stdcore/backends/latex/preamble"`), as the Rust path
+    /// "flm:stdlib/backends/latex/preamble"`), as the Rust path
     /// `latex::preamble` reaches it.
     pub fn submodules(&self, path: &str) -> Vec<&str> {
         let prefix = format!("{path}/");
@@ -566,7 +573,10 @@ fn read_function(attrs: &[syn::Attribute], sig: &syn::Signature, inherent: bool,
 fn first_statement(stmt: &syn::Stmt) -> FirstStatement {
     let syn::Stmt::Expr(expr, _) = stmt else { return FirstStatement::Other };
     match expr {
-        syn::Expr::MethodCall(call) if call.method == "push" => self_field(&call.receiver).map_or(FirstStatement::Other, FirstStatement::Push),
+        syn::Expr::MethodCall(call) if call.method == "push" => match (self_field(&call.receiver), record_fields(&call.args)) {
+            (Some(field), Some(names)) => FirstStatement::PushRecord(field, names),
+            (field, _) => field.map_or(FirstStatement::Other, FirstStatement::Push),
+        },
         syn::Expr::Assign(assign) => match (self_field(&assign.left), &*assign.right) {
             (Some(field), syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Bool(value), .. })) => FirstStatement::SetTo(field, value.value),
             (field, _) => field.map_or(FirstStatement::Other, FirstStatement::Set),
@@ -576,6 +586,32 @@ fn first_statement(stmt: &syn::Stmt) -> FirstStatement {
         }
         _ => FirstStatement::Other,
     }
+}
+
+/// The field names of the one argument of a `push`, when it is a struct
+/// literal each of whose fields is given the variable of its name, or that
+/// variable's `into()`.
+fn record_fields(args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>) -> Option<Vec<String>> {
+    let [syn::Expr::Struct(literal)] = args.iter().collect::<Vec<_>>()[..] else { return None };
+    if literal.rest.is_some() {
+        return None;
+    }
+    let variable = |expr: &syn::Expr| match expr {
+        syn::Expr::Path(path) => path.path.get_ident().map(ToString::to_string),
+        syn::Expr::MethodCall(call) if call.method == "into" && call.args.is_empty() => match &*call.receiver {
+            syn::Expr::Path(path) => path.path.get_ident().map(ToString::to_string),
+            _ => None,
+        },
+        _ => None,
+    };
+    literal
+        .fields
+        .iter()
+        .map(|field| match &field.member {
+            syn::Member::Named(name) if variable(&field.expr).as_deref() == Some(name.to_string().as_str()) => Some(name.to_string()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The field `f` of an expression `self.f`.

@@ -1,2 +1,4 @@
+{% from "css_selectors.jinja" import css_selectors %}
 :root { --ln-family: {{ config.font_family }}; }
 {{ include_raw("dist/lecturenotes.css") }}
+{% include "groups.css" %}

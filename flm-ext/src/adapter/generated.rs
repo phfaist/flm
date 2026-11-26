@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::adapter::dispatch::{entry, extra, no_method};
 use crate::adapter::handles::{CallTable, Entry, Handle, HandleKind};
-use crate::adapter::values::{mismatch, Args, FromArg, IntoReply};
+use crate::adapter::values::{mismatch, Args, FromArg, Group, IntoReply};
 use crate::api::core::lowering::DefaultMark;
 use crate::api::core::lowering::Lower;
 use crate::api::core::lowering::LoweringDecl;
@@ -29,7 +29,6 @@ use crate::api::core::registry::StyleDef;
 use crate::api::core::services::Arity;
 use crate::api::core::stage::RewriteStage;
 use crate::api::core::stage::Stage;
-use crate::api::host::FilesScope;
 use crate::api::lang::mint::ElementDef;
 use crate::api::lang::mint::FallbackDef;
 use crate::api::lang::mint::Mode;
@@ -39,11 +38,13 @@ use crate::api::lang::rewrites::userdefs::Expand;
 use crate::api::lang::rewrites::userdefs::Staged;
 use crate::api::model::aspects::Label;
 use crate::api::model::element::Aspect;
-use crate::api::stdcore::features::citations::EntryPiece;
-use crate::api::stdcore::features::math::LineFrame;
-use crate::api::stdcore::features::refs::LabelUse;
+use crate::api::progress::Unit;
+use crate::api::stdlib::features::citations::EntryPiece;
+use crate::api::stdlib::features::math::LineFrame;
+use crate::api::stdlib::features::refs::LabelUse;
 use crate::api::techy::error::Diagnostic;
 use crate::api::techy::node::Node;
+use crate::api::techy::node::NodeKindName;
 use crate::api::techy::node::Tree;
 use crate::api::techy::transform::RestagedArgument;
 use crate::api::techy::transform::RestagedSlot;
@@ -55,23 +56,26 @@ use crate::runtime::ExtError;
 pub const MODULE_PATHS: &[&str] = &[
     "core/artifact",
     "core/lowering",
+    "host",
     "lang/mint",
     "lang/rewrites/blocks",
     "lang/rewrites/userdefs",
     "lang/structural",
     "lang/text",
-    "stdcore/backends/html",
-    "stdcore/backends/latex",
-    "stdcore/backends/latex/packages",
-    "stdcore/backends/latex/preamble",
-    "stdcore/backends/lowering",
-    "stdcore/backends/pres",
-    "stdcore/features/citations",
-    "stdcore/features/compose",
-    "stdcore/features/math",
-    "stdcore/features/numbering",
-    "stdcore/features/refs",
-    "stdcore/features/userdefs",
+    "math_passthrough",
+    "math_passthrough/latex",
+    "stdlib/backends/html",
+    "stdlib/backends/latex",
+    "stdlib/backends/latex/packages",
+    "stdlib/backends/latex/preamble",
+    "stdlib/backends/lowering",
+    "stdlib/backends/pres",
+    "stdlib/features/citations",
+    "stdlib/features/compose",
+    "stdlib/features/math",
+    "stdlib/features/numbering",
+    "stdlib/features/refs",
+    "stdlib/features/userdefs",
     "techy/extract",
 ];
 
@@ -93,106 +97,107 @@ pub fn constants() -> Vec<(&'static str, &'static str, Value)> {
         ("lang/structural", "UNKNOWN_MACRO", json!(crate::api::lang::structural::UNKNOWN_MACRO)),
         ("lang/structural", "UNKNOWN_ENVIRONMENT", json!(crate::api::lang::structural::UNKNOWN_ENVIRONMENT)),
         ("lang/structural", "NAMES", json!(crate::api::lang::structural::NAMES)),
-        ("stdcore/backends/html", "TAG", json!(crate::api::stdcore::backends::html::TAG)),
-        ("stdcore/backends/latex", "MACRO", json!(crate::api::stdcore::backends::latex::MACRO)),
-        ("stdcore/backends/latex", "ENVIRONMENT", json!(crate::api::stdcore::backends::latex::ENVIRONMENT)),
-        ("stdcore/backends/latex", "RAW", json!(crate::api::stdcore::backends::latex::RAW)),
-        ("stdcore/backends/latex", "DEFINITION", json!(crate::api::stdcore::backends::latex::DEFINITION)),
-        ("stdcore/backends/latex", "ALL", json!(crate::api::stdcore::backends::latex::ALL)),
-        ("stdcore/backends/latex", "ARG_SLOT", json!(crate::api::stdcore::backends::latex::ARG_SLOT)),
-        ("stdcore/backends/latex", "BEGIN_SLOT", json!(crate::api::stdcore::backends::latex::BEGIN_SLOT)),
-        ("stdcore/backends/latex", "END_SLOT", json!(crate::api::stdcore::backends::latex::END_SLOT)),
-        ("stdcore/backends/latex", "RECOMPOSED_BACKEND", json!(crate::api::stdcore::backends::latex::RECOMPOSED_BACKEND)),
-        ("stdcore/backends/latex/packages", "SLOT", json!(crate::api::stdcore::backends::latex::packages::SLOT)),
-        ("stdcore/backends/latex/packages", "ID_PREFIX", json!(crate::api::stdcore::backends::latex::packages::ID_PREFIX)),
-        ("stdcore/backends/latex/packages", "AMSMATH", json!(crate::api::stdcore::backends::latex::packages::AMSMATH)),
-        ("stdcore/backends/latex/packages", "ZREF_CLEVER", json!(crate::api::stdcore::backends::latex::packages::ZREF_CLEVER)),
-        ("stdcore/backends/latex/packages", "TEXTCASE", json!(crate::api::stdcore::backends::latex::packages::TEXTCASE)),
-        ("stdcore/backends/latex/packages", "HYPERREF", json!(crate::api::stdcore::backends::latex::packages::HYPERREF)),
-        ("stdcore/backends/latex/packages", "FVEXTRA", json!(crate::api::stdcore::backends::latex::packages::FVEXTRA)),
-        ("stdcore/backends/latex/packages", "NEWUNICODECHAR", json!(crate::api::stdcore::backends::latex::packages::NEWUNICODECHAR)),
-        ("stdcore/backends/latex/packages", "ENUMITEM", json!(crate::api::stdcore::backends::latex::packages::ENUMITEM)),
-        ("stdcore/backends/latex/packages", "AMSTHM", json!(crate::api::stdcore::backends::latex::packages::AMSTHM)),
-        ("stdcore/backends/latex/packages", "PHFTHM", json!(crate::api::stdcore::backends::latex::packages::PHFTHM)),
-        ("stdcore/backends/latex/packages", "PHFCC", json!(crate::api::stdcore::backends::latex::packages::PHFCC)),
-        ("stdcore/backends/latex/packages", "GRAPHICX", json!(crate::api::stdcore::backends::latex::packages::GRAPHICX)),
-        ("stdcore/backends/latex/packages", "ADJUSTBOX", json!(crate::api::stdcore::backends::latex::packages::ADJUSTBOX)),
-        ("stdcore/backends/latex/packages", "CAPTION", json!(crate::api::stdcore::backends::latex::packages::CAPTION)),
-        ("stdcore/backends/latex/packages", "TABULARRAY", json!(crate::api::stdcore::backends::latex::packages::TABULARRAY)),
-        ("stdcore/backends/latex/packages", "XCOLOR", json!(crate::api::stdcore::backends::latex::packages::XCOLOR)),
-        ("stdcore/backends/latex/preamble", "SLOT", json!(crate::api::stdcore::backends::latex::preamble::SLOT)),
-        ("stdcore/backends/latex/preamble", "ID_PREFIX", json!(crate::api::stdcore::backends::latex::preamble::ID_PREFIX)),
-        ("stdcore/backends/latex/preamble", "REFS", json!(crate::api::stdcore::backends::latex::preamble::REFS)),
-        ("stdcore/backends/latex/preamble", "HYPERREF", json!(crate::api::stdcore::backends::latex::preamble::HYPERREF)),
-        ("stdcore/backends/latex/preamble", "LABEL_DISPLAY_TEXT", json!(crate::api::stdcore::backends::latex::preamble::LABEL_DISPLAY_TEXT)),
-        ("stdcore/backends/latex/preamble", "ZREF_CLEVER_TYPE", json!(crate::api::stdcore::backends::latex::preamble::ZREF_CLEVER_TYPE)),
-        ("stdcore/backends/latex/preamble", "LABELS", json!(crate::api::stdcore::backends::latex::preamble::LABELS)),
-        ("stdcore/backends/latex/preamble", "HEADING", json!(crate::api::stdcore::backends::latex::preamble::HEADING)),
-        ("stdcore/backends/latex/preamble", "VERBATIM", json!(crate::api::stdcore::backends::latex::preamble::VERBATIM)),
-        ("stdcore/backends/latex/preamble", "MATH_ENVIRONMENT", json!(crate::api::stdcore::backends::latex::preamble::MATH_ENVIRONMENT)),
-        ("stdcore/backends/latex/preamble", "IF_BLANK", json!(crate::api::stdcore::backends::latex::preamble::IF_BLANK)),
-        ("stdcore/backends/latex/preamble", "USER_ARGS", json!(crate::api::stdcore::backends::latex::preamble::USER_ARGS)),
-        ("stdcore/backends/latex/preamble", "TAB_WIDTH", json!(crate::api::stdcore::backends::latex::preamble::TAB_WIDTH)),
-        ("stdcore/backends/pres", "PAR", json!(crate::api::stdcore::backends::pres::PAR)),
-        ("stdcore/backends/pres", "BLOCK", json!(crate::api::stdcore::backends::pres::BLOCK)),
-        ("stdcore/backends/pres", "BLOCK_HEADING", json!(crate::api::stdcore::backends::pres::BLOCK_HEADING)),
-        ("stdcore/backends/pres", "RUNIN_HEADING", json!(crate::api::stdcore::backends::pres::RUNIN_HEADING)),
-        ("stdcore/backends/pres", "SPAN", json!(crate::api::stdcore::backends::pres::SPAN)),
-        ("stdcore/backends/pres", "LIST", json!(crate::api::stdcore::backends::pres::LIST)),
-        ("stdcore/backends/pres", "CELLS", json!(crate::api::stdcore::backends::pres::CELLS)),
-        ("stdcore/backends/pres", "LINES", json!(crate::api::stdcore::backends::pres::LINES)),
-        ("stdcore/backends/pres", "LINE", json!(crate::api::stdcore::backends::pres::LINE)),
-        ("stdcore/backends/pres", "VERBATIM", json!(crate::api::stdcore::backends::pres::VERBATIM)),
-        ("stdcore/backends/pres", "MATH_PASSTHROUGH", json!(crate::api::stdcore::backends::pres::MATH_PASSTHROUGH)),
-        ("stdcore/backends/pres", "MATH_TEXT", json!(crate::api::stdcore::backends::pres::MATH_TEXT)),
-        ("stdcore/backends/pres", "LINK", json!(crate::api::stdcore::backends::pres::LINK)),
-        ("stdcore/backends/pres", "IMAGE", json!(crate::api::stdcore::backends::pres::IMAGE)),
-        ("stdcore/backends/pres", "UNSUPPORTED", json!(crate::api::stdcore::backends::pres::UNSUPPORTED)),
-        ("stdcore/backends/pres", "DROPPED", json!(crate::api::stdcore::backends::pres::DROPPED)),
-        ("stdcore/backends/pres", "UNKNOWN", json!(crate::api::stdcore::backends::pres::UNKNOWN)),
-        ("stdcore/backends/pres", "DECO_RUNIN", json!(crate::api::stdcore::backends::pres::DECO_RUNIN)),
-        ("stdcore/backends/pres", "DECO_FINAL", json!(crate::api::stdcore::backends::pres::DECO_FINAL)),
-        ("stdcore/backends/pres", "DECO_MARGIN", json!(crate::api::stdcore::backends::pres::DECO_MARGIN)),
-        ("stdcore/backends/pres", "DECO_MARK", json!(crate::api::stdcore::backends::pres::DECO_MARK)),
-        ("stdcore/backends/pres", "SUBTREE", json!(crate::api::stdcore::backends::pres::SUBTREE)),
-        ("stdcore/backends/pres", "ALL", json!(crate::api::stdcore::backends::pres::ALL)),
-        ("stdcore/backends/pres", "BODY_SLOT", json!(crate::api::stdcore::backends::pres::BODY_SLOT)),
-        ("stdcore/backends/pres", "LABEL_SLOT", json!(crate::api::stdcore::backends::pres::LABEL_SLOT)),
-        ("stdcore/backends/pres", "ITEM_SLOT", json!(crate::api::stdcore::backends::pres::ITEM_SLOT)),
-        ("stdcore/backends/pres", "CELL_SLOT", json!(crate::api::stdcore::backends::pres::CELL_SLOT)),
-        ("stdcore/features/citations", "PROVIDERS_SLOT", json!(crate::api::stdcore::features::citations::PROVIDERS_SLOT)),
-        ("stdcore/features/compose", "TEMPLATES_SLOT", json!(crate::api::stdcore::features::compose::TEMPLATES_SLOT)),
-        ("stdcore/features/compose", "ENGINES_SLOT", json!(crate::api::stdcore::features::compose::ENGINES_SLOT)),
-        ("stdcore/features/math", "MATH", json!(crate::api::stdcore::features::math::MATH)),
-        ("stdcore/features/math", "ENVIRONMENT", json!(crate::api::stdcore::features::math::ENVIRONMENT)),
-        ("stdcore/features/math", "ENVIRONMENTS", json!(crate::api::stdcore::features::math::ENVIRONMENTS)),
-        ("stdcore/features/math", "CONTENT", json!(crate::api::stdcore::features::math::CONTENT)),
-        ("stdcore/features/math", "RENDERED", json!(crate::api::stdcore::features::math::RENDERED)),
-        ("stdcore/features/math", "KIND", json!(crate::api::stdcore::features::math::KIND)),
-        ("stdcore/features/math", "COUNTER", json!(crate::api::stdcore::features::math::COUNTER)),
-        ("stdcore/features/math", "LINES_PACKAGE", json!(crate::api::stdcore::features::math::LINES_PACKAGE)),
-        ("stdcore/features/math", "LINEBREAK_COMMAND", json!(crate::api::stdcore::features::math::LINEBREAK_COMMAND)),
-        ("stdcore/features/math", "TAG_COMMAND", json!(crate::api::stdcore::features::math::TAG_COMMAND)),
-        ("stdcore/features/math", "NONUMBER_COMMAND", json!(crate::api::stdcore::features::math::NONUMBER_COMMAND)),
-        ("stdcore/features/math", "TEXT", json!(crate::api::stdcore::features::math::TEXT)),
-        ("stdcore/features/math", "TEXT_COMMANDS", json!(crate::api::stdcore::features::math::TEXT_COMMANDS)),
-        ("stdcore/features/math", "ENSUREMATH", json!(crate::api::stdcore::features::math::ENSUREMATH)),
-        ("stdcore/features/numbering", "COUNTERS", json!(crate::api::stdcore::features::numbering::COUNTERS)),
-        ("stdcore/features/numbering", "COUNTERS_SLOT", json!(crate::api::stdcore::features::numbering::COUNTERS_SLOT)),
-        ("stdcore/features/numbering", "STYLES_SLOT", json!(crate::api::stdcore::features::numbering::STYLES_SLOT)),
-        ("stdcore/features/numbering", "WITHIN_JOINERS_SLOT", json!(crate::api::stdcore::features::numbering::WITHIN_JOINERS_SLOT)),
-        ("stdcore/features/numbering", "NUMBER_WRITERS_SLOT", json!(crate::api::stdcore::features::numbering::NUMBER_WRITERS_SLOT)),
-        ("stdcore/features/numbering", "PARENT_SETS_SLOT", json!(crate::api::stdcore::features::numbering::PARENT_SETS_SLOT)),
-        ("stdcore/features/refs", "ANCHORS", json!(crate::api::stdcore::features::refs::ANCHORS)),
-        ("stdcore/features/refs", "SAFE_LABELS", json!(crate::api::stdcore::features::refs::SAFE_LABELS)),
-        ("stdcore/features/refs", "LABELS", json!(crate::api::stdcore::features::refs::LABELS)),
-        ("stdcore/features/refs", "REF_RESOLUTIONS", json!(crate::api::stdcore::features::refs::REF_RESOLUTIONS)),
-        ("stdcore/features/refs", "FIELDS_ARG", json!(crate::api::stdcore::features::refs::FIELDS_ARG)),
-        ("stdcore/features/refs", "LABEL_FIELD", json!(crate::api::stdcore::features::refs::LABEL_FIELD)),
-        ("stdcore/features/refs", "TARGET_ARG", json!(crate::api::stdcore::features::refs::TARGET_ARG)),
-        ("stdcore/features/refs", "LABEL_PACKAGE", json!(crate::api::stdcore::features::refs::LABEL_PACKAGE)),
-        ("stdcore/features/refs", "TARGET_ARG_ROLE", json!(crate::api::stdcore::features::refs::TARGET_ARG_ROLE)),
-        ("stdcore/features/refs", "DEFINED_LABEL_ARG_ROLE", json!(crate::api::stdcore::features::refs::DEFINED_LABEL_ARG_ROLE)),
+        ("stdlib/backends/html", "TAG", json!(crate::api::stdlib::backends::html::TAG)),
+        ("stdlib/backends/latex", "MACRO", json!(crate::api::stdlib::backends::latex::MACRO)),
+        ("stdlib/backends/latex", "ENVIRONMENT", json!(crate::api::stdlib::backends::latex::ENVIRONMENT)),
+        ("stdlib/backends/latex", "RAW", json!(crate::api::stdlib::backends::latex::RAW)),
+        ("stdlib/backends/latex", "DEFINITION", json!(crate::api::stdlib::backends::latex::DEFINITION)),
+        ("stdlib/backends/latex", "ALL", json!(crate::api::stdlib::backends::latex::ALL)),
+        ("stdlib/backends/latex", "ARG_SLOT", json!(crate::api::stdlib::backends::latex::ARG_SLOT)),
+        ("stdlib/backends/latex", "BEGIN_SLOT", json!(crate::api::stdlib::backends::latex::BEGIN_SLOT)),
+        ("stdlib/backends/latex", "END_SLOT", json!(crate::api::stdlib::backends::latex::END_SLOT)),
+        ("stdlib/backends/latex", "RECOMPOSED_BACKEND", json!(crate::api::stdlib::backends::latex::RECOMPOSED_BACKEND)),
+        ("stdlib/backends/latex/packages", "SLOT", json!(crate::api::stdlib::backends::latex::packages::SLOT)),
+        ("stdlib/backends/latex/packages", "ID_PREFIX", json!(crate::api::stdlib::backends::latex::packages::ID_PREFIX)),
+        ("stdlib/backends/latex/packages", "AMSMATH", json!(crate::api::stdlib::backends::latex::packages::AMSMATH)),
+        ("stdlib/backends/latex/packages", "ZREF_CLEVER", json!(crate::api::stdlib::backends::latex::packages::ZREF_CLEVER)),
+        ("stdlib/backends/latex/packages", "TEXTCASE", json!(crate::api::stdlib::backends::latex::packages::TEXTCASE)),
+        ("stdlib/backends/latex/packages", "HYPERREF", json!(crate::api::stdlib::backends::latex::packages::HYPERREF)),
+        ("stdlib/backends/latex/packages", "FVEXTRA", json!(crate::api::stdlib::backends::latex::packages::FVEXTRA)),
+        ("stdlib/backends/latex/packages", "NEWUNICODECHAR", json!(crate::api::stdlib::backends::latex::packages::NEWUNICODECHAR)),
+        ("stdlib/backends/latex/packages", "ENUMITEM", json!(crate::api::stdlib::backends::latex::packages::ENUMITEM)),
+        ("stdlib/backends/latex/packages", "AMSTHM", json!(crate::api::stdlib::backends::latex::packages::AMSTHM)),
+        ("stdlib/backends/latex/packages", "PHFTHM", json!(crate::api::stdlib::backends::latex::packages::PHFTHM)),
+        ("stdlib/backends/latex/packages", "PHFCC", json!(crate::api::stdlib::backends::latex::packages::PHFCC)),
+        ("stdlib/backends/latex/packages", "GRAPHICX", json!(crate::api::stdlib::backends::latex::packages::GRAPHICX)),
+        ("stdlib/backends/latex/packages", "ADJUSTBOX", json!(crate::api::stdlib::backends::latex::packages::ADJUSTBOX)),
+        ("stdlib/backends/latex/packages", "CAPTION", json!(crate::api::stdlib::backends::latex::packages::CAPTION)),
+        ("stdlib/backends/latex/packages", "TABULARRAY", json!(crate::api::stdlib::backends::latex::packages::TABULARRAY)),
+        ("stdlib/backends/latex/packages", "XCOLOR", json!(crate::api::stdlib::backends::latex::packages::XCOLOR)),
+        ("stdlib/backends/latex/preamble", "SLOT", json!(crate::api::stdlib::backends::latex::preamble::SLOT)),
+        ("stdlib/backends/latex/preamble", "ID_PREFIX", json!(crate::api::stdlib::backends::latex::preamble::ID_PREFIX)),
+        ("stdlib/backends/latex/preamble", "REFS", json!(crate::api::stdlib::backends::latex::preamble::REFS)),
+        ("stdlib/backends/latex/preamble", "HYPERREF", json!(crate::api::stdlib::backends::latex::preamble::HYPERREF)),
+        ("stdlib/backends/latex/preamble", "LABEL_DISPLAY_TEXT", json!(crate::api::stdlib::backends::latex::preamble::LABEL_DISPLAY_TEXT)),
+        ("stdlib/backends/latex/preamble", "ZREF_CLEVER_TYPE", json!(crate::api::stdlib::backends::latex::preamble::ZREF_CLEVER_TYPE)),
+        ("stdlib/backends/latex/preamble", "LABELS", json!(crate::api::stdlib::backends::latex::preamble::LABELS)),
+        ("stdlib/backends/latex/preamble", "HEADING", json!(crate::api::stdlib::backends::latex::preamble::HEADING)),
+        ("stdlib/backends/latex/preamble", "VERBATIM", json!(crate::api::stdlib::backends::latex::preamble::VERBATIM)),
+        ("stdlib/backends/latex/preamble", "MATH_ENVIRONMENT", json!(crate::api::stdlib::backends::latex::preamble::MATH_ENVIRONMENT)),
+        ("stdlib/backends/latex/preamble", "IF_BLANK", json!(crate::api::stdlib::backends::latex::preamble::IF_BLANK)),
+        ("stdlib/backends/latex/preamble", "USER_ARGS", json!(crate::api::stdlib::backends::latex::preamble::USER_ARGS)),
+        ("stdlib/backends/latex/preamble", "TAB_WIDTH", json!(crate::api::stdlib::backends::latex::preamble::TAB_WIDTH)),
+        ("stdlib/backends/pres", "PAR", json!(crate::api::stdlib::backends::pres::PAR)),
+        ("stdlib/backends/pres", "BLOCK", json!(crate::api::stdlib::backends::pres::BLOCK)),
+        ("stdlib/backends/pres", "BLOCK_HEADING", json!(crate::api::stdlib::backends::pres::BLOCK_HEADING)),
+        ("stdlib/backends/pres", "RUNIN_HEADING", json!(crate::api::stdlib::backends::pres::RUNIN_HEADING)),
+        ("stdlib/backends/pres", "SPAN", json!(crate::api::stdlib::backends::pres::SPAN)),
+        ("stdlib/backends/pres", "LIST", json!(crate::api::stdlib::backends::pres::LIST)),
+        ("stdlib/backends/pres", "CELLS", json!(crate::api::stdlib::backends::pres::CELLS)),
+        ("stdlib/backends/pres", "LINES", json!(crate::api::stdlib::backends::pres::LINES)),
+        ("stdlib/backends/pres", "LINE", json!(crate::api::stdlib::backends::pres::LINE)),
+        ("stdlib/backends/pres", "VERBATIM", json!(crate::api::stdlib::backends::pres::VERBATIM)),
+        ("stdlib/backends/pres", "MATH_PASSTHROUGH", json!(crate::api::stdlib::backends::pres::MATH_PASSTHROUGH)),
+        ("stdlib/backends/pres", "MATH_TEXT", json!(crate::api::stdlib::backends::pres::MATH_TEXT)),
+        ("stdlib/backends/pres", "LINK", json!(crate::api::stdlib::backends::pres::LINK)),
+        ("stdlib/backends/pres", "IMAGE", json!(crate::api::stdlib::backends::pres::IMAGE)),
+        ("stdlib/backends/pres", "UNSUPPORTED", json!(crate::api::stdlib::backends::pres::UNSUPPORTED)),
+        ("stdlib/backends/pres", "DROPPED", json!(crate::api::stdlib::backends::pres::DROPPED)),
+        ("stdlib/backends/pres", "UNKNOWN", json!(crate::api::stdlib::backends::pres::UNKNOWN)),
+        ("stdlib/backends/pres", "DECO_RUNIN", json!(crate::api::stdlib::backends::pres::DECO_RUNIN)),
+        ("stdlib/backends/pres", "DECO_FINAL", json!(crate::api::stdlib::backends::pres::DECO_FINAL)),
+        ("stdlib/backends/pres", "DECO_MARGIN", json!(crate::api::stdlib::backends::pres::DECO_MARGIN)),
+        ("stdlib/backends/pres", "DECO_MARK", json!(crate::api::stdlib::backends::pres::DECO_MARK)),
+        ("stdlib/backends/pres", "SUBTREE", json!(crate::api::stdlib::backends::pres::SUBTREE)),
+        ("stdlib/backends/pres", "ALL", json!(crate::api::stdlib::backends::pres::ALL)),
+        ("stdlib/backends/pres", "BODY_SLOT", json!(crate::api::stdlib::backends::pres::BODY_SLOT)),
+        ("stdlib/backends/pres", "LABEL_SLOT", json!(crate::api::stdlib::backends::pres::LABEL_SLOT)),
+        ("stdlib/backends/pres", "ITEM_SLOT", json!(crate::api::stdlib::backends::pres::ITEM_SLOT)),
+        ("stdlib/backends/pres", "CELL_SLOT", json!(crate::api::stdlib::backends::pres::CELL_SLOT)),
+        ("stdlib/features/citations", "PROVIDERS_SLOT", json!(crate::api::stdlib::features::citations::PROVIDERS_SLOT)),
+        ("stdlib/features/compose", "TEMPLATES_SLOT", json!(crate::api::stdlib::features::compose::TEMPLATES_SLOT)),
+        ("stdlib/features/compose", "ENGINES_SLOT", json!(crate::api::stdlib::features::compose::ENGINES_SLOT)),
+        ("stdlib/features/math", "MATH", json!(crate::api::stdlib::features::math::MATH)),
+        ("stdlib/features/math", "ENVIRONMENT", json!(crate::api::stdlib::features::math::ENVIRONMENT)),
+        ("stdlib/features/math", "ENVIRONMENTS", json!(crate::api::stdlib::features::math::ENVIRONMENTS)),
+        ("stdlib/features/math", "CONTENT", json!(crate::api::stdlib::features::math::CONTENT)),
+        ("stdlib/features/math", "RENDERED", json!(crate::api::stdlib::features::math::RENDERED)),
+        ("stdlib/features/math", "KIND", json!(crate::api::stdlib::features::math::KIND)),
+        ("stdlib/features/math", "COUNTER", json!(crate::api::stdlib::features::math::COUNTER)),
+        ("stdlib/features/math", "LINES_PACKAGE", json!(crate::api::stdlib::features::math::LINES_PACKAGE)),
+        ("stdlib/features/math", "LINEBREAK_COMMAND", json!(crate::api::stdlib::features::math::LINEBREAK_COMMAND)),
+        ("stdlib/features/math", "TAG_COMMAND", json!(crate::api::stdlib::features::math::TAG_COMMAND)),
+        ("stdlib/features/math", "NONUMBER_COMMAND", json!(crate::api::stdlib::features::math::NONUMBER_COMMAND)),
+        ("stdlib/features/math", "TEXT", json!(crate::api::stdlib::features::math::TEXT)),
+        ("stdlib/features/math", "TEXT_COMMANDS", json!(crate::api::stdlib::features::math::TEXT_COMMANDS)),
+        ("stdlib/features/math", "ENSUREMATH", json!(crate::api::stdlib::features::math::ENSUREMATH)),
+        ("stdlib/features/math", "FORMULA_ROLE", json!(crate::api::stdlib::features::math::FORMULA_ROLE)),
+        ("stdlib/features/numbering", "COUNTERS", json!(crate::api::stdlib::features::numbering::COUNTERS)),
+        ("stdlib/features/numbering", "COUNTERS_SLOT", json!(crate::api::stdlib::features::numbering::COUNTERS_SLOT)),
+        ("stdlib/features/numbering", "STYLES_SLOT", json!(crate::api::stdlib::features::numbering::STYLES_SLOT)),
+        ("stdlib/features/numbering", "WITHIN_JOINERS_SLOT", json!(crate::api::stdlib::features::numbering::WITHIN_JOINERS_SLOT)),
+        ("stdlib/features/numbering", "NUMBER_WRITERS_SLOT", json!(crate::api::stdlib::features::numbering::NUMBER_WRITERS_SLOT)),
+        ("stdlib/features/numbering", "PARENT_SETS_SLOT", json!(crate::api::stdlib::features::numbering::PARENT_SETS_SLOT)),
+        ("stdlib/features/refs", "ANCHORS", json!(crate::api::stdlib::features::refs::ANCHORS)),
+        ("stdlib/features/refs", "SAFE_LABELS", json!(crate::api::stdlib::features::refs::SAFE_LABELS)),
+        ("stdlib/features/refs", "LABELS", json!(crate::api::stdlib::features::refs::LABELS)),
+        ("stdlib/features/refs", "REF_RESOLUTIONS", json!(crate::api::stdlib::features::refs::REF_RESOLUTIONS)),
+        ("stdlib/features/refs", "FIELDS_ARG", json!(crate::api::stdlib::features::refs::FIELDS_ARG)),
+        ("stdlib/features/refs", "LABEL_FIELD", json!(crate::api::stdlib::features::refs::LABEL_FIELD)),
+        ("stdlib/features/refs", "TARGET_ARG", json!(crate::api::stdlib::features::refs::TARGET_ARG)),
+        ("stdlib/features/refs", "LABEL_PACKAGE", json!(crate::api::stdlib::features::refs::LABEL_PACKAGE)),
+        ("stdlib/features/refs", "TARGET_ARG_ROLE", json!(crate::api::stdlib::features::refs::TARGET_ARG_ROLE)),
+        ("stdlib/features/refs", "DEFINED_LABEL_ARG_ROLE", json!(crate::api::stdlib::features::refs::DEFINED_LABEL_ARG_ROLE)),
     ]
 }
 
@@ -237,6 +242,16 @@ pub(crate) fn dispatch_kind<'c>(table: &mut CallTable<'c>, handle: Handle, metho
         HandleKind::Anchors => extra::anchors(table, handle, method, args),
         HandleKind::ValueBindings => value_bindings(table, handle, method, args),
         HandleKind::Tree => tree(table, handle, method, args),
+        HandleKind::ProgressScope => progress_scope(table, handle, method, args),
+        HandleKind::Pending => pending(table, handle, method, args),
+        HandleKind::Task => task(table, handle, method, args),
+        HandleKind::Counted => counted(table, handle, method, args),
+        HandleKind::Walk => walk(table, handle, method, args),
+        HandleKind::Descendants => descendants(table, handle, method, args),
+        HandleKind::Trees => trees(table, handle, method, args),
+        HandleKind::Rows => rows(table, handle, method, args),
+        HandleKind::Nodes => nodes(table, handle, method, args),
+        HandleKind::StagedNodes => staged_nodes(table, handle, method, args),
         HandleKind::PlaceholderBindings
         | HandleKind::Staged
         | HandleKind::Stage
@@ -272,6 +287,14 @@ fn feature_builder<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, 
             let a0 = <ElementDef as FromArg>::from_arg(table, args, 0)?;
             let this = entry!(table, handle, Builder, FeatureBuilder);
             this.element(a0)?;
+            Ok(Value::Null)
+        }
+        "element_type_text" => {
+            args.arity(2)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <String as FromArg>::from_arg(table, args, 1)?;
+            let this = entry!(table, handle, Builder, FeatureBuilder);
+            this.element_type_text(&a0, &a1)?;
             Ok(Value::Null)
         }
         "fallback" => {
@@ -620,6 +643,12 @@ fn stage_cx<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &
             let answer = this.host(&a0)?;
             answer.into_reply(table)
         }
+        "progress" => {
+            args.arity(0)?;
+            let this = *entry!(table, handle, StageCx, StageCx);
+            let answer = this.progress();
+            answer.into_reply(table)
+        }
         _ => Err(no_method(HandleKind::StageCx, method)),
     }
 }
@@ -925,6 +954,12 @@ fn key_val_entry<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, ar
             args.arity(0)?;
             let this = &**entry!(table, handle, KeyValEntry, KeyValEntry);
             let answer = this.value_content();
+            answer.into_reply(table)
+        }
+        "value_pieces" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, KeyValEntry, KeyValEntry);
+            let answer = this.value_pieces();
             answer.into_reply(table)
         }
         _ => Err(no_method(HandleKind::KeyValEntry, method)),
@@ -1445,6 +1480,13 @@ fn lowered_trees<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, ar
             let answer = this.rounds(&a0);
             answer.into_reply(table)
         }
+        "node_at" => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let this = &**entry!(table, handle, LoweredTrees, LoweredTrees);
+            let answer = this.node_at(&a0);
+            answer.into_reply(table)
+        }
         _ => Err(no_method(HandleKind::LoweredTrees, method)),
     }
 }
@@ -1474,11 +1516,10 @@ fn host_service<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, arg
 fn files<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
     match method {
         "read_text" => {
-            args.arity(2)?;
-            let a0 = <FilesScope as FromArg>::from_arg(table, args, 0)?;
-            let a1 = <String as FromArg>::from_arg(table, args, 1)?;
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
             let this = &**entry!(table, handle, Files, Files);
-            let answer = this.read_text(a0, &a1)?;
+            let answer = this.read_text(&a0)?;
             answer.into_reply(table)
         }
         _ => Err(no_method(HandleKind::Files, method)),
@@ -1508,6 +1549,12 @@ fn provider_cx<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
             let this = *entry!(table, handle, ProviderCx, ProviderCx);
             let answer = this.host(&a0)?;
+            answer.into_reply(table)
+        }
+        "progress" => {
+            args.arity(0)?;
+            let this = *entry!(table, handle, ProviderCx, ProviderCx);
+            let answer = this.progress();
             answer.into_reply(table)
         }
         _ => Err(no_method(HandleKind::ProviderCx, method)),
@@ -1570,6 +1617,237 @@ fn tree<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args
     }
 }
 
+/// The methods of the kind `progress_scope` (`ProgressScope`).
+fn progress_scope<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "child" => {
+            args.arity(3)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <Option<String> as FromArg>::from_arg(table, args, 1)?;
+            let a2 = <Option<String> as FromArg>::from_arg(table, args, 2)?;
+            let this = &**entry!(table, handle, ProgressScope, ProgressScope);
+            let answer = this.child(&a0, a1, a2);
+            answer.into_reply(table)
+        }
+        "cancelled" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, ProgressScope, ProgressScope);
+            let answer = this.cancelled();
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::ProgressScope, method)),
+    }
+}
+
+/// The methods of the kind `pending` (`Pending`).
+fn pending<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "start" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Pending, Pending);
+            let answer = this.start();
+            answer.into_reply(table)
+        }
+        "start_counted" => {
+            args.arity(2)?;
+            let a0 = <Unit as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <u64 as FromArg>::from_arg(table, args, 1)?;
+            let this = &**entry!(table, handle, Pending, Pending);
+            let answer = this.start_counted(a0, a1);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Pending, method)),
+    }
+}
+
+/// The methods of the kind `task` (`Task`).
+fn task<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "scope" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Task, Task);
+            let answer = this.scope();
+            answer.into_reply(table)
+        }
+        "finish" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Task, Task);
+            this.finish();
+            Ok(Value::Null)
+        }
+        _ => Err(no_method(HandleKind::Task, method)),
+    }
+}
+
+/// The methods of the kind `counted` (`Counted`).
+fn counted<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "advance" => {
+            args.arity(1)?;
+            let a0 = <u64 as FromArg>::from_arg(table, args, 0)?;
+            let this = &**entry!(table, handle, Counted, Counted);
+            this.advance(a0);
+            Ok(Value::Null)
+        }
+        "scope" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Counted, Counted);
+            let answer = this.scope();
+            answer.into_reply(table)
+        }
+        "finish" => {
+            args.arity(0)?;
+            let this = &**entry!(table, handle, Counted, Counted);
+            this.finish();
+            Ok(Value::Null)
+        }
+        _ => Err(no_method(HandleKind::Counted, method)),
+    }
+}
+
+/// The methods of the kind `walk` (`Walk`).
+fn walk<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, Walk, Walk);
+            let answer = this.pull(a0);
+            Group(answer).into_reply(table)
+        }
+        "elements" => {
+            args.arity(2)?;
+            let a0 = <Vec<String> as FromArg>::from_arg(table, args, 0)?;
+            let unhanded = <usize as FromArg>::from_arg(table, args, 1)?;
+            let this = entry!(table, handle, Walk, Walk).rest(unhanded);
+            let answer = this.elements(a0);
+            answer.into_reply(table)
+        }
+        "kinds" => {
+            args.arity(2)?;
+            let a0 = <Vec<NodeKindName> as FromArg>::from_arg(table, args, 0)?;
+            let unhanded = <usize as FromArg>::from_arg(table, args, 1)?;
+            let this = entry!(table, handle, Walk, Walk).rest(unhanded);
+            let answer = this.kinds(&a0);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Walk, method)),
+    }
+}
+
+/// The methods of the kind `descendants` (`Descendants`).
+fn descendants<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, Descendants, Descendants);
+            let answer = this.pull(a0);
+            Group(answer).into_reply(table)
+        }
+        "elements" => {
+            args.arity(2)?;
+            let a0 = <Vec<String> as FromArg>::from_arg(table, args, 0)?;
+            let unhanded = <usize as FromArg>::from_arg(table, args, 1)?;
+            let this = entry!(table, handle, Descendants, Descendants).rest(unhanded);
+            let answer = this.elements(a0);
+            answer.into_reply(table)
+        }
+        "kinds" => {
+            args.arity(2)?;
+            let a0 = <Vec<NodeKindName> as FromArg>::from_arg(table, args, 0)?;
+            let unhanded = <usize as FromArg>::from_arg(table, args, 1)?;
+            let this = entry!(table, handle, Descendants, Descendants).rest(unhanded);
+            let answer = this.kinds(&a0);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Descendants, method)),
+    }
+}
+
+/// The methods of the kind `trees` (`Trees`).
+fn trees<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, Trees, Trees);
+            let answer = this.pull(a0);
+            Group(answer).into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Trees, method)),
+    }
+}
+
+/// The methods of the kind `rows` (`Rows`).
+fn rows<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(3)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <usize as FromArg>::from_arg(table, args, 1)?;
+            let a2 = <usize as FromArg>::from_arg(table, args, 2)?;
+            let this = entry!(table, handle, Rows, Rows);
+            let answer = this.group(a0, a1, a2);
+            Group(answer).into_reply(table)
+        }
+        "get" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, Rows, Rows);
+            let answer = this.get(a0);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Rows, method)),
+    }
+}
+
+/// The methods of the kind `nodes` (`Nodes`, the sequence of a `Vec<Box<dyn Node>>`).
+fn nodes<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(3)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <usize as FromArg>::from_arg(table, args, 1)?;
+            let a2 = <usize as FromArg>::from_arg(table, args, 2)?;
+            let this = entry!(table, handle, Nodes, Nodes);
+            let answer = this.group(a0, a1, a2);
+            Group(answer).into_reply(table)
+        }
+        "get" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, Nodes, Nodes);
+            let answer = this.get(a0);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::Nodes, method)),
+    }
+}
+
+/// The methods of the kind `staged_nodes` (`StagedNodes`, the sequence of a `Vec<Staged>`).
+fn staged_nodes<'c>(table: &mut CallTable<'c>, handle: Handle, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
+    match method {
+        "pull" => {
+            args.arity(3)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <usize as FromArg>::from_arg(table, args, 1)?;
+            let a2 = <usize as FromArg>::from_arg(table, args, 2)?;
+            let this = entry!(table, handle, StagedNodes, StagedNodes);
+            let answer = this.group(a0, a1, a2);
+            Group(answer).into_reply(table)
+        }
+        "get" => {
+            args.arity(1)?;
+            let a0 = <usize as FromArg>::from_arg(table, args, 0)?;
+            let this = entry!(table, handle, StagedNodes, StagedNodes);
+            let answer = this.get(a0);
+            answer.into_reply(table)
+        }
+        _ => Err(no_method(HandleKind::StagedNodes, method)),
+    }
+}
+
 /// The free functions, the constructors and the `names` of the module `path`.
 pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, args: &Args<'_>) -> Result<Value, ExtError> {
     match (path, method) {
@@ -1609,6 +1887,13 @@ pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, ar
                 [Entry::Lowerer(_), other] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
             }?;
+            answer.into_reply(table)
+        }
+        ("host", "path") => {
+            args.arity(2)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <String as FromArg>::from_arg(table, args, 1)?;
+            let answer = crate::api::host::path(&a0, &a1)?;
             answer.into_reply(table)
         }
         ("lang/mint", "arg_def_from_code") => {
@@ -1658,230 +1943,293 @@ pub(crate) fn module<'c>(table: &mut CallTable<'c>, path: &str, method: &str, ar
             let answer = crate::api::lang::text::read_chars(&a0);
             answer.into_reply(table)
         }
-        ("stdcore/backends/html", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/backends/html"))
-        }
-        ("stdcore/backends/latex", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/backends/latex"))
-        }
-        ("stdcore/backends/latex/packages", "package_id") => {
-            args.arity(1)?;
+        ("math_passthrough", "math_rule_named") => {
+            args.arity(2)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::backends::latex::packages::package_id(&a0);
+            let a1 = <DefaultMark as FromArg>::from_arg(table, args, 1)?;
+            let answer = crate::api::math_passthrough::math_rule_named(&a0, a1);
             answer.into_reply(table)
         }
-        ("stdcore/backends/latex/packages", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/backends/latex/packages"))
-        }
-        ("stdcore/backends/latex/preamble", "piece_id") => {
-            args.arity(1)?;
+        ("math_passthrough", "environment_rule_named") => {
+            args.arity(2)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::backends::latex::preamble::piece_id(&a0);
+            let a1 = <DefaultMark as FromArg>::from_arg(table, args, 1)?;
+            let answer = crate::api::math_passthrough::environment_rule_named(&a0, a1);
             answer.into_reply(table)
         }
-        ("stdcore/backends/latex/preamble", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/backends/latex/preamble"))
-        }
-        ("stdcore/backends/lowering", "LoweringStage::new") => {
+        ("math_passthrough/latex", "math_rule_named") => {
             args.arity(1)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::backends::lowering::LoweringStage::new(&a0);
+            let answer = crate::api::math_passthrough::latex::math_rule_named(&a0);
             answer.into_reply(table)
         }
-        ("stdcore/backends/lowering", "lowered_table_name") => {
+        ("math_passthrough/latex", "environment_rule_named") => {
             args.arity(1)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::backends::lowering::lowered_table_name(&a0);
+            let answer = crate::api::math_passthrough::latex::environment_rule_named(&a0);
             answer.into_reply(table)
         }
-        ("stdcore/backends/pres", "names") => {
+        ("stdlib/backends/html", "names") => {
             args.arity(0)?;
-            Ok(names("stdcore/backends/pres"))
+            Ok(names("stdlib/backends/html"))
         }
-        ("stdcore/features/citations", "names") => {
+        ("stdlib/backends/latex", "names") => {
             args.arity(0)?;
-            Ok(names("stdcore/features/citations"))
+            Ok(names("stdlib/backends/latex"))
         }
-        ("stdcore/features/compose", "names") => {
+        ("stdlib/backends/latex/packages", "package_id") => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::backends::latex::packages::package_id(&a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/backends/latex/packages", "names") => {
             args.arity(0)?;
-            Ok(names("stdcore/features/compose"))
+            Ok(names("stdlib/backends/latex/packages"))
         }
-        ("stdcore/features/math", "equation_lines") => {
+        ("stdlib/backends/latex/preamble", "piece_id") => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::backends::latex::preamble::piece_id(&a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/backends/latex/preamble", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/backends/latex/preamble"))
+        }
+        ("stdlib/backends/lowering", "LoweringStage::new") => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::backends::lowering::LoweringStage::new(&a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/backends/lowering", "lowered_table_name") => {
+            args.arity(1)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::backends::lowering::lowered_table_name(&a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/backends/lowering", "is_blank") => {
             args.arity(1)?;
             let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::math::equation_lines(&*a0);
+            let answer = crate::api::stdlib::backends::lowering::is_blank(&*a0);
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "formula_display") => {
-            args.arity(1)?;
-            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::math::formula_display(&*a0);
-            answer.into_reply(table)
-        }
-        ("stdcore/features/math", "environment_numbered") => {
-            args.arity(1)?;
-            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::math::environment_numbered(&*a0);
-            answer.into_reply(table)
-        }
-        ("stdcore/features/math", "number_text") => {
-            args.arity(1)?;
-            let a0 = <LineFrame<'c> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::math::number_text(&a0);
-            answer.into_reply(table)
-        }
-        ("stdcore/features/math", "stage_tag_content") => {
+        ("stdlib/backends/lowering", "stage_trimmed") => {
             args.arity(3)?;
-            let a2 = <LineFrame<'c> as FromArg>::from_arg(table, args, 2)?;
+            let a2 = <Vec<Box<dyn Node<'c> + 'c>> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_tag_content(&mut **a0, &mut **a1, &a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::backends::lowering::stage_trimmed(&mut **a0, &mut **a1, &a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "environment_opening") => {
+        ("stdlib/backends/pres", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/backends/pres"))
+        }
+        ("stdlib/features/citations", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/features/citations"))
+        }
+        ("stdlib/features/compose", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/features/compose"))
+        }
+        ("stdlib/features/math", "formula_attributes") => {
+            args.arity(3)?;
+            let a0 = <String as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <bool as FromArg>::from_arg(table, args, 1)?;
+            let a2 = <Option<String> as FromArg>::from_arg(table, args, 2)?;
+            let answer = crate::api::stdlib::features::math::formula_attributes(&a0, a1, a2);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "equation_lines") => {
+            args.arity(1)?;
+            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::features::math::equation_lines(&*a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "formula_display") => {
+            args.arity(1)?;
+            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::features::math::formula_display(&*a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "environment_numbered") => {
+            args.arity(1)?;
+            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::features::math::environment_numbered(&*a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "number_text") => {
+            args.arity(1)?;
+            let a0 = <LineFrame<'c> as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::features::math::number_text(&a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "stage_tag_content") => {
+            args.arity(3)?;
+            let a2 = <LineFrame<'c> as FromArg>::from_arg(table, args, 2)?;
+            let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::stage_tag_content(&mut **a0, &mut **a1, &a2),
+                [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
+                [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
+            }?;
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "environment_opening") => {
             args.arity(3)?;
             let a2 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_opening(&mut **a0, &mut **a1, &*a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::environment_opening(&mut **a0, &mut **a1, &*a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "line_closing") => {
+        ("stdlib/features/math", "line_closing") => {
             args.arity(3)?;
             let a2 = <LineFrame<'c> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::line_closing(&mut **a0, &mut **a1, &a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::line_closing(&mut **a0, &mut **a1, &a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "stage_lines") => {
+        ("stdlib/features/math", "stage_lines") => {
             args.arity(3)?;
             let a2 = <Vec<LineFrame<'c>> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::stage_lines(&mut **a0, &mut **a1, &a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::stage_lines(&mut **a0, &mut **a1, &a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "normalize_line_newlines") => {
+        ("stdlib/features/math", "normalize_line_newlines") => {
             args.arity(3)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
             let a1 = <bool as FromArg>::from_arg(table, args, 1)?;
             let a2 = <bool as FromArg>::from_arg(table, args, 2)?;
-            let answer = crate::api::stdcore::features::math::normalize_line_newlines(&a0, a1, a2);
+            let answer = crate::api::stdlib::features::math::normalize_line_newlines(&a0, a1, a2);
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "environment_closing") => {
+        ("stdlib/features/math", "environment_closing") => {
             args.arity(3)?;
             let a2 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::environment_closing(&mut **a0, &mut **a1, &*a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::environment_closing(&mut **a0, &mut **a1, &*a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "group_opening") => {
+        ("stdlib/features/math", "group_opening") => {
             args.arity(3)?;
             let a2 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_opening(&mut **a0, &mut **a1, &*a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::group_opening(&mut **a0, &mut **a1, &*a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "group_closing") => {
+        ("stdlib/features/math", "group_closing") => {
             args.arity(3)?;
             let a2 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::math::group_closing(&mut **a0, &mut **a1, &*a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::math::group_closing(&mut **a0, &mut **a1, &*a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/math", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/features/math"))
-        }
-        ("stdcore/features/numbering", "names") => {
-            args.arity(0)?;
-            Ok(names("stdcore/features/numbering"))
-        }
-        ("stdcore/features/refs", "label_fields_arg") => {
-            args.arity(0)?;
-            let answer = crate::api::stdcore::features::refs::label_fields_arg();
-            answer.into_reply(table)
-        }
-        ("stdcore/features/refs", "label_uses") => {
+        ("stdlib/features/math", "group_tex") => {
             args.arity(1)?;
             let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::refs::label_uses(&*a0);
+            let answer = crate::api::stdlib::features::math::group_tex(&*a0);
             answer.into_reply(table)
         }
-        ("stdcore/features/refs", "point_labels") => {
+        ("stdlib/features/math", "line_tex") => {
+            args.arity(2)?;
+            let a0 = <Vec<Box<dyn Node<'c> + 'c>> as FromArg>::from_arg(table, args, 0)?;
+            let a1 = <bool as FromArg>::from_arg(table, args, 1)?;
+            let answer = crate::api::stdlib::features::math::line_tex(&a0, a1);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/math", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/features/math"))
+        }
+        ("stdlib/features/numbering", "names") => {
+            args.arity(0)?;
+            Ok(names("stdlib/features/numbering"))
+        }
+        ("stdlib/features/refs", "label_fields_arg") => {
+            args.arity(0)?;
+            let answer = crate::api::stdlib::features::refs::label_fields_arg();
+            answer.into_reply(table)
+        }
+        ("stdlib/features/refs", "label_uses") => {
+            args.arity(1)?;
+            let a0 = <Box<dyn Node<'c> + 'c> as FromArg>::from_arg(table, args, 0)?;
+            let answer = crate::api::stdlib::features::refs::label_uses(&*a0);
+            answer.into_reply(table)
+        }
+        ("stdlib/features/refs", "point_labels") => {
             args.arity(1)?;
             let a0 = <Vec<LabelUse> as FromArg>::from_arg(table, args, 0)?;
-            let answer = crate::api::stdcore::features::refs::point_labels(&a0);
+            let answer = crate::api::stdlib::features::refs::point_labels(&a0);
             answer.into_reply(table)
         }
-        ("stdcore/features/refs", "stage_label") => {
+        ("stdlib/features/refs", "stage_label") => {
             args.arity(4)?;
             let a2 = <String as FromArg>::from_arg(table, args, 2)?;
             let a3 = <Option<Label> as FromArg>::from_arg(table, args, 3)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label(&mut **a0, &mut **a1, &a2, a3),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::refs::stage_label(&mut **a0, &mut **a1, &a2, a3),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/refs", "stage_label_group") => {
+        ("stdlib/features/refs", "stage_label_group") => {
             args.arity(4)?;
             let a2 = <Vec<Staged> as FromArg>::from_arg(table, args, 2)?;
             let a3 = <bool as FromArg>::from_arg(table, args, 3)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::refs::stage_label_group(&mut **a0, &mut **a1, a2, a3),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::refs::stage_label_group(&mut **a0, &mut **a1, a2, a3),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;
             answer.into_reply(table)
         }
-        ("stdcore/features/refs", "names") => {
+        ("stdlib/features/refs", "names") => {
             args.arity(0)?;
-            Ok(names("stdcore/features/refs"))
+            Ok(names("stdlib/features/refs"))
         }
-        ("stdcore/features/userdefs", "element_name_under") => {
+        ("stdlib/features/userdefs", "element_name_under") => {
             args.arity(2)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
             let a1 = <Definition as FromArg>::from_arg(table, args, 1)?;
-            let answer = crate::api::stdcore::features::userdefs::element_name_under(&a0, &a1);
+            let answer = crate::api::stdlib::features::userdefs::element_name_under(&a0, &a1);
             answer.into_reply(table)
         }
-        ("stdcore/features/userdefs", "expand_in_tree_rule_for") => {
+        ("stdlib/features/userdefs", "expand_in_tree_rule_for") => {
             args.arity(2)?;
             let a0 = <String as FromArg>::from_arg(table, args, 0)?;
             let a1 = <Definition as FromArg>::from_arg(table, args, 1)?;
-            let answer = crate::api::stdcore::features::userdefs::expand_in_tree_rule_for(&a0, &a1);
+            let answer = crate::api::stdlib::features::userdefs::expand_in_tree_rule_for(&a0, &a1);
             answer.into_reply(table)
         }
-        ("stdcore/features/userdefs", "write_math_run") => {
+        ("stdlib/features/userdefs", "write_math_run") => {
             args.arity(3)?;
             let a2 = <Vec<Box<dyn Node<'c> + 'c>> as FromArg>::from_arg(table, args, 2)?;
             let answer = match table.entries_mut(method, [args.handle(0)?, args.handle(1)?])? {
-                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdcore::features::userdefs::write_math_run(&mut **a0, &mut **a1, &a2),
+                [Entry::LowerCx(a0), Entry::Lowerer(a1)] => crate::api::stdlib::features::userdefs::write_math_run(&mut **a0, &mut **a1, &a2),
                 [Entry::LowerCx(_), other] => return Err(mismatch(HandleKind::Lowerer, other.kind())),
                 [other, _] => return Err(mismatch(HandleKind::LowerCx, other.kind())),
             }?;

@@ -1,5 +1,5 @@
 //! Theorems on the `latex-rendered` backend, end to end over the standard
-//! package: the documents `tests/stdcore_theorems_html.rs` renders (the
+//! package: the documents `tests/stdlib_theorems_html.rs` renders (the
 //! shipped kinds, the heading and the mark at the body's edges, a kind of a
 //! class of the host's own, a run-in section heading inside a theorem), each
 //! a golden under `tests/goldens/latex-rendered/` holding the document and
@@ -13,16 +13,16 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::headings::HeadingsConfig;
-use flm_core::stdcore::features::theorems::latex_rendered::PIECE;
-use flm_core::stdcore::features::theorems::{TheoremClass, TheoremKind, TheoremsConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::headings::HeadingsConfig;
+use flm_core::stdlib::features::theorems::latex_rendered::PIECE;
+use flm_core::stdlib::features::theorems::{TheoremClass, TheoremKind, TheoremsConfig};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The shipped kinds: a theorem with a title and a label, a proof showing
@@ -113,7 +113,7 @@ fn a_kind_of_a_class_of_the_host_s_own_is_written_with_its_tokens() {
     let config = TheoremsConfig::new()
         .class("exerciselike", TheoremClass::numbered().shared_counter(false))
         .kind("exercise", TheoremKind::from_word("exerciselike", "exercise"));
-    let registry = common::stdcore::registry(StdcoreConfig::new().theorems(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().theorems(config));
     let run = render(
         &registry,
         &["\\begin{theorem}\\noproofref\nA statement.\n\\end{theorem}\n\n\\begin{exercise}[Warm-up]\\label{x:warmup}\nProve it.\n\\end{exercise}\n"],
@@ -125,8 +125,8 @@ fn a_kind_of_a_class_of_the_host_s_own_is_written_with_its_tokens() {
 
 #[test]
 fn a_run_in_section_heading_inside_a_theorem_keeps_its_own_look() {
-    let registry = common::stdcore::registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
+    let registry = common::stdlib::registry(
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
     );
     let run = render(
         &registry,
@@ -164,8 +164,8 @@ fn a_proof_nested_in_a_proof_ends_with_its_own_mark() {
 /// with the decoration's look outside every theorem (the golden compiles).
 #[test]
 fn a_nested_theorem_with_a_later_run_in_decoration() {
-    let registry = common::stdcore::registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
+    let registry = common::stdlib::registry(
+        StdlibConfig::new().headings(HeadingsConfig::new().run_in_levels([4, 5])),
     );
     let run = render(
         &registry,

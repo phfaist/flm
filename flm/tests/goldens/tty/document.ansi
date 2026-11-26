@@ -1,0 +1,30 @@
+The [0;3mTerminal[0m Paper
+
+[0;1;96mIntroduction[0m
+[0;36m════════════[0m
+
+Some [0;3memphasized[0m and [0;1mbold[0m text, with code and a{b, and a reference to Details.ᵃ
+
+• An item with a link to ]8;;https://example.com/a%20b\[0;4;94mthe site of the example, long enough to wrap across a]8;;\[0m
+  ]8;;https://example.com/a%20b\[0;4;94mline]8;;\[0m <https://example.com/a b> inside it.
+
+[0;90m┌───────┬───────┐[0m
+[0;90m│[0m Name  [0;90m│[0m Count [0;90m│[0m
+[0;90m├───────┼───────┤[0m
+[0;90m│[0m [0;1malpha[0m [0;90m│[0m     1 [0;90m│[0m
+[0;90m│[0m beta  [0;90m│[0m    22 [0;90m│[0m
+[0;90m└───────┴───────┘[0m
+
+Counts
+
+[0;1;36mDetails[0m
+[0;36m───────[0m
+
+[0;1;36m### Fine points[0m
+
+a bell � rings
+
+[0;1;96mFootnotes[0m
+[0;36m═════════[0m
+
+ᵃ A [0;1mstrong[0m note.

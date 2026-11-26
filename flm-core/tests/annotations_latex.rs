@@ -17,17 +17,17 @@ use flm_core::core::run::Run;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::annotations::{AnnotationsConfig, AnnotationsRenderOptions, Annotator};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::annotations::{AnnotationsConfig, AnnotationsRenderOptions, Annotator};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, run_workflow};
 
 /// The two annotators these tests use: `phf` with the initials `PhF`,
 /// annotator 0, and `abc` with none, annotator 1.
-fn config() -> StdcoreConfig {
-    StdcoreConfig::new().annotations(
+fn config() -> StdlibConfig {
+    StdlibConfig::new().annotations(
         AnnotationsConfig::new()
             .annotator(Annotator::new("phf").initials("PhF"))
             .annotator(Annotator::new("abc")),
@@ -36,7 +36,7 @@ fn config() -> StdcoreConfig {
 
 /// The standard package under [`config`].
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(config())
+    common::stdlib::registry(config())
 }
 
 /// The overrides hiding every annotation, or none.
@@ -48,10 +48,10 @@ fn overrides(hidden: bool) -> Overrides {
 }
 
 /// The recomposition of `document` under `registry`; the run must report
-/// nothing.
+/// nothing but the Warnings of its plan's unchecked output.
 fn recompose_under(registry: &Arc<FlmRegistry>, document: &str, hidden: bool) -> Run {
     let run = run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &overrides(hidden));
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     run
 }
 
@@ -105,13 +105,13 @@ fn a_comment_across_a_paragraph_break_is_one_invocation_byte_for_byte() {
 #[test]
 fn a_passage_left_open_is_written_with_no_closing_command() {
     let run = run_workflow(&registry(), latex_recomposed::WORKFLOW, &["a \\phf b"], &overrides(false));
-    assert_eq!(identifiers(&run), ["flm.annotations.unterminated"]);
+    assert_eq!(identifiers(&run), ["flm.annotations.unterminated", UNCHECKED_OUTPUT]);
     assert_eq!(common::latex::output(&run), "a \\phf b%%\n");
     // A passage ended by an environment's `\end`: no closing command is
     // written, and the whitespace before `\end` is kept.
     let document = "\\begin{itemize}\\item \\phf a b  \\end{itemize}";
     let run = run_workflow(&registry(), latex_recomposed::WORKFLOW, &[document], &overrides(false));
-    assert_eq!(identifiers(&run), ["flm.annotations.unterminated"]);
+    assert_eq!(identifiers(&run), ["flm.annotations.unterminated", UNCHECKED_OUTPUT]);
     let output = common::latex::output(&run);
     assert!(output.contains("\\phf a b  \\end{itemize}"), "{output}");
     assert!(!output.contains("\\endphf"), "{output}");
@@ -137,8 +137,8 @@ fn the_style_file_requests_phfcc_and_makes_every_annotators_command_in_order() {
 
 #[test]
 fn initials_are_written_as_text() {
-    let registry = common::stdcore::registry(
-        StdcoreConfig::new().annotations(AnnotationsConfig::new().annotator(Annotator::new("rev").initials("A&B"))),
+    let registry = common::stdlib::registry(
+        StdlibConfig::new().annotations(AnnotationsConfig::new().annotator(Annotator::new("rev").initials("A&B"))),
     );
     let run = recompose_under(&registry, "\\rev{x}", false);
     let (style, _) = common::latex::style(&run);
@@ -202,7 +202,7 @@ fn annotations_in_a_list_item_a_footnote_and_a_formula_come_back_as_written() {
 #[test]
 fn an_annotation_in_a_user_definitions_template_is_kept_in_the_definition() {
     let definition = Definition::macro_("note", vec![ArgDef::mandatory("text")]).text("\\phf[#1]");
-    let registry = common::stdcore::registry(config().userdefs(UserdefsConfig::new().definition(definition)));
+    let registry = common::stdlib::registry(config().userdefs(UserdefsConfig::new().definition(definition)));
     let run = recompose_under(&registry, "word \\note{check} word", false);
     let (style, _) = common::latex::style(&run);
     assert!(style.contains("\\RequirePackage{phfcc}\n"), "{style}");

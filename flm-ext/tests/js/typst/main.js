@@ -20,8 +20,8 @@ import { StageDecl, Needs, Effect, Scope } from "flm:core/stage";
 import { BackendDef, OutputDef, StandardTable } from "flm:core/registry";
 import { Artifact, ArtifactId } from "flm:core/artifact";
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
-import { LoweringStage, lowered_table_name } from "flm:stdcore/backends/lowering";
-import { ALL, BLOCK, UNSUPPORTED } from "flm:stdcore/backends/pres";
+import { LoweringStage, lowered_table_name } from "flm:stdlib/backends/lowering";
+import { ALL, BLOCK, UNSUPPORTED } from "flm:stdlib/backends/pres";
 import { TEXT, GROUP, OPAQUE_WRAPPER, COMMENT, CONTAINER, PARBREAK } from "flm:lang/structural";
 import { ArgDef, ElementDef, SyntaxDef } from "flm:lang/mint";
 import { chars_text } from "flm:lang/text";
@@ -48,7 +48,6 @@ const IMAGE_ELEMENT = "flm.graphics.image";
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     flm: { workflows: { typst: { outputs: [BACKEND], demands: ["flm.validated"], docs: "The document as Typst markup, running every check." } } },
     features: {
       typst: { title: "Typst backend", docs: "Typst markup over the presentation vocabulary.", register },

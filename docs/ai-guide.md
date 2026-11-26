@@ -25,22 +25,27 @@ and for the everyday embedding flow. For deeper work, load at most one more page
   LaTeX-like languages, and on [untechxt](crate::untechxt), a Unicode-to-LaTeX table and
   encoder; it re-exports both, and a dependent writes `flm_core::techy` and
   `flm_core::untechxt` rather than depending on those crates itself.
-- **`flm-main`** is the host library: it finds and reads a document's files, reads the
+- **`flm-host`** is the host library: it finds and reads a document's files, reads the
   front matter and the extensions it uses, combines settings, prepares the registry and
   the plan, runs the library and writes the outputs. Its default cargo feature `fs` reads
   files and writes outputs on disk; without it the crate performs no input or output and
   compiles for WebAssembly. Under further cargo features it reads image files
   (`graphics`), fetches and formats citation entries (`citations`) and serves the live
   preview (`watch`).
-- **`flm-cli`** is the `flm` program over the host library: `flm render`, `flm check`,
-  `flm watch` (also `flm INPUT`: the live preview), `flm schema`, `flm info` and
-  `flm dump`. See [The flm command-line tool](crate::guide::command_line).
+- **`flm`** is the `flm` program over the host library: `flm render`, `flm check`,
+  `flm watch` (also `flm INPUT`: the live preview), `flm schema`, `flm info`,
+  `flm dump` and `flm cache` (`list`; `clean NAME…` or `clean --all`; each takes
+  `--cache-dir DIR`). `flm render`, `flm check` and `flm watch` keep the results of
+  costly work in the program's cache, a folder shared by all documents, and take the
+  options `--cache-dir DIR`, `--no-cache` and `--cache-max-size SIZE` ([the
+  cache](crate::guide::command_line#the-cache)). See [The flm command-line
+  tool](crate::guide::command_line).
 - **`flm-info`** describes an *environment* (a registry, a plan, the package factories):
   the query API `Environment` and its typed views (features, commands with their
   arguments and roles, settings, workflows and plans, namespaces), the description as
   JSON with its JSON Schema, a tree of documentation pages written as FLM source, and the
   engine of `flm dump`. Its core needs `flm-core` alone and builds for WebAssembly; its
-  cargo feature `flm-main` describes a document prepared by the host library. `flm info`
+  cargo feature `flm-host` describes a document prepared by the host library. `flm info`
   is built on it ([Describing an environment](crate::guide::embedding#describing-an-environment-the-crate-flm-info)).
 - **`flm-ext`** is the extension layer: it finds and loads *extensions*, sets of files
   found by name that provide packages, written as data (the engine `data`), in
@@ -53,8 +58,11 @@ and for the everyday embedding flow. For deeper work, load at most one more page
   own items. See [Extensions](crate::guide::extending#extensions).
 - **`flmdoc`** is a Rust extension compiled into the program (engine `native`): the markup
   of documentation pages, a Markdown-style code span between backticks, the constructs
-  `docitem`, `\docsignature`, `\docsummary`, `docparams`/`\docparam`, `\docfield`, and the
-  link `\docref{path}{text}` with the render setting `flmdoc.link_style` (`command`, `path`).
+  `docitem`, `\docsignature`, `\docsummary`, `docdetails`, `docparams`/`\docparam`,
+  `docentries`/`\docentry`, `docinlinelist`/`\item`, `\docjsontype`, `\docfield`, the facts
+  as key–values of `docitem`, `\docparam`, `\docentry` and `\item` (`declared-by=…`,
+  `modes=…`, `repeatable`, …; `flmdoc` writes their labels and words), and the link
+  `\docref{path}{text}` with the render setting `flmdoc.link_style` (`command`, `path`).
   `flm info` writes its pages in it; a document uses it with `use: [flmdoc]`
   ([the extension flmdoc](crate::guide::extending#writing-documentation-pages-the-extension-flmdoc)).
 - **`phfpack`** is a Rust extension compiled into the program (engine `native`), written
@@ -64,12 +72,17 @@ and for the everyday embedding flow. For deeper work, load at most one more page
   macros a front matter declares under `flm.features.phfqit.macro_definitions`. A document uses it
   with `use: [phfpack]` ([A Rust extension, end to
   end](crate::guide::extending#a-rust-extension-end-to-end)).
-- **The other shipped extensions** come with the `flm` program, compiled in under its
-  cargo feature `bundled-extensions` (on by default), as `flmdoc` and `phfpack` do:
-  `profile-pdf-latex` (the profile `pdf-latex`) and `syntax-highlight` (the highlighting of
-  code listings), written in Rust; `math-mathjax` (JavaScript: the default math
-  processor); `lecturenotes` (data: a compose template for HTML)
-  ([Where extensions are looked for](crate::guide::command_line#where-extensions-are-looked-for)).
+- **The other shipped extensions** come with the `flm` program, compiled in under its cargo
+  feature `bundled-extensions` (on by default), as `flmdoc` and `phfpack` do:
+  `profile-pdf-latex` (the profile `pdf-latex`), `profile-tty` (the profile `tty`: the text
+  output with terminal escape sequences, painted from its style marks),
+  `syntax-highlight` (the highlighting of code listings) and `math-techxt` (the math
+  processor `techxt`: formulas rendered as Unicode text on the text and HTML outputs,
+  written as LaTeX on the LaTeX outputs), written in Rust; `math-mathjax`
+  (JavaScript: the default math processor); `letter` (JavaScript: a compose template for
+  letters in HTML and in rendered LaTeX); `lecturenotes` (data: a compose template for
+  HTML) ([Where extensions are looked
+  for](crate::guide::command_line#where-extensions-are-looked-for)).
 
 Two facts constrain everything a caller does:
 
@@ -95,7 +108,7 @@ canonical one; the link leads to where the term is documented in full.
 | element value | one allocation of an element; a family of related commands is one element type with one element value per command (`\section` and `\subsection` are two values of `flm.heading`) | [elements and aspects](crate::guide::concepts_overview#elements-and-aspects) |
 | aspect | a piece of behavior attached to an element when the feature registers it and read back through a trait object; it is evaluated per occurrence of the element and reads no options | [elements and aspects](crate::guide::concepts_overview#elements-and-aspects) |
 | fragment, tree, document | a fragment is one piece of source as the parser delivered it (its tree, its source, its parse diagnostics); a tree is one placement of a fragment's node tree in a document, numbered by the document's arena; a document is its content (the tree arena, the traversal list and the resolution map) and the option values bound on it, and nothing else | [`Fragment`](crate::model::doc::Fragment), [`TreeId`](crate::model::addr::TreeId), [`Doc`](crate::model::doc::Doc) |
-| raw tree, structured tree | a raw tree is a tree the block-structure rewrite has not laid out: it stays as parsed, without paragraphs and with its text unresolved (the capability `flm.blocks.raw`); a structured tree is a tree that rewrite has laid out in paragraphs and blocks, with its text resolved (`flm.blocks.structured`) | [`RAW`](crate::stdcore::features::blocks::RAW), [`STRUCTURED`](crate::stdcore::features::blocks::STRUCTURED) |
+| raw tree, structured tree | a raw tree is a tree the block-structure rewrite has not laid out: it stays as parsed, without paragraphs and with its text unresolved (the capability `flm.blocks.raw`); a structured tree is a tree that rewrite has laid out in paragraphs and blocks, with its text resolved (`flm.blocks.structured`) | [`RAW`](crate::stdlib::features::blocks::RAW), [`STRUCTURED`](crate::stdlib::features::blocks::STRUCTURED) |
 | frozen tree | a document tree after the rewrite stages have run: it is never changed again, and everything a later stage computes about it is stored in tables beside it, keyed by node address | [frozen trees and computed data](crate::guide::concepts_overview#frozen-trees-and-computed-data) |
 | structural elements | the elements of the node shapes no feature declares: text, comments, containers, groups of each class, paragraph breaks, template placeholders, fields (`flm.field`), and the macros and environments a parse could not attribute to any feature (`flm.unknown.macro`, `flm.unknown.environment`) | [`StructuralElements`](crate::lang::structural::StructuralElements) |
 | content region | a run of sibling nodes laid out together: a fragment's top level, a body, an argument, a group's children; the block-structure pass lays each out as blocks, inline, or opaque (its region layout) | [`crate::lang::rewrites::blocks`] |
@@ -141,13 +154,13 @@ canonical one; the link leads to where the term is documented in full.
 | emitter | a backend's emit stage: it walks the lowered trees and writes the output's bytes into a table, from which the backend's final stage makes the artifact set | [backends, lowering, and outputs](crate::guide::concepts_overview#backends-lowering-and-outputs) |
 | artifact, artifact set, entry artifact | an artifact is one file's worth of output held as a value (a folder artifact holds the files of a folder), identified by its producer and a name and never by a path; an artifact set is the artifacts of one output, at most one of which is the entry artifact, the one that represents the output as a whole | [`Artifact`](crate::core::artifact::Artifact), [`ArtifactSet`](crate::core::artifact::ArtifactSet) |
 | output region, final stage | an output region is one named part of an output's entry artifact (the content, each piece placed beside it, and on HTML the stylesheets, the scripts, the title and the language); a backend's final stage assembles the entry artifact from the regions in a layout of its own, and a host may assemble the same regions through a template of its own instead | [`Regions`](crate::core::region::Regions), [output regions and the final stage](crate::guide::concepts_overview#output-regions-and-the-final-stage) |
-| presentation element, presentation tree | a presentation element is an element that never occurs in a source document: lowering rules stage nodes of presentation elements and a backend's emitter writes them; a presentation tree is a lowered tree, built from presentation elements | [`FeatureBuilder::presentation_element`](crate::core::registry::FeatureBuilder::presentation_element), [`crate::stdcore::backends::pres`] |
+| presentation element, presentation tree | a presentation element is an element that never occurs in a source document: lowering rules stage nodes of presentation elements and a backend's emitter writes them; a presentation tree is a lowered tree, built from presentation elements | [`FeatureBuilder::presentation_element`](crate::core::registry::FeatureBuilder::presentation_element), [`crate::stdlib::backends::pres`] |
 | piece | a document-level synthesized value that a backend places before or after the document's content (the title, the table of contents, the list of footnotes, the bibliography), built once by its builder stage into a table named for the piece | [`Piece`](crate::core::piece::Piece) |
 | accepted unrenderable element | an element the plan request lists, per backend, as one the backend need not render: the plan builds anyway, and each occurrence lowers to a childless `flm.pres.unsupported` node with one Error diagnostic | [`PlanRequest::unsupported`](crate::core::plan::PlanRequest::unsupported) |
 | style and script definition | a stylesheet or a script that a feature's output depends on, recorded in the registry under an identifier; a lowering rule or an emitter requires it by identifier, and the backend decides its delivery | [`StyleDef`](crate::core::registry::StyleDef) |
-| recomposed LaTeX, style file | the recomposed LaTeX is the output of the `latex-recomposed` backend: the document written back as LaTeX source that stays as close as possible to what the author wrote; a style file is the `.sty` file written beside the recomposed LaTeX document, holding exactly the definitions that document needs | [`latex_recomposed`](crate::stdcore::backends::latex_recomposed), [`style`](crate::stdcore::backends::latex::style) |
-| rendered LaTeX, contract | the rendered LaTeX is the output of the `latex-rendered` backend: resolved content (numbers, references, table of contents, notes computed by FLM) for LuaLaTeX alone, one `\flmx…` command or environment per presentation element, every payload field a key of its key-value argument; the contract is that set of commands, keys, roles and kind tokens, stated as data, which a LaTeX template redefines by registering code under a role or kind (`\flmxDefineBlock{<role>}{…}{…}`); a style file `<stem>.<hash>.sty` (stem `flmx`) is always written. A product independent of the recomposed LaTeX | [`latex_rendered`](crate::stdcore::backends::latex_rendered), [`contract`](crate::stdcore::backends::latex_rendered::contract) |
-| package request, definition piece, LaTeX hook | on the LaTeX outputs, a lowering rule requires LaTeX packages (`flm.latex.pkg.<name>`) and units of LaTeX definitions (`flm.latex.def.<name>`) by identifier; the style file holds what the document required; a LaTeX hook is a macro or environment the recomposed LaTeX writes and the style file defines with a plain default, which a user redefines in the preamble | [`packages`](crate::stdcore::backends::latex::packages), [`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef), [`preamble`](crate::stdcore::backends::latex::preamble), [LaTeX package requests, definition pieces and hooks](crate::guide::concepts_overview#latex-package-requests-definition-pieces-and-hooks) |
+| recomposed LaTeX, style file | the recomposed LaTeX is the output of the `latex-recomposed` backend: the document written back as LaTeX source that stays as close as possible to what the author wrote; a style file is the `.sty` file written beside the recomposed LaTeX document, holding exactly the definitions that document needs | [`latex_recomposed`](crate::stdlib::backends::latex_recomposed), [`style`](crate::stdlib::backends::latex::style) |
+| rendered LaTeX, contract | the rendered LaTeX is the output of the `latex-rendered` backend: resolved content (numbers, references, table of contents, notes computed by FLM) for LuaLaTeX alone, one `\flmx…` command or environment per presentation element, every payload field a key of its key-value argument; the contract is that set of commands, keys, roles and kind tokens, stated as data, which a LaTeX template redefines by registering code under a role or kind (`\flmxDefineBlock{<role>}{…}{…}`); a style file `<stem>.<hash>.sty` (stem `flmx`) is always written. A product independent of the recomposed LaTeX | [`latex_rendered`](crate::stdlib::backends::latex_rendered), [`contract`](crate::stdlib::backends::latex_rendered::contract) |
+| package request, definition piece, LaTeX hook | on the LaTeX outputs, a lowering rule requires LaTeX packages (`flm.latex.pkg.<name>`) and units of LaTeX definitions (`flm.latex.def.<name>`) by identifier; the style file holds what the document required; a LaTeX hook is a macro or environment the recomposed LaTeX writes and the style file defines with a plain default, which a user redefines in the preamble | [`packages`](crate::stdlib::backends::latex::packages), [`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef), [`preamble`](crate::stdlib::backends::latex::preamble), [LaTeX package requests, definition pieces and hooks](crate::guide::concepts_overview#latex-package-requests-definition-pieces-and-hooks) |
 
 ### References and numbering
 
@@ -155,10 +168,10 @@ canonical one; the link leads to where the term is documented in full.
 |---|---|---|
 | reference point | one place in a document that can be referred to, numbered, or given an anchor (a heading, an equation line, a theorem, a footnote) | [`RefPoint`](crate::model::aspects::RefPoint) |
 | label | the text an author writes as `\label{type:label}` after a construct, which the construct reads as a field and attaches to its reference point; the label type (the part before the colon) must be one the point accepts, and a label may be written only once in a document | [reference points, labels and anchors](crate::guide::concepts_overview#reference-points-labels-and-anchors) |
-| anchor | the identifier a link points at for a reference point, computed once by the refs feature and written by the backends as the link target | [`ANCHORS`](crate::stdcore::features::refs::ANCHORS) |
+| anchor | the identifier a link points at for a reference point, computed once by the refs feature and written by the backends as the link target | [`ANCHORS`](crate::stdlib::features::refs::ANCHORS) |
 | reference site | one place that points at a reference point (a `\ref`, a `\hyperref`, a proof's back-reference, a term link) | [`RefSite`](crate::model::aspects::RefSite) |
-| counter, counter style | a counter is a dotted name under which things are counted in document order; a counter style says how a counter value is shown (the number template, the prefix words, the delimiters, the join texts) | [`CounterDecl`](crate::stdcore::features::numbering::CounterDecl), [`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl), [counters and counter styles](crate::guide::concepts_overview#counters-and-counter-styles) |
-| xnote, xnote kind | an xnote is a piece of text set apart from the running text, marked where it belongs and shown elsewhere or in place (a footnote, an endnote, a side note); an xnote kind is one way of being an xnote, declared by the feature's configuration | [`xnotes`](crate::stdcore::features::xnotes) |
+| counter, counter style | a counter is a dotted name under which things are counted in document order; a counter style says how a counter value is shown (the number template, the prefix words, the delimiters, the join texts) | [`CounterDecl`](crate::stdlib::features::numbering::CounterDecl), [`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl), [counters and counter styles](crate::guide::concepts_overview#counters-and-counter-styles) |
+| xnote, xnote kind | an xnote is a piece of text set apart from the running text, marked where it belongs and shown elsewhere or in place (a footnote, an endnote, a side note); an xnote kind is one way of being an xnote, declared by the feature's configuration | [`xnotes`](crate::stdlib::features::xnotes) |
 | user definition | a macro, environment or special character sequence that a document's author or the host defines by substitution (a name, an argument syntax, a template and the parsing modes it is defined for) | [`Definition`](crate::lang::rewrites::userdefs::Definition) |
 | template language | FLM text with placeholders (`#1`, `#{name}`, `#{body}`, `#[…]{ref}`), compiled once when the registry is built; user definitions, number templates, within templates, list label templates, heading title templates, theorem heading templates and the defterm lead-in are written in it | [the template language shared by features](crate::guide::concepts_overview#the-template-language-shared-by-features) |
 
@@ -166,15 +179,19 @@ canonical one; the link leads to where the term is documented in full.
 
 | term | definition | canonical location |
 |---|---|---|
-| host | any program that embeds the library; the host library `flm-main` is the one shipped with the project | the crate root of `flm-main` |
+| host | any program that embeds the library; the host library `flm-host` is the one shipped with the project | the crate root of `flm-host` |
 | front matter | the block of YAML between a first line `---` and the next `---` line of a file: its root keys are the author's metadata (title, authors, date), and the reserved key `flm` holds the document's settings | [the front matter](crate::guide::command_line#the-front-matter) |
 | extension | a set of files found by name on the host's search path (`NAME.yaml`, or a folder `NAME/` holding `flmextension.yaml`) that provides one or more packages; its manifest's engine reads it: `data` (settings, workflows, compose templates) or `js` (features written in JavaScript) | [extensions](crate::guide::command_line#extensions), [writing one](crate::guide::extending#extensions) |
 | `use` entry | `LOCATOR` or `LOCATOR#PACKAGE`: the locator names a compiled package or an extension (never a path; `@` allowed at its start, `:` reserved), `#PACKAGE` one of the extension's packages, `_` when absent | [extensions](crate::guide::command_line#extensions) |
-| compose template | the host's text with named places for the parts of an output's entry artifact (its output regions) | [compose templates](crate::guide::command_line#compose-templates) |
+| compose template | the host's text with named places for the parts of an output's entry artifact (its output regions), with settings it declares (a JSON Schema with marks, written under `compose.template_config.OUTPUT.NAME`) | [compose templates](crate::guide::command_line#compose-templates) |
+| path with a root, root, bare path, place | the one syntax of a path that a compose template, an extension's code and a setting marked `path` give: `ROOT:PATH` with the roots `self`, `ext+NAME` (an extension the document uses, by its `use` name), `std`, `doc`, `cwd` and `https`; an absolute path is `doc:` and itself; a bare path (no `:`) is relative to the folder of its *place*, the file it is written in; a text with no place (one given to `eval`) refuses a bare path and `self:` | [paths with a root](crate::guide::command_line#paths-with-a-root), `flm_ext::paths` |
+| mark | a name attached to a node of a settings schema under `x-flm-marks`: `merge-object-key-values` (combined key by key), `remove-key-when-value-is-false`, `set-to-default-with-null` (decide how sources combine), `path` (each text a path, given the root of its origin), `markup` (each text FLM markup) | [`Mark`](crate::core::settings::Mark), [the marks of a setting](crate::guide::command_line#the-marks-of-a-setting) |
+| progress sheet, row, scope | a build's record of what it does: a tree of rows (one per piece of work a person may wait for: a stage, a conversion, a fetch, a program run), each with a kind (dotted name), optional title and label, a state, an optional count; the work writes it through a `Scope` and never reads it but for the cancellation; the host reads snapshots and may cancel | [`crate::progress`], [following a build](crate::guide::embedding#following-a-build) |
+| log line, log sink | text for a person about what a build does (level `Error`, `Warn`, `Info`; a source), received by the host's `LogSink`; never a problem of the document, which is a diagnostic | [`LogSink`](crate::progress::LogSink) |
 
-The host's terms are canonical in the `flm_main` modules `seed`, `extensions` and
+The host's terms are canonical in the `flm_host` modules `seed`, `extensions` and
 `packages`, and in the crate `flm_ext`, which this crate's documentation cannot link
-(the compose template is [`Template`](crate::stdcore::features::compose::Template)); the links of this table
+(the compose template is [`Template`](crate::stdlib::features::compose::Template)); the links of this table
 lead to the command-line guide.
 
 **Words the AI guides do not use**, with what replaces them (an agent reading older
@@ -190,7 +207,7 @@ front matter; *a fact of the machine* → a value that depends on the machine th
 runs on; *citation style* for the citations feature's `style` → citation counter style
 (*citation style* is the host's CSL file only); *safe key* → safe label; *minted*,
 *mint* (outside the `mint` module) → assigned, created or derived; *stamped point* → a
-[`LatexPoint`](crate::stdcore::backends::latex::LatexPoint) node; *roster* → the
+[`LatexPoint`](crate::stdlib::backends::latex::LatexPoint) node; *roster* → the
 collected declarations, the registered names; *fallback gate* → fallback provider;
 *worker-thread contract* → worker-thread requirement; *raw piece* → raw node
 (`flm.pres.latex.raw`).
@@ -200,7 +217,7 @@ collected declarations, the registered names; *fallback gate* → fallback provi
 This section is the author's reference in short; [FLM language
 syntax](crate::guide::language_syntax) is the full one, and [The flm command-line
 tool](crate::guide::command_line) describes the program. Everything below describes the
-standard package as the `flm` program configures it, which is the library's default
+standard features as the `flm` program configures them, which is the library's default
 configuration except for the few values listed under [the program's
 defaults](crate::guide::command_line#the-programs-defaults).
 
@@ -233,8 +250,8 @@ By \eqref{eq:energy}, \(E\) grows with \(m\).
 
 - The title, the authors and the date are FLM text (`title: The \emph{Art} of \(x^2\)`),
   shown before the content. In a YAML text quoted with `"`, a backslash is doubled.
-- Under `flm`: `use` (packages, compiled or of extensions, by name), `features` (each feature's settings, or
-  `false` to switch it off), `parsing` (`comments`, `comment_prefix`, `dollar_math`),
+- Under `flm`: `use` (packages, compiled or of extensions, by name), `features` (each feature's settings, with
+  `enabled: false` to switch it off and keep them; `false` is its shorthand), `parsing` (`comments`, `comment_prefix`, `dollar_math`),
   `feature_order` (one chain `NAME < NAME < … < NAME` of features' names, or a list of
   chains), `layout` (`blocks`, `inline` or `auto`), `default_profile` (the profile when `-p` gives none). In the primary file, any
   other key under `flm` stops the program with status 2 ([the front
@@ -247,7 +264,7 @@ By \eqref{eq:energy}, \(E\) grows with \(m\).
   heading; see the row *included files* below). Any other key under `flm` in an included
   file is reported, and the file's content is still included.
 - Headings are **not numbered** unless the settings say so: the key
-  `headings.numbering`, a [`HeadingNumbering`](crate::stdcore::features::headings::HeadingNumbering)
+  `headings.numbering`, a [`HeadingNumbering`](crate::stdlib::features::headings::HeadingNumbering)
   written `nothing-numbered` (the default), `all-numbered` or `{up-to-depth: 2}`.
   Equations are numbered by default.
 
@@ -283,29 +300,29 @@ command of another feature (`\href`, `\section`) is declared for text only, so i
 such an unknown command. Under the `math-mathjax` extension, a command that MathJax's packages do not
 define is an Error inside a formula too.
 
-### The commands of the standard package
+### The commands of the standard features
 
 | construct | written | notes |
 |---|---|---|
-| inline styles | `\emph{…}` `\textbf{…}` `\textit{…}` `\texttt{…}` | [`textstyles`](crate::stdcore::features::textstyles) |
-| headings | `\section` `\subsection` `\subsubsection` `\paragraph` `\subparagraph`, each `\cmd*[numbered=…, toc=…, alt={…}]{Title}\label{sec:x}` | levels 1 to 5; the star is `numbered=false` and nothing else; the bracket holds key-values, not a short title (`\section[Short]{…}` is the Error `flm.heading.unknown-key`); `alt={Short}` is the alternative title the table of contents shows (a reference still shows the full title; `alt` without a value is the Error `flm.heading.missing-value`); `pdfbookmark` is reserved (Warning); label types `sec`, `topic` ([`headings`](crate::stdcore::features::headings)) |
+| inline styles | `\emph{…}` `\textbf{…}` `\textit{…}` `\texttt{…}` | [`textstyles`](crate::stdlib::features::textstyles) |
+| headings | `\section` `\subsection` `\subsubsection` `\paragraph` `\subparagraph`, each `\cmd*[numbered=…, toc=…, alt={…}]{Title}\label{sec:x}` | levels 1 to 5; the star is `numbered=false` and nothing else; the bracket holds key-values, not a short title (`\section[Short]{…}` is the Error `flm.heading.unknown-key`); `alt={Short}` is the alternative title the table of contents shows (a reference still shows the full title; `alt` without a value is the Error `flm.heading.missing-value`); `pdfbookmark` is reserved (Warning); label types `sec`, `topic` ([`headings`](crate::stdlib::features::headings)) |
 | labels | `\label{type:label}` after a construct that declares it | a field, not a command: after `\emph{x}` it is an unknown macro ([labels](crate::guide::language_syntax#writing-a-label)) |
-| references | `\ref[options]{type:label}`, `\ref{eq:a,eq:b}`, `\hyperref[type:label]{text}` | shows the target's number, else its content, else the label; options `noprefix`, `S` (capitalized word), or a variant name (`lowercase`, `abbreviated`, `capital`) ([`refs`](crate::stdcore::features::refs)) |
-| mathematics | `\(…\)`, `\[…\]`, environments `equation` `align` `gather` and their starred forms | inside the six environments only: `\\[spacing]`, `\label{eq:x}`, `\tag{A}`/`\tag*{A}`, `\nonumber` (`\notag` is not one of them); `\eqref{eq:x}` shows `(3)`; text in a formula: `\text{…}` and `\textnormal` `\textup` `\textrm` `\textmd` `\textbf` `\textit` `\textsl` `\textsc` `\textsf` `\texttt` `\mbox`, whose argument is ordinary FLM content ([`math`](crate::stdcore::features::math)) |
-| verbatim content | `\verbtext+…+`, `\verbcode[lang]+…+`, `\verba[lang]+…+` (any delimiter; `{…}` `[…]` `<…>` `(…)` nest), `\begin{verbatimtext}…\end{verbatimtext}`, `\begin{verbatimcode}[lang]…\end{verbatimcode}` (a block) | no character is special inside ([`verbatim`](crate::stdcore::features::verbatim)) |
-| lists | `itemize`, `enumerate`, `description`; `\item[tag]\label{item:x}` | optional `[label=(#{alph}), ref=#{alph}]` or a short form `[(i)]`, `[1.]`, `[-]`; a `description` item needs a tag; nothing but whitespace and comments before the first `\item` ([`lists`](crate::stdcore::features::lists)) |
-| footnotes | `\footnote[\label{fn:x}]{content}` | the label goes **inside the optional argument**, never after the footnote; the space before `\footnote` is removed, `~` included ([`xnotes`](crate::stdcore::features::xnotes)) |
-| hyperlinks | `\href{address}{text}`, `\url{address}`, `\email{address}` | the address is raw text up to the balancing `}` (`%` and `#` are characters there) ([`href`](crate::stdcore::features::href)) |
-| citations | `\cite[note]{key1,key2}`, `\R[S]\cite{key}`, `\R[I]\cite{key}` | adjacent `\cite` calls are one mark; `\cite` removes the space before it (`~` included) and writes its own; `\R` writes "ref."/"refs." before the mark (`S`: capitalized, `I`: no word) ([`citations`](crate::stdcore::features::citations)). The `flm` program finds entries by key prefix: `arxiv:`, `doi:`, `manual:{…}`, `bib:` ([citations](crate::guide::command_line#citations)) |
-| defined terms | `\begin{defterm}{term}\label{topic:x}\aliasterm{terms} body \end{defterm}`, `\term[ref]{shown}` | a term link matches the term exactly (case and markup count) ([`defterm`](crate::stdcore::features::defterm)) |
-| theorems | `theorem` `proposition` `lemma` `corollary` `conjecture` `definition` `remark` (one shared count), `proof`; `\begin{lemma}[Title]\label{lem:x}\noproofref …` | label types `thm` `prop` `cor` `lem` `rem` `def` `dfn` `x` `topic`; a proof's back-reference `\begin{proof}[*lem:x]` (shown) or `[**lem:x]` (recorded only); a `theorem`/`proposition`/`lemma`/`corollary` that no proof refers back to and that has no `\noproofref` is the Warning `flm.theorems.missing-proof` ([`theorems`](crate::stdcore::features::theorems)) |
-| quotations | `quote` (with `\text{…}`, `\lines{…}`, `\attributed{…}`, `\block{…}` sections), `blockquote`, `address` | text written directly in `quote` outside a section is an Error; in `\lines` and `address`, `\\` ends a line and `\indent` at a line's start indents it (`~` does not: it is removed there) ([`quote`](crate::stdcore::features::quote)) |
-| floats | `figure`, `table` with `\caption[alt=…]{…}`, `\label{figure:x}`, `\nonumber` in the body | `figure` holds exactly one `\includegraphics`; `table` one `cells` environment or one image; the label type is the float type's name ([`floats`](crate::stdcore::features::floats)) |
-| images | `\includegraphics[alt=…, width=5cm, height=…]{path}` | by default only inside a float's body; lengths in `pt`, `mm`, `cm`, `in` ([`graphics`](crate::stdcore::features::graphics)) |
-| tables of cells | `\begin{cells} \celldata<H>{A & B} \celldata{1 & 2 \\ 3 & 4} \end{cells}`, `\cell<styles>[row;col]{…}` | by default only inside a `table` float ([`cells`](crate::stdcore::features::cells)) |
-| annotations | `\phf{passage}`, `\phf[remark]`, `\phf … \endphf` | exist only for an annotator the settings configure (`annotations.annotators`); none by default ([`annotations`](crate::stdcore::features::annotations)) |
-| included files | `\input{file.flm}` | read relative to the including file's folder; a file whose front matter says `flm: {input_as: {heading: section, label: 'sec:x'}}` becomes a heading of its own ([`input`](crate::stdcore::features::input)) |
-| user definitions | `\name…` as the settings define it | a document cannot define a command: no `\newcommand`; definitions are settings of the `userdefs` feature (below) ([`userdefs`](crate::stdcore::features::userdefs)) |
+| references | `\ref[options]{type:label}`, `\ref{eq:a,eq:b}`, `\hyperref[type:label]{text}` | shows the target's number, else its content, else the label; options `noprefix`, `S` (capitalized word), or a variant name (`lowercase`, `abbreviated`, `capital`) ([`refs`](crate::stdlib::features::refs)) |
+| mathematics | `\(…\)`, `\[…\]`, environments `equation` `align` `gather` and their starred forms | inside the six environments only: `\\[spacing]`, `\label{eq:x}`, `\tag{A}`/`\tag*{A}`, `\nonumber` (`\notag` is not one of them); `\eqref{eq:x}` shows `(3)`; text in a formula: `\text{…}` and `\textnormal` `\textup` `\textrm` `\textmd` `\textbf` `\textit` `\textsl` `\textsc` `\textsf` `\texttt` `\mbox`, whose argument is ordinary FLM content ([`math`](crate::stdlib::features::math)) |
+| verbatim content | `\verbtext+…+`, `\verbcode[lang]+…+`, `\verba[lang]+…+` (any delimiter; `{…}` `[…]` `<…>` `(…)` nest), `\begin{verbatimtext}…\end{verbatimtext}`, `\begin{verbatimcode}[lang]…\end{verbatimcode}` (a block) | no character is special inside ([`verbatim`](crate::stdlib::features::verbatim)) |
+| lists | `itemize`, `enumerate`, `description`; `\item[tag]\label{item:x}` | optional `[label=(#{alph}), ref=#{alph}]` or a short form `[(i)]`, `[1.]`, `[-]`; a `description` item needs a tag; nothing but whitespace and comments before the first `\item` ([`lists`](crate::stdlib::features::lists)) |
+| footnotes | `\footnote[\label{fn:x}]{content}` | the label goes **inside the optional argument**, never after the footnote; the space before `\footnote` is removed, `~` included ([`xnotes`](crate::stdlib::features::xnotes)) |
+| hyperlinks | `\href{address}{text}`, `\url{address}`, `\email{address}` | the address is raw text up to the balancing `}` (`%` and `#` are characters there) ([`href`](crate::stdlib::features::href)) |
+| citations | `\cite[note]{key1,key2}`, `\R[S]\cite{key}`, `\R[I]\cite{key}` | adjacent `\cite` calls are one mark; `\cite` removes the space before it (`~` included) and writes its own; `\R` writes "ref."/"refs." before the mark (`S`: capitalized, `I`: no word) ([`citations`](crate::stdlib::features::citations)). The `flm` program finds entries by key prefix: `arxiv:`, `doi:`, `manual:{…}`, `bib:` ([citations](crate::guide::command_line#citations)) |
+| defined terms | `\begin{defterm}{term}\label{topic:x}\aliasterm{terms} body \end{defterm}`, `\term[ref]{shown}` | a term link matches the term exactly (case and markup count) ([`defterm`](crate::stdlib::features::defterm)) |
+| theorems | `theorem` `proposition` `lemma` `corollary` `conjecture` `definition` `remark` (one shared count), `proof`; `\begin{lemma}[Title]\label{lem:x}\noproofref …` | label types `thm` `prop` `cor` `lem` `rem` `def` `dfn` `x` `topic`; a proof's back-reference `\begin{proof}[*lem:x]` (shown) or `[**lem:x]` (recorded only); a `theorem`/`proposition`/`lemma`/`corollary` that no proof refers back to and that has no `\noproofref` is the Warning `flm.theorems.missing-proof` ([`theorems`](crate::stdlib::features::theorems)) |
+| quotations | `quote` (with `\text{…}`, `\lines{…}`, `\attributed{…}`, `\block{…}` sections), `blockquote`, `address` | text written directly in `quote` outside a section is an Error; in `\lines` and `address`, `\\` ends a line and `\indent` at a line's start indents it (`~` does not: it is removed there) ([`quote`](crate::stdlib::features::quote)) |
+| floats | `figure`, `table` with `\caption[alt=…]{…}`, `\label{figure:x}`, `\nonumber` in the body | `figure` holds exactly one `\includegraphics`; `table` one `cells` environment or one image; the label type is the float type's name ([`floats`](crate::stdlib::features::floats)) |
+| images | `\includegraphics[alt=…, width=5cm, height=…]{path}` | by default only inside a float's body; lengths in `pt`, `mm`, `cm`, `in` ([`graphics`](crate::stdlib::features::graphics)) |
+| tables of cells | `\begin{cells} \celldata<H>{A & B} \celldata{1 & 2 \\ 3 & 4} \end{cells}`, `\cell<styles>[row;col]{…}` | by default only inside a `table` float ([`cells`](crate::stdlib::features::cells)) |
+| annotations | `\phf{passage}`, `\phf[remark]`, `\phf … \endphf` | exist only for an annotator the settings configure (`annotations.annotators`); none by default ([`annotations`](crate::stdlib::features::annotations)) |
+| included files | `\input{file.flm}` | read relative to the including file's folder; a file whose front matter says `flm: {input_as: {heading: section, label: 'sec:x'}}` becomes a heading of its own ([`input`](crate::stdlib::features::input)) |
+| user definitions | `\name…` as the settings define it | a document cannot define a command: no `\newcommand`; definitions are settings of the `userdefs` feature (below) ([`userdefs`](crate::stdlib::features::userdefs)) |
 
 **Label types by construct**: heading `sec`, `topic`; equation line `eq` (only a line
 that can be numbered); list item `item`; footnote `fn`; theorem `thm`, `prop`, `cor`,
@@ -315,8 +332,8 @@ construct does not accept is the Error `flm.refs.label-type-not-accepted` and la
 nothing.
 
 **User definitions in the front matter** (the settings of the `userdefs` feature, read as
-[`UserdefsData`](crate::stdcore::features::userdefs::UserdefsData); each entry a
-[`DefinitionData`](crate::stdcore::features::userdefs::DefinitionData)):
+[`UserdefsData`](crate::stdlib::features::userdefs::UserdefsData); each entry a
+[`DefinitionData`](crate::stdlib::features::userdefs::DefinitionData)):
 
 ```yaml
 flm:
@@ -366,6 +383,7 @@ $ flm render -p text paper.flm                # plain text
 $ flm render -p latex-recomposed -o out/paper.tex paper.flm   # paper.tex, paper-flmrecomposed.HASH.sty
 $ flm render -p latex-rendered -o out/paper.tex paper.flm     # paper.tex, paper-flmx.HASH.sty; lualatex twice
 $ flm render -p pdf-latex -o out/paper.pdf paper.flm          # extension profile-pdf-latex; latexmk -lualatex in a temp folder; paper.pdf alone
+$ flm render -p tty paper.flm | less -R       # extension profile-tty: the text with escape sequences (bold, italic, underline, colors, OSC 8 links; tables framed; block images drawn with half-block characters, svg/pdf via ImageMagick; -O tty.colors=none|standard|rich; -O tty.graphics_cell_width_pt=6 -O tty.graphics_cell_height_pt=12); -o out/ writes index.ansi
 $ flm render -c 'Some \emph{text}.' -p text   # a document given on the command line
 $ flm render -O text.width=60 -p text paper.flm               # one setting, YAML one-line form
 $ flm render --use syntax-highlight paper.flm                 # one package more, after the front matter's `use`
@@ -373,8 +391,7 @@ $ flm info                                    # the environment at a glance: pac
 $ flm info '\section'                         # a command's page, looked up by name
 $ flm info -d paper.flm settings/text         # the settings in effect for paper.flm, with where each was written
 $ flm info --json -r features/refs            # a feature and every page below it, as JSON
-$ flm info --write-flm refs.flm features/refs # one page as an FLM document (uses flmdoc), for flm render
-$ flm check --json-diagnostics paper.flm      # problems as JSON records on stderr, one per line
+$ flm check --json-messages paper.flm         # messages as JSON records on stderr, one per line
 $ flm dump --help                             # inspect trees, tables and outputs as JSON
 ```
 
@@ -394,21 +411,32 @@ $ flm dump --help                             # inspect trees, tables and output
   `text.width`, `flm.refs.resolve`). `-d DOC` describes that document's environment; the
   build options (`-p`, `--use`, `--initial-use`, `--math`, `--extensions-dir`, `-O`) shape
   the environment described, never how the pages print. Text output at the terminal's
-  width (`COLUMNS`), else 80 columns; `--json` prints `{meta, pages: […]}` (`meta`:
+  width (`COLUMNS`), else 80 columns; on a terminal painted with the profile `tty`, without
+  colors when `NO_COLOR` is set and not empty; `--json` prints `{meta, pages: […]}` (`meta`:
   `kind: info`, `flm` version, `format: 1`), each page `{path, kind, title, summary, body,
   children}`; `-r` writes children as full pages. Status 0 shown (warnings allowed), 2
   arguments, document, environment, or a path and name with no page, 3 a failure of the
   program ([flm info](crate::guide::command_line#describing-the-environment-flm-info)).
-- `--json-diagnostics` (any command but `flm dump`, before or after its name): standard
-  error carries one JSON object per line, a header `{"kind":"diagnostics","flm":…,"format":1}`
+- `--json-messages` (any command but `flm dump`, before or after its name): standard
+  error carries one JSON object per line, a header `{"kind":"messages","flm":…,"format":1}`
   then records `diagnostic` (`severity`, `id`, `data`, `message`, `place`, `frames`,
   `made_from`), `problem` (`severity` `error` or `warning`, `message`, `place`: a problem
   that stopped the command, or the program's own error or warning, such as `flm info`'s
   warning about a documentation text shown as plain text), `summary` (`errors`,
-  `warnings`), `build` (the preview), `log`.
+  `warnings`), `build` (the preview; a `build` with no `log` `build N done` before the
+  next `build` was cancelled), `log` (`level`, `source`, `text`), `progress`
+  (`fraction`, `text`, `row`; every 500 ms while a build runs, when it changed; also
+  for `flm watch`).
+- `render` and `check` draw a progress line on standard error when it is a terminal and
+  no `--json-messages` is given
+  (`[########------------] 42% Converting graphics figure-3.pdf`, at most 80 columns,
+  from 500 ms into a build). Log lines at `error` and `warn` always
+  print (`SOURCE: warning: TEXT`); `info` lines (extensions' `console.log`, citation
+  requests and waits) under `-v` only
+  ([progress of a build](crate::guide::command_line#progress-of-a-build)).
   A place: `file`, `line` from 1, `column` from 1 in bytes, and in a file's parsed content
   `offset` (bytes from the top of the file) and `end`; none in a front matter or manifest
-  ([records](crate::guide::command_line#problems-as-json-records---json-diagnostics)).
+  ([records](crate::guide::command_line#messages-as-json-records---json-messages)).
 - A document with errors writes no output unless `--continue-with-errors` is given.
 - A plain `flm check` does not report what is found only while an output is made: a
   missing image file, a failed conversion, a list's or a float's or a table of cells'
@@ -427,7 +455,7 @@ $ flm dump --help                             # inspect trees, tables and output
   `latex-rendered` cannot be planned (status 2); `latex-rendered` with `html` or `text`
   can. `flm render --help` lists the program's compose templates for each output (`-t`).
   A compose template's settings are given under the output's name, then the template's
-  name: `-O 'compose.template_config={latex-rendered: {simple: {documentclass: report}}}'`.
+  name: `-O 'compose.template_config={latex-rendered: {article: {documentclass: report}}}'`.
   The `latex-rendered` templates are written with the delimiters `<<* *>>`, `<<< >>>`,
   `<<!-- -->>`.
 
@@ -458,8 +486,8 @@ $ flm dump --help                             # inspect trees, tables and output
 | [`crate::model`] | the document model: [names](crate::model::names), [addresses](crate::model::addr), [elements](crate::model::element) and [aspects](crate::model::aspects), [fragments and documents](crate::model::doc), [assembly of a document from its files](crate::model::assemble), [option types](crate::model::options), the [digest](crate::model::digest) |
 | [`crate::lang`] | FLM's language over techy: [building the language](crate::lang::build), [parsing](crate::lang::parse), [building techy packages from element declarations](crate::lang::mint) (minting), the [recursion guard](crate::lang::guard), the [three rewrite passes](crate::lang::rewrites) (included files spliced, user definitions expanded, block structure), [copies into synthesized values](crate::lang::copy) |
 | [`crate::core`] | the processing framework: [computed data](crate::core::data) ([tables](crate::core::data::table), [the store](crate::core::data::store)), the [registry](crate::core::registry), [plan construction](crate::core::plan), the [runner](crate::core::run), [stages](crate::core::stage), [services](crate::core::services), [lowering rules](crate::core::lowering), [artifacts](crate::core::artifact), [output regions](crate::core::region), [pieces](crate::core::piece), [settings](crate::core::settings) |
-| [`crate::stdcore`] | the standard package: the [features](crate::stdcore::features) of the standard language and the [presentation elements, the lowering and the backends](crate::stdcore::backends) |
-| [`crate::math_passthrough`] | the package `math-passthrough`, the library's math processor, built from `stdcore`'s public items |
+| [`crate::stdlib`] | the standard features: the [features](crate::stdlib::features) that provide the commands and environments of the language, and the [presentation elements, the lowering and the backends](crate::stdlib::backends) |
+| [`crate::math_passthrough`] | the package `math-passthrough`, the library's math processor, built from `stdlib`'s public items |
 | [`crate::layout`] | the text layout engine ([`DocBuf`](crate::layout::DocBuf), [`print`](crate::layout::print)) used by the text backend |
 | [`crate::dump`] | inspection and test tools: [projection](crate::dump::project) of trees, tables and diagnostics, the [serialized parse](crate::dump::session) of `flm dump`, [golden files](crate::dump::golden), [diagnostic assertions](crate::dump::diag); ordinary public interface behind no cargo feature |
 | [`crate::techy`], [`crate::untechxt`] | the re-exported parser toolkit and Unicode-to-LaTeX encoder ([`DEFAULT_TABLE`](crate::untechxt::builtin::DEFAULT_TABLE), [`Encoder`](crate::untechxt::Encoder), [`PreambleNeeds`](crate::untechxt::preamble::PreambleNeeds); see the recipe [Spell one character as LaTeX](#spell-one-character-as-latex-and-learn-what-its-spelling-needs)) |
@@ -469,13 +497,13 @@ Layering: each module uses only the modules on levels below its own, which the t
 `module_layering` of the crate checks:
 
 ```text
-{model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+{model, lang} < core < dump < stdlib < math_passthrough        layout standalone
 ```
 
 [`crate::model`] and [`crate::lang`] form one level: a node carries its element (the
 language needs the model) and the model's fragments are typed by the language (the model
 needs the language). [`crate::layout`] uses no other module of the crate. Within
-[`crate::stdcore`], only the backends ([`crate::stdcore::backends`]) use the layout
+[`crate::stdlib`], only the backends ([`crate::stdlib::backends`]) use the layout
 engine and the Unicode-to-LaTeX encoder.
 
 ## Embedding: the everyday flow
@@ -503,7 +531,7 @@ embedding](crate::guide::ai_guide_embedding) covers each step in depth.
 |---|---|
 | [`RegistryBuilder`](crate::core::registry::RegistryBuilder) | [`use_package`](crate::core::registry::RegistryBuilder::use_package), [`feature`](crate::core::registry::RegistryBuilder::feature), [`contribute`](crate::core::registry::RegistryBuilder::contribute) (a service value from the embedding program) |
 | [`RegistryBuilder::build`](crate::core::registry::RegistryBuilder::build)`(&`[`RegistryInputs`](crate::core::registry::RegistryInputs)`)` | → `Arc<`[`FlmRegistry`](crate::core::registry::FlmRegistry)`>`, or a [`RegistryBuildError`](crate::core::registry::RegistryBuildError) |
-| [`stdcore::package`](crate::stdcore::package)`(`[`StdcoreConfig`](crate::stdcore::StdcoreConfig)`)` | the standard package, configured in Rust; [`stdcore::factory`](crate::stdcore::factory) builds it from settings written as data |
+| [`stdlib::add_features`](crate::stdlib::add_features)`(PackageEntry, `[`StdlibConfig`](crate::stdlib::StdlibConfig)`)` | the standard features added to a package, configured in Rust; [`stdlib::add_features_from_settings`](crate::stdlib::add_features_from_settings) builds them from settings written as data |
 | [`FlmRegistry::lang`](crate::core::registry::FlmRegistry::lang) | the built language ([`BuiltLang`](crate::lang::BuiltLang)) to parse with; one per registry, shared across threads |
 | [`FlmRegistry::build_diagnostics`](crate::core::registry::FlmRegistry::build_diagnostics) | what the build reported about the configuration (a user definition whose template does not parse); report these once per registry: a build succeeds even when they hold Errors |
 | [`workflow`](crate::core::registry::FlmRegistry::workflow), [`output`](crate::core::registry::FlmRegistry::output), [`table_named`](crate::core::registry::FlmRegistry::table_named), [`has_feature`](crate::core::registry::FlmRegistry::has_feature), [`set_aside_rules`](crate::core::registry::FlmRegistry::set_aside_rules) | inspecting a finished registry by name |
@@ -566,7 +594,7 @@ on a thread that has that much stack.
 | [`DocContent::add_tree`](crate::model::doc::DocContent::add_tree) | arena only, for a tree reached through a placing node |
 | [`DocContent::resolve`](crate::model::doc::DocContent::resolve) | makes a node place another tree (a heading input uses it) |
 | [`DocContent::walk`](crate::model::doc::DocContent::walk) | document order, the only definition of it ([`walk_nodes`](crate::model::doc::DocContent::walk_nodes), [`walk_trees`](crate::model::doc::DocContent::walk_trees)) |
-| [`Doc::new`](crate::model::doc::Doc::new), [`Doc::with_options`](crate::model::doc::Doc::with_options) | the content, and the option values bound on the document (its metadata, [`DocMeta`](crate::stdcore::features::meta::DocMeta), and its [`NumberingOptions`](crate::stdcore::features::numbering::NumberingOptions)) |
+| [`Doc::new`](crate::model::doc::Doc::new), [`Doc::with_options`](crate::model::doc::Doc::with_options) | the content, and the option values bound on the document (its metadata, [`DocMeta`](crate::stdlib::features::metadata::DocMeta), and its [`NumberingOptions`](crate::stdlib::features::numbering::NumberingOptions)) |
 
 ### Plan
 
@@ -583,7 +611,8 @@ on a thread that has that much stack.
 | item | notes |
 |---|---|
 | [`Run::new`](crate::core::run::Run::new)`(Arc<Doc>, Arc<Plan>, `[`Externals`](crate::core::run::Externals)`)` | checks the inputs and resolves option values; executes nothing. Its failures are [`RunError`](crate::core::run::RunError)s, never statements about the document |
-| [`Run::execute`](crate::core::run::Run::execute), [`Run::step`](crate::core::run::Run::step) | to the end, or one batch ([`Step`](crate::core::run::Step)); stepping changes when work happens, never what is computed |
+| [`Run::execute`](crate::core::run::Run::execute), [`Run::step`](crate::core::run::Run::step) | to the end, or one batch ([`Step`](crate::core::run::Step)); stepping changes when work happens, never what is computed. `execute` and [`Run::outcome`](crate::core::run::Run::outcome) give [`RunOutcome`](crate::core::run::RunOutcome): `Finished`, `HaltedAtGate`, `Cancelled` |
+| [`Run::with_progress`](crate::core::run::Run::with_progress)`(Scope)` | before the first step: the run declares `flm.run.rewrites` and one row per scheduled stage under the scope, and reads the cancellation; a cancelled step is discarded whole ([following a build](crate::guide::embedding#following-a-build)) |
 | [`RunOptions`](crate::core::run::RunOptions) | `sequential`, `continue_with_errors`, `max_diagnostics` |
 | [`Run::table`](crate::core::run::Run::table) | typed read of any table of the registry; `Ok(None)` means no scheduled stage writes it |
 | [`Run::frozen_tree`](crate::core::run::Run::frozen_tree), [`frozen_trees`](crate::core::run::Run::frozen_trees), [`tree_order`](crate::core::run::Run::tree_order), [`computed`](crate::core::run::Run::computed) | the trees the stages read, and the whole store |
@@ -592,38 +621,44 @@ on a thread that has that much stack.
 
 ### Reading the outputs and the diagnostics
 
-- **Text**: [`TEXT_OUTPUT`](crate::stdcore::backends::text::TEXT_OUTPUT)
-  (`flm.output.text`) holds a [`TextOutput`](crate::stdcore::backends::text::TextOutput):
-  the printed `text` and its position marks
-  ([`marks`](crate::stdcore::backends::text::TextOutput::marks),
-  [`TextMark`](crate::stdcore::backends::text::TextMark): which byte and line/column
-  range each lowered node produced; [`slice`](crate::stdcore::backends::text::TextOutput::slice),
-  [`marks_at`](crate::stdcore::backends::text::TextOutput::marks_at)). Read it for text
-  with positions.
-  [`TEXT_DOCUMENT`](crate::stdcore::backends::text::TEXT_DOCUMENT)
+- **Text**: [`TEXT_OUTPUT`](crate::stdlib::backends::text::TEXT_OUTPUT)
+  (`flm.output.text`) holds a [`TextOutput`](crate::stdlib::backends::text::TextOutput):
+  the printed `text`, its position marks
+  ([`marks`](crate::stdlib::backends::text::TextOutput::marks),
+  [`TextMark`](crate::stdlib::backends::text::TextMark): which byte and line/column
+  range each lowered node produced; [`slice`](crate::stdlib::backends::text::TextOutput::slice),
+  [`marks_at`](crate::stdlib::backends::text::TextOutput::marks_at)) and its style marks
+  ([`styles`](crate::stdlib::backends::text::TextOutput::styles),
+  [`TextStyleMark`](crate::stdlib::backends::text::TextStyleMark): which ranges are a
+  heading's title or the rule under it, a styled span, a link's content, verbatim content
+  or a table's frame, recorded inside
+  pieces too; [`style_slice`](crate::stdlib::backends::text::TextOutput::style_slice);
+  [Style marks](crate::guide::rendering#style-marks-what-plain-text-could-not-show)). Read
+  it for text with positions, or to show the styles in a medium that can.
+  [`TEXT_DOCUMENT`](crate::stdlib::backends::text::TEXT_DOCUMENT)
   (`flm.output.text.document`) holds the artifact set, whose entry artifact is
   `text:document`, media type `text/plain`.
-- **HTML**: [`DOCUMENT`](crate::stdcore::backends::html::DOCUMENT)
+- **HTML**: [`DOCUMENT`](crate::stdlib::backends::html::DOCUMENT)
   (`flm.output.html.document`) holds the page, `html:document`, `text/html`;
-  [`OUTPUT_TABLE`](crate::stdcore::backends::html::OUTPUT_TABLE) (`flm.output.html`)
+  [`OUTPUT_TABLE`](crate::stdlib::backends::html::OUTPUT_TABLE) (`flm.output.html`)
   holds each tree's HTML and the style and script definitions it requires, for a host
   that assembles its own page.
-- **Rendered LaTeX**: [`DOCUMENT`](crate::stdcore::backends::latex_rendered::DOCUMENT)
+- **Rendered LaTeX**: [`DOCUMENT`](crate::stdlib::backends::latex_rendered::DOCUMENT)
   (`flm.output.latex-rendered.document`) holds the document (`latex-rendered:document`, a
   complete `article` document under the backend's own final stage) and always its style
   file (`latex-rendered:<stem>.<hash>`, extension `sty`, media type `application/x-latex`;
-  [`style_artifact`](crate::stdcore::backends::latex_rendered::style_artifact) finds it),
+  [`style_artifact`](crate::stdlib::backends::latex_rendered::style_artifact) finds it),
   then the image copies of
-  [`ARTIFACTS`](crate::stdcore::backends::latex_rendered::ARTIFACTS); the style file is
-  also alone in [`STYLE_FILE`](crate::stdcore::backends::latex_rendered::STYLE_FILE), and
+  [`ARTIFACTS`](crate::stdlib::backends::latex_rendered::ARTIFACTS); the style file is
+  also alone in [`STYLE_FILE`](crate::stdlib::backends::latex_rendered::STYLE_FILE), and
   each tree's LaTeX with its requirements in
-  [`OUTPUT_TABLE`](crate::stdcore::backends::latex_rendered::OUTPUT_TABLE)
+  [`OUTPUT_TABLE`](crate::stdlib::backends::latex_rendered::OUTPUT_TABLE)
   (`flm.output.latex-rendered`).
-- **Recomposed LaTeX**: [`DOCUMENT`](crate::stdcore::backends::latex_recomposed::DOCUMENT)
+- **Recomposed LaTeX**: [`DOCUMENT`](crate::stdlib::backends::latex_recomposed::DOCUMENT)
   (`flm.output.latex-recomposed.document`) holds the LaTeX document
   (`latex-recomposed:document`) and, where needed, its style file
   (`latex-recomposed:<stem>.<hash>`, extension `sty`, media type `application/x-latex`;
-  [`style_artifact`](crate::stdcore::backends::latex_recomposed::style_artifact) finds
+  [`style_artifact`](crate::stdlib::backends::latex_recomposed::style_artifact) finds
   it). Its fixed path is what the host's naming service gives
   (`paper-flmrecomposed.1a2b3c4d.sty` under the `flm` program's `-o paper.tex`), else
   `<stem>.<hash>.sty`; the package name is that path without `.sty`.
@@ -651,11 +686,11 @@ states nor node identifiers and cannot be read back.
 [`to_json_pretty`](crate::dump::to_json_pretty). The lossless counterpart is
 [`crate::dump::session`], techy's own serialization, which can be read back.
 
-## The standard package
+## The standard features
 
-[`crate::stdcore`] registers thirty-three features through
-[`stdcore::package`](crate::stdcore::package), configured by
-[`StdcoreConfig`](crate::stdcore::StdcoreConfig) (one field per feature that takes a
+[`crate::stdlib`] holds thirty-three features, which
+[`stdlib::add_features`](crate::stdlib::add_features) adds to a package, configured by
+[`StdlibConfig`](crate::stdlib::StdlibConfig) (one field per feature that takes a
 configuration; fixed when the registry is built). Each module's documentation states
 what the feature declares, what it becomes on each backend, and its conditions.
 
@@ -663,48 +698,48 @@ what the feature declares, what it becomes on each backend, and its conditions.
 
 | # | feature | what it provides | configuration |
 |---|---|---|---|
-| 1 | `textstyles` | `\emph` `\textbf` `\textit` `\texttt`: element type `flm.textstyle`, one value per command ([`textstyles`](crate::stdcore::features::textstyles)) | — |
-| 2 | `literals` | the nine literal characters (`flm.literal`) and `\@` (`flm.sentence-spacing`) ([`literals`](crate::stdcore::features::literals)) | — |
-| 3 | `blocks` | the block-structure rewrite `flm.blocks.structure` (table and capability `flm.blocks.structured`, the default refinement of `flm.blocks`), the marker `flm.blocks.raw`, the tree-contract check `flm.blocks.check-contract` ([`blocks`](crate::stdcore::features::blocks)) | [`BlocksConfig`](crate::lang::rewrites::blocks::BlocksConfig): the typographic substitutions |
-| 4 | `index` | the element index `flm.element-index`, written by `flm.index.build` ([`index`](crate::stdcore::features::index)) | — |
-| 5 | `refpoints` | the table of every reference point, `flm.refpoints`, written by `flm.refpoints.scan` ([`refpoints`](crate::stdcore::features::refpoints)) | — |
-| 6 | `numbering` | five service slots (counters, counter styles, within-joiners, number writers, parent sets), the counting stage `flm.numbering.number` and the table `flm.counters`, the document option [`NumberingOptions`](crate::stdcore::features::numbering::NumberingOptions) ([`numbering`](crate::stdcore::features::numbering); [the numbering guide](crate::guide::numbering)) | [`NumberingConfig`](crate::stdcore::features::numbering::NumberingConfig): counter styles that replace declared ones by name |
-| 7 | `math` | `\(…\)`, `\[…\]`, the six display environments (`flm.math.environment`), their scoped package `flm.math.lines`, the text commands of math mode (`flm.math.text`), `\ensuremath` in both modes (`flm.math.ensuremath`: in text an inline formula, inside a formula its argument), `\eqref`, the counter `flm.math.equation`, the capability `flm.math.content` (declared; a processing feature provides it and adds its check to `flm.validated`), the capability `flm.math.rendered` (declared, no provider), the library of plain functions processing features build their rules with; one rule on a formula, the rule of last resort of `flm.math.environment` (`flm.math.environment.lower.default`, never a default: the Error `flm.math.unprocessed` where no processing feature lowers the environment) ([`math`](crate::stdcore::features::math)) | [`MathConfig`](crate::stdcore::features::math::MathConfig): whether equations are numbered (yes) |
-| 8 | `refs` | `\label` (scoped package `flm.refs.label`), `\ref` (`flm.ref`), `\hyperref` (`flm.hyperref`); stages `flm.refs.scan`, `flm.refs.anchors`, `flm.refs.resolve`, `flm.refs.check-labels`, the safe labels of the recomposed LaTeX; tables `flm.labels`, `flm.anchors`, `flm.refs.targets`, `flm.refs.resolutions`, the external table `flm.refs.external-index` ([`refs`](crate::stdcore::features::refs)) | [`RefsConfig`](crate::stdcore::features::refs::RefsConfig): the texts joining several targets |
-| 9 | `headings` | the heading kinds and commands, element `flm.heading`, counters `flm.headings.<kind>` in the parent set `flm.headings.levels` ([`headings`](crate::stdcore::features::headings)) | [`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig): kinds, commands, numbering depth (none), run-in levels (none) |
-| 10 | `verbatim` | the three verbatim macros (`flm.verbatim.macro`) and two environments (`flm.verbatim.environment`) ([`verbatim`](crate::stdcore::features::verbatim)) | — |
-| 11 | `lists` | the list environments (`flm.lists.list`), `\item` in the scoped package `flm.lists.items`, counters `flm.lists.<kind>` ([`lists`](crate::stdcore::features::lists)) | [`ListsConfig`](crate::stdcore::features::lists::ListsConfig): `itemize`, `enumerate`, `description` |
-| 12 | `xnotes` | the xnote kinds (`flm.xnotes.xnote`, one value per kind), the service slot `flm.xnotes.kinds`, the stage `flm.xnotes.collect` and table `flm.xnotes`, per listed kind the piece `flm.xnotes.list.<kind>` ([`xnotes`](crate::stdcore::features::xnotes)) | [`XnotesConfig`](crate::stdcore::features::xnotes::XnotesConfig): one kind, `footnote` |
-| 13 | `href` | `\href`, `\url`, `\email`: element `flm.href.link` ([`href`](crate::stdcore::features::href)) | — |
-| 14 | `defterm` | the `defterm` environment (`flm.defterm`), `\term` (`flm.term`), `\aliasterm` ([`defterm`](crate::stdcore::features::defterm)) | [`DeftermConfig`](crate::stdcore::features::defterm::DeftermConfig): the lead-in template, `#{term}: ` |
-| 15 | `theorems` | the theorem environments (`flm.theorems.theorem`, one value per kind), the check `flm.theorems.check-proofs` ([`theorems`](crate::stdcore::features::theorems)) | [`TheoremsConfig`](crate::stdcore::features::theorems::TheoremsConfig): classes and kinds (eight by default; `simpleset` six, `richset` thirteen) |
-| 16 | `quote` | the quote environments (`flm.quote`) and their quotation-section commands (`flm.quote.section`) ([`quote`](crate::stdcore::features::quote)) | [`QuoteConfig`](crate::stdcore::features::quote::QuoteConfig): `quote`, `blockquote`, `address` |
-| 17 | `annotations` | one command per annotator (`flm.annotations.annotation`), block-transparent ([`annotations`](crate::stdcore::features::annotations)) | [`AnnotationsConfig`](crate::stdcore::features::annotations::AnnotationsConfig): no annotator |
-| 18 | `graphics` | `\includegraphics` (`flm.graphics.image`, in the scoped package `flm.graphics.includegraphics`), the service slots `flm.graphics.resolver`, `flm.graphics.inspector`, `flm.graphics.converters`, the stage `flm.graphics.inspect` (table `flm.graphics.info`), one publish stage per backend ([`graphics`](crate::stdcore::features::graphics)) | [`GraphicsConfig`](crate::stdcore::features::graphics::GraphicsConfig): `global` (off) |
-| 19 | `floats` | the float types (`flm.floats.float`, one value per type), the fields package `flm.floats.fields`, the service slots `flm.floats.types` and `flm.floats.content` ([`floats`](crate::stdcore::features::floats)) | [`FloatsConfig`](crate::stdcore::features::floats::FloatsConfig): `figure`, `table` |
-| 20 | `cells` | the `cells` environment (`flm.cells.cells`) and its body commands, the service slot of cell styles `flm.cells.styles` ([`cells`](crate::stdcore::features::cells)) | [`CellsConfig`](crate::stdcore::features::cells::CellsConfig): `global` (off) |
-| 21 | `citations` | `\cite` (`flm.citations.cite`), `\R` (`flm.citations.refcite`), the service slot of citation providers `flm.citations.providers`, stages `flm.citations.collect`, `flm.citations.retrieve`, `flm.citations.check`, the piece `flm.citations.bibliography` ([`citations`](crate::stdcore::features::citations)) | [`CitationsConfig`](crate::stdcore::features::citations::CitationsConfig): placement (listed), mark form (bracketed), the citation counter style, the heading above the list |
-| 22 | `input` | `\input` (`flm.input`) and the rewrite `flm.input.splice` ([`input`](crate::stdcore::features::input)) | — |
-| 23 | `userdefs` | every user definition as an element, the rewrites `flm.userdefs.expand-always` and `flm.userdefs.expand`, the capability `flm.userdefs` refined by `flm.userdefs.expanded` (default) and `flm.userdefs.kept`, the rules for kept use sites ([`userdefs`](crate::stdcore::features::userdefs)) | [`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig): the definitions, the expansion depth limit |
-| 24 | `lowering` | the lowering stage of every backend, the rules of the structural elements, the service slots `flm.artifacts.namer` and `flm.output.regions` ([`lowering`](crate::stdcore::backends::lowering)) | — |
-| 25 | `meta` | the document option [`DocMeta`](crate::stdcore::features::meta::DocMeta) and the pieces `flm.meta.title`, `flm.meta.author`, `flm.meta.date`, the HTML stylesheet `flm.meta.style` ([`meta`](crate::stdcore::features::meta)) | — |
-| 26 | `toc` | the table of contents: the table `flm.toc.entries` and the piece `flm.toc` (off by default; placed before the content), written by the stage `flm.toc.build`; the three synthesized elements `flm.toc`, `flm.toc.list`, `flm.toc.entry` with their rules on every backend (on `latex-recomposed` they write nothing), the HTML stylesheet `flm.toc.style`, the option [`TocOptions`](crate::stdcore::features::toc::TocOptions) ([`toc`](crate::stdcore::features::toc)) | — |
-| 27 | `pieces` | the service slot `flm.pieces` and the render option [`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions); each backend's pieces stage ([`pieces`](crate::stdcore::backends::pieces)) | — |
-| 28 | `text` | the text backend, the `text` output and workflow ([`text`](crate::stdcore::backends::text)) | — |
-| 29 | `latex` | the LaTeX family: construct elements (`flm.pres.latex.macro`, `.environment`, `.raw`, `.definition`), escaping, the sink through which an emitter writes LaTeX ([`LatexSink`](crate::stdcore::backends::latex::LatexSink)), the service slots of package requests `flm.latex.packages` and definition pieces `flm.latex.preamble`, the style file; no backend ([`latex`](crate::stdcore::backends::latex)) | — |
-| 30 | `latex-recomposed` | the backend that writes the document back as LaTeX source, over the raw tree, with its output and workflow ([`latex_recomposed`](crate::stdcore::backends::latex_recomposed)) | — |
-| 31 | `latex-rendered` | the backend that writes resolved LaTeX for LuaLaTeX, over the structured tree, through the contract of `\flmx…` commands ([`contract`](crate::stdcore::backends::latex_rendered::contract)); its nine definition pieces `flm.latex.def.flmx.*`, its output and workflow ([`latex_rendered`](crate::stdcore::backends::latex_rendered)) | — |
-| 32 | `html` | the HTML backend, the construct element `flm.pres.html.tag`, the HTML contract ([`CONVENTIONS`](crate::stdcore::backends::html::CONVENTIONS)), the `html` output and workflow ([`html`](crate::stdcore::backends::html)) | — |
-| 33 | `check` | the collection `flm.validated` and the `check` workflow ([`check_feature`](crate::stdcore::check_feature)) | — |
+| 1 | `textstyles` | `\emph` `\textbf` `\textit` `\texttt`: element type `flm.textstyle`, one value per command ([`textstyles`](crate::stdlib::features::textstyles)) | — |
+| 2 | `literals` | the nine literal characters (`flm.literal`) and `\@` (`flm.sentence-spacing`) ([`literals`](crate::stdlib::features::literals)) | — |
+| 3 | `blocks` | the block-structure rewrite `flm.blocks.structure` (table and capability `flm.blocks.structured`, the default refinement of `flm.blocks`), the marker `flm.blocks.raw`, the tree-contract check `flm.blocks.check-contract` ([`blocks`](crate::stdlib::features::blocks)) | [`BlocksConfig`](crate::lang::rewrites::blocks::BlocksConfig): the typographic substitutions |
+| 4 | `index` | the element index `flm.element-index`, written by `flm.index.build` ([`index`](crate::stdlib::features::index)) | — |
+| 5 | `refpoints` | the table of every reference point, `flm.refpoints`, written by `flm.refpoints.scan` ([`refpoints`](crate::stdlib::features::refpoints)) | — |
+| 6 | `numbering` | five service slots (counters, counter styles, within-joiners, number writers, parent sets), the counting stage `flm.numbering.number` and the table `flm.counters`, the document option [`NumberingOptions`](crate::stdlib::features::numbering::NumberingOptions) ([`numbering`](crate::stdlib::features::numbering); [the numbering guide](crate::guide::numbering)) | [`NumberingConfig`](crate::stdlib::features::numbering::NumberingConfig): counter styles that replace declared ones by name |
+| 7 | `math` | `\(…\)`, `\[…\]`, the six display environments (`flm.math.environment`), their scoped package `flm.math.lines`, the text commands of math mode (`flm.math.text`), `\ensuremath` in both modes (`flm.math.ensuremath`: in text an inline formula, inside a formula its argument), `\eqref`, the counter `flm.math.equation`, the capability `flm.math.content` (declared; a processing feature provides it and adds its check to `flm.validated`), the capability `flm.math.rendered` (declared, no provider), the library of plain functions processing features build their rules with; one rule on a formula, the rule of last resort of `flm.math.environment` (`flm.math.environment.lower.default`, never a default: the Error `flm.math.unprocessed` where no processing feature lowers the environment) ([`math`](crate::stdlib::features::math)) | [`MathConfig`](crate::stdlib::features::math::MathConfig): whether equations are numbered (yes) |
+| 8 | `refs` | `\label` (scoped package `flm.refs.label`), `\ref` (`flm.ref`), `\hyperref` (`flm.hyperref`); stages `flm.refs.scan`, `flm.refs.anchors`, `flm.refs.resolve`, `flm.refs.check-labels`, the safe labels of the recomposed LaTeX; tables `flm.labels`, `flm.anchors`, `flm.refs.targets`, `flm.refs.resolutions`, the external table `flm.refs.external-index` ([`refs`](crate::stdlib::features::refs)) | [`RefsConfig`](crate::stdlib::features::refs::RefsConfig): the texts joining several targets |
+| 9 | `headings` | the heading kinds and commands, element `flm.heading`, counters `flm.headings.<kind>` in the parent set `flm.headings.levels` ([`headings`](crate::stdlib::features::headings)) | [`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig): kinds, commands, numbering depth (none), run-in levels (none) |
+| 10 | `verbatim` | the three verbatim macros (`flm.verbatim.macro`) and two environments (`flm.verbatim.environment`) ([`verbatim`](crate::stdlib::features::verbatim)) | — |
+| 11 | `lists` | the list environments (`flm.lists.list`), `\item` in the scoped package `flm.lists.items`, counters `flm.lists.<kind>` ([`lists`](crate::stdlib::features::lists)) | [`ListsConfig`](crate::stdlib::features::lists::ListsConfig): `itemize`, `enumerate`, `description` |
+| 12 | `xnotes` | the xnote kinds (`flm.xnotes.xnote`, one value per kind), the service slot `flm.xnotes.kinds`, the stage `flm.xnotes.collect` and table `flm.xnotes`, per listed kind the piece `flm.xnotes.list.<kind>` ([`xnotes`](crate::stdlib::features::xnotes)) | [`XnotesConfig`](crate::stdlib::features::xnotes::XnotesConfig): one kind, `footnote` |
+| 13 | `href` | `\href`, `\url`, `\email`: element `flm.href.link` ([`href`](crate::stdlib::features::href)) | — |
+| 14 | `defterm` | the `defterm` environment (`flm.defterm`), `\term` (`flm.term`), `\aliasterm` ([`defterm`](crate::stdlib::features::defterm)) | [`DeftermConfig`](crate::stdlib::features::defterm::DeftermConfig): the lead-in template, `#{term}: ` |
+| 15 | `theorems` | the theorem environments (`flm.theorems.theorem`, one value per kind), the check `flm.theorems.check-proofs` ([`theorems`](crate::stdlib::features::theorems)) | [`TheoremsConfig`](crate::stdlib::features::theorems::TheoremsConfig): classes and kinds (eight by default; `simpleset` six, `richset` thirteen) |
+| 16 | `quote` | the quote environments (`flm.quote`) and their quotation-section commands (`flm.quote.section`) ([`quote`](crate::stdlib::features::quote)) | [`QuoteConfig`](crate::stdlib::features::quote::QuoteConfig): `quote`, `blockquote`, `address` |
+| 17 | `annotations` | one command per annotator (`flm.annotations.annotation`), block-transparent ([`annotations`](crate::stdlib::features::annotations)) | [`AnnotationsConfig`](crate::stdlib::features::annotations::AnnotationsConfig): no annotator |
+| 18 | `graphics` | `\includegraphics` (`flm.graphics.image`, in the scoped package `flm.graphics.includegraphics`), the service slots `flm.graphics.resolver`, `flm.graphics.inspector`, `flm.graphics.converters`, the stage `flm.graphics.inspect` (table `flm.graphics.info`), one publish stage per backend ([`graphics`](crate::stdlib::features::graphics)) | [`GraphicsConfig`](crate::stdlib::features::graphics::GraphicsConfig): `global` (off) |
+| 19 | `floats` | the float types (`flm.floats.float`, one value per type), the fields package `flm.floats.fields`, the service slots `flm.floats.types` and `flm.floats.content` ([`floats`](crate::stdlib::features::floats)) | [`FloatsConfig`](crate::stdlib::features::floats::FloatsConfig): `figure`, `table` |
+| 20 | `cells` | the `cells` environment (`flm.cells.cells`) and its body commands, the service slot of cell styles `flm.cells.styles` ([`cells`](crate::stdlib::features::cells)) | [`CellsConfig`](crate::stdlib::features::cells::CellsConfig): `global` (off) |
+| 21 | `citations` | `\cite` (`flm.citations.cite`), `\R` (`flm.citations.refcite`), the service slot of citation providers `flm.citations.providers`, stages `flm.citations.collect`, `flm.citations.retrieve`, `flm.citations.check`, the piece `flm.citations.bibliography` ([`citations`](crate::stdlib::features::citations)) | [`CitationsConfig`](crate::stdlib::features::citations::CitationsConfig): placement (listed), mark form (bracketed), the citation counter style, the heading above the list |
+| 22 | `input` | `\input` (`flm.input`) and the rewrite `flm.input.splice` ([`input`](crate::stdlib::features::input)) | — |
+| 23 | `userdefs` | every user definition as an element, the rewrites `flm.userdefs.expand-always` and `flm.userdefs.expand`, the capability `flm.userdefs` refined by `flm.userdefs.expanded` (default) and `flm.userdefs.kept`, the rules for kept use sites ([`userdefs`](crate::stdlib::features::userdefs)) | [`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig): the definitions, the expansion depth limit |
+| 24 | `lowering` | the lowering stage of every backend, the rules of the structural elements, the service slots `flm.artifacts.namer` and `flm.output.regions` ([`lowering`](crate::stdlib::backends::lowering)) | — |
+| 25 | `metadata` | the document option [`DocMeta`](crate::stdlib::features::metadata::DocMeta) and the pieces `flm.metadata.title`, `flm.metadata.author`, `flm.metadata.date`, the HTML stylesheet `flm.metadata.style` ([`metadata`](crate::stdlib::features::metadata)) | — |
+| 26 | `toc` | the table of contents: the table `flm.toc.entries` and the piece `flm.toc` (off by default; placed before the content), written by the stage `flm.toc.build`; the three synthesized elements `flm.toc`, `flm.toc.list`, `flm.toc.entry` with their rules on every backend (on `latex-recomposed` they write nothing), the HTML stylesheet `flm.toc.style`, the option [`TocOptions`](crate::stdlib::features::toc::TocOptions) ([`toc`](crate::stdlib::features::toc)) | — |
+| 27 | `pieces` | the service slot `flm.pieces` and the render option [`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions); each backend's pieces stage ([`pieces`](crate::stdlib::backends::pieces)) | — |
+| 28 | `text` | the text backend, the `text` output and workflow ([`text`](crate::stdlib::backends::text)) | — |
+| 29 | `latex` | the LaTeX family: construct elements (`flm.pres.latex.macro`, `.environment`, `.raw`, `.definition`), escaping, the sink through which an emitter writes LaTeX ([`LatexSink`](crate::stdlib::backends::latex::LatexSink)), the service slots of package requests `flm.latex.packages` and definition pieces `flm.latex.preamble`, the style file; no backend ([`latex`](crate::stdlib::backends::latex)) | — |
+| 30 | `latex-recomposed` | the backend that writes the document back as LaTeX source, over the raw tree, with its output and workflow ([`latex_recomposed`](crate::stdlib::backends::latex_recomposed)) | — |
+| 31 | `latex-rendered` | the backend that writes resolved LaTeX for LuaLaTeX, over the structured tree, through the contract of `\flmx…` commands ([`contract`](crate::stdlib::backends::latex_rendered::contract)); its nine definition pieces `flm.latex.def.flmx.*`, its output and workflow ([`latex_rendered`](crate::stdlib::backends::latex_rendered)) | — |
+| 32 | `html` | the HTML backend, the construct element `flm.pres.html.tag`, the HTML contract ([`CONVENTIONS`](crate::stdlib::backends::html::CONVENTIONS)), the `html` output and workflow ([`html`](crate::stdlib::backends::html)) | — |
+| 33 | `check` | the collection `flm.validated` and the `check` workflow ([`check_feature`](crate::stdlib::check_feature)) | — |
 
-`stdcore` processes no mathematics. A registry that renders formulas holds one *math
-processor*, a package beside it whose feature processes the formulas and adds its check
+The standard features process no mathematics. A registry that renders formulas holds one
+*math processor*, a package beside them whose feature processes the formulas and adds its check
 to `flm.validated`; with none, a document without formulas renders without error and a
 render reports each formula as the Error `flm.math.unprocessed` (the rules of last resort
 of `flm.math` and `flm.math.environment`), and two are an error. The library's math
 processor is the package `math-passthrough`
 ([`math_passthrough::package`](crate::math_passthrough::package)), one feature that uses
-`stdcore`'s public items: the fallbacks of math mode and their element
+`stdlib`'s public items: the fallbacks of math mode and their element
 `flm.math-passthrough.opaque` (an unknown command kept as written, no report), the check
 `flm.math-passthrough.check` (provides `flm.math.content`, which the feature adds to
 `flm.validated`; reports `flm.math-passthrough.empty-line`), the rules of `flm.math` and
@@ -715,7 +750,7 @@ every backend, with rules of their own for the recomposed LaTeX, staging
 math processor, the `flm` program's default (not guaranteed to stay the default). A
 document chooses its processor with `flm.math` in its front matter: a name `NAME` for the
 package `math-NAME` (`mathjax`, `passthrough`), or `false` for none; the host's default is
-`Request::default_math`, which `flm-main` leaves at no processor.
+`Request::default_math`, which `flm-host` leaves at no processor.
 
 Facts that cross features:
 
@@ -729,7 +764,7 @@ Facts that cross features:
 - **The recomposed LaTeX works on the raw tree** (`flm.blocks.raw`) and writes back what
   the author wrote, leaving numbering and cross-references to LaTeX through LaTeX hooks;
   a `per-plan` user definition is kept and written as a call, with its definition in the
-  style file ([`userdefs::kept`](crate::stdcore::features::userdefs::kept)).
+  style file ([`userdefs::kept`](crate::stdlib::features::userdefs::kept)).
 
 ### Workflows
 
@@ -738,18 +773,18 @@ demands together with the choices that go with them.
 
 | name | demands |
 |---|---|
-| `text` ([`text::WORKFLOW`](crate::stdcore::backends::text::WORKFLOW)) | the `text` output and the collection [`VALIDATED`](crate::stdcore::VALIDATED) |
-| `latex-recomposed` ([`latex_recomposed::WORKFLOW`](crate::stdcore::backends::latex_recomposed::WORKFLOW)) | the `latex-recomposed` output and `VALIDATED`; its rules need raw trees, so it never shares a plan with `text`, `html` or `latex-rendered`, whose rules need structured trees |
-| `latex-rendered` ([`latex_rendered::WORKFLOW`](crate::stdcore::backends::latex_rendered::WORKFLOW)) | the `latex-rendered` output and `VALIDATED`; it shares a plan with `text` and `html` |
-| `html` ([`html::WORKFLOW`](crate::stdcore::backends::html::WORKFLOW)) | the `html` output and `VALIDATED` |
-| `check` ([`CHECK_WORKFLOW`](crate::stdcore::CHECK_WORKFLOW)) | `VALIDATED` (`flm.validated`) alone: every check of the registry, no output |
+| `text` ([`text::WORKFLOW`](crate::stdlib::backends::text::WORKFLOW)) | the `text` output and the collection [`VALIDATED`](crate::stdlib::VALIDATED) |
+| `latex-recomposed` ([`latex_recomposed::WORKFLOW`](crate::stdlib::backends::latex_recomposed::WORKFLOW)) | the `latex-recomposed` output and `VALIDATED`; its rules need raw trees, so it never shares a plan with `text`, `html` or `latex-rendered`, whose rules need structured trees |
+| `latex-rendered` ([`latex_rendered::WORKFLOW`](crate::stdlib::backends::latex_rendered::WORKFLOW)) | the `latex-rendered` output and `VALIDATED`; it shares a plan with `text` and `html` |
+| `html` ([`html::WORKFLOW`](crate::stdlib::backends::html::WORKFLOW)) | the `html` output and `VALIDATED` |
+| `check` ([`CHECK_WORKFLOW`](crate::stdlib::CHECK_WORKFLOW)) | `VALIDATED` (`flm.validated`) alone: every check of the registry, no output |
 
 Every workflow demands `VALIDATED`, so a render runs the checks that `check` runs, over
 the document's trees. One severity differs: an unresolved reference is a Warning under
 `check` and an Error under a render (unless
-[`RefsRenderOptions`](crate::stdcore::features::refs::RefsRenderOptions) allows it). A
+[`RefsRenderOptions`](crate::stdlib::features::refs::RefsRenderOptions) allows it). A
 registry that holds a standard backend feature must also hold
-[`check_feature`](crate::stdcore::check_feature), which declares the collection; otherwise
+[`check_feature`](crate::stdlib::check_feature), which declares the collection; otherwise
 the registry build fails with an error that gives the backend's workflow and the missing
 `flm.validated`. The
 `flm` program adds the workflows `bibtex` and `csl-json` (exports of the cited works'
@@ -759,10 +794,10 @@ records).
 
 | output | table | artifacts |
 |---|---|---|
-| `text` | `flm.output.text.document` ([`TEXT_DOCUMENT`](crate::stdcore::backends::text::TEXT_DOCUMENT)) | `text:document`, `text/plain` |
-| `html` | `flm.output.html.document` ([`DOCUMENT`](crate::stdcore::backends::html::DOCUMENT)) | `html:document`, `text/html` (a complete page), then every artifact of [`flm.output.html.artifacts`](crate::stdcore::backends::html::ARTIFACTS) (copies of images, written by the `graphics` feature's publish stage) |
-| `latex-rendered` | `flm.output.latex-rendered.document` ([`DOCUMENT`](crate::stdcore::backends::latex_rendered::DOCUMENT)) | `latex-rendered:document` (a complete `article` document), the style file `latex-rendered:<stem>.<hash>` (always; path from the naming service, else `<stem>.<hash>.sty`), copies of images from `flm.output.latex-rendered.artifacts` |
-| `latex-recomposed` | `flm.output.latex-recomposed.document` ([`DOCUMENT`](crate::stdcore::backends::latex_recomposed::DOCUMENT)) | `latex-recomposed:document`, the style file `latex-recomposed:<stem>.<hash>` (path from the naming service, else `<stem>.<hash>.sty`; also in [`flm.output.latex-recomposed.style`](crate::stdcore::backends::latex_recomposed::STYLE_FILE)), copies of images from `flm.output.latex-recomposed.artifacts` |
+| `text` | `flm.output.text.document` ([`TEXT_DOCUMENT`](crate::stdlib::backends::text::TEXT_DOCUMENT)) | `text:document`, `text/plain` |
+| `html` | `flm.output.html.document` ([`DOCUMENT`](crate::stdlib::backends::html::DOCUMENT)) | `html:document`, `text/html` (a complete page), then every artifact of [`flm.output.html.artifacts`](crate::stdlib::backends::html::ARTIFACTS) (copies of images, written by the `graphics` feature's publish stage) |
+| `latex-rendered` | `flm.output.latex-rendered.document` ([`DOCUMENT`](crate::stdlib::backends::latex_rendered::DOCUMENT)) | `latex-rendered:document` (a complete `article` document), the style file `latex-rendered:<stem>.<hash>` (always; path from the naming service, else `<stem>.<hash>.sty`), copies of images from `flm.output.latex-rendered.artifacts` |
+| `latex-recomposed` | `flm.output.latex-recomposed.document` ([`DOCUMENT`](crate::stdlib::backends::latex_recomposed::DOCUMENT)) | `latex-recomposed:document`, the style file `latex-recomposed:<stem>.<hash>` (path from the naming service, else `<stem>.<hash>.sty`; also in [`flm.output.latex-recomposed.style`](crate::stdlib::backends::latex_recomposed::STYLE_FILE)), copies of images from `flm.output.latex-recomposed.artifacts` |
 
 Each backend writes its output regions into `flm.output.<backend>.regions` and
 contributes a [`RegionsOutput`](crate::core::region::RegionsOutput) to the service slot
@@ -778,60 +813,60 @@ artifact equal to one already held, and reports each violation as an Error
 Lowering, emitting and assembling are three ordinary stages per backend ([backends,
 lowering, and outputs](crate::guide::concepts_overview#backends-lowering-and-outputs);
 [Rendering](crate::guide::rendering)): the [lowering
-stage](crate::stdcore::backends::lowering::LoweringStage) rewrites each frozen tree into a
+stage](crate::stdlib::backends::lowering::LoweringStage) rewrites each frozen tree into a
 presentation tree built from the elements every backend shares
-([`crate::stdcore::backends::pres`]) and stores it in `flm.lowered.<backend>`; the emit
-stage (text: [`TextEmitStage`](crate::stdcore::backends::text::TextEmitStage)) walks
+([`crate::stdlib::backends::pres`]) and stores it in `flm.lowered.<backend>`; the emit
+stage (text: [`TextEmitStage`](crate::stdlib::backends::text::TextEmitStage)) walks
 those trees and writes the output; the final stage (text:
-[`TextFinalStage`](crate::stdcore::backends::text::TextFinalStage)) publishes the artifact
+[`TextFinalStage`](crate::stdlib::backends::text::TextFinalStage)) publishes the artifact
 set. A lowering rule ([`LoweringRule`](crate::core::lowering::LoweringRule)) is written
 for an element, not for a backend; one rule may serve every backend. A piece is lowered by
-the backend's pieces stage ([`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage),
-through [`lower_value`](crate::stdcore::backends::lowering::lower_value)) with the same
+the backend's pieces stage ([`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage),
+through [`lower_value`](crate::stdlib::backends::lowering::lower_value)) with the same
 rules; a piece that cannot be lowered (for example one holding a labeled reference
 point) is left out and reported (`flm.pieces.lowering-failed`). The text backend's emitter
 builds a [layout document](crate::layout::DocBuf) and [`print`](crate::layout::print)s it
 at the requested width.
 
-### Tables of the standard package
+### Tables of the standard features
 
 | table | holds |
 |---|---|
 | `flm.input.spliced`, `flm.userdefs.always-expanded`, `flm.userdefs.expanded`, `flm.blocks.structured` | the trees after each rewrite |
-| `flm.element-index` ([`ELEMENT_INDEX`](crate::stdcore::features::index::ELEMENT_INDEX)) | per tree, the nodes and their elements |
-| [`flm.refpoints`](crate::stdcore::features::refpoints::REFPOINTS) | every reference point, read in document order with [`in_document_order`](crate::stdcore::features::refpoints::RefPoints::in_document_order) |
-| [`flm.counters`](crate::stdcore::features::numbering::COUNTERS) | per reference point, its counter value, or nothing for a point the document does not number |
-| [`flm.labels`](crate::stdcore::features::refs::LABELS), [`flm.anchors`](crate::stdcore::features::refs::ANCHORS), [`flm.refs.targets`](crate::stdcore::features::refs::REF_TARGETS), [`flm.refs.resolutions`](crate::stdcore::features::refs::REF_RESOLUTIONS) | the label index (with duplicates and refused labels), the anchors, the reference targets (document scope), the resolved references |
-| [`flm.refs.external-index`](crate::stdcore::features::refs::EXTERNAL_INDEX) | external: the labels of other documents, installed by the caller |
-| [`flm.labels.safe`](crate::stdcore::features::refs::SAFE_LABELS), [`flm.labels.safe.value`](crate::stdcore::features::refs::VALUE_SAFE_LABELS) | the safe labels (`ref1`, `ref2`, … in order of first mention) and the value names (`ref-v1`, …) of the recomposed LaTeX |
-| [`flm.xnotes`](crate::stdcore::features::xnotes::XNOTES), `flm.xnotes.list.<kind>` | per xnote kind, each xnote's reference point, mark point and content; each listed kind's piece |
-| [`flm.toc.entries`](crate::stdcore::features::toc::ENTRIES), `flm.toc` | the listed headings in document order, each with its level, its first reference point and the content its entry shows (no number, no anchor); the table-of-contents piece |
-| [`flm.citations.keys`](crate::stdcore::features::citations::KEYS), [`flm.citations`](crate::stdcore::features::citations::CITATIONS), [`flm.citations.entries`](crate::stdcore::features::citations::ENTRIES), `flm.citations.bibliography` | the cited keys in order of first citation, the numbered works, the citation entries, the bibliography piece |
-| [`flm.graphics.info`](crate::stdcore::features::graphics::INFO), `flm.graphics.published.<backend>` | what is known about each image; how each backend refers to it |
-| `flm.lowered.<backend>` ([`lowered_table`](crate::stdcore::backends::lowering::lowered_table)), `flm.lowered.<backend>.pieces` ([`lowered_pieces_table`](crate::stdcore::backends::pieces::lowered_pieces_table)) | the presentation trees, and the placed pieces lowered |
-| `flm.output.text`, `flm.output.text.regions`, `flm.output.text.document` | the printed text with its position marks, the text's output regions, the artifact set |
-| [`flm.output.html`](crate::stdcore::backends::html::OUTPUT_TABLE), [`flm.output.html.pieces`](crate::stdcore::backends::html::PIECES_TABLE), [`flm.html.definitions`](crate::stdcore::backends::html::DEFINITIONS_TABLE), `flm.output.html.regions`, `flm.output.html.document`, `flm.output.html.artifacts` | each tree's HTML and the definitions it requires; each placed piece's HTML; every style and script definition the page requires, once each, with its delivery; the regions; the artifact set; the copies of images |
-| [`flm.output.latex-rendered`](crate::stdcore::backends::latex_rendered::OUTPUT_TABLE), [`flm.output.latex-rendered.pieces`](crate::stdcore::backends::latex_rendered::PIECES_TABLE), [`flm.output.latex-rendered.regions`](crate::stdcore::backends::latex_rendered::REGIONS), [`flm.output.latex-rendered.style`](crate::stdcore::backends::latex_rendered::STYLE_FILE), `flm.output.latex-rendered.document`, `flm.output.latex-rendered.artifacts` | the rendered LaTeX: each tree's LaTeX with its requirements and staged definitions, each piece's LaTeX and words, the regions (`content`, one per piece, `style-package`), the style file, the artifact set, the image copies |
-| [`flm.output.latex-recomposed`](crate::stdcore::backends::latex_recomposed::OUTPUT_TABLE), [`flm.latex-recomposed.packages`](crate::stdcore::backends::latex_recomposed::PACKAGES_TABLE), [`flm.latex-recomposed.preamble`](crate::stdcore::backends::latex_recomposed::PREAMBLE_TABLE), `flm.output.latex-recomposed.regions`, `.style`, `.document`, `.artifacts` | each tree's recomposed LaTeX and requirements; the merged package requests; the definition pieces; the regions; the style file; the artifact set; the copies of images |
+| `flm.element-index` ([`ELEMENT_INDEX`](crate::stdlib::features::index::ELEMENT_INDEX)) | per tree, the nodes and their elements |
+| [`flm.refpoints`](crate::stdlib::features::refpoints::REFPOINTS) | every reference point, read in document order with [`in_document_order`](crate::stdlib::features::refpoints::RefPoints::in_document_order) |
+| [`flm.counters`](crate::stdlib::features::numbering::COUNTERS) | per reference point, its counter value, or nothing for a point the document does not number |
+| [`flm.labels`](crate::stdlib::features::refs::LABELS), [`flm.anchors`](crate::stdlib::features::refs::ANCHORS), [`flm.refs.targets`](crate::stdlib::features::refs::REF_TARGETS), [`flm.refs.resolutions`](crate::stdlib::features::refs::REF_RESOLUTIONS) | the label index (with duplicates and refused labels), the anchors, the reference targets (document scope), the resolved references |
+| [`flm.refs.external-index`](crate::stdlib::features::refs::EXTERNAL_INDEX) | external: the labels of other documents, installed by the caller |
+| [`flm.labels.safe`](crate::stdlib::features::refs::SAFE_LABELS), [`flm.labels.safe.value`](crate::stdlib::features::refs::VALUE_SAFE_LABELS) | the safe labels (`ref1`, `ref2`, … in order of first mention) and the value names (`ref-v1`, …) of the recomposed LaTeX |
+| [`flm.xnotes`](crate::stdlib::features::xnotes::XNOTES), `flm.xnotes.list.<kind>` | per xnote kind, each xnote's reference point, mark point and content; each listed kind's piece |
+| [`flm.toc.entries`](crate::stdlib::features::toc::ENTRIES), `flm.toc` | the listed headings in document order, each with its level, its first reference point and the content its entry shows (no number, no anchor); the table-of-contents piece |
+| [`flm.citations.keys`](crate::stdlib::features::citations::KEYS), [`flm.citations`](crate::stdlib::features::citations::CITATIONS), [`flm.citations.entries`](crate::stdlib::features::citations::ENTRIES), `flm.citations.bibliography` | the cited keys in order of first citation, the numbered works, the citation entries, the bibliography piece |
+| [`flm.graphics.info`](crate::stdlib::features::graphics::INFO), `flm.graphics.published.<backend>` | what is known about each image; how each backend refers to it |
+| `flm.lowered.<backend>` ([`lowered_table`](crate::stdlib::backends::lowering::lowered_table)), `flm.lowered.<backend>.pieces` ([`lowered_pieces_table`](crate::stdlib::backends::pieces::lowered_pieces_table)) | the presentation trees, and the placed pieces lowered |
+| `flm.output.text`, `flm.output.text.regions`, `flm.output.text.document` | the printed text with its position marks and style marks, the text's output regions, the artifact set |
+| [`flm.output.html`](crate::stdlib::backends::html::OUTPUT_TABLE), [`flm.output.html.pieces`](crate::stdlib::backends::html::PIECES_TABLE), [`flm.html.definitions`](crate::stdlib::backends::html::DEFINITIONS_TABLE), `flm.output.html.regions`, `flm.output.html.document`, `flm.output.html.artifacts` | each tree's HTML and the definitions it requires; each placed piece's HTML; every style and script definition the page requires, once each, with its delivery; the regions; the artifact set; the copies of images |
+| [`flm.output.latex-rendered`](crate::stdlib::backends::latex_rendered::OUTPUT_TABLE), [`flm.output.latex-rendered.pieces`](crate::stdlib::backends::latex_rendered::PIECES_TABLE), [`flm.output.latex-rendered.regions`](crate::stdlib::backends::latex_rendered::REGIONS), [`flm.output.latex-rendered.style`](crate::stdlib::backends::latex_rendered::STYLE_FILE), `flm.output.latex-rendered.document`, `flm.output.latex-rendered.artifacts` | the rendered LaTeX: each tree's LaTeX with its requirements and staged definitions, each piece's LaTeX and words, the regions (`content`, one per piece, `style-package`), the style file, the artifact set, the image copies |
+| [`flm.output.latex-recomposed`](crate::stdlib::backends::latex_recomposed::OUTPUT_TABLE), [`flm.latex-recomposed.packages`](crate::stdlib::backends::latex_recomposed::PACKAGES_TABLE), [`flm.latex-recomposed.preamble`](crate::stdlib::backends::latex_recomposed::PREAMBLE_TABLE), `flm.output.latex-recomposed.regions`, `.style`, `.document`, `.artifacts` | each tree's recomposed LaTeX and requirements; the merged package requests; the definition pieces; the regions; the style file; the artifact set; the copies of images |
 
 ### Capabilities worth knowing
 
-[`flm.blocks`](crate::stdcore::features::blocks::BLOCKS), refined by
-`flm.blocks.structured` (the default) and [`flm.blocks.raw`](crate::stdcore::features::blocks::RAW);
-[`flm.userdefs`](crate::stdcore::features::userdefs::USERDEFS), refined by
-[`flm.userdefs.expanded`](crate::stdcore::features::userdefs::EXPANDED) (the default) and
-[`flm.userdefs.kept`](crate::stdcore::features::userdefs::KEPT), which a kept
+[`flm.blocks`](crate::stdlib::features::blocks::BLOCKS), refined by
+`flm.blocks.structured` (the default) and [`flm.blocks.raw`](crate::stdlib::features::blocks::RAW);
+[`flm.userdefs`](crate::stdlib::features::userdefs::USERDEFS), refined by
+[`flm.userdefs.expanded`](crate::stdlib::features::userdefs::EXPANDED) (the default) and
+[`flm.userdefs.kept`](crate::stdlib::features::userdefs::KEPT), which a kept
 definition's `emit-call` rule (the default on `latex-recomposed`) and its
 `instantiate-at-lowering` rule require;
-[`flm.validated`](crate::stdcore::VALIDATED), the collection of checks, whose members in the standard package
+[`flm.validated`](crate::stdlib::VALIDATED), the collection of checks, whose members among the standard features
 are `flm.blocks.contract-checked`, `flm.refs.check-labels`,
 `flm.theorems.check-proofs`, `flm.floats.check-handlers`, `flm.citations.check`,
-`flm.input.spliced` and `flm.meta.read`, and to which a math processor adds its check
+`flm.input.spliced` and `flm.metadata.read`, and to which a math processor adds its check
 (`math-passthrough` adds `flm.math.content`);
-[`flm.math.rendered`](crate::stdcore::features::math::RENDERED), declared with no
+[`flm.math.rendered`](crate::stdlib::features::math::RENDERED), declared with no
 provider, for an extension that renders mathematics.
 
-### Option types of the standard package
+### Option types of the standard features
 
 Each option type's binding ([`Bind`](crate::model::options::Bind)) says where its value
 is set; the value a stage reads is the render value if one is set, otherwise the document
@@ -839,20 +874,21 @@ value, otherwise the type's default.
 
 | option type | binding | fields |
 |---|---|---|
-| [`DocMeta`](crate::stdcore::features::meta::DocMeta) | document | `title`, `authors`, `date` (FLM text), `other` (kept, not shown) |
-| [`NumberingOptions`](crate::stdcore::features::numbering::NumberingOptions) | either: set on the document, and a render request may set it again, its value then replacing the document's for that render | `counters`: per counter, named in full (`flm.math.equation`), what it is numbered within and its value before it is first advanced ([the numbering guide](crate::guide::numbering)) |
-| [`TocOptions`](crate::stdcore::features::toc::TocOptions) | either | `depth` (3): the deepest heading level listed in the table of contents |
-| [`TextRenderOptions`](crate::stdcore::backends::text::TextRenderOptions) | render | `width` (80; `None` never wraps), `tab_width` (4), `run_in_stop` (`.`), `link_addresses` (on), `link_addresses_when_shown` (off), `root_heading_level` (1) |
-| [`HtmlRenderOptions`](crate::stdcore::backends::html::HtmlRenderOptions) | render | `title` (`FLM document` where the document states none), `lang`, `source_spans` (off), `run_in_stop`, `definitions` (deliveries a host gives in place of declared content), `required_definitions`, `heading_tags` (a tag per heading kind), `root_heading_level` |
-| [`LatexRecomposedRenderOptions`](crate::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions) | render | `unicode` (`Declare` or `Replace`), `unicode_overrides`, `drop_comments`, `skip_packages`, `extra_packages`, `extra_preamble`, `bare_names`, `robust_names`, `style_stem` (`flmrecomposed`; the naming service may prefix it), `style_file` (`WhenNeeded` or `Always`), `heading_hook` (on), `label_hooks` (on), `drop_math_labels_without_refs` (off), `resolved_proof_refs` (off) |
-| [`LatexRenderedRenderOptions`](crate::stdcore::backends::latex_rendered::LatexRenderedRenderOptions) | render | `style_stem` (`flmx`), `run_in_stop` (`.`), `skip_packages` (`hyperref` there drops its loading line), `extra_packages`, `extra_preamble`; set from the command line as `-O latex-rendered.KEY=VALUE` |
-| [`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions) | render | `include`, `exclude` (pieces by name; an unknown name is the Warning `flm.pieces.unknown-piece`), `backends` (set by a host from what its compose template places; not a setting) |
-| [`RefsRenderOptions`](crate::stdcore::features::refs::RefsRenderOptions) | render | `unresolved`: an unresolved reference is an Error (default) or a Warning |
-| [`RefsRecomposeOptions`](crate::stdcore::features::refs::RefsRecomposeOptions) | render | `safe_label_types`, `protect` |
-| [`MathRecomposeOptions`](crate::stdcore::features::math::MathRecomposeOptions) | render | `surround_display_math`, `emit_flm_math_environment_macro` |
-| [`HeadingsLatexOptions`](crate::stdcore::features::headings::latex::HeadingsLatexOptions) | render | `latex_commands`: the LaTeX sectioning command per heading kind |
-| [`AnnotationsRenderOptions`](crate::stdcore::features::annotations::AnnotationsRenderOptions) | render | `hidden` (off): a clean copy without annotations |
-| [`GraphicsRenderOptions`](crate::stdcore::features::graphics::GraphicsRenderOptions) | render | `strategy`, `convert` and `magnification` (`raster`, `vector`; 1), each a map by output |
+| [`DocMeta`](crate::stdlib::features::metadata::DocMeta) | document | `title`, `date` (FLM text), `authors` (each a [`MetaAuthor`](crate::stdlib::features::metadata::MetaAuthor): `name`, `affiliations`, `notes` (FLM text), `email` (plain text), `other`), `other` (kept, not shown) |
+| [`NumberingOptions`](crate::stdlib::features::numbering::NumberingOptions) | either: set on the document, and a render request may set it again, its value then replacing the document's for that render | `counters`: per counter, named in full (`flm.math.equation`), what it is numbered within and its value before it is first advanced ([the numbering guide](crate::guide::numbering)) |
+| [`TocOptions`](crate::stdlib::features::toc::TocOptions) | either | `depth` (3): the deepest heading level listed in the table of contents |
+| [`TextRenderOptions`](crate::stdlib::backends::text::TextRenderOptions) | render | `width` (80; `None` never wraps), `tab_width` (4), `run_in_stop` (`.`), `link_addresses` (on), `link_addresses_when_shown` (off), `root_heading_level` (1), `table_frame` (`none`; or `box`), `heading_rules` (`ascii`; or `unicode`) |
+| [`HtmlRenderOptions`](crate::stdlib::backends::html::HtmlRenderOptions) | render | `title` (`FLM document` where the document states none), `lang`, `source_spans` (off), `run_in_stop`, `definitions` (deliveries a host gives in place of declared content), `required_definitions`, `heading_tags` (a tag per heading kind), `root_heading_level` |
+| [`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes) | render, by Rust code only (not a settings key) | the URL schemes a page's links and images may have: `Listed` (default `http`, `https`, `mailto`, `ftp`, `tel`) or `All` |
+| [`LatexRecomposedRenderOptions`](crate::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions) | render | `unicode` (`Declare` or `Replace`), `unicode_overrides`, `drop_comments`, `skip_packages`, `extra_packages`, `extra_preamble`, `bare_names`, `robust_names`, `style_stem` (`flmrecomposed`; the naming service may prefix it), `style_file` (`WhenNeeded` or `Always`), `heading_hook` (on), `label_hooks` (on), `drop_math_labels_without_refs` (off), `resolved_proof_refs` (off) |
+| [`LatexRenderedRenderOptions`](crate::stdlib::backends::latex_rendered::LatexRenderedRenderOptions) | render | `style_stem` (`flmx`), `run_in_stop` (`.`), `skip_packages` (`hyperref` there drops its loading line), `extra_packages`, `extra_preamble`; set from the command line as `-O latex-rendered.KEY=VALUE` |
+| [`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions) | render | `include`, `exclude` (pieces by name; an unknown name is the Warning `flm.pieces.unknown-piece`), `backends` (set by a host from what its compose template places; not a setting) |
+| [`RefsRenderOptions`](crate::stdlib::features::refs::RefsRenderOptions) | render | `unresolved`: an unresolved reference is an Error (default) or a Warning |
+| [`RefsRecomposeOptions`](crate::stdlib::features::refs::RefsRecomposeOptions) | render | `safe_label_types`, `protect` |
+| [`MathRecomposeOptions`](crate::stdlib::features::math::MathRecomposeOptions) | render | `surround_display_math`, `emit_flm_math_environment_macro` |
+| [`HeadingsLatexOptions`](crate::stdlib::features::headings::latex::HeadingsLatexOptions) | render | `latex_commands`: the LaTeX sectioning command per heading kind |
+| [`AnnotationsRenderOptions`](crate::stdlib::features::annotations::AnnotationsRenderOptions) | render | `hidden` (off): a clean copy without annotations |
+| [`GraphicsRenderOptions`](crate::stdlib::features::graphics::GraphicsRenderOptions) | render | `strategy`, `convert` and `magnification` (`raster`, `vector`; 1), each a map by output |
 
 An option value set at the wrong site is refused, not ignored: a render-bound type set on
 the document is an [`OptionError`](crate::model::options::OptionError) at
@@ -869,15 +905,16 @@ use std::sync::Arc;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::OptionValues;
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT, TextRenderOptions};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT, TextRenderOptions};
+use flm_core::stdlib::{self, StdlibConfig};
 
-// 1. Registry: the standard package. Build once, reuse for every document.
+// 1. Registry: a package of the standard features, and a math processor.
+//    Build once, reuse for every document.
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -923,14 +960,14 @@ use std::sync::Arc;
 
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::latex_recomposed::{self, DOCUMENT};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::latex_recomposed::{self, DOCUMENT};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 let source = Arc::new(
@@ -968,14 +1005,14 @@ use std::sync::Arc;
 
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::latex_rendered::{self, DOCUMENT};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::latex_rendered::{self, DOCUMENT};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 let source = Arc::new(
@@ -1014,14 +1051,14 @@ use std::sync::Arc;
 
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::html::{self, DOCUMENT, OUTPUT_TABLE};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html::{self, DOCUMENT, OUTPUT_TABLE};
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 let source = Arc::new(
@@ -1101,15 +1138,15 @@ use std::sync::Arc;
 
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::{self, CHECK_WORKFLOW, StdcoreConfig};
+use flm_core::stdlib::{self, CHECK_WORKFLOW, StdlibConfig};
 use flm_core::techy::core::constructs::UnresolvableCommand;
 use flm_core::techy::error::DiagnosticInfo;
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -1150,14 +1187,14 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::aspects::Label;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::features::refs::LABELS;
-use flm_core::stdcore::{self, CHECK_WORKFLOW, StdcoreConfig};
+use flm_core::stdlib::features::refs::LABELS;
+use flm_core::stdlib::{self, CHECK_WORKFLOW, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -1193,8 +1230,7 @@ assert_eq!(point.addr.tree, tree);
 
 ### Describe the environment
 
-From the command line: `flm info` prints pages; `--json` gives data; `--write-flm FILE`
-writes one page's FLM source, which `flm render` renders. The pages describe
+From the command line: `flm info` prints pages; `--json` gives data. The pages describe
 what a document may write and set, never its content.
 
 ```text
@@ -1210,17 +1246,21 @@ documentation of `flm_info` holds these lines in its tested example):
 ```rust,ignore
 use std::sync::Arc;
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, PackageFactory, RegistryBuilder, RegistryInputs};
+use flm_core::core::settings::PackageSettings;
 use flm_core::lang::mint::CallableKind;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_info::Environment;
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 let plan = Plan::for_workflow(&registry, "text", &Overrides::none())?;
-let factories = vec![stdcore::factory()?, flm_core::math_passthrough::factory()?];
+let std = PackageFactory::new("std", |settings: &PackageSettings| {
+    Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+})?;
+let factories = vec![std, flm_core::math_passthrough::factory()?];
 let env = Environment::new(registry, Some(Arc::new(plan)), factories);
 
 let section = env.command(CallableKind::Macro, "section");   // Vec<CommandView>
@@ -1228,26 +1268,26 @@ let json = serde_json::to_value(&section)?;                  // every view seria
 let pages = flm_info::pages::Tree::new(&env, None);          // the pages of `flm info`
 ```
 
-With the cargo feature `flm-main` of `flm-info`, `Environment::of_prepared(&prepared)`
-describes a document prepared by `flm_main::session::prepare`, with the settings in
+With the cargo feature `flm-host` of `flm-info`, `Environment::of_prepared(&prepared)`
+describes a document prepared by `flm_host::session::prepare`, with the settings in
 effect and where each was written.
 
 ### Read diagnostics as JSON
 
-From the command line, `--json-diagnostics` turns standard error into JSON lines; standard
+From the command line, `--json-messages` turns standard error into JSON lines; standard
 output and the exit status are unchanged:
 
 ```text
-$ flm check --json-diagnostics paper.flm 2> problems.jsonl; echo $?
+$ flm check --json-messages paper.flm 2> problems.jsonl; echo $?
 1
 $ head -2 problems.jsonl
-{"kind":"diagnostics","flm":"0.5.0","format":1}
+{"kind":"messages","flm":"0.6.0","format":1}
 {"kind":"diagnostic","severity":"error","id":"core.specs.unresolvable-command","data":{"name":"nosuchmacro","escape_char":"\\","detail":null},"message":"cannot resolve command ‘\\nosuchmacro’","place":{"file":"paper.flm","offset":47,"line":4,"column":27,"end":{"offset":59,"line":4,"column":39}},"frames":[…]}
 ```
 
 Match on `kind` and `id` (with `data`), never on `message`. From Rust, the host library
-makes the same records: `flm_main::report::Record::of_diagnostic(&diagnostic, &offsets)`
-for a diagnostic of `flm_main::session::build`, whose `Built::content_offsets` gives the
+makes the same records: `flm_host::report::Record::of_diagnostic(&diagnostic, &offsets)`
+for a diagnostic of `flm_host::session::build`, whose `Built::content_offsets` gives the
 offsets; each record serializes with `serde_json::to_string`, and `Record::meta()` is the
 header.
 
@@ -1276,7 +1316,7 @@ header.
    [`Registry`](crate::model::options::Bind::Registry) (the feature holds the value; no
    stage may read one, and a plan whose stage does is refused with
    [`PlanError::RegistryBoundRead`](crate::core::plan::PlanError::RegistryBoundRead)).
-   [`TextRenderOptions`](crate::stdcore::backends::text::TextRenderOptions) set on the
+   [`TextRenderOptions`](crate::stdlib::backends::text::TextRenderOptions) set on the
    document is an [`OptionError`](crate::model::options::OptionError) at
    [`Run::new`](crate::core::run::Run::new).
 3. **A rule selection means nothing outside its own registry.** The rule indices in
@@ -1291,13 +1331,13 @@ header.
    table, never a silent `None`. Declare reads in [`Needs`](crate::core::stage::Needs) and
    writes in [`StageDecl`](crate::core::stage::StageDecl). A caller reading through
    [`Run::table`](crate::core::run::Run::table) is not restricted.
-5. **The error gate stops only before `Io` stages, and the standard package registers
-   none.** A run that recorded an Error stops before the first batch holding an
+5. **The error gate stops only before `Io` stages, and the standard features
+   register none.** A run that recorded an Error stops before the first batch holding an
    [`Effect::Io`](crate::core::stage::Effect::Io) stage, unless
    [`RunOptions::continue_with_errors`](crate::core::run::RunOptions#structfield.continue_with_errors)
    is set. The backends write their output into tables, so
    [`Plan::first_io_batch`](crate::core::plan::Plan::first_io_batch) is `None` for a plan
-   built from `stdcore` alone: a document full of errors still renders. Check
+   built from the standard features alone: a document full of errors still renders. Check
    [`DiagnosticsView::has_errors`](crate::core::run::DiagnosticsView::has_errors) where
    errors should stop something.
 6. **Placing one fragment twice makes two trees**: two
@@ -1329,18 +1369,18 @@ header.
 Say so plainly rather than describing any of this as if it existed:
 
 - **Output formats**: the library ships four backends,
-  [`text`](crate::stdcore::backends::text),
-  [`latex-recomposed`](crate::stdcore::backends::latex_recomposed),
-  [`latex-rendered`](crate::stdcore::backends::latex_rendered) and
-  [`html`](crate::stdcore::backends::html). The HTML backend writes one page; a
+  [`text`](crate::stdlib::backends::text),
+  [`latex-recomposed`](crate::stdlib::backends::latex_recomposed),
+  [`latex-rendered`](crate::stdlib::backends::latex_rendered) and
+  [`html`](crate::stdlib::backends::html). The HTML backend writes one page; a
   multi-file HTML output (a second final stage of the same backend) is not implemented.
   The recomposed LaTeX of the theorem environments does not write a counter hierarchy
   (theorems numbered within sections) into the declarations: LaTeX numbers the theorem
   kinds in one sequence regardless of the document's numbering options.
 - **Mathematics** is carried through as source text by the library's math processor
   `math-passthrough`; it does not parse it, except the argument of a text command, which
-  is document content ([`math::text`](crate::stdcore::features::math::text)). No renderer
-  of mathematics is part of the library ([`flm.math.rendered`](crate::stdcore::features::math::RENDERED)
+  is document content ([`math::text`](crate::stdlib::features::math::text)). No renderer
+  of mathematics is part of the library ([`flm.math.rendered`](crate::stdlib::features::math::RENDERED)
   has no provider in it); the HTML page loads a formula renderer from an address. The
   JavaScript extension `math-mathjax` (in the repository, not in the library) checks the
   commands against MathJax's packages and can write MathML
@@ -1348,7 +1388,7 @@ Say so plainly rather than describing any of this as if it existed:
 - **Markup**: no numbering of anything but headings, equation lines, list items, xnotes,
   theorems, floats and cited works; no links but to a labeled reference point of the same
   document, to a label of another document that the caller installs in the external
-  table [`flm.refs.external-index`](crate::stdcore::features::refs::EXTERNAL_INDEX), and
+  table [`flm.refs.external-index`](crate::stdlib::features::refs::EXTERNAL_INDEX), and
   to an address outside the document; no configuration block inside a document's body;
   no command definition in a document's body (no `\newcommand`); no title above the table
   of contents, and no `\tableofcontents` command (the output places the table of contents
@@ -1361,7 +1401,7 @@ Say so plainly rather than describing any of this as if it existed:
   [`SettingsDecl`](crate::core::settings::SettingsDecl), and a
   [`PackageCatalog`](crate::core::registry::PackageCatalog) looks packages up by name;
   `flm-core` ships no [`PackageResolver`](crate::core::registry::PackageResolver) and no
-  [`ArtifactNamer`](crate::core::artifact::ArtifactNamer). The host library `flm-main`
+  [`ArtifactNamer`](crate::core::artifact::ArtifactNamer). The host library `flm-host`
   provides the namer, reads front matter, and writes the outputs; the crate `flm-ext`
   provides the resolver of extensions, which the host library uses.
 
@@ -1378,6 +1418,7 @@ Say so plainly rather than describing any of this as if it existed:
 
 The guide pages for people, by module path: [`crate::guide::introduction`],
 [`crate::guide::language_syntax`] (the author's full reference),
+[`crate::guide::std_flm`] (the baseline of the language, "std flm"),
 [`crate::guide::command_line`] (the `flm` program), [`crate::guide::concepts_overview`]
 (every concept, one section each), [`crate::guide::document_model`],
 [`crate::guide::pipeline`], [`crate::guide::rendering`], [`crate::guide::numbering`],

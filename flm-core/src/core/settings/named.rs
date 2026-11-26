@@ -233,7 +233,7 @@ where
 ///
 /// ```
 /// use flm_core::core::settings::named::to_data;
-/// use flm_core::stdcore::features::floats::FloatType;
+/// use flm_core::stdlib::features::floats::FloatType;
 ///
 /// let data = to_data(&[FloatType::figure().caption_name("Fig.")], "name").unwrap();
 /// assert_eq!(data["figure"]["caption_name"], "Fig.");

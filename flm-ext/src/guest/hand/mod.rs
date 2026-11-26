@@ -48,15 +48,18 @@ pub mod core_registry;
 pub mod core_run;
 pub mod core_stage;
 pub mod host;
+pub(crate) mod joined;
+pub mod lang_copy;
 pub mod lang_mint;
 pub mod lang_rewrites_userdefs;
 pub mod model_aspects;
 pub mod model_element;
-pub mod stdcore_features_citations;
-pub mod stdcore_features_compose;
-pub mod stdcore_features_math;
-pub mod stdcore_features_numbering;
+pub mod stdlib_features_citations;
+pub mod stdlib_features_compose;
+pub mod stdlib_features_math;
+pub mod stdlib_features_numbering;
 pub mod techy_error;
+pub mod techy_node;
 pub mod techy_transform;
 #[cfg(all(test, feature = "native"))]
 mod typed_forms;
@@ -97,28 +100,29 @@ pub(crate) fn single<'v>(value: &'v Value, keys: &[&str]) -> Option<(&'v str, &'
     (map.len() == 1 && keys.contains(&key.as_str())).then_some((key.as_str(), inner))
 }
 
-/// `"WORD"` or `{"emit": [staged, …]}`, the shape of an expansion, a
-/// lowering and a rewrite handler's answer: `None` for the word.
+/// `"WORD"` or `{"emit": staged}`, the shape of an expansion, a lowering
+/// and a rewrite handler's answer, `staged` a sequence of staged nodes or a
+/// joined list: `None` for the word.
 ///
 /// # Errors
 ///
-/// `value` is neither ([`ExtError::Value`]), or an item is not a staged
-/// node's handle.
+/// `value` is neither ([`ExtError::Value`]), or a part is not the handle of
+/// a staged node or of a sequence of staged nodes.
 pub(crate) fn emit_from_value(
     what: &str,
     word: &str,
     value: &Value,
-) -> Result<Option<Vec<crate::guest::lang::rewrites::userdefs::Staged>>, ExtError> {
+) -> Result<Option<crate::guest::lang::rewrites::userdefs::StagedNodes>, ExtError> {
     if value.as_str() == Some(word) {
         return Ok(None);
     }
     match single(value, &["emit"]) {
-        Some((_, items @ Value::Array(_))) => JsonForm::from_value(items).map(Some),
+        Some((_, staged)) => JsonForm::from_value(staged).map(Some),
         _ => Err(not_shape(what, &format!("`\"{word}\"` or `{{\"emit\": [...]}}`"), value)),
     }
 }
 
-/// `{"emit": [staged, …]}`.
-pub(crate) fn emit_to_value(staged: &[crate::guest::lang::rewrites::userdefs::Staged]) -> Value {
-    serde_json::json!({ "emit": staged.iter().map(JsonForm::to_value).collect::<Vec<_>>() })
+/// `{"emit": staged}`.
+pub(crate) fn emit_to_value(staged: &crate::guest::lang::rewrites::userdefs::StagedNodes) -> Value {
+    serde_json::json!({ "emit": staged.to_value() })
 }

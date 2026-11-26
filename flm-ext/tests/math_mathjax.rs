@@ -13,7 +13,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{FlmRegistry, PackageEntry, PackageFactory, RegistryBuildError, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{
+    BuildError, BuildPhase, FlmRegistry, PackageEntry, PackageFactory, RegistryBuildError, RegistryBuilder, RegistryInputs,
+};
+use flm_core::lang::mint::{ElementDef, MintError};
+use flm_core::lang::LangBuildError;
+use flm_core::techy::latexlike::Mode;
 use flm_core::core::settings::{FeatureSettings, PackageSettings};
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
@@ -21,12 +26,14 @@ use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::element::element_of;
 use flm_core::model::options::OptionValues;
 use flm_core::core::run::{Externals, Run, RunOptions};
-use flm_core::stdcore::backends::pieces::PiecesRenderOptions;
-use flm_core::stdcore::backends::html::mathjax::MATHJAX_LOADER;
-use flm_core::stdcore::features::toc;
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::latex_rendered;
-use flm_core::stdcore;
+use flm_core::stdlib::backends::pieces::PiecesRenderOptions;
+use flm_core::stdlib::backends::html::mathjax::MATHJAX_LOADER;
+use flm_core::stdlib::features::toc;
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::backends::{latex_recomposed, latex_rendered};
+use flm_core::stdlib;
+use flm_core::progress::Scope;
+use flm_ext::host::{HostAnswer, HostCaller, HostService, HostServiceError};
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::{json, Value};
 
@@ -57,7 +64,22 @@ fn golden(name: &str) -> String {
     format!("{}/tests/goldens/math-mathjax/{name}", env!("CARGO_MANIFEST_DIR"))
 }
 
-/// The extension's package `_`, loaded with the default host settings.
+/// A host service `cache` that holds nothing: it answers `null` to every
+/// call, so each formula is typeset as on a first build.
+struct NoCache;
+
+impl HostService for NoCache {
+    fn name(&self) -> &str {
+        "cache"
+    }
+
+    fn call(&self, _: &HostCaller, _: &str, _: &Value, _: &Scope) -> Result<HostAnswer, HostServiceError> {
+        Ok(HostAnswer::Data(Value::Null))
+    }
+}
+
+/// The extension's package `_`, loaded with the default host settings and a
+/// [`NoCache`] for the service `cache` it declares.
 fn factory() -> PackageFactory {
     let files: Vec<(&str, String)> = MODULES
         .iter()
@@ -65,7 +87,12 @@ fn factory() -> PackageFactory {
         .collect();
     let files: Vec<(&str, &str)> = files.iter().map(|(path, text)| (*path, text.as_str())).collect();
     let source = common::js_extension("math-mathjax", &files, manifest());
-    common::factory_of(&common::js_loader(&JsHost::new(JsSettings::default()), source), "math-mathjax")
+    let loader = Arc::new(
+        flm_ext::ExtensionLoader::new(vec![Arc::new(source)])
+            .with_js(JsHost::new(JsSettings::default()))
+            .with_host_service(Arc::new(NoCache)),
+    );
+    common::factory_of(&loader, "math-mathjax")
 }
 
 /// The feature's configuration `data`, read with its declaration.
@@ -89,7 +116,7 @@ fn try_registry(data: Value) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     // The extension's feature is the registry's one feature that processes
     // mathematics.
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(stdcore::StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), stdlib::StdlibConfig::new()));
     builder.use_package(package(data));
     builder.build(&RegistryInputs::new())
 }
@@ -98,6 +125,12 @@ fn try_registry(data: Value) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
 /// `data`.
 fn registry(data: Value) -> Arc<FlmRegistry> {
     try_registry(data).expect("the registry builds")
+}
+
+/// The declaration of the command `name` (written without its backslash).
+fn declaration_named<'r>(registry: &'r FlmRegistry, name: &str) -> &'r ElementDef {
+    let mut found = registry.declarations().elements().iter().filter(|def| def.names.iter().any(|written| written.as_str() == name));
+    found.next().expect("declared")
 }
 
 /// The element of each callable node of `source` parsed by `registry`, with
@@ -142,6 +175,19 @@ fn page_with(registry: &Arc<FlmRegistry>, source: &str, overrides: &Overrides) -
 /// The HTML page of `source`, and the diagnostics.
 fn page_of(registry: &Arc<FlmRegistry>, source: &str) -> (String, Vec<String>) {
     page_with(registry, source, &Overrides::none())
+}
+
+/// Each diagnostic of the text of `source`: its identifier and the source
+/// text its span covers.
+fn diagnosed(registry: &Arc<FlmRegistry>, source: &str) -> Vec<(String, String)> {
+    let run = common::run(registry, flm_core::stdlib::backends::text::WORKFLOW, source);
+    run.diagnostics().iter().map(|d| (d.identifier().to_string(), d.span().content().to_string())).collect()
+}
+
+/// The diagnostic of the command `command` (written with its backslash) that
+/// no feature declares, as [`diagnosed`] gives it.
+fn unresolved(command: &str) -> (String, String) {
+    ("core.specs.unresolvable-command".to_string(), command.to_string())
 }
 
 /// The page's body, from `<body` to the end.
@@ -205,8 +251,7 @@ fn the_commands_are_read_from_mathjax_and_declared_in_math_mode() {
     .collect();
     assert_eq!(elements, expected);
     // In text mode, MathJax's commands are not declared.
-    let (_, diagnostics) = text_of(&registry, r"\frac");
-    assert_eq!(diagnostics, ["core.specs.unresolvable-command: cannot resolve command ‘\\frac’"]);
+    assert_eq!(diagnosed(&registry, r"\frac"), [unresolved(r"\frac")]);
     // No element of another processing feature is in the registry.
     assert!(registry.elements().iter().all(|entry| !entry.element.name.as_str().starts_with("flm.math-passthrough.")));
     assert!(registry.occurrable_elements().iter().all(|name| !name.as_str().starts_with("flm.math-passthrough.")));
@@ -214,9 +259,7 @@ fn the_commands_are_read_from_mathjax_and_declared_in_math_mode() {
 
 #[test]
 fn the_packages_setting_bounds_the_commands_declared() {
-    let unknown_dv = "core.specs.unresolvable-command: cannot resolve command ‘\\dv’";
-    let (_, diagnostics) = text_of(&registry(json!({ "packages": ["base", "ams"] })), r"\(\dv{x}{t}\)");
-    assert_eq!(diagnostics, [unknown_dv]);
+    assert_eq!(diagnosed(&registry(json!({ "packages": ["base", "ams"] })), r"\(\dv{x}{t}\)"), [unresolved(r"\dv")]);
     let with_physics = registry(json!({ "packages": ["base", "ams", "physics"] }));
     let (text, diagnostics) = text_of(&with_physics, r"\(\dv{x}{t}\)");
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -228,12 +271,8 @@ fn the_packages_setting_bounds_the_commands_declared() {
 fn newcommand_is_an_unknown_command_under_every_package_list() {
     for packages in [json!(null), json!(["base"]), json!(["base", "ams", "physics"])] {
         let data = if packages.is_null() { json!({}) } else { json!({ "packages": packages }) };
-        let (_, diagnostics) = text_of(&registry(data), r"\(\newcommand{\x}{y}\)");
-        assert_eq!(
-            diagnostics.first().map(String::as_str),
-            Some("core.specs.unresolvable-command: cannot resolve command ‘\\newcommand’"),
-            "{packages}"
-        );
+        let diagnostics = diagnosed(&registry(data), r"\(\newcommand{\x}{y}\)");
+        assert_eq!(diagnostics.first(), Some(&unresolved(r"\newcommand")), "{packages}");
     }
 }
 
@@ -246,13 +285,15 @@ fn the_commands_that_define_number_or_display_are_unknown_inside_a_formula() {
         (r"\(x \label{eq:x}\)", r"\label"),
         (r"\(\eqref{eq:x}\)", r"\eqref"),
     ] {
-        let (_, diagnostics) = text_of(&registry, source);
-        let unknown = format!("core.specs.unresolvable-command: cannot resolve command ‘{command}’");
-        assert_eq!(diagnostics.first(), Some(&unknown), "{source}");
+        assert_eq!(diagnosed(&registry, source).first(), Some(&unresolved(command)), "{source}");
     }
     // A display-math environment inside a formula is unknown; an inner one is MathJax's.
-    let (_, diagnostics) = text_of(&registry, r"\[\begin{align} a &= b \end{align}\]");
-    assert!(diagnostics.first().is_some_and(|d| d.contains("unknown environment ‘align’")), "{diagnostics:?}");
+    let diagnostics = diagnosed(&registry, r"\[\begin{align} a &= b \end{align}\]");
+    assert_eq!(
+        diagnostics.first(),
+        Some(&("latexlike.environments.unknown-environment".to_string(), "align".to_string())),
+        "{diagnostics:?}"
+    );
     assert_eq!(elements_of(&registry, r"\[\begin{aligned} a &= b \end{aligned}\]")[0].1, "math-mathjax.environment");
 }
 
@@ -261,15 +302,12 @@ fn a_package_outside_the_bundle_fails_the_registration() {
     for name in ["newcommand", "bussproofs", "nosuch"] {
         let error = match try_registry(json!({ "packages": ["base", name] })) {
             Ok(_) => panic!("the registry builds with `{name}`"),
-            Err(error) => error.to_string(),
+            Err(error) => error,
         };
-        assert!(
-            error.contains(&format!(
-                "the MathJax package `{name}` is not in the extension's bundle; the bundled packages are `base`, `ams`, `amscd`, "
-            )),
-            "{error}"
-        );
-        assert!(error.contains("`upgreek`, `units`, `verb`, `dsfont`"), "{error}");
+        let found = common::feature_errors(&error);
+        assert_eq!(found.len(), 1, "{error}");
+        assert_eq!(found[0].0, "math-mathjax");
+        assert!(found[0].1.starts_with("flm.ext.handler-failed: "), "{error}");
     }
 }
 
@@ -277,8 +315,7 @@ fn a_package_outside_the_bundle_fails_the_registration() {
 fn an_empty_package_list_registers_no_command_but_the_extension_s_delimiters() {
     for data in [json!({ "packages": [] }), json!({ "mode": "load-in-browser", "packages": [] })] {
         let registry = registry(data);
-        let (_, diagnostics) = text_of(&registry, r"\(\alpha\)");
-        assert_eq!(diagnostics, ["core.specs.unresolvable-command: cannot resolve command ‘\\alpha’"]);
+        assert_eq!(diagnosed(&registry, r"\(\alpha\)"), [unresolved(r"\alpha")]);
         // The two delimiters the extension defines belong to no MathJax package.
         let elements = elements_of(&registry, r"\(\llangle x \rrangle\)");
         assert_eq!(
@@ -290,27 +327,31 @@ fn an_empty_package_list_registers_no_command_but_the_extension_s_delimiters() {
 
 #[test]
 fn a_user_definition_of_a_name_mathjax_defines_fails_the_registry_build() {
-    let factory = stdcore::factory().expect("the stdcore factory");
+    let factory = PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+    .expect("the factory of the standard features");
     let decl = factory.settings("userdefs").expect("the userdefs feature declares settings");
     let Value::Object(data) = json!({ "macros": { "ket": { "content": { "math": "|\\psi\\rangle" } } } }) else {
         unreachable!()
     };
-    let mut stdcore_settings = PackageSettings::new();
-    stdcore_settings.insert(decl.read(&data).expect("the definitions read"));
+    let mut std_settings = PackageSettings::new();
+    std_settings.insert(decl.read(&data).expect("the definitions read"));
     let mut builder = RegistryBuilder::new();
-    builder.use_package(factory.build(&stdcore_settings).expect("stdcore builds"));
+    builder.use_package(factory.build(&std_settings).expect("the standard features build"));
     builder.use_package(package(json!({ "packages": ["base", "ams", "physics"] })));
     let error = match builder.build(&RegistryInputs::new()) {
         Ok(_) => panic!("the registry builds with `\\ket` defined twice"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert_eq!(
-        error,
-        "the registry could not be built: the language phase found 1 error(s):\nConstruct `\\ket` from \
-         `math-mathjax` clashes with `\\ket` defined in `userdefs` in math mode; either set `flm: feature_order: \
-         ['userdefs < math-mathjax']` in your front matter to choose `math-mathjax`'s definition, or have \
-         `math-mathjax` declare `\\ket` as an explicit override."
-    );
+    assert_eq!(error.phase, BuildPhase::Language);
+    assert_eq!(error.errors.len(), 1, "{error}");
+    let BuildError::Lang(LangBuildError::Mint(MintError::Clash { symbol, modes, owners, .. })) = &error.errors[0] else {
+        panic!("a clash: {error}")
+    };
+    assert_eq!(symbol.name, "ket");
+    assert_eq!(modes, &[Mode::Math]);
+    assert_eq!(owners.iter().map(|owner| owner.as_str()).collect::<Vec<_>>(), ["userdefs", "math-mathjax"]);
 }
 
 #[test]
@@ -330,9 +371,9 @@ fn the_browser_page_carries_the_formulas_as_tex_with_their_holes() {
     let body = body_of(&page);
     assert_text_golden(golden("browser.page-body.html"), body);
     // The formulas as text inside the extension's spans.
-    assert!(body.contains(r#"<span class="math-mathjax-formula" data-flm-display="inline">\(x^2\)</span>"#), "{body}");
-    assert!(body.contains(r#"<span class="math-mathjax-formula" data-flm-display="display">\[\frac{a}{b}\]</span>"#), "{body}");
-    assert!(body.contains(r#"<span class="math-mathjax-formula" data-flm-display="display" data-flm-env="align">\begin{align}"#), "{body}");
+    assert!(body.contains(r#"<span class="math-mathjax-formula flm-math-formula" data-flm-display="inline">\(x^2\)</span>"#), "{body}");
+    assert!(body.contains(r#"<span class="math-mathjax-formula flm-math-formula" data-flm-display="display">\[\frac{a}{b}\]</span>"#), "{body}");
+    assert!(body.contains(r#"<span class="math-mathjax-formula flm-math-formula" data-flm-display="display" data-flm-env="align">\begin{align}"#), "{body}");
     // A text command's argument and the reference inside it, in a hole.
     assert!(body.contains(r#"<tex-html><span class="flm-pres-math--text" data-flm-command="textbf">bold </span></tex-html>"#), "{body}");
     assert!(body.contains(r##"<tex-html><span class="flm-pres-math--text" data-flm-command="text">see <a class="flm-pres-link" href="#eq-a""##), "{body}");
@@ -386,6 +427,29 @@ fn the_lazy_setting_loads_the_lazy_component() {
 }
 
 #[test]
+fn under_the_lazy_setting_the_anchors_of_the_lines_stand_before_the_tex() {
+    // MathJax's lazy mode replaces a formula's TeX, with everything inside it, by a placeholder
+    // until the formula scrolls into view: a link to a line must find the line's anchor before.
+    let (page, diagnostics) = page_of(&registry(json!({ "mode": "load-in-browser", "lazy": true })), DOCUMENT);
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let body = body_of(&page);
+    let formula = &body[body.find(r#"data-flm-env="align">"#).expect(body)..];
+    let formula = &formula[..formula.find(r"\end{align}").expect(formula)];
+    // Every line's anchor, in the order of the lines, then the TeX.
+    assert!(
+        formula.starts_with(concat!(
+            r#"data-flm-env="align"><span id="eq-a"></span><span id="eq--2oqua"></span>"#,
+            r#"<span id="eq--3oqke"></span>\begin{align}"#,
+        )),
+        "{formula}"
+    );
+    // The TeX holds no anchor; the numbers and tags stay in it.
+    let tex = &formula[formula.find(r"\begin{align}").expect(formula)..];
+    assert!(!tex.contains("<span id="), "{tex}");
+    assert!(tex.contains(r"\tag*{$<tex-html>(1)</tex-html>$}\\"), "{tex}");
+}
+
+#[test]
 fn the_loader_url_setting_names_the_address_mathjax_is_loaded_from() {
     let registry = registry(json!({ "mode": "load-in-browser", "loader_url": "https://example.org/mathjax/tex-chtml.js" }));
     let (page, diagnostics) = page_of(&registry, r"\(x\)");
@@ -416,7 +480,7 @@ fn a_formula_inside_a_text_command_is_written_into_the_surrounding_formula() {
     // with no delimiters of its own, and a new hole opens after it.
     assert!(
         body_of(&page).contains(concat!(
-            r#"<span class="math-mathjax-formula" data-flm-display="inline">\(<tex-html><span class="flm-pres-math--text" data-flm-command="text">a </span></tex-html>"#,
+            r#"<span class="math-mathjax-formula flm-math-formula" data-flm-display="inline">\(<tex-html><span class="flm-pres-math--text" data-flm-command="text">a </span></tex-html>"#,
             r#"y<tex-html><span class="flm-pres-math--text" data-flm-command="text"> b</span></tex-html>\)</span>"#,
         )),
         "{page}"
@@ -433,7 +497,7 @@ fn each_copy_of_a_formula_carries_its_text_in_a_span_of_its_own() {
     let (page, diagnostics) =
         page_with(&registry, "\\section{The square \\(x^2\\)}\\label{sec:sq}\n\nSee \\ref{sec:sq}.", &overrides);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    let formula = r#"<span class="math-mathjax-formula" data-flm-display="inline">\(x^2\)</span>"#;
+    let formula = r#"<span class="math-mathjax-formula flm-math-formula" data-flm-display="inline">\(x^2\)</span>"#;
     // The heading, the entry of the table of contents, the reference's text.
     assert_eq!(page.matches(formula).count(), 3, "{page}");
     assert_eq!(page.matches(r#"id="sec-sq""#).count(), 1, "{page}");
@@ -447,8 +511,9 @@ fn the_recomposed_latex_is_what_the_standard_package_alone_writes() {
         let (latex, diagnostics) = latex_of(&registry(data), DOCUMENT);
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert_text_golden(golden("document.tex"), &latex);
-        let (alone, diagnostics) = latex_of(&common::registry_with([]), DOCUMENT);
-        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let standard = common::registry_with([]);
+        let (alone, diagnostics) = latex_of(&standard, DOCUMENT);
+        common::assert_only_unchecked_output(&common::workflow_plan(&standard, latex_recomposed::WORKFLOW), &diagnostics);
         assert_eq!(latex, alone);
     }
 }
@@ -474,8 +539,9 @@ fn the_latex_rendered_formulas_are_what_the_standard_package_alone_writes() {
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
         assert!(latex.contains("\\(x^2\\)") && latex.contains("\\begin{align*}"), "{latex}");
         assert!(latex.contains("\\textbf{bold }") && latex.contains("\\tag*{(T)}"), "{latex}");
-        let (alone, diagnostics) = rendered_of(&common::registry_with([]), DOCUMENT);
-        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let standard = common::registry_with([]);
+        let (alone, diagnostics) = rendered_of(&standard, DOCUMENT);
+        common::assert_only_unchecked_output(&common::workflow_plan(&standard, latex_rendered::WORKFLOW), &diagnostics);
         assert_eq!(latex, alone);
     }
 }
@@ -561,7 +627,7 @@ fn the_mathml_page_carries_the_formulas_as_mathml_with_their_holes() {
     let body = body_of(&page);
     assert_text_golden(golden("mathml.page-body.html"), body);
     // `\(x^2\)`.
-    assert!(body.contains(r#"<math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mi>x</mi><mn>2</mn></msup></math>"#), "{body}");
+    assert!(body.contains(r#"<math xmlns="http://www.w3.org/1998/Math/MathML" class="flm-math-formula" data-flm-display="inline"><msup><mi>x</mi><mn>2</mn></msup></math>"#), "{body}");
     // The rows' identifiers: the labeled line's, and the next line's.
     assert!(
         body.contains(r#"<mtable displaystyle="true" class="math-mathjax-lines"><mtr id="eq-a"><mtd class="math-mathjax-tag-space"></mtd>"#),
@@ -630,16 +696,21 @@ fn count_elements(node: &markup5ever_rcdom::Handle, tag: &str, inner: &str) -> (
 }
 
 #[test]
-fn a_paragraph_holding_an_environment_is_one_p_holding_the_environment_s_span() {
+fn a_paragraph_holding_an_environment_is_one_p_holding_the_environment_s_math_element() {
     let (page, diagnostics) = page_of(&registry(mathml()), PARAGRAPH);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
     let body = body_of(&page);
     assert!(!body.contains(r#"<div class="flm-pres-par""#), "{body}");
-    assert!(
-        body.contains(r#"<p class="flm-pres-par">Text before<span class="flm-pres-span math--mathjax-environment" data-flm-kind="align"><math"#),
-        "{body}"
-    );
-    assert!(body.contains("</math></span>text after.</p>"), "{body}");
+    // The `math` element is the formula's outermost element, and carries the
+    // mark of a formula; only white space stands between it and the text
+    // around it.
+    let before = &body[body.find(r#"<p class="flm-pres-par">Text before"#).expect(body)..];
+    let before = before[r#"<p class="flm-pres-par">Text before"#.len()..].trim_start();
+    assert!(before.starts_with(r#"<math xmlns="http://www.w3.org/1998/Math/MathML" display="block""#), "{body}");
+    assert!(body.contains(r#" class="flm-math-formula" data-flm-display="display" data-flm-env="align">"#), "{body}");
+    let after = &body[body.find("</math>").expect(body) + "</math>".len()..];
+    let after = after.trim_start().strip_prefix("text after.").expect(body);
+    assert!(after.trim_start().starts_with("</p>"), "{body}");
     let (dom, errors) = parsed_page(&page);
     assert!(errors.is_empty(), "the parser reported {errors:?} on: {page}");
     // Two paragraphs, the second holding the formula: the parser closed no
@@ -709,7 +780,7 @@ fn each_copy_of_a_formula_gets_mathml_of_its_own() {
     let (page, diagnostics) =
         page_with(&registry, "\\section{The square \\(x^2\\)}\\label{sec:sq}\n\nSee \\ref{sec:sq}.", &overrides);
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
-    let formula = r#"<math xmlns="http://www.w3.org/1998/Math/MathML"><msup><mi>x</mi><mn>2</mn></msup></math>"#;
+    let formula = r#"<math xmlns="http://www.w3.org/1998/Math/MathML" class="flm-math-formula" data-flm-display="inline"><msup><mi>x</mi><mn>2</mn></msup></math>"#;
     // The heading, the entry of the table of contents, the reference's text:
     // each a `math` element of its own, none with an identifier.
     assert_eq!(page.matches(formula).count(), 3, "{page}");
@@ -736,10 +807,7 @@ fn the_mathml_carries_tex_s_spacing_around_a_relation_and_a_bar() {
 #[test]
 fn an_empty_equation_line_is_reported() {
     let (_, diagnostics) = text_of(&registry(json!({})), "\\begin{align} a \\\\ \\label{eq:x} \\\\ b \\end{align}");
-    assert_eq!(
-        diagnostics,
-        ["math-mathjax.empty-line: line 1 (counting from 0) of the `align` environment must hold mathematics; a `\\label`, `\\tag` or `\\nonumber` alone is not mathematics"]
-    );
+    assert_eq!(common::ids(&diagnostics), ["math-mathjax.empty-line"]);
 }
 
 /// The empty line's report is placed at the line's first node (here the
@@ -747,7 +815,7 @@ fn an_empty_equation_line_is_reported() {
 #[test]
 fn an_empty_equation_line_is_reported_at_the_line_s_first_node() {
     let document = "\\begin{align} a \\\\ \\label{eq:x} \\\\ b \\end{align}";
-    let run = common::run(&registry(json!({})), flm_core::stdcore::backends::text::WORKFLOW, document);
+    let run = common::run(&registry(json!({})), flm_core::stdlib::backends::text::WORKFLOW, document);
     let spans: Vec<std::ops::Range<usize>> = run.diagnostics().iter().map(|d| d.span().range()).collect();
     let line = document.find("\\\\ \\label").expect("the line") + 2;
     assert_eq!(spans.len(), 1, "{spans:?}");
@@ -757,9 +825,9 @@ fn an_empty_equation_line_is_reported_at_the_line_s_first_node() {
 #[test]
 fn a_tex_error_is_reported_and_the_formula_shown_as_its_source() {
     let (page, diagnostics) = page_of(&registry(mathml()), r"Before \(\frac{a}\) after.");
-    assert_eq!(diagnostics, [r"math-mathjax.tex-error: MathJax cannot typeset the formula: Missing argument for \frac"]);
+    assert_eq!(common::ids(&diagnostics), ["math-mathjax.tex-error"]);
     assert!(
-        body_of(&page).contains(r#"Before <span class="flm-pres-span math--mathjax-formula" data-flm-kind="inline">\(\frac{a}\)</span> after."#),
+        body_of(&page).contains(r#"Before <span class="flm-math-formula" data-flm-display="inline">\(\frac{a}\)</span> after."#),
         "{page}"
     );
 }
@@ -811,43 +879,38 @@ fn the_preamble_s_definitions_hold_in_every_formula_and_an_exported_command_is_d
     assert!(body.contains(r##"<mstyle mathcolor="#c80000"><mi>a</mi>"##), "{body}");
     assert!(body.contains(r##"<mstyle mathcolor="#c80000"><mi>c</mi></mstyle>"##), "{body}");
     assert!(body.contains("<mover><mo lspace=\"0\" rspace=\"0\">\u{21C0}</mo><mpadded"), "{body}");
-    let element = registry.elements().iter().find(|entry| entry.element.docs.contains(r"\xMyarrow")).expect("declared");
-    assert_eq!(element.element.docs, r"`\xMyarrow`: a command that the `preamble` of the feature `math-mathjax` defines");
+    let def = declaration_named(&registry, "xMyarrow");
+    assert_eq!(def.docs, "A command that the `preamble` of the feature `math-mathjax` defines.");
+    assert_eq!(def.element.docs, def.docs, "the element value has the command's text");
 }
 
 #[test]
 fn a_preamble_mathjax_rejects_fails_the_registration() {
     let error = match try_registry(json!({ "preamble": r"\newcommand{\x}{y}" })) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert!(
-        error.contains(
-            r"the `preamble` of the feature `math-mathjax` must be TeX that MathJax accepts; MathJax reports: Undefined control sequence \newcommand"
-        ),
-        "{error}"
-    );
+    let found = common::feature_errors(&error);
+    assert_eq!(found.len(), 1, "{error}");
+    assert_eq!(found[0].0, "math-mathjax");
+    assert!(found[0].1.starts_with("flm.ext.handler-failed: "), "{error}");
 }
 
 #[test]
 fn an_export_the_preamble_does_not_define_fails_the_registration_and_no_export_declares_an_excluded_command() {
     let error = match try_registry(json!({ "preamble": PREAMBLE, "export_commands": ["xMyarrow", "xOther"] })) {
         Ok(_) => panic!("the registry builds"),
-        Err(error) => error.to_string(),
+        Err(error) => error,
     };
-    assert!(
-        error.contains(
-            r"the command `\xOther` of `export_commands` of the feature `math-mathjax` must be a command that its `preamble` or one of its `packages` defines"
-        ),
-        "{error}"
-    );
+    let found = common::feature_errors(&error);
+    assert_eq!(found.len(), 1, "{error}");
+    assert_eq!(found[0].0, "math-mathjax");
+    assert!(found[0].1.starts_with("flm.ext.handler-failed: "), "{error}");
     // A command a package defines stays as it is: `\definecolor` stays out; and
     // the preamble's arrow, not exported, is unknown.
     let registry = registry(json!({ "preamble": PREAMBLE, "export_commands": ["definecolor", "frac"] }));
     for (source, command) in [(r"\(\definecolor{c}{RGB}{1,2,3} x\)", r"\definecolor"), (WITH_PREAMBLE, r"\xMyarrow")] {
-        let (_, diagnostics) = text_of(&registry, source);
-        let unknown = format!("core.specs.unresolvable-command: cannot resolve command ‘{command}’");
-        assert_eq!(diagnostics.first(), Some(&unknown), "{source}");
+        assert_eq!(diagnosed(&registry, source).first(), Some(&unresolved(command)), "{source}");
     }
     assert_eq!(elements_of(&registry, r"\(\frac{a}{b}\)")[0].1, "math-mathjax.macro");
 }
@@ -896,11 +959,11 @@ fn the_double_brackets_are_math_mode_commands_of_the_extension() {
         elements,
         [(r"\llangle".to_string(), "math-mathjax.macro".to_string()), (r"\rrangle".to_string(), "math-mathjax.macro".to_string())]
     );
-    let element = registry.elements().iter().find(|entry| entry.element.docs.contains(r"\llangle")).expect("declared");
-    assert_eq!(element.element.docs, r"`\llangle`: a delimiter the math-mathjax extension defines, beyond MathJax's packages");
+    let def = declaration_named(&registry, "llangle");
+    assert_eq!(def.docs, "A delimiter that the math-mathjax extension defines, beyond MathJax's packages.");
+    assert_eq!(def.element.docs, def.docs, "the element value has the command's text");
     // In text mode they are not declared.
-    let (_, diagnostics) = text_of(&registry, r"\llangle");
-    assert_eq!(diagnostics, ["core.specs.unresolvable-command: cannot resolve command ‘\\llangle’"]);
+    assert_eq!(diagnosed(&registry, r"\llangle"), [unresolved(r"\llangle")]);
 }
 
 #[test]

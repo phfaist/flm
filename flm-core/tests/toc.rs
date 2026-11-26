@@ -1,11 +1,11 @@
-//! The table of contents (`flm_core::stdcore::features::toc`): the table
+//! The table of contents (`flm_core::stdlib::features::toc`): the table
 //! `flm.toc.entries` (which headings, in which order, at which level, with
 //! which point; the setting `depth`), the piece `flm.toc` on the text and HTML
 //! outputs (the nesting, the numbers, the links, the stylesheet), the entries
 //! of headings written with `alt=`, and the recomposed LaTeX unchanged.
 //!
-//! The tests build their registries from the `stdcore` package, as
-//! `tests/meta.rs` and `tests/html_pieces.rs` do.
+//! The tests build their registries from the standard features, as
+//! `tests/metadata.rs` and `tests/html_pieces.rs` do.
 
 mod common;
 
@@ -16,26 +16,26 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::{Run, RunOptions};
 use flm_core::dump::golden::{assert_json_golden, assert_text_golden};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html::{self, DEFINITIONS_TABLE, PIECES_TABLE};
-use flm_core::stdcore::backends::pieces::PiecesRenderOptions;
-use flm_core::stdcore::backends::{latex_recomposed, text};
-use flm_core::stdcore::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
-use flm_core::stdcore::features::toc::{self, ENTRIES, TocEntries, TocOptions};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html::{self, DEFINITIONS_TABLE, PIECES_TABLE};
+use flm_core::stdlib::backends::pieces::PiecesRenderOptions;
+use flm_core::stdlib::backends::{latex_recomposed, text};
+use flm_core::stdlib::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::features::toc::{self, ENTRIES, TocEntries, TocOptions};
 use techy::error::Severity;
 
-use common::stdcore::{diagnostic_lines, identifiers, registry, reports, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, diagnostic_lines, identifiers, registry, reports, run_workflow};
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The standard package with every heading kind numbered.
 fn numbered() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)))
+    registry(StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)))
 }
 
 /// The standard package as configured by default: no heading is numbered.
 fn unnumbered() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 /// Overrides setting `options` on the render request.
@@ -84,10 +84,11 @@ fn html_run(registry: &Arc<FlmRegistry>, texts: &[&str], overrides: &Overrides) 
 }
 
 /// The page of the `html` workflow over `texts` with the table of contents
-/// placed; the run must report nothing.
+/// placed; the run must report nothing but the Warnings of its plan's unchecked
+/// output.
 fn page(registry: &Arc<FlmRegistry>, texts: &[&str]) -> String {
     let run = html_run(registry, texts, &with_toc());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     common::html::page(&run)
 }
 
@@ -128,7 +129,7 @@ fn the_table_lists_the_headings_in_order_with_their_levels_and_points_to_the_dep
     // In document order.
     let nodes: Vec<_> = entries.iter().map(|entry| entry.addr.node).collect();
     assert!(nodes.windows(2).all(|pair| pair[0] < pair[1]), "{nodes:?}");
-    assert_json_golden(golden("dump", "toc-entries.json"), &common::stdcore::projection(&run, ENTRIES));
+    assert_json_golden(golden("dump", "toc-entries.json"), &common::stdlib::projection(&run, ENTRIES));
 }
 
 #[test]
@@ -146,11 +147,11 @@ fn the_depth_chooses_the_deepest_level_listed() {
 fn a_starred_heading_is_listed_and_toc_false_and_a_kind_that_skips_the_contents_are_not() {
     let mut kinds = HeadingsConfig::new().headings;
     kinds.push(HeadingDecl::new("aside", 2).no_counter().skip_toc(true));
-    let registry = registry(StdcoreConfig::new().headings(HeadingsConfig::new().headings(kinds)));
+    let registry = registry(StdlibConfig::new().headings(HeadingsConfig::new().headings(kinds)));
     let text = "\\section*{Starred}\n\n\\section[toc=false]{Hidden}\n\n\\aside{Aside}\n\n\\aside[toc=true]{Aside}\n\n\\section{Kept}";
     let run = entries_run(&registry, &[text], OptionValues::new());
     assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
-    let projected = format!("{:?}", common::stdcore::projection(&run, ENTRIES));
+    let projected = format!("{:?}", common::stdlib::projection(&run, ENTRIES));
     assert_eq!(table(&run).entries.len(), 2, "{projected}");
     assert!(!projected.contains("Hidden") && !projected.contains("Aside"), "{projected}");
 }
@@ -162,7 +163,7 @@ fn a_document_with_no_heading_has_an_empty_table_and_places_nothing() {
     let out = printed(&registry, &["Only text."], &with_toc());
     assert_eq!(out, "Only text.\n");
     let run = html_run(&registry, &["Only text."], &with_toc());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     assert!(!common::html::page(&run).contains("<nav"));
 }
 
@@ -205,7 +206,7 @@ fn a_heading_input_s_heading_comes_where_the_input_is_placed() {
     let plan = common::pipeline::plan(&registry, &[ENTRIES.name()]);
     let run = common::pipeline::run(&doc, &plan, &RunOptions::sequential());
     assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
-    let projected = format!("{:?}", common::stdcore::projection(&run, ENTRIES));
+    let projected = format!("{:?}", common::stdlib::projection(&run, ENTRIES));
     let at = |needle: &str| projected.find(needle).unwrap_or_else(|| panic!("{needle} in {projected}"));
     assert_eq!(table(&run).entries.iter().map(|entry| entry.level).collect::<Vec<_>>(), [1, 1, 2, 1]);
     assert!(at("\"argument title\"") < projected.len());
@@ -217,7 +218,7 @@ fn a_heading_input_s_heading_comes_where_the_input_is_placed() {
     assert_ne!(trees[0], trees[2], "{projected}");
 
     // The text output lists the input's heading at its place.
-    let plan = common::stdcore::plan(&registry, text::WORKFLOW, &with_toc());
+    let plan = common::stdlib::plan(&registry, text::WORKFLOW, &with_toc());
     let run = common::pipeline::run(&doc, &plan, &RunOptions::sequential());
     assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
     let out = common::lowering::text(&run);
@@ -232,7 +233,7 @@ fn a_heading_input_s_heading_comes_where_the_input_is_placed() {
 fn the_text_output_prints_the_nested_lists_before_the_content() {
     let registry = numbered();
     let out = printed(&registry, &[OUTLINE], &with_toc());
-    assert_text_golden(golden("stdcore", "toc.txt"), &out);
+    assert_text_golden(golden("stdlib", "toc.txt"), &out);
     // Without the include, nothing of the table of contents is printed.
     let without = printed(&registry, &[OUTLINE], &Overrides::none());
     assert!(out.ends_with(&without), "{out}\n---\n{without}");
@@ -243,7 +244,7 @@ fn the_text_output_prints_the_nested_lists_before_the_content() {
 fn a_level_gap_nests_one_list_deeper_not_two() {
     let registry = unnumbered();
     let run = html_run(&registry, &["\\section{One}\n\n\\subsubsection{Deep}\n\n\\subsection{Mid}"], &with_toc());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     let nav = nav(&common::html::page(&run)).to_string();
     // Two lists: the top one, and one inside the entry `One` holding both
     // `Deep` and `Mid`.
@@ -258,7 +259,7 @@ fn a_listed_subsection_under_a_section_left_out_is_nested_among_the_kept_heading
     let registry = numbered();
     let text = "\\section{One}\n\n\\section[toc=false]{Hidden}\n\n\\subsection{Sub}\n\n\\section{Three}";
     let run = html_run(&registry, &[text], &with_toc());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     let nav = nav(&common::html::page(&run)).to_string();
     assert!(!nav.contains("Hidden"), "{nav}");
     // `Sub` is nested in `One`, the section kept before it.
@@ -276,7 +277,7 @@ fn the_html_page_writes_a_nav_of_nested_lists_with_numbers_and_links() {
     let page = page(&registry, &["\\section{One}\n\n\\subsection{Two}"]);
     assert_eq!(
         nav(&page),
-        "<nav class=\"flm-pres-block flm-toc\" role=\"doc-toc\" data-flm-kind=\"toc\">\n  <ul class=\"flm-pres-list\" data-flm-kind=\"unnumbered toc\">\n    <li><a class=\"flm-pres-link\" href=\"#sec--One\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</a>\n      <ul class=\"flm-pres-list\" data-flm-kind=\"unnumbered toc\">\n        <li><a class=\"flm-pres-link\" href=\"#sec--Two\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1.1</span> Two</a></li>\n      </ul>\n    </li>\n  </ul>\n</nav>",
+        "<nav class=\"flm-pres-block flm-toc\" role=\"doc-toc\" data-flm-kind=\"toc\">\n  <ul class=\"flm-pres-list\" data-flm-kind=\"unnumbered toc\">\n    <li data-flm-level=\"1\"><a class=\"flm-pres-link\" href=\"#sec--One\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</a>\n      <ul class=\"flm-pres-list\" data-flm-kind=\"unnumbered toc\">\n        <li data-flm-level=\"2\"><a class=\"flm-pres-link\" href=\"#sec--Two\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1.1</span> Two</a></li>\n      </ul>\n    </li>\n  </ul>\n</nav>",
         "{page}"
     );
     // The stylesheet is in the page's definitions.
@@ -297,21 +298,21 @@ fn an_unnumbered_heading_has_no_number_and_a_heading_without_an_anchor_has_no_li
     let registry = numbered();
     let written = page(&registry, &["\\section{One}\n\n\\section*{Two}"]);
     let toc = nav(&written);
-    assert!(toc.contains("<li><a class=\"flm-pres-link\" href=\"#sec--One\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</a></li>"), "{toc}");
-    assert!(toc.contains("<li><a class=\"flm-pres-link\" href=\"#sec--Two\" data-flm-kind=\"toc\">Two</a></li>"), "{toc}");
+    assert!(toc.contains("<li data-flm-level=\"1\"><a class=\"flm-pres-link\" href=\"#sec--One\" data-flm-kind=\"toc\"><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</a></li>"), "{toc}");
+    assert!(toc.contains("<li data-flm-level=\"1\"><a class=\"flm-pres-link\" href=\"#sec--Two\" data-flm-kind=\"toc\">Two</a></li>"), "{toc}");
     // Without the references feature, no heading has an anchor.
-    let config = StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered));
-    let registry = common::stdcore::registry_over(common::stdcore::package_features_but(config, "refs"));
+    let config = StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered));
+    let registry = common::stdlib::registry_over(common::stdlib::package_features_but(config, "refs"));
     let page = page(&registry, &["\\section{One}"]);
     let nav = nav(&page);
-    assert!(nav.contains("<li><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</li>"), "{nav}");
+    assert!(nav.contains("<li data-flm-level=\"1\"><span class=\"flm-pres-span flm-toc-entry-number\">1</span> One</li>"), "{nav}");
 }
 
 #[test]
 fn without_the_include_no_piece_is_built() {
     let registry = numbered();
     let run = html_run(&registry, &["\\section{One}"], &Overrides::none());
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     let page = common::html::page(&run);
     assert!(!page.contains("<nav"), "{page}");
     let pieces = run.table(&PIECES_TABLE).expect("declared").expect("written");
@@ -329,7 +330,7 @@ fn the_depth_is_read_from_the_render_request() {
         .with(PiecesRenderOptions::default().include(toc::PIECE))
         .with(TocOptions { depth: 1 });
     let run = html_run(&registry, &[OUTLINE], &render_options(options));
-    assert_eq!(identifiers(&run), Vec::<String>::new(), "{}", diagnostic_lines(&run));
+    assert_only_unchecked_output(&run);
     let page = common::html::page(&run);
     let nav = nav(&page);
     assert!(nav.contains("One") && nav.contains("Five") && !nav.contains("Two"), "{nav}");
@@ -377,18 +378,18 @@ fn a_footnote_in_the_alternative_title_shows_its_mark_in_the_entry_and_its_note_
 
 #[test]
 fn the_recomposed_latex_is_unchanged_by_the_feature() {
-    let config = || StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered));
+    let config = || StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered));
     let latex = |registry: &Arc<FlmRegistry>, overrides: &Overrides| {
         let run = run_workflow(registry, latex_recomposed::WORKFLOW, &[OUTLINE], overrides);
         assert_eq!(
             reports(&run).into_iter().filter(|(_, severity)| *severity >= Severity::Warning).collect::<Vec<_>>(),
-            [],
+            [(UNCHECKED_OUTPUT.to_string(), Severity::Warning)],
             "{}",
             diagnostic_lines(&run)
         );
         common::latex::output(&run)
     };
-    let without = common::stdcore::registry_over(common::stdcore::package_features_but(config(), toc::FEATURE));
+    let without = common::stdlib::registry_over(common::stdlib::package_features_but(config(), toc::FEATURE));
     let with = registry(config());
     assert_eq!(latex(&with, &Overrides::none()), latex(&without, &Overrides::none()));
     // Placed on that output by the render request, it writes nothing.

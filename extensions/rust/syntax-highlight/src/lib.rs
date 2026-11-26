@@ -4,7 +4,7 @@ use flm_ext::guest::core::lowering::{
 };
 use flm_ext::guest::core::registry::{Contributed, FeatureBuilder};
 use flm_ext::guest::lang::text::chars_text;
-use flm_ext::guest::stdcore::backends::{html, latex, pres};
+use flm_ext::guest::stdlib::backends::{html, latex, pres};
 use flm_ext::guest::techy::node::Node;
 use flm_ext::{
     ExtError,
@@ -22,10 +22,14 @@ use syntect::{
 const RULE: &str = "syntax-highlight.latex";
 const HTML_RULE: &str = "syntax-highlight.html";
 const PIECE: &str = "flm.latex.def.syntax-highlight.tokens";
-flm_ext::guest::extension!(extension);
+
+/// The extension's code, which its row of the table of code of `flm-extensions` holds: the
+/// function that declares its packages, and the extension's name and version.
+pub static FLM_EXTENSION: flm_ext::guest::CompiledExtension =
+    flm_ext::guest::CompiledExtension::new(extension, "syntax-highlight", env!("CARGO_PKG_VERSION"));
 
 fn extension(ext: &mut Extension) {
-    ext.package("_", Package::new().uses(["stdcore"]).feature("syntax-highlight", Feature::new().title("Syntax highlighting")
+    ext.package("_", Package::new().feature("syntax-highlight", Feature::new().title("Syntax highlighting")
         .docs("Highlights language-labelled verbatim code with Syntect's bundled syntaxes and themes.")
         .settings(json!({"config": {"schema": {"type": "object", "properties": {
             "theme": {"type": "string", "default": "InspiredGitHub", "description": "A theme from Syntect's bundled theme set."},
@@ -145,7 +149,7 @@ fn highlight<'a>(
 }
 
 fn raw(cx: &mut LowerCx, lw: &mut Lowerer, text: &str) -> Result<Staged, ExtError> {
-    lw.pres(cx, latex::RAW, &json!({"text": text}), vec![])
+    lw.pres(cx, latex::RAW, &json!({"text": text}), vec![].into())
 }
 
 fn call(
@@ -161,7 +165,7 @@ fn call(
         latex::MACRO,
         &payload,
         args.into_iter()
-            .map(|(_, nodes)| (latex::ARG_SLOT.into(), nodes))
+            .map(|(_, nodes)| (latex::ARG_SLOT.into(), nodes.into()))
             .collect(),
     )
 }
@@ -175,12 +179,18 @@ impl Lower for Highlight {
             chars_text(&node.body()?.unwrap_or_default())?.ok_or_else(|| ExtError::Value {
                 detail: "resolved verbatim content must be characters".into(),
             })?;
+        // Only code (`\verbcode`, `{verbatimcode}`) is highlighted. Plain
+        // characters and an identifier are not code: they are written as the
+        // backend writes them without this extension.
+        if payload["kind"] != "code" {
+            return if self.html {
+                plain_html(&payload, &text, cx, lw)
+            } else {
+                plain_latex(&payload, &text, cx, lw)
+            };
+        }
         let block = payload["display"] == "block";
-        let language = if payload["kind"] == "code" {
-            payload["lang"].as_str()
-        } else {
-            None
-        };
+        let language = payload["lang"].as_str();
         let lines = highlight(&text, language, &self.theme)?;
         if self.html {
             let dark_lines = self.html_dark_theme.as_ref()
@@ -259,7 +269,7 @@ impl Lower for Highlight {
                 cx,
                 latex::ENVIRONMENT,
                 &json!({"name": "flmxVerbatimBlock", "args": ["optional"], "verbatim": false}),
-                vec![(latex::ARG_SLOT.into(), keys), ("body".into(), body)],
+                vec![(latex::ARG_SLOT.into(), keys.into()), ("body".into(), body.into())],
             )?
         } else {
             call(
@@ -269,7 +279,7 @@ impl Lower for Highlight {
                 vec![("optional", keys), ("mandatory", body)],
             )?
         };
-        Ok(Lowering::Emit(vec![result]))
+        Ok(Lowering::Emit(vec![result].into()))
     }
 }
 
@@ -334,13 +344,29 @@ fn highlighted_html(
                 cx,
                 html::TAG,
                 &json!({"tag": "span", "attributes": [["class", "flm-syntax-token"], ["style", css]]}),
-                vec![text],
+                vec![text].into(),
             )?
         } else {
             text
         });
     }
     let block = payload["display"] == "block";
+    if block {
+        body = vec![lw.pres(cx, html::TAG, &json!({"tag": "code"}), body.into())?];
+    }
+    lw.require("flm.html.style.verbatim")?;
+    let result = lw.pres(
+        cx,
+        html::TAG,
+        &json!({"tag": if block { "pre" } else { "code" }, "attributes": html_attributes(payload), "block": block}),
+        body.into(),
+    )?;
+    Ok(Lowering::Emit(vec![result].into()))
+}
+
+/// The standard verbatim class and attributes of the HTML contract: the kind, the
+/// display and the language.
+fn html_attributes(payload: &Value) -> Vec<Value> {
     let mut attributes = vec![
         json!(["class", "flm-pres-verbatim"]),
         json!(["data-flm-kind", payload["kind"]]),
@@ -349,17 +375,85 @@ fn highlighted_html(
     if let Some(lang) = payload["lang"].as_str() {
         attributes.push(json!(["data-flm-lang", lang]));
     }
-    if block {
-        body = vec![lw.pres(cx, html::TAG, &json!({"tag": "code"}), body)?];
+    attributes
+}
+
+/// The text nodes of `text`: none for an empty text.
+fn text_nodes(cx: &mut LowerCx, lw: &mut Lowerer, text: &str) -> Result<Vec<Staged>, ExtError> {
+    if text.is_empty() {
+        Ok(Vec::new())
+    } else {
+        Ok(vec![lw.text(cx, text)?])
     }
+}
+
+/// Plain characters or an identifier, not highlighted, written as the HTML backend
+/// writes them: `<span>` inline and `<div>` as a block, with the standard verbatim
+/// class and attributes.
+fn plain_html(
+    payload: &Value,
+    text: &str,
+    cx: &mut LowerCx,
+    lw: &mut Lowerer,
+) -> Result<Lowering, ExtError> {
+    let block = payload["display"] == "block";
+    let body = text_nodes(cx, lw, text)?;
     lw.require("flm.html.style.verbatim")?;
     let result = lw.pres(
         cx,
         html::TAG,
-        &json!({"tag": if block { "pre" } else { "code" }, "attributes": attributes, "block": block}),
-        body,
+        &json!({"tag": if block { "div" } else { "span" }, "attributes": html_attributes(payload), "block": block}),
+        body.into(),
     )?;
-    Ok(Lowering::Emit(vec![result]))
+    Ok(Lowering::Emit(vec![result].into()))
+}
+
+/// Plain characters or an identifier, not highlighted, written as the
+/// `latex-rendered` backend writes them: `\flmxVerbatim[kind, lang]{…}` inline, a
+/// newline in it written as a space; as a block, a `flmxVerbatimBlock` environment
+/// holding one `\flmxVerbLine{…}` per line.
+fn plain_latex(
+    payload: &Value,
+    text: &str,
+    cx: &mut LowerCx,
+    lw: &mut Lowerer,
+) -> Result<Lowering, ExtError> {
+    let mut keys = vec![raw(cx, lw, "kind=")?];
+    keys.extend(name_value(cx, lw, payload["kind"].as_str().unwrap_or("text"))?);
+    if let Some(lang) = payload["lang"].as_str() {
+        keys.push(raw(cx, lw, ", lang=")?);
+        keys.extend(name_value(cx, lw, lang)?);
+    }
+    let result = if payload["display"] == "block" {
+        let text = text.strip_suffix('\n').unwrap_or(text);
+        let mut lines = Vec::new();
+        for line in text.split('\n') {
+            let line = text_nodes(cx, lw, line)?;
+            lines.push(call(cx, lw, "flmxVerbLine", vec![("escverb", line)])?);
+        }
+        lw.pres_slots(
+            cx,
+            latex::ENVIRONMENT,
+            &json!({"name": "flmxVerbatimBlock", "args": ["optional"], "verbatim": false}),
+            vec![(latex::ARG_SLOT.into(), keys.into()), ("body".into(), lines.into())],
+        )?
+    } else {
+        let body = text_nodes(cx, lw, &text.replace('\n', " "))?;
+        call(cx, lw, "flmxVerbatim", vec![("optional", keys), ("escverb", body)])?
+    };
+    Ok(Lowering::Emit(vec![result].into()))
+}
+
+/// A key's value as the `latex-rendered` backend writes a name: bare when it holds
+/// only letters, digits and `.-_:/+@*`, in braces otherwise.
+fn name_value(cx: &mut LowerCx, lw: &mut Lowerer, name: &str) -> Result<Vec<Staged>, ExtError> {
+    if !name.is_empty()
+        && name.chars().all(|ch| ch.is_ascii_alphanumeric() || ".-_:/+@*".contains(ch))
+    {
+        Ok(vec![raw(cx, lw, name)?])
+    } else {
+        Ok(vec![raw(cx, lw, "{")?, lw.text(cx, name)?, raw(cx, lw, "}")?])
+    }
 }
 
 #[cfg(test)]

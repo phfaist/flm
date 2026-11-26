@@ -1,0 +1,14 @@
+# A document that compiles: the class `article`, the style file loaded by its name, the
+# title, the authors and the date where the metadata gives a title, then the body. A list
+# of notes is LaTeX's own, so the template accepts the three pieces of the metadata alone.
+name: simple
+output: latex-recomposed
+engine: minijinja
+main: simple.tex
+accepts: [flm.metadata.title, flm.metadata.author, flm.metadata.date]
+# LaTeX uses braces itself: statements stand between `((*` and `*))`, values between
+# `(((` and `)))`, comments between `((=` and `=))`.
+delimiters:
+  block: ["((*", "*))"]
+  variable: ["(((", ")))"]
+  comment: ["((=", "=))"]

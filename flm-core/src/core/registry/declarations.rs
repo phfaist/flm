@@ -425,7 +425,7 @@ mod tests {
     }
 
     fn notes(registry: &FlmRegistry) -> Vec<String> {
-        registry.build_diagnostics().iter().map(|diagnostic| diagnostic.message()).collect()
+        registry.build_diagnostics().iter().map(|diagnostic| diagnostic.identifier().to_string()).collect()
     }
 
     // --- the retained declarations ---------------------------------------------------------
@@ -569,20 +569,17 @@ mod tests {
                 vec![ArgDef::new(ArgStdKind::Mandatory).role("t.kye"), ArgDef::new(ArgStdKind::TackOn { fields: vec![field] })],
             ))
         })]);
-        let messages: Vec<String> = error.errors.iter().map(ToString::to_string).collect();
-        assert_eq!(
-            messages,
-            [
-                "feature `t`: argument 1 of `\\k` has the argument role `t.kye`, which no \
-                 registered feature declares; a feature that sets another feature's argument role \
-                 must declare it with `FeatureBuilder::peer_argument_role`; declared argument role \
-                 names: [t.key]",
-                "feature `t`: the argument `name` of the field `\\tag` of `\\k` has the argument \
-                 role `t.tag`, which no registered feature declares; a feature that sets another \
-                 feature's argument role must declare it with `FeatureBuilder::peer_argument_role`; \
-                 declared argument role names: [t.key]",
-            ]
-        );
+        let roles: Vec<(&str, Option<&str>, Option<&str>)> = error
+            .errors
+            .iter()
+            .filter_map(|error| match error {
+                BuildError::UndeclaredArgumentRole { role, place, .. } => {
+                    Some((role.as_str(), place.argument.as_deref(), place.field.as_deref()))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(roles, [("t.kye", None, None), ("t.tag", Some("name"), Some("tag"))]);
         match &error.errors[0] {
             BuildError::UndeclaredArgumentRole { feature, place, role, roster } => {
                 assert_eq!((feature.as_str(), place.command.as_str(), role.as_str()), ("t", "\\k", "t.kye"));
@@ -620,14 +617,11 @@ mod tests {
         let alone = built(vec![user()]);
         assert_eq!(alone.peer_argument_roles().len(), 1);
         assert!(!alone.peer_argument_roles()[0].resolved);
-        assert_eq!(
-            notes(&alone),
-            ["feature `u` refers to the argument role `t.key` and expects another feature to \
-              declare it, but no feature of this registry declares it"]
-        );
+        assert_eq!(notes(&alone), ["flm.registry.unresolved-peer"]);
         let note = alone.build_diagnostics().iter().next().expect("one note");
         let data = note.data().downcast_ref::<UnresolvedPeer>().expect("an unresolved peer");
         assert_eq!(data.kind, "argument role");
+        assert_eq!((data.feature.as_str(), data.name.as_str()), ("u", "t.key"));
         assert_eq!(alone.declarations().role_uses("t.key").len(), 1);
     }
 
@@ -637,10 +631,13 @@ mod tests {
             feature("t", |b| b.argument_role("x.key", "A key.")),
             feature("u", |b| b.argument_role("x.key", "Another key.")),
         ]);
-        let messages: Vec<String> = error.errors.iter().map(ToString::to_string).collect();
-        assert_eq!(
-            messages,
-            ["argument role `x.key` is declared twice: first by feature `t`, then by feature `u`"]
+        assert!(
+            matches!(
+                &error.errors[..],
+                [BuildError::Duplicate { kind: "argument role", name, first, second }]
+                    if name.as_str() == "x.key" && first.as_str() == "t" && second.as_str() == "u"
+            ),
+            "{error:?}"
         );
     }
 

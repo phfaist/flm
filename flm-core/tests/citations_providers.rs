@@ -8,18 +8,21 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FeatureChain, FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FeatureChain, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource};
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::citations::{
+use flm_core::progress::{Kind, Observer, RowState, Sheet, Unit};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::citations::{
     CitationAnswer, CitationEntry, CitationPlacement, CitationProvider,
     CitationRequest, CitationResult, CitationsConfig, EntryPiece, ProviderCx, CITATIONS, PROVIDERS_SLOT,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::dump::diag::expect;
+use serde_json::json;
 
 use common::citations::{registry_over_with, registry_with, FromMap};
-use common::stdcore::{identifiers, package_features_but, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, identifiers, package_features_but, run_workflow};
 
 // --- providers of the tests' own ---------------------------------------------------------------
 
@@ -101,11 +104,35 @@ impl CitationProvider for Built {
     }
 }
 
+/// The kind of the row that [`Counting`] declares.
+const FETCH: Kind = Kind::new("test.fetch");
+
+/// A provider that declares a counted row for the keys it is handed, advances
+/// it for each, and serves none of them.
+struct Counting;
+
+impl CitationProvider for Counting {
+    fn answer(&self, _request: &CitationRequest, _cx: &ProviderCx<'_>) -> CitationResult {
+        Ok(None)
+    }
+
+    fn answer_all(&self, requests: &[CitationRequest], cx: &ProviderCx<'_>) -> Vec<CitationResult> {
+        let row = cx.progress().child(&FETCH, None).start_counted(Unit::Items, requests.len() as u64);
+        let answers = requests.iter().map(|_| {
+            row.advance(1);
+            Ok(None)
+        });
+        let answers = answers.collect();
+        row.finish();
+        answers
+    }
+}
+
 // --- helpers -----------------------------------------------------------------------------------
 
 /// The standard package, the default configuration, with `providers`.
 fn with(providers: Vec<Arc<dyn CitationProvider>>) -> Arc<FlmRegistry> {
-    registry_with(StdcoreConfig::new(), providers)
+    registry_with(StdlibConfig::new(), providers)
 }
 
 /// The run of `workflow` over the one document `document`.
@@ -122,7 +149,7 @@ fn text_of(run: &Run) -> String {
 /// output's, the page, or the recomposed LaTeX.
 fn output_of(registry: &Arc<FlmRegistry>, workflow: &str, document: &str) -> String {
     let run = run(registry, workflow, document);
-    assert!(identifiers(&run).is_empty(), "{workflow}: {}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     match workflow {
         text::WORKFLOW => text_of(&run),
         html::WORKFLOW => common::html::page(&run),
@@ -165,7 +192,7 @@ fn with_features(
     chains: &[&str],
 ) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(flm_core::stdcore::package(StdcoreConfig::new()));
+    builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     for (name, provider) in providers {
         builder.feature(common::pipeline::feature(name, move |b| {
@@ -227,9 +254,6 @@ fn a_provider_answering_a_different_number_of_results_fails_every_key_of_its_cal
         "{}",
         run.diagnostics().render_all()
     );
-    assert!(run.diagnostics().render_all().contains(
-            "a source of bibliography entries must return one result for each key it is given, and it returned 1 result for 2 keys"
-        ), "{}", run.diagnostics().render_all());
 }
 
 // --- the entry built from pieces ---------------------------------------------------------------
@@ -271,7 +295,7 @@ fn without_the_feature_owning_links_a_link_shows_its_text() {
         EntryPiece::text("Knuth, "),
         EntryPiece::Link { address: "https://example.com".to_string(), content: vec![EntryPiece::text("the book")] },
     ];
-    let registry = registry_over_with(package_features_but(StdcoreConfig::new(), "href"), vec![Arc::new(Built(pieces))]);
+    let registry = registry_over_with(package_features_but(StdlibConfig::new(), "href"), vec![Arc::new(Built(pieces))]);
     let run = run(&registry, text::WORKFLOW, "See \\cite{a}.");
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(text_of(&run), "See\u{a0}[1].\n\nReferences\n----------\n\n[1] Knuth, the book");
@@ -281,7 +305,7 @@ fn without_the_feature_owning_links_a_link_shows_its_text() {
 fn without_the_feature_owning_emphasis_an_emphasized_group_shows_its_content() {
     let pieces = vec![EntryPiece::text("Knuth, "), EntryPiece::Emphasized(vec![EntryPiece::text("TAOCP")])];
     let registry =
-        registry_over_with(package_features_but(StdcoreConfig::new(), "textstyles"), vec![Arc::new(Built(pieces))]);
+        registry_over_with(package_features_but(StdlibConfig::new(), "textstyles"), vec![Arc::new(Built(pieces))]);
     let run = run(&registry, text::WORKFLOW, "See \\cite{a}.");
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     assert_eq!(text_of(&run), "See\u{a0}[1].\n\nReferences\n----------\n\n[1] Knuth, TAOCP");
@@ -372,7 +396,7 @@ fn a_mark_citing_one_work_under_two_keys_is_singular_after_r() {
 #[test]
 fn in_place_every_item_is_shown_as_written() {
     let registry = registry_with(
-        StdcoreConfig::new().citations(CitationsConfig::new().placement(CitationPlacement::InPlace)),
+        StdlibConfig::new().citations(CitationsConfig::new().placement(CitationPlacement::InPlace)),
         vec![Arc::new(arxiv(&Calls::default()))],
     );
     let run = run(&registry, text::WORKFLOW, "Z \\cite{arXiv:1211.1037,arxiv:1211.1037}.");
@@ -412,7 +436,7 @@ fn the_numbers_identifiers_and_list_are_the_same_on_one_thread_and_in_parallel()
     let texts = ["A \\cite{b}\\cite{arXiv:1211.1037}.", "B \\cite{arxiv:1211.1037} \\cite{c}.", "C \\cite{b}."];
     let doc = common::pipeline::doc(&registry, &texts);
     for workflow in [text::WORKFLOW, html::WORKFLOW] {
-        let plan = common::stdcore::plan(&registry, workflow, &Overrides::none());
+        let plan = common::stdlib::plan(&registry, workflow, &Overrides::none());
         let under = |options: &RunOptions| {
             let run = common::pipeline::run_with(&doc, &plan, Externals::none(), options);
             let output = if workflow == text::WORKFLOW { text_of(&run) } else { common::html::page(&run) };
@@ -542,12 +566,34 @@ fn a_warning_of_an_answer_is_reported_at_the_key_s_first_citation_and_changes_no
     let document = "X \\cite{b}. Y \\cite{a}. Z \\cite{a,b}.";
     let run = run(&registry, text::WORKFLOW, document);
     assert_located(&run, document, &[("flm.citations.provider-warning", "a")]);
-    let rendered = run.diagnostics().render_all();
-    assert!(rendered.contains("about a"), "{rendered}");
+    expect(run.diagnostics().iter(), "flm.citations.provider-warning")
+        .data(json!({ "key": "a", "detail": "about a" }))
+        .once();
     let text = text_of(&run);
     assert!(text.starts_with("X\u{a0}[1]. Y\u{a0}[2]. Z\u{a0}[1,2]."), "{text}");
     assert!(text.ends_with("References\n----------\n\n[1] b\n\n[2] a"), "{text}");
     // The same document whose provider has nothing to say reports nothing.
     let run = run_workflow(&with(vec![Arc::new(Batch::of(&Calls::default(), &[("a", "a", None), ("b", "b", None)]))]), text::WORKFLOW, &[document], &Overrides::none());
     assert!(identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+}
+
+// --- the progress sheet ------------------------------------------------------------------------
+
+#[test]
+fn a_providers_row_is_shown_under_the_row_of_the_retrieve_stage() {
+    let registry = with(vec![Arc::new(Counting) as Arc<dyn CitationProvider>]);
+    let doc = common::pipeline::doc(&registry, &["\\cite{a} and \\cite{b}"]);
+    let plan = common::stdlib::plan(&registry, text::WORKFLOW, &Overrides::none());
+    let (sheet, root) = Sheet::start(&Kind::new("test.build"), None, Observer::default(), None);
+    let mut run = Run::new(doc, plan, Externals::none()).expect("a run").with_progress(root.scope());
+    run.execute(&RunOptions::sequential()).expect("the run");
+    root.finish();
+
+    let snapshot = sheet.snapshot();
+    let retrieve = snapshot.rows.iter().find(|row| row.kind == "flm.citations.retrieve").expect("the stage's row");
+    let fetch: Vec<_> = snapshot.rows.iter().filter(|row| row.kind == FETCH.name()).collect();
+    assert_eq!(fetch.len(), 1);
+    assert_eq!(fetch[0].parent, Some(retrieve.id));
+    assert_eq!(fetch[0].state, RowState::Finished);
+    assert_eq!(fetch[0].count.map(|count| (count.total, count.done)), Some((2, 2)));
 }

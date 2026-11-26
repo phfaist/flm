@@ -15,18 +15,18 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::pieces::PiecesRenderOptions;
-use flm_core::stdcore::features::headings::{HeadingNumbering, HeadingsConfig};
-use flm_core::stdcore::features::toc;
-use flm_core::stdcore::features::toc::latex_rendered::PIECE;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::pieces::PiecesRenderOptions;
+use flm_core::stdlib::features::headings::{HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::features::toc;
+use flm_core::stdlib::features::toc::latex_rendered::PIECE;
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package with every heading numbered.
 fn numbered() -> Arc<FlmRegistry> {
-    common::stdcore::registry(
-        StdcoreConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)),
+    common::stdlib::registry(
+        StdlibConfig::new().headings(HeadingsConfig::new().numbering(HeadingNumbering::AllNumbered)),
     )
 }
 
@@ -100,7 +100,7 @@ fn the_table_of_contents_lists_the_headings_with_page_numbers() {
 
 #[test]
 fn without_numbering_an_entry_has_no_number_span() {
-    let registry = common::stdcore::registry(StdcoreConfig::new());
+    let registry = common::stdlib::registry(StdlibConfig::new());
     let run = render(&registry, &["\\section{One}\n\n\\subsection{Two}"], &with_toc());
     assert!(!document(&run).contains("flm.toc.entry.number"), "{}", document(&run));
     assert_golden("toc-unnumbered.tex", &run);

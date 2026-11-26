@@ -1,0 +1,56 @@
+% flm.latex.def.flmx.metadata -- the document's title, authors and date.
+%
+% The metadata feature places three blocks before the content, each of kind
+% token metadata and of the role of what it shows:
+%   \begin{flmxBlock}[role=flm.metadata.title, kinds=metadata] <the title> \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.metadata.author, kinds=metadata]
+%     \begin{flmxLines} <one line per part of the first author> \end{flmxLines}
+%     \begin{flmxLines} <the next author> \end{flmxLines}
+%   \end{flmxBlock}
+%   \begin{flmxBlock}[role=flm.metadata.date, kinds=metadata] <the date> \end{flmxBlock}
+% Each author is a group of lines: the name, each affiliation, the email
+% address and each note, each on a line of its own, in a span of its role:
+%   \flmxLine[...]{\flmxSpan[role=flm.metadata.author.name]{<the name>}}
+%   \flmxLine[...]{\flmxSpan[role=flm.metadata.author.affiliation]{<an affiliation>}}
+%   \flmxLine[...]{\flmxSpan[role=flm.metadata.author.email]{\flmxLink[...]{<the address>}}}
+%   \flmxLine[...]{\flmxSpan[role=flm.metadata.author.note]{<a note>}}
+%
+% Default: a title block as LaTeX's \maketitle sets one, with its spacing:
+% every line centered; the title in \LARGE\bfseries after 2em of space, then
+% 1.5em; the authors in \large, one below the other, .5em apart, then 1em;
+% the date in \normalsize, then 1.5em. Inside the authors block, the lines of
+% an author are centered as the block's other lines. An author's name as it
+% stands; the affiliations, the email address and the notes in \normalsize.
+% A template changes the look with
+%   \flmxDefineBlock{flm.metadata.title}{<begin code>}{<end code>}
+% (likewise flm.metadata.author and flm.metadata.date; the kind token
+% metadata is reached only where a role has no registration) and
+%   \flmxDefineSpan{flm.metadata.author.name}{<code over #1, the name>}
+% (likewise flm.metadata.author.affiliation, flm.metadata.author.email and
+% flm.metadata.author.note). The begin code of flm.metadata.author sets the
+% lines of the authors with \flmxDefineLinesDefault and \flmxDefineLineDefault,
+% which a template's own begin code may call again.
+
+\flmxDefineBlock{flm.metadata.title}%
+  {\par\null\vskip 2em\relax
+   \flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\LARGE\bfseries}%
+  {\par\vskip 1.5em\relax}
+\flmxDefineBlock{flm.metadata.author}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\large\lineskip .5em\relax
+   \flmxDefineLinesDefault{\par\addvspace{.5em}}{\par}%
+   \flmxDefineLineDefault{##1\par}}%
+  {\par\vskip 1em\relax}
+\flmxDefineBlock{flm.metadata.date}%
+  {\par\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}%
+   \centering\normalsize}%
+  {\par\vskip 1.5em\relax}
+\flmxDefineSpan{flm.metadata.author.name}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}#1}
+\flmxDefineSpan{flm.metadata.author.affiliation}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\normalsize #1}
+\flmxDefineSpan{flm.metadata.author.email}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\normalsize #1}
+\flmxDefineSpan{flm.metadata.author.note}%
+  {\flmxIfKey{anchor}{\flmxTarget{\flmxKey{anchor}}}{}\normalsize #1}

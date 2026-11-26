@@ -62,7 +62,7 @@
 //! bottom layer together:
 //!
 //! ```text
-//! {model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+//! {model, lang} < core < dump < stdlib < math_passthrough        layout standalone
 //! ```
 //!
 //! The two modules share one layer because each one uses the other: a parsed

@@ -400,8 +400,8 @@ impl Expander for ExpanderFacade<'_, '_> {
 
 /// The variant of `definition` for `mode`, when the definition is compiled and
 /// has one.
-fn variant_of(definition: &CoreUserDefinition, mode: Mode) -> Option<&CoreModeVariant> {
-    definition.compiled().and_then(|compiled| compiled.variant(mode))
+fn variant_of(definition: &CoreUserDefinition, mode: Mode) -> Option<Arc<CoreModeVariant>> {
+    definition.compiled().and_then(|compiled| compiled.variant(mode).cloned())
 }
 
 /// A definition's variant for one mode, the one implementation of
@@ -429,7 +429,7 @@ impl ModeVariantFacade {
 impl ModeVariantCore for ModeVariantFacade {
     fn with_core(&self, _: Token, f: &mut dyn FnMut(&CoreModeVariant)) {
         if let Some(variant) = variant_of(&self.definition, self.mode) {
-            f(variant);
+            f(&variant);
         }
     }
 
@@ -511,7 +511,7 @@ impl<'t> DefinitionBindingsFacade<'t> {
 impl PlaceholderBindingsCore for DefinitionBindingsFacade<'_> {
     fn with_core(&self, _: Token, f: &mut dyn FnMut(&dyn CorePlaceholderBindings)) {
         if let Some(variant) = variant_of(&self.definition, self.mode) {
-            let bindings = CoreDefinitionBindings::new(self.site.core_node_ref(Token::new()), variant);
+            let bindings = CoreDefinitionBindings::new(self.site.core_node_ref(Token::new()), &variant);
             f(&bindings);
         }
     }

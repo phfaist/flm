@@ -17,7 +17,7 @@ use crate::adapter::values::JsonForm;
 use crate::api;
 use crate::api::model::aspects::{AcceptedRefTypes, Label, MalformedLabel};
 use crate::guest::core::lowering::NodeAddr;
-use crate::guest::techy::node::{Node, Tree};
+use crate::guest::techy::node::{Node, Nodes, Tree};
 use crate::runtime::ExtError;
 
 /// Mirrors [`Referenceable`](crate::api::model::aspects::Referenceable):
@@ -263,7 +263,7 @@ pub struct NumberSource {
     /// The counter's name.
     pub counter: String,
     /// The nodes that are instances of the counter.
-    pub instances: Vec<Node>,
+    pub instances: Nodes,
     /// The counter's style.
     pub style: String,
     /// How far the counter advances, by level.
@@ -290,7 +290,7 @@ impl JsonForm for NumberSource {
         let map = object(WHAT, value)?;
         Ok(NumberSource {
             counter: get(WHAT, map, "counter")?,
-            instances: get::<Option<Vec<Node>>>(WHAT, map, "instances")?.unwrap_or_default(),
+            instances: get::<Option<Nodes>>(WHAT, map, "instances")?.unwrap_or_default(),
             style: get(WHAT, map, "style")?,
             advance: get(WHAT, map, "advance")?,
             number_format: get(WHAT, map, "number_format")?,
@@ -308,7 +308,7 @@ impl<'c> IntoApi<'c> for NumberSource {
         let NumberSource { counter, instances, style, advance, number_format } = self;
         Ok(api::model::aspects::NumberSource {
             counter: counter.into(),
-            instances: instances.as_slice().into_api(table)?,
+            instances: instances.into_api(table)?,
             style: style.into(),
             advance,
             number_format,

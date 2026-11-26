@@ -12,6 +12,7 @@
 //! `lualatex`.
 
 mod common;
+use common::stdlib::assert_only_unchecked_output;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -21,12 +22,12 @@ use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex_rendered::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex_rendered::{
     DOCUMENT, LatexRenderedRenderOptions, WORKFLOW, style_artifact,
 };
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::features::headings::{HeadingDecl, HeadingNumbering, HeadingsConfig};
 
 // --- helpers -------------------------------------------------------------------------------
 
@@ -43,7 +44,7 @@ fn headings(run_in: &[u8]) -> HeadingsConfig {
 
 /// The standard package under `headings`.
 fn registry_of(headings: HeadingsConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().headings(headings))
+    common::stdlib::registry(StdlibConfig::new().headings(headings))
 }
 
 /// The render request of every `latex-rendered` run of this file, with
@@ -55,11 +56,11 @@ fn overrides(options: OptionValues) -> Overrides {
     }
 }
 
-/// Runs the workflow over `text` with `registry` and `options`, asserting
-/// that nothing was reported.
+/// Runs the workflow over `text` with `registry` and `options`, asserting that
+/// it reported nothing but the Warnings of its plan's unchecked output.
 fn render_with(registry: &Arc<FlmRegistry>, text: &str, options: OptionValues) -> Run {
-    let run = common::stdcore::run_workflow(registry, WORKFLOW, &[text], &overrides(options));
-    assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(registry, WORKFLOW, &[text], &overrides(options));
+    assert_only_unchecked_output(&run);
     run
 }
 
@@ -234,14 +235,14 @@ fn the_html_and_text_of_a_heading_with_alt_are_those_of_the_same_heading_without
     let with = "\\section[alt={Short \\emph{title}}]{A long title}\\label{sec:a}\nSee \\ref{sec:a}.";
     let without = "\\section{A long title}\\label{sec:a}\nSee \\ref{sec:a}.";
     let page = |source: &str| {
-        let run = common::stdcore::run_workflow(&registry, html::WORKFLOW, &[source], &Overrides::none());
-        assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
+        let run = common::stdlib::run_workflow(&registry, html::WORKFLOW, &[source], &Overrides::none());
+        assert_only_unchecked_output(&run);
         common::html::page(&run)
     };
     assert_eq!(page(with), page(without));
     assert!(!page(with).contains("Short"), "{}", page(with));
     let printed = |source: &str| {
-        let run = common::stdcore::run_workflow(&registry, text::WORKFLOW, &[source], &Overrides::none());
+        let run = common::stdlib::run_workflow(&registry, text::WORKFLOW, &[source], &Overrides::none());
         assert!(run.diagnostics().iter().next().is_none(), "{}", run.diagnostics().render_all());
         common::lowering::text(&run)
     };
@@ -252,7 +253,7 @@ fn the_html_and_text_of_a_heading_with_alt_are_those_of_the_same_heading_without
 
 #[test]
 fn the_heading_rule_brings_in_the_number_span_s_piece() {
-    use flm_core::stdcore::features::headings::latex_rendered::PIECE;
+    use flm_core::stdlib::features::headings::latex_rendered::PIECE;
     let run = render_with(&registry_of(headings(&[])), "\\section{One}\nText.", OptionValues::new());
     let (text, _) = style(&run);
     assert!(text.contains(&format!("% {PIECE} --")), "{text}");
@@ -268,9 +269,9 @@ fn the_heading_rule_brings_in_the_number_span_s_piece() {
 /// headings chunk and not the headings feature's piece.
 #[test]
 fn a_heading_another_feature_writes_renders_without_the_headings_feature() {
-    use flm_core::stdcore::features::headings::latex_rendered::PIECE;
+    use flm_core::stdlib::features::headings::latex_rendered::PIECE;
     let registry =
-        common::stdcore::registry_over(common::stdcore::package_features_but(StdcoreConfig::new(), "headings"));
+        common::stdlib::registry_over(common::stdlib::package_features_but(StdlibConfig::new(), "headings"));
     let run = render_with(&registry, "Text.\\footnote{A note.}", OptionValues::new());
     assert!(document(&run).contains("\\flmxHeading"), "{}", document(&run));
     let (text, _) = style(&run);

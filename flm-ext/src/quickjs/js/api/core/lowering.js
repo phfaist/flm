@@ -6,7 +6,7 @@
 // `get`, answered as a `TableValue`, which a script receives as `{ ext }`, `{ trees }`, `{
 // projection }`, `{ counters }` (the numbering feature's table, a `Counters` façade) or `{ anchors
 // }` (the references feature's anchors, an `Anchors` façade).
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 export { Staged } from "flm:lang/rewrites/userdefs";
 
 const MODULE = module("core/lowering");
@@ -39,6 +39,7 @@ export class LoweringDecl {
     this.options = [];
     this.produces_ = [];
     this.selection_requires_ = [];
+    this.unchecked_output_ = [];
   }
   // Mirrors `LoweringDecl::requires`.
   requires(capability) { this.requires_.push(capability); return this; }
@@ -52,7 +53,11 @@ export class LoweringDecl {
   produces(element) { this.produces_.push(element); return this; }
   // Mirrors `LoweringDecl::selection_requires`.
   selection_requires(id) { this.selection_requires_.push(id); return this; }
-  toJSON() { return { requires: this.requires_, reads: this.reads_, reads_opt: this.reads_opt_, options: this.options, produces: this.produces_, selection_requires: this.selection_requires_ }; }
+  // Mirrors `LoweringDecl::unchecked_output`: adds the backend `backend`, on which what the rule
+  // writes is checked by nothing that reads the output after FLM, with what is written (`written`)
+  // and what reads it (`reader`), each a noun phrase that completes the plan's warning.
+  unchecked_output(backend, written, reader) { this.unchecked_output_.push({ backend, written, reader }); return this; }
+  toJSON() { return { requires: this.requires_, reads: this.reads_, reads_opt: this.reads_opt_, options: this.options, produces: this.produces_, selection_requires: this.selection_requires_, unchecked_output: this.unchecked_output_ }; }
 }
 
 // Mirrors `LoweringRule`: a lowering rule, ready to be registered.
@@ -132,5 +137,6 @@ export class Lowerer extends Handle {
 register_class("lowerer", Lowerer);
 
 // No `flm-core` counterpart: stages the tree `tree` in one call, through `Lowerer::pres` and
-// `Lowerer::text`, children first, and answers the staged root.
+// `Lowerer::text`, children first, and returns the tree's staged nodes: the one node staged for a
+// `PresTree::Node` or a `PresTree::Text`, and the staged nodes of a `PresTree::Build` as they are.
 export function pres_tree(lw, cx, tree) { return call(MODULE, "pres_tree", [lw, cx, tree]); }

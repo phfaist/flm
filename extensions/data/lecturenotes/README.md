@@ -71,27 +71,31 @@ after the page's stem (the file name without its extension) and the file's name:
 | file, under `-o out/notes.html` | under `-o out/` | what it holds |
 |---|---|---|
 | `out/notes.html` | `out/index.html` | the page |
-| `out/notes-style.css` | `out/index-style.css` | the page's stylesheet: the setting `font_family`, then the compiled stylesheet `dist/lecturenotes.css` |
-| `out/notes-script.js` | `out/index-script.js` | the page's script: the compiled script `dist/lecturenotes.js`, then one call of its setup function with the template's settings |
+| `out/notes-style.css` | `out/index-style.css` | the page's stylesheet: the setting `font_family`, then the compiled stylesheet `dist/lecturenotes.css`, then the template's rules by group (see *The headings and the entries, by group* below) |
+| `out/notes-script.js` | `out/index-script.js` | the page's script: the compiled script `dist/lecturenotes.js`, then one call of its setup function with the setting `navigation_heading_level` |
 | `out/notes-fragment.html` | `out/index-fragment.html` | the page's parts without the frame, for placing the document inside a site's own page (see [Placing the document inside a site](#placing-the-document-inside-a-site)) |
 
-The program also writes its record of the files it wrote, `out/.notes.html.flm-written`,
-from which the next render removes the files it no longer writes.
+The setting `css` can ship further files beside the page, such as a font or an image of
+the document's folder (see [Fonts and further stylesheets](#fonts-and-further-stylesheets)):
+each is named after the page's stem, the file's own stem and a digest of its content. The
+program also writes its record of the files it wrote, `out/.notes.html.flm-written`, from
+which the next render removes the files it no longer writes.
 
 ## What the page looks like and does
 
 The page has three areas:
 
 - **The bar**, at the top, stays in view while the page scrolls. It holds the document's
-  title (a link to the top of the page), the title of the chapter being read, a
-  previous-chapter arrow and a next-chapter arrow, a button that hides or shows the
-  sidebar, and the links of the setting `links`.
+  title (a link to the top of the page), the title of the navigation unit being read
+  (see *The navigation level* below), an arrow to the previous unit and one to the next,
+  a button that hides or shows the sidebar, and the links of the setting `links`.
 - **The sidebar**, on the right, holds the table of contents under the label "Contents".
-  It scrolls on its own, under the bar. By default it is *folded*: it shows every part and
-  chapter, and the sections of the chapter being read only. A triangle beside the label
-  opens every section of every chapter, and folds them again. The entry of the heading
-  being read is marked, and the sidebar scrolls to keep that entry in view, except for
-  four seconds after the reader scrolled the sidebar by hand.
+  It scrolls on its own, under the bar. By default it is *folded*: it shows the entries
+  down to the navigation level, and the entries below it only for the unit being read. A
+  button beside the label, two chevrons pointing apart, opens every entry; its chevrons
+  then point together, and it folds the entries again. The entry of the heading being read is
+  marked, and the sidebar scrolls to keep that entry in view, except for four seconds
+  after the reader scrolled the sidebar by hand.
 - **The main column**, 52rem wide, holds the title block (the document's title, authors
   and date), the content, and after the content the lists of notes and the bibliography.
 
@@ -100,18 +104,73 @@ it as a drawer from the right; a click on an entry, or anywhere outside the draw
 it. The bar then shows no document title. When the page is printed, the bar, the sidebar
 and the heading anchors are left out and the content takes the page's width.
 
-**Chapters and parts.** A *chapter* is a heading whose level equals the setting
-`chapter_level` (1 by default, the level of `\section` among the standard heading kinds);
-a *part* is a heading of a lower level number (level 0, above the chapters). The setting
-`chapter_level` decides what the navigation treats as a chapter: the bar's chapter title,
-the two arrows, the keys `[` and `]`, and which entries of the sidebar fold. The looks
-follow the heading level, not the setting: a heading of level 0 is set as a part band, a
-heading of level 1 as a chapter band, and the sidebar's entries are set by level in the
-same way, since a stylesheet cannot read a setting.
+**The navigation level.** The author chooses which heading level is the document's unit
+of reading and navigation, the *navigation level*, with the setting
+`navigation_heading_level` (1 by default, the level of `\section` among the standard
+heading kinds). It is the level at which the document would be cut if it were split into
+separate pages: the chapters of a book, whatever heading kind they are written with. A *navigation unit* is a heading at the
+navigation level and what follows it, up to the next heading at that level or above it.
+The navigation level decides the title in the bar (that of the unit being read), where the
+arrows and the keys `[` and `]` lead, and which entries of the sidebar fold. A heading
+above the navigation level, such as a part above chapters, ends the unit before it and
+belongs to no unit.
+
+**The headings and the entries, by group.** The template puts each heading of the
+content, and each entry of the table of contents, into groups by the heading's level,
+compared with the navigation level and with the *top heading level*, the setting
+`top_heading_level` (1 by default; 0 in a document with parts, beside the render option
+`html.root_heading_level`, see [A document with parts](#a-document-with-parts)), so that the
+looks do not depend on how the document's levels are numbered. With T the top heading
+level and N the navigation heading level:
+
+| group | the headings | in a document with parts (level 0, the top heading level), chapters at the navigation level (1) and sections (2) | default look of a heading | default look of an entry |
+|---|---|---|---|---|
+| `top` | at the level T | the parts | none of its own | none of its own |
+| `major` | at the level N or above it (a level of at most N) | the parts and the chapters | a band | bold, with a small space above |
+| `navigation` | at the level N | the chapters | none of its own | none of its own; the folding hides the entries below a chapter's entry |
+| `minor` | below the level N (a level greater than N) | the sections, and their subsections | bold, with the spaces of a section | the lighter color |
+
+A heading of the content carries its level in the library's attribute `data-flm-level`,
+and so does each entry (`li`) of the table of contents. The template computes from its two settings one
+CSS condition per group, in its file `css_selectors.jinja`: the value `css_selectors`,
+whose entry `headings` holds the entries `top`, `major`, `navigation` and `minor`. Each value begins with `[` or `:`; written directly after a
+selector, with no space, it narrows the selector to the elements of the group, and it is
+also a valid selector by itself. For T = 0 and N = 1 the values are:
+
+```text
+top         [data-flm-level="0"]
+major       :is([data-flm-level="0"], [data-flm-level="1"])
+navigation  [data-flm-level="1"]
+minor       [data-flm-level]:not([data-flm-level="0"], [data-flm-level="1"])
+```
+
+The template's own rules by group, in its file `groups.css`, are written with these
+values, as in `.flm-content .flm-pres-block--heading{{ css_selectors.headings.major }}`
+and `.flm-toc li{{ css_selectors.headings.major }}`; the page's stylesheet holds them after
+the compiled stylesheet `dist/lecturenotes.css`. Beyond the group, the size of a heading
+is the library's, by its HTML level (`<h1>`, `<h2>`, ...): a part is larger than a
+chapter. A document changes these looks with the setting `css`, which reads the same
+values (see [The settings](#the-settings)): for instance, `.flm-content
+.flm-pres-block--heading{{ css_selectors.headings.top }} { text-transform: uppercase; }`
+sets the headings of the group `top` in capitals, and `.flm-toc li[data-flm-level="2"] >
+.flm-pres-link` selects the entries of the headings at the level 2.
+
+The groups go by level rather than by place in the table. The table nests each entry
+under the nearest entry before it whose level is lower, and indents each list nested in
+another by the library's property `--flm-toc-indent` (1em in this template): a unit that
+comes before the first part, such as a preface, therefore stands at the top of the table,
+as far left as the parts, but is not in the group `top`. A document that wants the
+indentation to follow the groups instead turns the nesting's indentation off and indents
+by group, in the setting `css`:
+
+```css
+:root { --flm-toc-indent: 0; }
+.flm-toc li{{ css_selectors.headings.minor }} > .flm-pres-link { margin-left: 1.2em; }
+```
 
 **Navigating.** The arrows, and the keys `[` (previous) and `]` (next), scroll to the
-previous or the next chapter and put that chapter's address (`#id`) into the browser's
-address bar. Every heading that has an identifier gets a discreet `§` link after its
+previous or the next navigation unit and put that unit's address (`#id`) into the
+browser's address bar. Every heading that has an identifier gets a discreet `§` link after its
 title, whose address is the heading's. Jumps are instant.
 
 **Previews.** Hovering a link to another place of the page (a reference, a defined term, a
@@ -122,11 +181,21 @@ pointer onto the popup keeps it open. What the popup shows:
 - for an entry of a list (a footnote, an entry of the bibliography): the entry;
 - for a place inside a paragraph or another block: that block, which gives a formula or
   a term its context; a displayed formula stands inside the paragraph it is written in,
-  so a reference to it shows that paragraph;
+  so a reference to it, or to one of its lines, shows that paragraph. A long block is cut
+  around the place: at most about 300 characters before it and 200 after, cut at a word,
+  with an ellipsis where text is left out; a formula is never cut. When no words stand
+  before the place in its block, the popup also shows the end of the paragraph before the
+  block (about 160 characters at most), and when no words stand after it, the beginning
+  of the paragraph after (about 100), provided that paragraph has words outside its
+  formulas;
 - for a citation: the bibliography entries of every work the citation mark covers, a range
   such as `[3–5]` expanded to the works 3, 4 and 5; every number of one mark shows the
   same list, and more than eight works show the first eight and a line saying how many
   more.
+
+The popup is between 24rem and 32rem wide (90% of the window at most), whatever it
+shows, so that a displayed formula's number stands apart from the formula and a narrow
+figure's caption has room.
 
 On a touch screen, a long press (about half a second) on the link shows the popup and a
 plain tap follows the link. A link that receives the keyboard's focus shows its popup
@@ -143,8 +212,15 @@ and restored when the page is opened again without a `#id` in its address.
 **Mathematics.** Delivering the mathematics (MathJax, or MathML) is the library's and the
 math extension's job; the template delivers none. The template spaces displayed formulas,
 lets a wide formula scroll sideways on a narrow window, and names a font list for formulas
-written as MathML (`--ln-math-family`). When a popup shows a formula that is not typeset
-yet and the page has MathJax, the popup asks MathJax to typeset it.
+written as MathML (`--ln-math-family`). The popups know a formula by FLM's mark of a
+formula, the class `flm-math-formula`, which the outermost element of every formula
+carries whichever math processor wrote it: a reference to a formula, or to one of its
+lines, shows the paragraph the formula stands in, and a popup that cuts a long paragraph
+keeps each formula whole. The popup typesets
+nothing itself: once its copy is in the page, it dispatches FLM's event for copies of page
+content (below), on which the math processor's script typesets the formulas of the copy
+that are not typeset yet (those still in TeX, and those that MathJax's lazy mode has not
+typeset yet), and the popup places itself again when its size changes.
 
 **The live preview.** Under `flm watch`, the preview updates the page in place as the
 document changes; the script then reads the headings again, closes an open popup and
@@ -152,9 +228,10 @@ records the position again.
 
 ## The settings
 
-The template has four settings. A document writes them in `template_config`, under the
-output (`html`) and then the compose template's name, each key replacing the default it
-names:
+The template has five settings, which its description declares under `settings`, each
+with its type, its description and its default. A document writes them in
+`template_config`, under the output (`html`) and then the compose template's name, each
+key replacing the default it names:
 
 ```yaml
 ---
@@ -165,34 +242,52 @@ flm:
       template_config:
         html:
           lecturenotes:
-            chapter_level: 1
+            navigation_heading_level: 1
+            top_heading_level: 1
             font_family: '"Source Serif 4", Georgia, serif'
-            stylesheets:
-              - "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap"
+            css: |
+              @import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..700&display=swap");
+              :root { --ln-accent: #a71d5d; }
+              .flm-toc li{{ css_selectors.headings.navigation }} > .flm-pres-link { text-transform: uppercase; }
             links:
               - {text: Course page, href: "https://example.org/course/"}
               - {text: Exercises, href: exercises.html}
 ---
 ```
 
-On the command line, the same is written `-O 'compose.template_config={html: {lecturenotes:
-{chapter_level: 2}}}'`. An `-O` of `compose.template_config` replaces every template
-setting the front matter gives (the form `-O
-'compose.template_config.html={lecturenotes: {chapter_level: 2}}'` too), so it repeats the
-ones to keep.
+On the command line, one setting is written `-O 'compose.template_config={html: {lecturenotes:
+{navigation_heading_level: 2}}}'`. Each source of settings replaces only the settings it
+writes: the others keep the values that the front matter or a package gives them. A key
+that the template does not declare is left out, with a warning.
 
 | setting | shape | default | what it does |
 |---|---|---|---|
-| `chapter_level` | a whole number from 0 | `1` | the level of the headings the navigation treats as chapters: the bar's chapter title, the arrows, the keys `[` and `]`, the folding of the sidebar. A heading of a lower level number is a part |
+| `navigation_heading_level` | a whole number from 0 | `1` | the navigation level: the level of the headings that begin the navigation units, the document's units of reading (see *The navigation level* in [What the page looks like and does](#what-the-page-looks-like-and-does)). It decides the bar's title, the arrows, the keys `[` and `]`, the folding of the sidebar, and the groups `major`, `navigation` and `minor` of the headings and of the sidebar's entries |
+| `top_heading_level` | a whole number from 0 | `1` | the top heading level: the level of the document's outermost headings, the group `top` of the headings and of the sidebar's entries (see *The headings and the entries, by group* in [What the page looks like and does](#what-the-page-looks-like-and-does)); 0 in a document with parts |
 | `font_family` | a CSS font-family list | `Georgia, "Iowan Old Style", Charter, "Bitstream Charter", "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", serif` | the family of the page's text, written as given into the page's stylesheet (`:root { --ln-family: …; }`) |
-| `stylesheets` | a list of addresses | `[]` | stylesheets the page links, in order, after the template's own stylesheet: one `<link rel="stylesheet">` in the page's head per address. A relative address is relative to the page |
+| `css` | a text of CSS, applied as a template | `''` | the document's own stylesheet, written in a `<style>` element of the page's head after the link to the template's stylesheet, so that it overrides the template's rules: values of the custom properties (see [The custom properties a site overrides](#the-custom-properties-a-site-overrides)), rules of the document's own, and the rules `@import` of web fonts and other stylesheets at its beginning (see [Fonts and further stylesheets](#fonts-and-further-stylesheets)). An empty text writes no element |
 | `links` | a list of maps, each with both `text` and `href` | `[]` | links shown in the bar, after the buttons: `text` is the link's text, `href` its address |
+
+**The setting `css` is a template.** The text is applied as a template of the template's
+engine, `minijinja`, with the delimiters `{{ }}`, `{% %}` and `{# #}`, before it is
+written into the page. It reads the template's values, among them the selectors of the
+groups, `css_selectors.headings.top`, `.major`, `.navigation` and `.minor` (see *The
+headings and the entries, by group* in [What the page looks like and
+does](#what-the-page-looks-like-and-does)), and the settings, `config`. A value is written
+as it is, not escaped for HTML; the text that results is encoded for the `<style>` element,
+every `</` written `<\/`, which CSS reads as `</` and which cannot end the element. In the
+text, `{#` begins a comment of the template language, which ends at `#}`: a rule whose
+brace is followed by `#` is written with a space between them (`{ #`). The text also has
+the engine's functions, by which it reads and ships files of the document's folder (see
+[Fonts and further stylesheets](#fonts-and-further-stylesheets)). A text that is not a
+valid template, or a file it reads that is not there, stops the render with the engine's
+message.
 
 The program does not check that a setting has its shape: a value of another shape (a text
 where a list is expected, a link without `href`) gives a page that is not the one meant,
 or stops the render with the template engine's own message. The script checks
-`chapter_level` and reports a value that is not a whole number from 0 on the browser's
-console.
+`navigation_heading_level` and reports a value that is not a whole number from 0 on the
+browser's console.
 
 ## A document with parts
 
@@ -200,7 +295,8 @@ A part is a heading at level 0, one level above the sections. The standard headi
 start at level 1, so a document with parts declares a heading kind at level 0 and a
 command for it. The HTML backend's root heading level (the level written as `<h1>`) is 1
 by default, and a heading above it is an error; the extension does not change it, so a
-document with parts also sets the render option `html.root_heading_level` to 0:
+document with parts also sets the render option `html.root_heading_level` to 0, and the
+template's setting `top_heading_level` to 0 so that the parts are the group `top`:
 
 ```yaml
 ---
@@ -208,6 +304,10 @@ flm:
   use: [lecturenotes]
   features:
     html: {root_heading_level: 0}
+    compose:
+      template_config:
+        html:
+          lecturenotes: {top_heading_level: 0}
     headings:
       headings:
         part: {level: 0, counter: null, style: null}
@@ -231,40 +331,70 @@ The template ships no font. Its default family is a list of serif fonts commonly
 on computers and phones, ending with the generic family `serif`. To use another font:
 
 1. give the family in the setting `font_family`, as a CSS font-family list;
-2. when the font is a web font, list the address of a stylesheet that provides its faces
-   in the setting `stylesheets`: an address of a web-font service (such as Google Fonts),
-   or a stylesheet beside the page that the site supplies along with the font files.
+2. when the font is a web font, provide its faces in the setting `css`, in one of two ways.
 
-The page then links that stylesheet, and the browser loads the font. A site whose pages go
-through a bundler (a program that collects a page's stylesheets, scripts and fonts into
-files for publishing) has the bundler follow the link like any other (see [Placing the
+A web font of a web-font service (such as Google Fonts) is imported by its address, with a
+rule `@import` at the beginning of the text of `css`, which is the beginning of the
+`<style>` element's stylesheet, the one place where CSS reads that rule:
+
+```css
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4&display=swap");
+```
+
+A font file of the document's folder is shipped beside the page by the function
+`include_artifact_url`, which reads the file, writes it beside the page and gives its
+address there. The path begins with the root `doc:`, which names the document's folder;
+after it, the path is read as a path written in the document is (relative to the
+document's folder):
+
+```css
+@font-face {
+  font-family: "My Serif";
+  src: url("{{ include_artifact_url("doc:fonts/my-serif.woff2") }}") format("woff2");
+}
+```
+
+An image of the document's folder is shipped the same way, as in `.ln-titleblock {
+background: url("{{ include_artifact_url("doc:banner.png") }}") }`. The
+setting `css` also brings in a stylesheet of the document's folder, written into the
+`<style>` element:
+
+- as it is, with `{{ include_raw("doc:my.css") }}`;
+- applied as a template, with `{{ include("doc:my.css") }}`: the file reads
+  the same values as the text of `css`, `css_selectors` among them, and its values are
+  written as they are;
+- downloaded from an address and written as it is, with `{{
+  include_raw("https://example.org/my.css") }}`. The program keeps the downloaded file in
+  its cache for seven days.
+
+The text of `css` is written in the front matter, not read from a file, so it has no
+folder of its own: every path written in it begins with a root, such as `doc:` for the
+document's folder or `ext+NAME:` for a file of an extension `NAME` that the document uses.
+
+Such a stylesheet can set the template's custom properties (next section), or provide a
+math font for formulas written as MathML, together with `--ln-math-family`. Under `flm
+watch`, the preview builds again when a file the setting reads changes. A site that
+places the document inside its own pages adds its stylesheets itself (see [Placing the
 document inside a site](#placing-the-document-inside-a-site)).
-
-The same setting adds any other stylesheet: a site's own stylesheet that overrides the
-template's custom properties (next section), or a stylesheet that provides a math font for
-formulas written as MathML, together with `--ln-math-family` set in a stylesheet of the
-site's. The stylesheets are linked after the template's own, so a declaration they make on
-`:root` wins over the template's defaults.
 
 ## The custom properties a site overrides
 
 The template's stylesheet writes every color, size, space and font as a CSS custom
 property under the prefix `--ln-`, declared on `:root` with no weight (`:where(:root)`),
 so that a declaration on `:root` in any other stylesheet replaces it wherever that
-stylesheet stands. The template has no setting for looks: a document or a site changes
-them by setting these properties in a stylesheet listed in `stylesheets`. The complete
-list, with a comment per group, is at the top of the stylesheet
+stylesheet stands. The template has no setting for each look: a document changes them by
+setting these properties in the setting `css`, and a site in a stylesheet of its own. The complete list, with a comment per group, is at the top of the stylesheet
 `templates/html/lecturenotes/dist/lecturenotes.css`. The groups:
 
 | group | properties |
 |---|---|
-| colors | `--ln-text`, `--ln-muted`, `--ln-accent`, `--ln-accent-hover`, `--ln-accent-bg`, `--ln-border`, `--ln-band-color`, `--ln-bg`, `--ln-selection`, `--ln-rule`, `--ln-shadow` |
+| colors | `--ln-text`, `--ln-muted`, `--ln-accent`, `--ln-accent-hover`, `--ln-accent-bg`, `--ln-panel-bg`, `--ln-entry-bg`, `--ln-border`, `--ln-band-color`, `--ln-bg`, `--ln-selection`, `--ln-rule`, `--ln-shadow` |
 | the text | `--ln-family`, `--ln-font-features`, `--ln-size`, `--ln-line-height` |
 | the frame | `--ln-measure` (the column's width, 52rem), `--ln-sidebar-width`, `--ln-drawer-max-width`, `--ln-bar-height`, `--ln-gutter`, `--ln-gutter-narrow`, `--ln-space-below`, `--ln-space-below-narrow`, `--ln-scroll-gap` |
-| the bar | `--ln-bar-*`, `--ln-chapter-lead`, `--ln-chapter-lead-gap`, `--ln-button-*`, `--ln-disabled-opacity` |
-| the sidebar | `--ln-sidebar-size`, `--ln-sidebar-line-height`, `--ln-sidebar-padding`, `--ln-label-*`, `--ln-toggle-*`, `--ln-folded-icon`, `--ln-open-icon`, and its entries: `--ln-entry-*`, `--ln-current-weight`, `--ln-part-entry-*`, `--ln-chapter-entry-*`, `--ln-current-chapter-entry-weight` |
+| the bar | `--ln-bar-*`, `--ln-unit-lead`, `--ln-unit-lead-gap`, `--ln-button-*`, `--ln-disabled-opacity` |
+| the sidebar | `--ln-sidebar-size`, `--ln-sidebar-line-height`, `--ln-sidebar-padding`, `--ln-label-*`, `--ln-toggle-*`, `--ln-folded-icon`, `--ln-open-icon`, and its entries: `--ln-entry-*`, `--ln-current-weight`, `--ln-major-entry-*`, `--ln-current-major-entry-weight` (the entries of the group `major`) |
 | the title block and the notes after the content | `--ln-title-*`, `--ln-subtitle-*`, `--ln-backmatter-*` |
-| the headings, by level | `--ln-heading-number-gap`, `--ln-band-rule`, `--ln-part-*` (level 0), `--ln-chapter-*` (level 1), `--ln-section-*` (level 2), `--ln-subsection-*` (level 3), `--ln-anchor-gap`, `--ln-anchor-size` |
+| the headings of the content | `--ln-heading-number-gap`, `--ln-band-rule`, `--ln-major-heading-*` (the headings of the group `major`), `--ln-minor-heading-*` (the headings of the group `minor`), `--ln-anchor-gap`, `--ln-anchor-padding`, `--ln-anchor-size` |
 | the text's elements | `--ln-term-decoration`, `--ln-defterm-weight`, `--ln-theorem-style`, `--ln-proof-*`, `--ln-float-padding`, `--ln-caption-*`, `--ln-quote-style` |
 | the previews | `--ln-preview-*` (the popup's widths, spaces, look, and its layer above the bar and the drawer) |
 | mathematics | `--ln-math-space`, `--ln-math-family` |
@@ -278,15 +408,17 @@ what each does. The template's stylesheet stands outside the library's cascade l
 
 The popup of the previews is a `div` of class `ln-preview`, added at the end of the page's
 `body` the first time it is shown (class `ln-preview-shown` while shown); its content is a
-`div` of class `ln-preview-content`. The `--ln-preview-*` properties set its look.
+`div` of class `ln-preview-content`; the ellipsis where it leaves text out is a `span` of
+class `ln-preview-cut`. The `--ln-preview-*` properties set its look.
 
 ## Placing the document inside a site
 
 There are two ways to publish the page as part of a site.
 
 **The page as it is.** The page `STEM.html` is an ordinary HTML page. It reaches its files
-by relative addresses: `STEM-style.css` and `STEM-script.js` beside it, the stylesheets of
-the setting `stylesheets`, and the files the document itself refers to. A site copies the
+by relative addresses: `STEM-style.css` and `STEM-script.js` beside it, the files the
+setting `css` ships, the addresses its rules `@import` give, and the files the document
+itself refers to. A site copies the
 page with the files beside it; a site whose pages go through a bundler gives the bundler
 the page as input, and the bundler follows those addresses as for any other page. The
 template does not bundle anything itself.
@@ -296,15 +428,20 @@ template does not bundle anything itself.
 comment naming it:
 
 1. the library's styles region: the stylesheets the document's content needs;
-2. the title block, `<header class="ln-titleblock">`;
-3. the table of contents, inside `<aside class="ln-sidebar">`;
-4. the content, `<article class="flm-content" id="flm-content">`;
-5. the lists of notes and the bibliography, `<section class="ln-backmatter">`;
-6. the library's scripts region: the scripts the document's content needs.
+2. the document's styles: the setting `css` in a `<style>` element, as in the page, and
+   nothing when the setting is empty;
+3. the title block, `<header class="ln-titleblock">`;
+4. the table of contents, inside `<aside class="ln-sidebar">`;
+5. the content, `<article class="flm-content" id="flm-content">`;
+6. the lists of notes and the bibliography, `<section class="ln-backmatter">`;
+7. the library's scripts region: the scripts the document's content needs.
 
 A site places these parts inside a page of its own, with the same elements around them as
 the page gives them, and links `STEM-style.css` and `STEM-script.js` (or the two files of
-`dist/` with its own call of the setup function; next section). The script works
+`dist/` with its own call of the setup function; next section), after the library's
+styles and before the document's, so that the document's rules override the template's.
+The addresses of the files the setting `css` ships are relative to the page's folder, where
+the site keeps them. The script works
 with the parts the site's page has: only the content (`id="flm-content"`) is required, and
 what concerns a part the page does not have (the bar's buttons, the sidebar) is left out.
 
@@ -325,12 +462,22 @@ A page includes both and calls the setup function once:
 ```html
 <link rel="stylesheet" href="lecturenotes.css">
 <script src="lecturenotes.js"></script>
-<script>flmLecturenotes.setup({ chapter_level: 1 });</script>
+<script>flmLecturenotes.setup({ navigation_heading_level: 1 });</script>
 ```
 
-`settings` is an object; the script reads `chapter_level` (1 when absent) and ignores
-every other field. The setup runs once the document is parsed, wherever the call stands.
-The font family is the custom property `--ln-family`, set on `:root` by the page.
+`settings` is an object; the script reads `navigation_heading_level` (1 when absent) and
+ignores every other field. The setup runs once the document is parsed, wherever the call
+stands. The font family is the custom property `--ln-family`, set on `:root` by the page.
+
+The stylesheet `dist/lecturenotes.css` has no rule by group: the looks of the headings and
+of the entries of the groups `major` and `minor`, and the folding of the table of
+contents, are the rules of the template's file `templates/html/lecturenotes/groups.css`,
+which the template writes with its selectors of the groups (see *The headings and the
+entries, by group* in [What the page looks like and
+does](#what-the-page-looks-like-and-does)). A page that uses the stylesheet on its own
+writes those rules itself, with conditions on the attribute `data-flm-level` of its
+headings and entries for its own levels: without them, the headings have no band, the
+entries are alike, and the table of contents does not fold.
 
 **The page's elements.** The script finds the page's parts by these classes; the classes of
 the page's own elements begin with `ln-`:
@@ -339,12 +486,12 @@ the page's own elements begin with `ln-`:
 .ln-app                      the frame
   header.ln-topbar           the bar
     a.ln-book-title          the title, a link to the top
-    .ln-current-chapter      the chapter's title, written by the script
-    .ln-prev, .ln-next       the previous-chapter and next-chapter buttons
+    .ln-current-unit         the title of the unit being read, written by the script
+    .ln-prev, .ln-next       the previous-unit and next-unit buttons
     .ln-sidebar-toggle       the button that hides or shows the sidebar
     .ln-topbar-links         the bar's links (a.ln-topbar-link)
   aside.ln-sidebar           the sidebar, holding the table of contents (.flm-toc)
-    .ln-toc-toggle           the triangle: folded or all open
+    .ln-toc-toggle           the unfold button: folded or all open
   main.ln-main               the main column
     .ln-column
       header.ln-titleblock   the title block
@@ -365,12 +512,10 @@ moves none. It sets:
 
 - on the root element `<html>`, the classes `ln-sidebar-collapsed` (the sidebar hidden on a
   wide window), `ln-drawer-open` (the drawer open on a narrow one) and `ln-toc-all` (every
-  section of the sidebar open);
-- on each entry (`li`) of the table of contents, `data-ln-level` (the level of the heading
-  it points to), the class `ln-chapter` on a chapter's entry, the class `ln-open` on the
-  entry of the chapter being read, and `aria-current` on the link of the heading being
-  read;
-- an `a.ln-anchor` (`§`) at the end of each heading of the content;
+  entry of the sidebar open);
+- on each heading of the content, an `a.ln-anchor` (`§`) at its end;
+- on the entry (`li`) of the table of contents of the unit being read, the class
+  `ln-open`, and on the link of the heading being read, `aria-current`;
 - the popup `div.ln-preview` at the end of `body`.
 
 It keeps, in the browser's storage, the folding (`flm-lecturenotes:toc-folding`), whether
@@ -382,6 +527,13 @@ the reading position in each history entry's state (the field
 **The live preview's event.** When the event `flm:region-updated` reaches `document` (FLM's
 live preview dispatches it after it updated part of the page in place), the script reads
 the headings again, re-adds the anchors, closes the popup and records the position.
+
+**The popup's event.** Each time the popup shows a copy, the script dispatches the event
+`flm:content-copied` on the copy (the `div.ln-preview-content`), which bubbles to
+`document`. This is FLM's convention for a copy of part of the page (the rendering guide's
+"A page updated in place"): the copy holds no `id` and keeps each element's
+`data-flm-original-html`, and a script that transforms elements, such as the formula
+renderer's configuration, completes on the event what the copy needs.
 
 ## Changing the sources and rebuilding `dist/`
 
@@ -408,12 +560,12 @@ minified, so that it can be read and compared in version control. The build fail
 either file holds one of the delimiters of the template that includes it (`{%`, `%}`,
 `{{`, `}}`, `{#`, `#}`, the list `DELIMITERS` of `build.mjs`); the test
 `the_description_s_delimiters_are_those_the_bundle_s_build_checks` of
-`flm-cli/tests/lecturenotes.rs` checks that this list equals the `delimiters` of
+`flm/tests/lecturenotes.rs` checks that this list equals the `delimiters` of
 `templates/html/lecturenotes/flmtemplate.yaml`.
 
 `dist/` is committed, since the extension ships it. After a change of the sources, rebuild
 and commit `dist/` with them: the test `the_committed_bundle_matches_a_fresh_build` of
-`flm-cli/tests/lecturenotes.rs` builds the bundle into a temporary folder and compares the
+`flm/tests/lecturenotes.rs` builds the bundle into a temporary folder and compares the
 result with `dist/` byte for byte (it is skipped, with a message, when `node` is not on the
 `PATH` or the workspace's dependencies are not installed).
 
@@ -421,17 +573,20 @@ result with `dist/` byte for byte (it is skipped, with a message, when `node` is
 
 | file | what it is |
 |---|---|
-| `flmtemplate.yaml` | the template's description: its output, engine, text (`main`), delimiters, settings and shipped files |
-| `lecturenotes.html` | the page: the frame around the library's parts, the template's text |
-| `style.css` | the page's stylesheet, applied as a template: the `font_family` line, then `dist/lecturenotes.css` included as it is (`include_raw`) |
-| `script.js` | the page's script, applied as a template: `dist/lecturenotes.js` included as it is, then `window.flmLecturenotes.setup(...)` with the settings as JSON |
-| `fragment.html` | the fragment, applied as a template |
+| `flmtemplate.yaml` | the template's description: its name, output, engine, text (`main`), delimiters, settings and shipped files |
+| `lecturenotes.html` | the page: the frame around the library's parts, the template's text; it writes the setting `css`, applied as a template, in a `<style>` element of its head |
+| `css_selectors.jinja` | the template's code that computes the value `css_selectors` from the settings `top_heading_level` and `navigation_heading_level`; it writes nothing. The page, `style.css` and `fragment.html` bring the value in with the statement `{% from "css_selectors.jinja" import css_selectors %}` |
+| `groups.css` | the template's rules by group, written with `css_selectors`; `style.css` includes it (the statement `include`) |
+| `style.css` | the page's stylesheet, applied as a template: the `font_family` line, then `dist/lecturenotes.css` included as it is (`include_raw`), then `groups.css` |
+| `script.js` | the page's script, applied as a template: `dist/lecturenotes.js` included as it is, then `window.flmLecturenotes.setup(...)` with the setting `navigation_heading_level` as JSON |
+| `fragment.html` | the fragment, applied as a template; it writes the setting `css` as the page does |
 | `dist/lecturenotes.css`, `dist/lecturenotes.js` | the stylesheet and the script built by `npm/lecturenotes`, committed and never edited by hand; `style.css` and `script.js` include them |
 
 **The browser check.** In the repository, `npm/lecturenotes/check/check.py` renders the
-sample document (`flm-cli/tests/documents/lecturenotes/notes.flm`) and the document
-`plain.flm` beside the script, opens them in Google Chrome with no window, and checks the
-sidebar, the navigation and the previews through the page itself; the file's opening
+sample document (`flm/tests/documents/lecturenotes/notes.flm`) and the documents
+`plain.flm` and `levels.flm` beside the script, opens them in Google Chrome with no window,
+and checks the looks of the groups, the sidebar, the navigation and the previews through
+the page itself; the file's opening
 comment says how to run it. It is run by hand.
 
 ## Missing, to be implemented from the template of the Python FLM

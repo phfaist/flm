@@ -11,6 +11,7 @@ use serde_json::Value;
 use crate::block::{self, BLOCK_KEYS};
 use crate::engine::{ExtensionIdentity, FeatureReport, LoadError, PackageReport};
 use crate::entry::{is_segment, UseEntry};
+use crate::paths::Root;
 use crate::source::ExtensionFiles;
 use crate::templates;
 
@@ -74,8 +75,9 @@ fn read_package(
     let block = read_flm(stem, &name, &flm, problems);
     let factory = extension.factory_name(&name);
     let mut found_templates = Vec::new();
+    let root = Root::Ext(extension.name.clone());
     for path in texts("templates") {
-        match templates::read(files, &path, &factory, extension) {
+        match templates::read(files, &root, &path, &factory, extension) {
             Ok(template) => found_templates.push(template),
             Err(error) => problems.push(error.to_string()),
         }
@@ -96,7 +98,8 @@ fn read_package(
             Vec::new()
         }
     };
-    PackageReport { name, uses, block, templates: found_templates, features, host }
+    let caches = crate::host::read_caches(stem, &name, item.get("caches").unwrap_or(&Value::Null), problems);
+    PackageReport { name, uses, block, templates: found_templates, features, host, caches }
 }
 
 /// A package object's `flm`, read by the block step: `use` is refused (a
@@ -120,10 +123,7 @@ fn read_flm(stem: &str, package: &str, flm: &Value, problems: &mut Vec<String>) 
     };
     let keys: Vec<String> =
         BLOCK_KEYS.iter().filter(|key| **key != "use").map(|key| format!("`{key}`")).collect::<Vec<_>>();
-    let listed = match keys.split_last() {
-        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
-        _ => keys.join(", "),
-    };
+    let listed = joined(&keys);
     let others = flm.as_object().into_iter().flat_map(|map| map.keys());
     for key in others.filter(|key| !BLOCK_KEYS.contains(&key.as_str())) {
         problems.push(format!(
@@ -131,6 +131,14 @@ fn read_flm(stem: &str, package: &str, flm: &Value, problems: &mut Vec<String>) 
         ));
     }
     block
+}
+
+/// The texts `items` joined by commas and a final `and` (`a, b and c`).
+pub(crate) fn joined(items: &[String]) -> String {
+    match items.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => items.join(", "),
+    }
 }
 
 /// A feature object as a script writes it (its `register` left out): the
@@ -148,22 +156,22 @@ struct FeatureObject {
     version: Option<String>,
     #[serde(default)]
     settings: Option<crate::engine::SettingsReport>,
+    #[serde(default)]
+    templates: std::collections::BTreeMap<String, crate::engine::ModuleReport>,
 }
 
 /// The parts of a feature object's `settings` that must be maps, and the
 /// shape each text names.
-const SETTINGS_MAPS: [(&str, &str); 3] = [
+const SETTINGS_MAPS: [(&str, &str); 2] = [
     ("config", "a map with `schema` and, optionally, `docs`"),
     ("options", "a map from an option's name to its declaration"),
-    ("merge_entries", "a map from a key to its default entries"),
 ];
-
-/// The parts of a feature object's `settings` that must be lists of texts.
-const SETTINGS_LISTS: [&str; 2] = ["markup", "path"];
 
 /// One feature `{ name, object }` (its object without its `register`), read
 /// into a report: the shapes serde would word with a type's name are refused
-/// first, each naming its key path; `null` is read as absent.
+/// first, each naming its key path. The keys `settings` and `templates`
+/// written `null`, and a part of `settings` written `null`, are read as
+/// absent.
 fn read_feature(stem: &str, package: &str, feature: &Value, problems: &mut Vec<String>) -> Option<FeatureReport> {
     let name = feature.get("name").and_then(Value::as_str).unwrap_or_default();
     let owner = format!("of the feature `{name}` of the package `{package}` of the extension `{stem}`");
@@ -183,21 +191,33 @@ fn read_feature(stem: &str, package: &str, feature: &Value, problems: &mut Vec<S
                         shaped = false;
                     }
                 }
-                for key in SETTINGS_LISTS {
-                    let texts = |value: &Value| value.as_array().is_some_and(|list| list.iter().all(Value::is_string));
-                    if settings.get(key).is_some_and(|value| !texts(value)) {
-                        problems.push(format!("`settings.{key}` {owner} must be a list of texts"));
-                        shaped = false;
-                    }
-                }
             }
             Some(_) => {
                 problems.push(format!(
-                    "`settings` {owner} must be a map with `config`, `options`, `merge_entries`, `markup` and `path`, \
-                     each optional"
+                    "Invalid ‘settings’ of the feature ‘{name}’ of the package ‘{package}’ of the \
+                     extension ‘{stem}’: it must be a map with the optional keys ‘config’, \
+                     ‘options’ and ‘read’"
                 ));
                 shaped = false;
             }
+        }
+        if fields.get("templates").is_some_and(Value::is_null) {
+            fields.remove("templates");
+        }
+        let modules_shaped = match fields.get("templates") {
+            None => true,
+            Some(Value::Object(modules)) => modules.values().all(|module| {
+                module.as_object().is_some_and(|module| module.get("output").is_some_and(Value::is_string))
+            }),
+            Some(_) => false,
+        };
+        if !modules_shaped {
+            problems.push(format!(
+                "Invalid ‘templates’ of the feature ‘{name}’ of the package ‘{package}’ of the extension \
+                 ‘{stem}’: it must be a map from a template module's name to ‘{{ output, settings }}’ \
+                 (‘settings’ optional)"
+            ));
+            shaped = false;
         }
     }
     if !shaped {
@@ -210,6 +230,7 @@ fn read_feature(stem: &str, package: &str, feature: &Value, problems: &mut Vec<S
             docs: read.docs,
             version: read.version,
             settings: read.settings,
+            templates: read.templates,
         }),
         Err(error) => {
             problems.push(format!(

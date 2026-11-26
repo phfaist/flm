@@ -18,8 +18,8 @@
 //! [`FeatureBuilder::lowering_rule`](crate::core::registry::FeatureBuilder::lowering_rule).
 //! The lowering stage that calls the rules, the lowering driver that
 //! implements [`Lowerer`], and the presentation elements the rules build
-//! are in [`crate::stdcore::backends::lowering`] and
-//! [`crate::stdcore::backends::pres`].
+//! are in [`crate::stdlib::backends::lowering`] and
+//! [`crate::stdlib::backends::pres`].
 //!
 //! The items of this module:
 //!
@@ -67,7 +67,18 @@
 //! - `selection_requires` lists the requirements (identifiers of definitions
 //!   that the output needs, [`StyleDef`](crate::core::registry::StyleDef))
 //!   that the rule has merely because it was selected, whether or not it ever
-//!   runs.
+//!   runs;
+//! - `unchecked_output` lists the backends on which the rule writes output
+//!   that nothing checks before the program reading the output does; a plan
+//!   that selects the rule on such a backend keeps a
+//!   [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput),
+//!   one per backend and feature, which every run of the plan reports as the
+//!   Warning `flm.run.unchecked-output`. The declaration is fixed when the
+//!   rule is registered, so the warning depends on the plan alone, not on a
+//!   document. The feature that registers a rule owns it: a rule of the
+//!   library registered by another feature under its own name
+//!   ([`math_rule_named`](crate::math_passthrough::math_rule_named)) keeps its
+//!   declaration, and the warning names that feature.
 //!
 //! # Which rule is chosen
 //!
@@ -192,6 +203,46 @@ pub struct LoweringDecl {
     /// ([`StyleDef`](crate::core::registry::StyleDef)). For a requirement
     /// recorded because of one particular node, see [`Lowerer::require`].
     pub selection_requires: Vec<Name>,
+    /// The backends on which what the rule writes is checked by nothing that
+    /// reads the output after FLM, each with what is written and what reads
+    /// it ([`UncheckedOutputDecl`]). A plan that selects the rule on one of
+    /// these backends keeps one
+    /// [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput)
+    /// per backend and feature.
+    pub unchecked_output: Vec<UncheckedOutputDecl>,
+}
+
+/// One backend on which a lowering rule writes output that nothing checks
+/// before the program reading that output does
+/// ([`LoweringDecl::unchecked_output`]).
+///
+/// The two texts complete the warning's message, which reads "Unchecked
+/// output for *reader*: feature ‘…’ writes *written* as is (backend ‘…’)":
+/// `written` is a noun phrase for what the rule writes ("each formula's
+/// LaTeX source"), and `reader` a noun phrase for what reads it ("LuaLaTeX",
+/// "the formula renderer in the reader's browser").
+///
+/// # Examples
+///
+/// ```
+/// use flm_core::core::lowering::LoweringDecl;
+///
+/// let decl = LoweringDecl::new().unchecked_output(
+///     "latex-rendered",
+///     "each formula's LaTeX source",
+///     "LuaLaTeX",
+/// );
+///
+/// assert_eq!(decl.unchecked_output[0].backend.as_str(), "latex-rendered");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UncheckedOutputDecl {
+    /// The backend whose output holds what the rule writes.
+    pub backend: BackendName,
+    /// What the rule writes, as a noun phrase.
+    pub written: String,
+    /// What reads the output, as a noun phrase.
+    pub reader: String,
 }
 
 impl LoweringDecl {
@@ -250,6 +301,24 @@ impl LoweringDecl {
     /// the declaration.
     pub fn selection_requires(mut self, id: impl Into<Name>) -> LoweringDecl {
         self.selection_requires.push(id.into());
+        self
+    }
+
+    /// Adds a backend on which what the rule writes is checked by nothing
+    /// that reads the output after FLM, with what is written and what reads
+    /// it (see [`unchecked_output`](LoweringDecl::unchecked_output)), and
+    /// returns the declaration.
+    pub fn unchecked_output(
+        mut self,
+        backend: impl Into<BackendName>,
+        written: impl Into<String>,
+        reader: impl Into<String>,
+    ) -> LoweringDecl {
+        self.unchecked_output.push(UncheckedOutputDecl {
+            backend: backend.into(),
+            written: written.into(),
+            reader: reader.into(),
+        });
         self
     }
 }
@@ -388,7 +457,7 @@ impl fmt::Debug for LoweringRule {
 /// A rule returns this error from [`Lower::lower`], and every [`Lowerer`]
 /// method that can refuse something returns it too. The lowering stage
 /// handles it according to the variant
-/// ([`crate::stdcore::backends::lowering::error`] lists the conditions):
+/// ([`crate::stdlib::backends::lowering::error`] lists the conditions):
 ///
 /// - Most variants fail the node only. The stage reports one Error diagnostic
 ///   at the node, `flm.lowering.rule-failed`, whose message includes this
@@ -459,7 +528,7 @@ pub enum LowerError {
     /// value it built from what an author wrote can tell the author what to
     /// change. The user-definitions feature does so for a kept definition
     /// whose template declares a reference point
-    /// ([`KeptTemplateDeclaresPoint`](crate::stdcore::features::userdefs::kept::KeptTemplateDeclaresPoint)).
+    /// ([`KeptTemplateDeclaresPoint`](crate::stdlib::features::userdefs::kept::KeptTemplateDeclaresPoint)).
     /// A rule that returns this error unchanged gets
     /// `flm.lowering.rule-failed`, as for any other failure.
     DocumentFactInValue {
@@ -747,7 +816,7 @@ impl fmt::Display for NodeRegion {
 /// region's content nodes ([`NodeRegion::content_nodes`]), and it returns the
 /// nodes it staged. Most callers lower the content nodes unchanged, as one
 /// run of siblings:
-/// [`lower_region_content`](crate::stdcore::backends::lowering::lower_region_content)
+/// [`lower_region_content`](crate::stdlib::backends::lowering::lower_region_content)
 /// does that. A caller that places nodes of its own among the content (for
 /// example, a link written at the end of the content's last paragraph) writes
 /// a function of its own, which passes the content nodes to the
@@ -770,7 +839,7 @@ pub type RegionShape<'f> = dyn FnMut(
 /// the [`Lowerer`] it is handed, so every read can be checked against the
 /// rule's declaration.
 ///
-/// See [`crate::stdcore::backends::lowering::rules`] for the default rules of
+/// See [`crate::stdlib::backends::lowering::rules`] for the default rules of
 /// the structural elements, which implement this trait.
 pub trait Lower: Send + Sync {
     /// Lowers `node`, a node of this rule's element, and returns what replaces
@@ -804,7 +873,7 @@ pub trait Lower: Send + Sync {
 /// it the rule lowers parts of its node, stages presentation nodes into the
 /// [`LowerCx`], splices a synthesized value and lowers a node region of
 /// another node; the lowering driver implements it
-/// ([`crate::stdcore::backends::lowering::driver`]). A rule author calls these
+/// ([`crate::stdlib::backends::lowering::driver`]). A rule author calls these
 /// methods and does not implement this trait.
 ///
 /// Because a rule never reaches the run directly, its reads can be checked:
@@ -1116,7 +1185,7 @@ pub trait Lowerer {
     /// The rule of an element inside a synthesized value refers to a node of
     /// the document, or of another synthesized value, and that node's content
     /// is lowered where the element is placed. The content pointer
-    /// ([`ContentPointer`](crate::stdcore::backends::lowering::ContentPointer))
+    /// ([`ContentPointer`](crate::stdlib::backends::lowering::ContentPointer))
     /// is built on this method. It is the counterpart of [`Lowerer::splice`],
     /// which lowers a synthesized value where the rule's node is placed in the
     /// document; this method is the only way to lower content of a tree other

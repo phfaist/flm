@@ -73,6 +73,7 @@ use crate::core::registry::entities::{
     OrderingDef, OutputDef, ScriptDef, StyleDef, WorkflowDef,
 };
 use crate::core::registry::feature::FeatureInfo;
+use crate::core::registry::frozen::ElementTypeText;
 use crate::core::registry::order::FeatureChain;
 use crate::core::services::{
     Arity, Contribution, ServiceError, ServiceRequirement, Services, SlotDecl, SlotTarget,
@@ -355,6 +356,33 @@ pub enum BuildError {
         /// What is wrong, as text for a person to read.
         detail: String,
     },
+    /// A feature gave a documentation text to an element type
+    /// ([`FeatureBuilder::element_type_text`]) that it does not declare.
+    UndeclaredElementTypeText {
+        /// The feature that gave the text.
+        feature: FeatureName,
+        /// The element type.
+        element: ElementName,
+        /// The features that declare the element type, in name order, with
+        /// [`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER) for a
+        /// structural element type; empty when no feature declares it.
+        declarers: Vec<FeatureName>,
+    },
+    /// Two declarations gave a documentation text to one element type: two
+    /// calls of [`FeatureBuilder::element_type_text`], or one beside the
+    /// text of the language's structural element type or of a presentation
+    /// element of that name.
+    DuplicateElementTypeText {
+        /// The element type.
+        element: ElementName,
+        /// The feature that gave the first text, or
+        /// [`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER) for the
+        /// language.
+        first: FeatureName,
+        /// The feature that gave the second text; the same as `first` when
+        /// one feature gave two texts.
+        second: FeatureName,
+    },
     /// Two features are registered under one name.
     DuplicateFeature {
         /// The name.
@@ -605,6 +633,27 @@ pub enum BuildError {
     },
 }
 
+/// The giver of a documentation text, or a declarer, as a message names it:
+/// `the language` for [`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER),
+/// `feature ‘name’` for a feature.
+fn giver(owner: &FeatureName) -> String {
+    if owner.as_str() == crate::lang::mint::LANGUAGE_OWNER {
+        String::from("the language")
+    } else {
+        format!("feature ‘{owner}’")
+    }
+}
+
+/// The givers `owners` in a list for a message: `a`, `a and b`, `a, b and c`.
+fn givers(owners: &[FeatureName]) -> String {
+    let named: Vec<String> = owners.iter().map(giver).collect();
+    match named.split_last() {
+        Some((last, [])) => last.clone(),
+        Some((last, head)) => format!("{} and {last}", head.join(", ")),
+        None => String::new(),
+    }
+}
+
 fn join<'a>(names: impl IntoIterator<Item = &'a Name>) -> String {
     names.into_iter().map(|name| name.as_str()).collect::<Vec<_>>().join(", ")
 }
@@ -614,6 +663,43 @@ impl fmt::Display for BuildError {
         match self {
             BuildError::Feature { feature, detail } => {
                 write!(f, "feature `{feature}`: {detail}")
+            }
+            BuildError::UndeclaredElementTypeText { feature, element, declarers } => {
+                if declarers.is_empty() {
+                    write!(
+                        f,
+                        "Invalid documentation text for undeclared element type ‘{element}’ \
+                         (given by {})",
+                        giver(feature)
+                    )
+                } else {
+                    write!(
+                        f,
+                        "Invalid documentation text for element type ‘{element}’ from {}: an \
+                         element type’s text must be given by a feature declaring the type \
+                         (declared by {})",
+                        giver(feature),
+                        givers(declarers)
+                    )
+                }
+            }
+            BuildError::DuplicateElementTypeText { element, first, second } => {
+                if first == second {
+                    write!(
+                        f,
+                        "Duplicate documentation text for element type ‘{element}’ (given twice \
+                         by {})",
+                        giver(first)
+                    )
+                } else {
+                    write!(
+                        f,
+                        "Duplicate documentation text for element type ‘{element}’ (given by {} \
+                         and by {})",
+                        giver(first),
+                        giver(second)
+                    )
+                }
             }
             BuildError::DuplicateFeature { feature } => {
                 write!(f, "two features are registered under the name `{feature}`")
@@ -1029,6 +1115,11 @@ pub struct Roster {
     pub collections: Vec<(FeatureName, CollectionDef)>,
     /// The argument roles, each with the declaring feature.
     pub argument_roles: Vec<(FeatureName, ArgumentRoleDef)>,
+    /// The documentation texts that features gave to element types
+    /// ([`FeatureBuilder::element_type_text`]), in declaration order. The
+    /// build checks them and adds the texts of the language's structural
+    /// element types and of the presentation elements.
+    pub element_type_texts: Vec<ElementTypeText>,
     /// The collection members, as (contributing feature, collection,
     /// member).
     pub members: Vec<(FeatureName, CapName, CapName)>,
@@ -1121,7 +1212,8 @@ enum Round {
 /// [`attach`](FeatureBuilder::attach), [`fallback`](FeatureBuilder::fallback),
 /// [`scoped_package`](FeatureBuilder::scoped_package),
 /// [`override_callable`](FeatureBuilder::override_callable),
-/// [`argument_role`](FeatureBuilder::argument_role)); capabilities and
+/// [`argument_role`](FeatureBuilder::argument_role),
+/// [`element_type_text`](FeatureBuilder::element_type_text)); capabilities and
 /// tables ([`capability`](FeatureBuilder::capability),
 /// [`collection`](FeatureBuilder::collection),
 /// [`collection_member`](FeatureBuilder::collection_member),
@@ -1306,6 +1398,72 @@ impl<'a> FeatureBuilder<'a> {
             resolved: false,
         });
         self.roster.elements.push(def);
+        Ok(())
+    }
+
+    /// Gives the element type `name` its documentation text: what the nodes
+    /// of that type mean, whatever their element value.
+    ///
+    /// An element type is the name its element values share, and each value
+    /// carries a text of its own ([`ElementSpec::docs`]); this text is the
+    /// type's, written once for all its values, not a copy of one value's
+    /// text. It is FLM, written as every documentation text is
+    /// ([`ElementDef::docs`](crate::lang::mint::ElementDef::docs)).
+    ///
+    /// This feature must declare the element type, in the sense that
+    /// [`peer_element_value`](Self::peer_element_value) defines: one of its
+    /// declarations other than a peer element value creates an element of
+    /// that name. A registry holds at most one text per element type, so of
+    /// several features that declare one type, one gives its text. The
+    /// language gives the texts of its [structural
+    /// elements](crate::lang::structural), and a [presentation
+    /// element](Self::presentation_element) has the text it is declared with.
+    ///
+    /// The finished registry gives the text by the type's name, with the
+    /// feature that gave it
+    /// ([`FlmRegistry::element_type_text`](super::FlmRegistry::element_type_text)).
+    ///
+    /// # Errors
+    ///
+    /// Never fails. When the registry is built, a text for an element type
+    /// this feature does not declare is reported as
+    /// [`BuildError::UndeclaredElementTypeText`], and a second text for one
+    /// element type as [`BuildError::DuplicateElementTypeText`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    /// use flm_core::core::registry::{BuildError, FeatureBuilder, FeatureInfo, FlmFeature, build_registry};
+    /// use flm_core::lang::mint::{ElementDef, SyntaxDef};
+    /// use flm_core::model::element::ElementSpec;
+    ///
+    /// struct Notes;
+    /// impl FlmFeature for Notes {
+    ///     fn info(&self) -> FeatureInfo { FeatureInfo::new("notes", "Notes") }
+    ///     fn register(&self, b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> {
+    ///         let note = Arc::new(ElementSpec::new("notes.note"));
+    ///         b.element(ElementDef::new("notes", ["note"], SyntaxDef::Macro { args: Vec::new() }, note)
+    ///             .docs("Starts a note."))?;
+    ///         b.element_type_text("notes.note", "A note, set apart from the text around it.")
+    ///     }
+    /// }
+    ///
+    /// let registry = build_registry([Arc::new(Notes) as Arc<dyn FlmFeature>])?;
+    /// let text = registry.element_type_text("notes.note").expect("given above");
+    /// assert_eq!(text.owner, "notes");
+    /// # Ok::<(), flm_core::core::registry::RegistryBuildError>(())
+    /// ```
+    pub fn element_type_text(
+        &mut self,
+        name: impl Into<ElementName>,
+        docs: impl Into<String>,
+    ) -> Result<(), BuildError> {
+        self.roster.element_type_texts.push(ElementTypeText {
+            element: name.into(),
+            docs: crate::kept_docs(docs),
+            owner: self.feature.clone(),
+        });
         Ok(())
     }
 

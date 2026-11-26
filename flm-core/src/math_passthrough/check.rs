@@ -1,7 +1,7 @@
 //! The check stage of the [`math-passthrough`](super) feature,
 //! `flm.math-passthrough.check`: the provider of the capability
-//! [`flm.math.content`](crate::stdcore::features::math::CONTENT), which the
-//! feature adds to the collection [`flm.validated`](crate::stdcore::VALIDATED),
+//! [`flm.math.content`](crate::stdlib::features::math::CONTENT), which the
+//! feature adds to the collection [`flm.validated`](crate::stdlib::VALIDATED),
 //! so that every workflow that validates a document runs this check.
 //!
 //! Passthrough mathematics reads nothing inside a formula, so the check
@@ -11,7 +11,7 @@
 //! `\\` at the start of a body, two `\\` in a row, a `\label` after the last
 //! `\\`) is reported as [`EmptyLine`] (`flm.math-passthrough.empty-line`), an
 //! Error. The line is written as written: the rules write every line the
-//! `math` feature reads ([`equation_lines`](crate::stdcore::features::math::lines::equation_lines)),
+//! `math` feature reads ([`equation_lines`](crate::stdlib::features::math::lines::equation_lines)),
 //! an empty one included.
 
 use techy::error::{Diagnostic, DiagnosticInfo};
@@ -21,11 +21,11 @@ use crate::core::plan::PlanCx;
 use crate::core::run::StageCx;
 use crate::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use crate::model::element::{element_of, element_value};
-use crate::stdcore::features::math::{CONTENT, ENVIRONMENT, MathEnvironment, lines};
+use crate::stdlib::features::math::{CONTENT, ENVIRONMENT, MathEnvironment, lines};
 
 /// The name of the check stage, `flm.math-passthrough.check`: it provides
 /// [`flm.math.content`](CONTENT), a member of the collection
-/// [`flm.validated`](crate::stdcore::VALIDATED) that the feature adds, accepts
+/// [`flm.validated`](crate::stdlib::VALIDATED) that the feature adds, accepts
 /// every formula, and reports every equation line that holds no mathematics
 /// ([`EmptyLine`]). See the module documentation.
 pub const CHECK: &str = "flm.math-passthrough.check";
@@ -49,7 +49,7 @@ pub struct EmptyLine {
     pub environment: String,
     /// The index of the empty line among the environment's lines, counting from
     /// zero: its position in the list
-    /// [`equation_lines`](crate::stdcore::features::math::lines::equation_lines)
+    /// [`equation_lines`](crate::stdlib::features::math::lines::equation_lines)
     /// returns.
     pub line: usize,
 }

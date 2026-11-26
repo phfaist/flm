@@ -13,15 +13,15 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::quote::latex_rendered::PIECE;
-use flm_core::stdcore::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::quote::latex_rendered::PIECE;
+use flm_core::stdlib::features::quote::{QuoteConfig, QuoteEnvironment, QuoteSection};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The documents of the Python product's quote tests one to three: every
@@ -86,7 +86,7 @@ fn environments_a_host_configures_are_quotations() {
     let config = QuoteConfig::new()
         .environment("myquote", QuoteEnvironment::new([QuoteSection::Text]))
         .environment("aside", QuoteEnvironment::new([]).bare(QuoteSection::Block));
-    let registry = common::stdcore::registry(StdcoreConfig::new().quote(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().quote(config));
     let run = render(
         &registry,
         &["\\begin{myquote}\\text{Mine.}\\end{myquote}\n\n\\begin{aside}Aside.\\end{aside}\n"],

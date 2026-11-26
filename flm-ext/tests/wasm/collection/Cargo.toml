@@ -1,0 +1,36 @@
+# A collection of two extensions: the extensions `keep` and `show`, written against the
+# guest client `flm_ext::guest` and compiled to one WebAssembly module whose exports the
+# macro `extensions!` writes over a table of code of two rows, and whose custom section
+# `flmextensions` holds the manifest of each (the macro `flm_ext::collection::record!`). A
+# standalone crate (its own empty workspace, outside the repository's), built by the gated
+# test `flm-ext/tests/wasm_collection.rs` with
+#
+#     cargo build --manifest-path flm-ext/tests/wasm/collection/Cargo.toml \
+#         --target wasm32-unknown-unknown --release --locked
+#
+# The lockfile `Cargo.lock` beside this file is committed, and the build is `--locked`: when
+# the version or the dependencies of `flm-core` or `flm-ext` change, regenerate it with
+#
+#     cargo generate-lockfile --manifest-path flm-ext/tests/wasm/collection/Cargo.toml --offline
+[package]
+name = "collection"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+flm-ext = { path = "../../..", default-features = false, features = ["guest"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+codegen-units = 1
+
+[workspace]

@@ -23,7 +23,7 @@
 //! `tests/latex_compile.rs` under `pdflatex` and `lualatex`, plain and with
 //! `hyperref`, with a `thebibliography` appended that defines the cited keys,
 //! when `FLM_TESTS_LATEX_COMPILE` is set), and every run's diagnostics under
-//! `tests/goldens/stdcore/`. The key no provider answers is an Error of the
+//! `tests/goldens/stdlib/`. The key no provider answers is an Error of the
 //! check stage, which every workflow runs, `check` included; the heading above
 //! the root is an Error of the two renders that choose a heading's tag, which
 //! `check` does not see. The last test runs each workflow sequentially and in
@@ -41,9 +41,11 @@ use flm_core::dump::golden::assert_text_golden;
 use flm_core::dump::project::{ProjectOptions, Projector};
 use flm_core::dump::to_json_pretty;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::citations::{CitationPlacement, CitationsConfig, MarkForm};
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig};
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::citations::{CitationPlacement, CitationsConfig, MarkForm};
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig};
+
+use common::stdlib::UNCHECKED_OUTPUT;
 
 // ---------------------------------------------------------------------------------------------
 // the document and its entries
@@ -143,7 +145,7 @@ fn cases() -> Vec<Case> {
 /// [`ENTRIES`] answered by the test provider.
 fn registry(case: &Case) -> Arc<FlmRegistry> {
     common::citations::registry_with(
-        StdcoreConfig::new().citations(case.config.clone()),
+        StdlibConfig::new().citations(case.config.clone()),
         vec![Arc::new(common::citations::FromMap::of(&ENTRIES))],
     )
 }
@@ -168,7 +170,7 @@ fn overrides(case: &Case) -> Overrides {
 /// The run of `workflow` over [`DOCUMENT`] under `case`.
 fn run(registry: &Arc<FlmRegistry>, case: &Case, workflow: &str, options: &RunOptions) -> Run {
     let doc = common::pipeline::doc_with_options(registry, &[DOCUMENT], OptionValues::new());
-    let plan = common::stdcore::plan(registry, workflow, &overrides(case));
+    let plan = common::stdlib::plan(registry, workflow, &overrides(case));
     common::pipeline::run_with(&doc, &plan, Externals::none(), options)
 }
 
@@ -180,7 +182,7 @@ fn every_workflow_writes_each_case_as_its_golden() {
         for workflow in WORKFLOWS {
             let run = run(&registry, &case, workflow, &RunOptions::sequential());
             writeln!(diagnostics, "===== {workflow} =====").expect("writing to a string");
-            diagnostics.push_str(&common::stdcore::diagnostic_lines(&run));
+            diagnostics.push_str(&common::stdlib::diagnostic_lines(&run));
             match workflow {
                 text::WORKFLOW => assert_text_golden(
                     common::lowering::golden_path(&format!("citations-e2e-{}.txt", case.name)),
@@ -198,7 +200,7 @@ fn every_workflow_writes_each_case_as_its_golden() {
             }
         }
         assert_text_golden(
-            common::stdcore::golden_path(&format!("citations-e2e-{}-diagnostics.txt", case.name)),
+            common::stdlib::golden_path(&format!("citations-e2e-{}-diagnostics.txt", case.name)),
             &diagnostics,
         );
     }
@@ -236,9 +238,13 @@ fn the_missing_key_is_reported_by_every_workflow_and_the_heading_above_the_root_
             // that writes it reports its unknown size.
             let unknown_size = usize::from(workflow != CHECK_WORKFLOW);
             assert_eq!(count("flm.graphics.unknown-size"), unknown_size, "{} under {workflow}", case.name);
+            // The formulas of `math-passthrough` are unchecked on the page
+            // and in the recomposed LaTeX.
+            let unchecked = usize::from(workflow == html::WORKFLOW || workflow == latex_recomposed::WORKFLOW);
+            assert_eq!(count(UNCHECKED_OUTPUT), unchecked, "{} under {workflow}", case.name);
             assert_eq!(
                 run.diagnostics().iter().count(),
-                1 + above + unknown_size,
+                1 + above + unknown_size + unchecked,
                 "{} under {workflow}: {}",
                 case.name,
                 run.diagnostics().render_all()

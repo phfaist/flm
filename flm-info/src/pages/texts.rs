@@ -1,15 +1,17 @@
 //! The documentation texts a page embeds as FLM, and whose text each is ([`texts`]).
 
 use flm_core::core::registry::HOST_FEATURE;
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
+use flm_core::core::settings::Mark;
+#[cfg(feature = "flm-host")]
 use serde_json::Value;
 
 use super::Page;
 use super::paths::LANGUAGE_OWNER;
 use crate::env::Environment;
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 use crate::host::OriginView;
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 use crate::summary_of;
 
 /// A documentation text that a page embeds as FLM, as [`texts`] lists it.
@@ -37,11 +39,11 @@ pub enum TextSource {
         package: Option<String>,
     },
     /// A text written as data in a settings value, by a package of an extension, in a
-    /// document's front matter, or on the command line (cargo feature `flm-main`): the
+    /// document's front matter, or on the command line (cargo feature `flm-host`): the
     /// documentation text of a workflow given as data, or a text in the value of a feature's
     /// settings key, such as that of a user definition, when that key or entry alone holds it
     /// (see [`texts`]).
-    #[cfg(feature = "flm-main")]
+    #[cfg(feature = "flm-host")]
     Written {
         /// What holds the text.
         holder: TextHolder,
@@ -58,7 +60,7 @@ pub enum TextSource {
 
 /// The settings value that holds a documentation text written as data
 /// ([`TextSource::Written`]).
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TextHolder {
@@ -92,8 +94,9 @@ pub enum TextHolder {
 /// texts that do not parse in [`SourceOptions::plain_texts`](super::SourceOptions::plain_texts).
 ///
 /// A text's source is the feature that declares what it documents, with that feature's
-/// package. A text written as data comes from where it was written, as the settings cascade
-/// gives it (cargo feature `flm-main`):
+/// package; an element type's text comes from the feature that gave it, on every page that
+/// shows it. A text written as data comes from where it was written, as the settings cascade
+/// gives it (cargo feature `flm-host`):
 ///
 /// - the documentation text of a workflow whose field `docs` a settings source wrote, found
 ///   by the workflow's name;
@@ -115,27 +118,27 @@ pub fn texts(page: &Page) -> Vec<EmbeddedText> {
 /// The source of `text`, a documentation text declared by `owner` for itself or for what it
 /// declares, in `env`: [`TextSource::Flm`] for no owner, the language's own name or the
 /// host's ([`HOST_FEATURE`]); where it was written, for a text written as data in exactly one
-/// of the owner's settings keys or entries (cargo feature `flm-main`); else the feature and
+/// of the owner's settings keys or entries (cargo feature `flm-host`); else the feature and
 /// its package.
 pub(super) fn declared(env: &Environment, owner: Option<&str>, text: &str) -> TextSource {
     let owner = match owner {
         None | Some(LANGUAGE_OWNER) | Some(HOST_FEATURE) => return TextSource::Flm,
         Some(owner) => owner,
     };
-    #[cfg(feature = "flm-main")]
+    #[cfg(feature = "flm-host")]
     if let Some(source) = written_in_settings(env, owner, text) {
         return source;
     }
-    #[cfg(not(feature = "flm-main"))]
+    #[cfg(not(feature = "flm-host"))]
     let _ = text;
     TextSource::Feature { feature: owner.to_string(), package: env.package_of(owner) }
 }
 
 /// The source of `text`, the documentation text of the workflow called `name` (or its
 /// summary), in `env`: where the workflow's field `docs` was written when a settings source
-/// wrote it (cargo feature `flm-main`), else the feature that declares the workflow.
+/// wrote it (cargo feature `flm-host`), else the feature that declares the workflow.
 pub(super) fn workflow(env: &Environment, name: &str, text: &str) -> TextSource {
-    #[cfg(feature = "flm-main")]
+    #[cfg(feature = "flm-host")]
     if let Some(origin) = workflow_docs_origin(env, name) {
         let holder = TextHolder::Workflow { name: name.to_string() };
         return TextSource::Written { holder, origin: Box::new(origin.clone()) };
@@ -144,16 +147,36 @@ pub(super) fn workflow(env: &Environment, name: &str, text: &str) -> TextSource 
     declared(env, owner.as_deref(), text)
 }
 
+/// The source of `text`, the documentation text of the element type called `name` (or its
+/// summary), in `env`: the feature that gave the type's text, on every page that shows it.
+pub(super) fn element_type(env: &Environment, name: &str, text: &str) -> TextSource {
+    let owner = env.registry().element_type_text(name).map(|type_text| type_text.owner.to_string());
+    declared(env, owner.as_deref(), text)
+}
+
+/// The source of `text`, the summary of the entry called `name` of the namespace
+/// `namespace`, whose owner is `owner`, in `env`: a feature's own, a workflow's
+/// ([`workflow`]), an element type's ([`element_type`]), and for any other namespace the
+/// text that `owner` declares ([`declared`]).
+pub(super) fn entry(env: &Environment, namespace: &str, name: &str, owner: Option<&str>, text: &str) -> TextSource {
+    match namespace {
+        "feature" => declared(env, Some(name), text),
+        "workflow" => workflow(env, name, text),
+        "element" => element_type(env, name, text),
+        _ => declared(env, owner, text),
+    }
+}
+
 /// Where the field `docs` of the workflow called `name` was written, when a settings source
 /// wrote it.
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 fn workflow_docs_origin<'a>(env: &'a Environment, name: &str) -> Option<&'a OriginView> {
     env.host()?.workflows.get(name)?.get(DOCS_KEY)
 }
 
 /// The key under which a value written as data holds a documentation text: the field of a
 /// workflow, of a user definition and of its arguments, of a heading kind.
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 const DOCS_KEY: &str = "docs";
 
 /// The source of `text` when it was written in the settings of `owner`: when exactly one key
@@ -169,7 +192,7 @@ const DOCS_KEY: &str = "docs";
 /// that holds it is one of the feature's own: the registry does not record from which entry a
 /// declaration was made, so a text with more than one possible place is credited to the
 /// feature, never to a guess.
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 fn written_in_settings(env: &Environment, owner: &str, text: &str) -> Option<TextSource> {
     let in_effect = env.host()?.settings.get(owner)?;
     let decl = env.factories().iter().find_map(|factory| factory.settings(owner));
@@ -189,7 +212,9 @@ fn written_in_settings(env: &Environment, owner: &str, text: &str) -> Option<Tex
         }
     }
     if let Some(decl) = decl {
-        for mark in decl.marks().iter().filter(|mark| mark.merge_entries && !in_effect.keys.contains_key(&mark.path)) {
+        for mark in decl.marks().iter().filter(|mark| {
+            mark.has(Mark::MergeObjectKeyValues) && !mark.path.contains('.') && !in_effect.keys.contains_key(&mark.path)
+        }) {
             for (entry, entry_value) in decl.default_entries(&mark.path).into_iter().flatten() {
                 if holds(entry_value, text) {
                     found.push((mark.path.as_str(), Some(entry.as_str()), None));
@@ -206,7 +231,7 @@ fn written_in_settings(env: &Environment, owner: &str, text: &str) -> Option<Tex
 
 /// Whether `value` holds `text`, or a text whose summary is `text`, under a key `docs` at
 /// any depth.
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 fn holds(value: &Value, text: &str) -> bool {
     match value {
         Value::Object(map) => map.iter().any(|(key, entry)| match entry {

@@ -1,4 +1,4 @@
-//! The LaTeX family (`flm_core::stdcore::backends::latex`) as the standard
+//! The LaTeX family (`flm_core::stdlib::backends::latex`) as the standard
 //! package registers it: the four construct elements and the two requirement
 //! slots with their standard contributions; the escaping under both Unicode
 //! modes over the study's probe string, with an override and an unknown
@@ -16,37 +16,37 @@ use flm_core::dump::session::PayloadReaders;
 use flm_core::lang::{FlmNodeExt, PresPayload};
 use flm_core::model::names::Name;
 use flm_core::model::options::TypeKey;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::construct::{self, ALL, arg_slots, payload_readers};
-use flm_core::stdcore::backends::latex::escape::{
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::construct::{self, ALL, arg_slots, payload_readers};
+use flm_core::stdlib::backends::latex::escape::{
     Declared, EscapeConfig, UnicodeMode, escape_into, spelling_for,
 };
-use flm_core::stdcore::backends::latex::packages::{
+use flm_core::stdlib::backends::latex::packages::{
     self, LatexPackageDef, chunk_package_id, merge_requests, packages_named,
 };
-use flm_core::stdcore::backends::latex::preamble::{self, LatexPreambleDef, piece_named};
-use flm_core::stdcore::backends::latex::sink::{LatexRaw, LatexSink, comment_percent};
-use flm_core::stdcore::backends::latex_rendered;
-use flm_core::stdcore::backends::latex::style::{
+use flm_core::stdlib::backends::latex::preamble::{self, LatexPreambleDef, piece_named};
+use flm_core::stdlib::backends::latex::sink::{LatexRaw, LatexSink, comment_percent};
+use flm_core::stdlib::backends::latex_rendered;
+use flm_core::stdlib::backends::latex::style::{
     ExtraPreamble, RecomposedDefinition, assemble_style, content_hash, style_body,
 };
-use flm_core::stdcore::backends::latex::{
+use flm_core::stdlib::backends::latex::{
     FEATURE_NAME, LatexArgShape, LatexDefinitionKind, LatexDefinitionPayload,
     LatexEnvironmentPayload, LatexMacroPayload, LatexRawPayload,
 };
-use flm_core::stdcore::backends::pres;
+use flm_core::stdlib::backends::pres;
 use flm_core::lang::FlmGroupType;
 use techy::core::node::NodeRef;
 
 use common::dump::round_trip_value;
 use common::latex::golden_path;
-use common::stdcore::registry;
+use common::stdlib::registry;
 
 /// The Python study's probe string.
 const PROBE: &str = "Café — naïve “quotes” ½ ≤ α";
 
 fn package() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 // --- registration --------------------------------------------------------------------------
@@ -106,7 +106,7 @@ fn the_standard_package_declares_both_slots_with_the_standard_contributions() {
             "flm.latex.def.flmx.floats",
             "flm.latex.def.flmx.cells.styles",
             "flm.latex.def.flmx.citations",
-            "flm.latex.def.flmx.meta",
+            "flm.latex.def.flmx.metadata",
             "flm.latex.def.flmx.toc",
         ]
     );

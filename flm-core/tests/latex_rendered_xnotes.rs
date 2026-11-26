@@ -1,5 +1,5 @@
 //! Notes on the `latex-rendered` backend, end to end over the standard
-//! package: the documents `tests/stdcore_xnotes_html.rs` renders, under the
+//! package: the documents `tests/stdlib_xnotes_html.rs` renders, under the
 //! kind's two placements. A kind placed in a list (the default `footnote`)
 //! writes the mark in the text and the notes as a block after the content; a
 //! kind placed in place writes `\flmxXnote[<keys>]{<mark>}{<content>}`
@@ -15,16 +15,16 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::features::numbering::{NumberTemplate, PrefixWords};
-use flm_core::stdcore::features::xnotes::latex_rendered::{PIECE, RULE};
-use flm_core::stdcore::features::xnotes::{XnoteKind, XnotePlacement, XnotesConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::features::numbering::{NumberTemplate, PrefixWords};
+use flm_core::stdlib::features::xnotes::latex_rendered::{PIECE, RULE};
+use flm_core::stdlib::features::xnotes::{XnoteKind, XnotePlacement, XnotesConfig};
 
 use common::latex_rendered::{assert_golden, document, render, style};
 
 /// The standard package, its xnotes feature under `xnotes`.
 fn registry(xnotes: XnotesConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().xnotes(xnotes))
+    common::stdlib::registry(StdlibConfig::new().xnotes(xnotes))
 }
 
 /// The configuration whose `footnote` kind is placed in place.

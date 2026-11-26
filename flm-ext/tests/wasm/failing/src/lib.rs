@@ -16,7 +16,7 @@ use flm_ext::guest::lang::mint::ArgDef;
 use flm_ext::guest::lang::rewrites::userdefs::{
     Definition, Expand, ExpandCx, Expander, Expansion, UserDefinition,
 };
-use flm_ext::guest::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::guest::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::guest::techy::node::Node;
 use flm_ext::guest::{Extension, Feature, Package};
 use serde_json::{Value, json};
@@ -24,7 +24,7 @@ use serde_json::{Value, json};
 flm_ext::guest::extension!(extension);
 
 fn extension(ext: &mut Extension) {
-    ext.package("_", Package::new().uses(["stdcore"]).feature("failing", Feature::new().register(register)));
+    ext.package("_", Package::new().feature("failing", Feature::new().register(register)));
 }
 
 /// Declares the macro `name` of one mandatory argument, expanded by `hook`, with its

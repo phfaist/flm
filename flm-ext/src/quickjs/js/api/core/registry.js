@@ -2,7 +2,7 @@
 // `flm-ext/src/api/core/registry.rs`; do not edit.
 //
 // Mirrors `flm_core::core::registry`: the builder a feature declares its contributions through.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 import { Needs } from "flm:core/stage";
 import { record_rewrite, lend_rewrite, contributed } from "flm:_runtime";
 import { aspect_for, record_late_init, record_finalizer, lend_late_init, lend_finalizer } from "flm:_runtime";
@@ -97,6 +97,10 @@ export class FeatureBuilder extends Handle {
   feature() { return this._token === null ? registering_feature() : call(this, "feature", []); }
   // Mirrors `FeatureBuilder::element`: declares an element and the syntax that produces it.
   element(def) { if (this._token !== null) return call(this, "element", [def]); }
+  // Mirrors `FeatureBuilder::element_type_text`: gives the element type `name`, which this feature
+  // declares, its documentation text: what the nodes of that type mean, whatever their element
+  // value.
+  element_type_text(name, docs) { if (this._token !== null) return call(this, "element_type_text", [name, docs]); }
   // Mirrors `FeatureBuilder::fallback`: declares the element an unknown macro or environment
   // becomes.
   fallback(def) { if (this._token !== null) return call(this, "fallback", [def]); }

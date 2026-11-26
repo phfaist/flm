@@ -1,0 +1,48 @@
+---
+title: A US letter
+flm:
+  use: [letter]
+  features:
+    compose:
+      template_config:
+        html:
+          letter: {style: us, paper: letter, logo: placeholder}
+        latex-rendered:
+          letter: {style: us, paper: letter, logo: placeholder}
+---
+\begin{letter}
+
+\begin{fromaddress}
+Alex Morgan\\
+Example Research Institute\\
+100 Example Avenue\\
+Boston, MA 02110\\
+\email{alex@example.org}
+\end{fromaddress}
+
+\letterdate{November 16, 2026}
+
+\begin{toaddress}
+Dr. Taylor Smith\\
+Example University\\
+200 University Road\\
+New York, NY 10001
+\end{toaddress}
+
+\lettersubject{Invitation to a research workshop}
+\salutation{Dear Dr. Smith:}
+
+We would be delighted to welcome your research group to our next workshop.
+Please find the proposed program enclosed for your consideration.
+
+We look forward to hearing from you and would be happy to discuss any changes
+that would help your group participate.
+
+\closing{Sincerely,}
+\begin{signature}
+Alex Morgan\\
+Research Coordinator
+\end{signature}
+\enclosed{Enclosure: Proposed program}
+
+\end{letter}

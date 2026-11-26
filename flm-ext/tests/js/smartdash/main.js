@@ -10,7 +10,7 @@
 //   new Needs().after(capability).before(capability)
 //   b.rewrite_stage({ decl(), needs(), restage(node, cx, rs) })
 //   rs.stage_chars(text, like)                      a characters node, placed like `like`
-//   rs.restage_subtree(node)                        → [staged, …]
+//   rs.restage_subtree(node)                        → StagedNodes, a sequence of staged nodes
 //   rs.restage_argument_with_content(node, index, [staged, …])
 //   rs.restage_invocation(node, [argument, …], [slot, …])
 //   Restage.Descend, Restage.Emit([staged, …])
@@ -22,7 +22,7 @@ import { Restage } from "flm:techy/transform";
 import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
 import { ArgDef, ElementDef, Mode, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec } from "flm:model/element";
-import { SPAN } from "flm:stdcore/backends/pres";
+import { SPAN } from "flm:stdlib/backends/pres";
 
 const STAGE = "smartdash.dash";
 const DASHED = "smartdash.dashed";
@@ -41,7 +41,6 @@ function dashed(text) { return text.replace(/---/g, "—").replace(/--/g, "–")
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     flm: { workflows: { smartdash: { extends: "text", demands: [DASHED], docs: "The text output, with the dashes replaced." } } },
     features: {
       dashes: { title: "Smart dashes", docs: "Replaces `--` and `---` by dashes before the trees are frozen.", register },
@@ -63,7 +62,8 @@ function register(b) {
         return Restage.Emit([rs.stage_chars(dashed(text), node)]);          // shape 1: characters replaced
       }
       if (node.element_name() === QUOTE) {                                   // shape 2: a tree built from parts
-        const content = (node.argument_content_nodes_named("text") ?? []).flatMap(child => rs.restage_subtree(child));
+        const content = [];
+        for (const child of node.argument_content_nodes_named("text") ?? []) content.push(rs.restage_subtree(child));
         const argument = rs.restage_argument_with_content(node, 0, content);
         return Restage.Emit([
           rs.stage_chars("“", node),

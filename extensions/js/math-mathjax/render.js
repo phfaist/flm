@@ -36,8 +36,26 @@
 // `math-mathjax.tex-error` at the formula, with MathJax's message, and no row;
 // any other failure (a limit of the engine) fails the stage as any handler
 // failure does, the rows written before it staying.
+//
+// The stage asks the cache `typeset.mathml` of the host service `cache` for
+// each formula before it converts it, and stores what `MathJax.convert`
+// answers, before `cleaned` drops what the page does not carry, as the
+// value's record. The key is the list of: the version of MathJax the bundle
+// holds, the settings that configure the TeX input (`packages`, `preamble`,
+// and `export_commands`, the commands of the preamble that a formula may
+// hold), whether the formula is displayed, and the TeX string given to
+// MathJax (`typeset_key`). The other settings change nothing that
+// `MathJax.convert` answers, and the row's other members come from the tree.
+// A formula MathJax cannot typeset is not stored, so it is converted again,
+// with its error, at every build.
+//
+// For a tree that has formulas, the stage declares on the build's progress
+// sheet one row of kind `math-mathjax.formulas` ("Rendering formulas"),
+// counting the formulas, and advances it at each formula, found in the cache,
+// converted, or not converted.
 import { StageDecl, Needs, Effect, Scope } from "flm:core/stage";
-import { MATH, ENVIRONMENT, ANCHORS, COUNTERS, RENDERED, line_frames } from "flm:stdcore/features/math";
+import { Unit } from "flm:progress";
+import { MATH, ENVIRONMENT, ANCHORS, COUNTERS, RENDERED, line_frames } from "flm:stdlib/features/math";
 import { formula_tex, tex_string } from "./tex.js";
 
 // The stage, its table and its diagnostic.
@@ -45,10 +63,37 @@ export const RENDER_STAGE = "math-mathjax.render";
 export const RENDERED_TABLE = "math-mathjax.rendered";
 export const TEX_ERROR = "math-mathjax.tex-error";
 
+// The kind of the progress row that counts the formulas of a tree, and its
+// title.
+const FORMULAS_KIND = "math-mathjax.formulas";
+const FORMULAS_TITLE = "Rendering formulas";
+
 // The capabilities of the expansion of user definitions, after which the
 // stage runs when the plan holds it, so that MathJax sees expanded content.
 const EXPANDED = "flm.userdefs.expanded";
 const ALWAYS_EXPANDED = "flm.userdefs.always-expanded";
+
+// The cache of the MathML that MathJax answers, which the package declares
+// (`main.js`), with its declaration.
+export const TYPESET_CACHE = "typeset.mathml";
+export const TYPESET_DECLARATION = Object.freeze({
+  version: 1,
+  values: { engine: "sqlite" },
+  unused_s: 90 * 24 * 60 * 60,
+  cost_ms: 20,
+  scope: "shared",
+});
+
+// The host service that keeps it.
+export const CACHE_SERVICE = "cache";
+
+// The key of the formula whose TeX string is `input`, displayed or not, under
+// the configuration `config`: everything that `MathJax.convert` answers
+// depends on, beside the extension's own package (`OWN` of `definitions.js`),
+// which changes only with the version of the cache's declaration.
+function typeset_key(mathjax, config, display, input) {
+  return [mathjax.VERSION, config.packages, config.preamble, config.export_commands, display, input];
+}
 
 // The first private-use character: the marker of hole 0.
 export const FIRST_MARKER = 0xE000;
@@ -88,8 +133,9 @@ function cleaned(tree) {
 // bundle's object, `jax` the TeX input configured when the feature registers
 // (with the TeX packages the feature's configuration lists and the
 // extension's own delimiters, `OWN` of `definitions.js`): this one TeX input
-// converts every formula, through a fresh document object each.
-export function register_render(b, mathjax, jax) {
+// converts every formula, through a fresh document object each. `config` is
+// the feature's configuration, as `main.js` reads it.
+export function register_render(b, mathjax, jax, config) {
   b.table_refining(RENDERED_TABLE, RENDERED,
     "The MathML of each formula, as MathJax converted it, keyed by the formula's address.");
   b.stage({
@@ -104,23 +150,39 @@ export function register_render(b, mathjax, jax) {
     run(cx, out) {
       const tree = cx.my_tree();
       if (tree === null) return;
-      for (const node of tree.root().descendants()) {
+      // The formulas are counted with a first traversal, since the row's
+      // total is fixed when it starts, and converted with a second one.
+      const formulas = () => tree.root().descendants().elements([MATH, ENVIRONMENT]);
+      let count = 0;
+      for (const _ of formulas()) count += 1;
+      if (count === 0) return;
+      const cache = cx.host(CACHE_SERVICE);
+      const progress = cx.progress().child(FORMULAS_KIND, FORMULAS_TITLE, null).start_counted(Unit.Items, count);
+      for (const node of formulas()) {
         const element = node.element_name();
-        if (element !== MATH && element !== ENVIRONMENT) continue;
         const frames = element === ENVIRONMENT ? line_frames(cx, true, true, node) : null;
         const tex = formula_tex(node, frames);
+        const input = tex_string(tex, hole_tex);
+        const key = typeset_key(mathjax, config, tex.display, input);
+        const kept = cache.call("get", { cache: TYPESET_CACHE, key });
         let mathml;
-        try {
-          mathml = mathjax.convert(jax, tex_string(tex, hole_tex), tex.display);
-        } catch (error) {
-          if (!(error instanceof mathjax.TexError)) throw error;
-          out.diags({
-            id: TEX_ERROR,
-            severity: "error",
-            message: `MathJax cannot typeset the formula: ${error.message}`,
-            at: node,
-          });
-          continue;
+        if (kept !== null) {
+          mathml = kept.record;
+        } else {
+          try {
+            mathml = mathjax.convert(jax, input, tex.display);
+          } catch (error) {
+            if (!(error instanceof mathjax.TexError)) throw error;
+            out.diags({
+              id: TEX_ERROR,
+              severity: "error",
+              message: `MathJax cannot typeset the formula: ${error.message}`,
+              at: node,
+            });
+            progress.advance(1);
+            continue;
+          }
+          cache.call("put", { cache: TYPESET_CACHE, key, record: mathml });
         }
         out.table(RENDERED_TABLE).push({
           addr: cx.addr_of(node),
@@ -129,7 +191,9 @@ export function register_render(b, mathjax, jax) {
           display: tex.display,
           environment: tex.environment,
         });
+        progress.advance(1);
       }
+      progress.finish();
     },
   });
 }

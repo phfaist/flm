@@ -4,7 +4,7 @@
 // (`.#_`) and defines `\tpqed` and a table of its own.
 import { StageDecl, Effect, Scope } from "flm:core/stage";
 import { Definition, UserDefinition } from "flm:lang/rewrites/userdefs";
-import { element_name_under, expand_in_tree_rule_for } from "flm:stdcore/features/userdefs";
+import { element_name_under, expand_in_tree_rule_for } from "flm:stdlib/features/userdefs";
 import { mark } from "./shared.js";
 
 // Declares `definition`, its element under the stem, and its lowering rule.
@@ -16,7 +16,6 @@ function declare(b, definition) {
 
 export default function (ext) {
   ext.package("_", {
-    uses: ["stdcore"],
     features: {
       twopack: {
         title: "Marks",

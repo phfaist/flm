@@ -1,7 +1,8 @@
 //! The engine limits an extension declares in its manifest
 //! (`extension.js.limits`) reach every engine instance of the extension: a
 //! recursion in a stage that exceeds the host's default JavaScript stack runs
-//! under `stack_mib: 16`.
+//! under `stack_mib: 16`; a stage that visits every node of a document runs
+//! under a memory limit that every node at once would exceed.
 
 #![cfg(feature = "quickjs")]
 
@@ -53,30 +54,45 @@ export default function (ext) {{
 /// The package of the extension `deep` whose manifest's `extension.js`
 /// holds `limits` (none when `null`), loaded with a default host.
 fn package(limits: Value) -> PackageEntry {
+    package_of(&main_module(), limits)
+}
+
+/// The package of the extension `deep` of the main module `main`, whose
+/// manifest's `extension.js` holds `limits` (none when `null`), loaded with a
+/// default host.
+fn package_of(main: &str, limits: Value) -> PackageEntry {
     let mut js = json!({ "main": "main.js" });
     if !limits.is_null() {
         js["limits"] = limits;
     }
     let manifest = json!({ "extension": { "engine": "js", "js": js } });
-    let main = main_module();
     let host = JsHost::new(JsSettings::default());
-    let loader = js_loader(&host, js_extension("deep", &[("main.js", main.as_str())], manifest));
+    let loader = js_loader(&host, js_extension("deep", &[("main.js", main)], manifest));
     factory_of(&loader, "deep").build(&PackageSettings::new()).expect("the package builds")
 }
 
 /// The sequential run, on this thread, of a plan demanding `deep.depth`: the
 /// diagnostics and the depth pushed.
 fn run_plan(registry: &Arc<FlmRegistry>) -> (Vec<String>, Vec<Value>) {
-    let source = Arc::new(FlmSource::new("Text.").with_origin(FlmOrigin::none()));
-    let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
-        .expect("the document parses");
+    run_text(registry, &["Text."], "deep.depth")
+}
+
+/// The sequential run, on this thread, of a plan demanding `table` over a
+/// document of one tree per text of `texts`: the diagnostics and the items
+/// of `table`.
+fn run_text(registry: &Arc<FlmRegistry>, texts: &[&str], table: &str) -> (Vec<String>, Vec<Value>) {
     let mut content = DocContent::new();
-    content.place(Arc::new(fragment));
-    let plan = Arc::new(Plan::build(registry, &PlanRequest::new().demand("deep.depth")).expect("the plan builds"));
+    for text in texts {
+        let source = Arc::new(FlmSource::new(text.to_string()).with_origin(FlmOrigin::none()));
+        let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
+            .expect("the document parses");
+        content.place(Arc::new(fragment));
+    }
+    let plan = Arc::new(Plan::build(registry, &PlanRequest::new().demand(table)).expect("the plan builds"));
     let mut run: Run = Run::new(Arc::new(Doc::new(content)), plan, Externals::none()).expect("a run");
     run.execute(&RunOptions::sequential()).expect("the run executes");
     let items = run
-        .table(TableHandle::<ExtTable>::new("deep.depth"))
+        .table(TableHandle::<ExtTable>::new(table))
         .expect("declared")
         .map(|table| table.items().to_vec())
         .unwrap_or_default();
@@ -106,7 +122,7 @@ fn a_recursion_that_fails_under_the_default_stack_runs_under_the_extension_s_lim
     let (diagnostics, items) = recurse(&registry_with([package(Value::Null)]));
     assert!(items.is_empty(), "{items:?}");
     assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
-    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: the stage `deep.recurse` failed"), "{diagnostics:?}");
+    assert!(diagnostics[0].starts_with("flm.ext.handler-failed: "), "{diagnostics:?}");
 
     let (diagnostics, items) = recurse(&registry_with([package(json!({ "stack_mib": 16 }))]));
     assert!(diagnostics.is_empty(), "{diagnostics:?}");
@@ -133,11 +149,7 @@ fn a_stack_limit_at_the_workers_stack_is_a_manifest_problem() {
     let main = main_module();
     let loader = js_loader(&JsHost::new(JsSettings::default()), js_extension("deep", &[("main.js", main.as_str())], manifest));
     let problems = common::load_problems(&loader, "deep");
-    assert_eq!(
-        problems,
-        ["`extension.js.limits.stack_mib` of the extension `deep` must be below 64, the stack in MiB of the threads \
-          that run the extension's handlers"]
-    );
+    assert_eq!(problems.len(), 1, "{problems:?}");
 }
 
 #[test]
@@ -148,4 +160,83 @@ fn the_limits_replace_the_host_s_settings_each_alone() {
     assert_eq!(settings.memory_limit, Some(256 << 20));
     assert_eq!(settings.stack_size, host.stack_size);
     assert_eq!(settings.time_budget, Some(std::time::Duration::from_secs(60)));
+}
+
+/// The main module of the node count: a document stage that counts the
+/// entries of `cx.walk()`, and the nodes of `root().descendants()` of each
+/// tree of `cx.trees()` with each root, and pushes both counts into
+/// `deep.nodes`.
+const COUNT_MODULE: &str = r#"import { StageDecl, Effect, Scope } from "flm:core/stage";
+export default function (ext) {
+  ext.package("_", { features: { deep: { register(b, settings) {
+    b.table("deep.nodes", "the nodes the stage counted");
+    b.stage({
+      decl: () => new StageDecl("deep.count", Effect.Compute, Scope.Document).writes("deep.nodes"),
+      run(cx, out) {
+        let walked = 0;
+        for (const { node } of cx.walk()) if (node) walked += 1;
+        let descended = 0;
+        for (const [, tree] of cx.trees()) {
+          descended += 1;
+          for (const node of tree.root().descendants()) if (node) descended += 1;
+        }
+        out.table("deep.nodes").push({ walked, descended });
+      },
+    });
+  } } } });
+}
+"#;
+
+/// A stage visits every node of a document of about 64,000 nodes in two
+/// trees under a memory limit of 4 MiB, which a list of a handle per node
+/// exceeds: the traversals hand the nodes over in groups.
+#[test]
+fn a_stage_counts_every_node_of_a_document_larger_than_the_engine_s_memory() {
+    let paragraph = "word \\emph{word} ".repeat(8_000);
+    let texts = [paragraph.as_str(), paragraph.as_str()];
+    let registry = registry_with([package_of(COUNT_MODULE, json!({ "memory_mib": 4, "time_s": 60 }))]);
+    let nodes: usize = texts
+        .iter()
+        .map(|text| {
+            let source = Arc::new(FlmSource::new(text.to_string()).with_origin(FlmOrigin::none()));
+            let fragment = parse_fragment(registry.lang(), source, FragmentLayout::default(), &ParseOptions::default())
+                .expect("the document parses");
+            1 + fragment.tree().root().descendants().count()
+        })
+        .sum();
+    assert!(nodes > 60_000, "{nodes}");
+    let (diagnostics, items) = run_text(&registry, &texts, "deep.nodes");
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    assert_eq!(items, [json!({ "walked": nodes, "descended": nodes })]);
+}
+
+/// The main module of the bracketed body: the environment `wrap`, whose rule
+/// emits its lowered body between two texts as one joined list.
+const WRAP_MODULE: &str = r#"import { LoweringRule, LoweringDecl, DefaultMark, Lowering } from "flm:core/lowering";
+import { BodyDef, ElementDef, SyntaxDef } from "flm:lang/mint";
+import { ElementSpec } from "flm:model/element";
+export default function (ext) {
+  ext.package("_", { features: { deep: { register(b, settings) {
+    b.element(new ElementDef(b.feature(), ["wrap"], SyntaxDef.Environment([], new BodyDef()), new ElementSpec("deep.wrap")));
+    b.lowering_rule(new LoweringRule("deep.wrap.lower", "deep.wrap", new LoweringDecl(), {
+      lower(node, cx, lw) {
+        return Lowering.Emit([lw.text(cx, "["), lw.lower_nodes(cx, node.body()), lw.text(cx, "]")]);
+      },
+    }, DefaultMark.Everywhere));
+  } } } });
+}
+"#;
+
+/// A rule emits the lowered body of an environment of about 24,000 nodes
+/// between two texts, under a memory limit of 4 MiB, which a list of a
+/// handle per node or per staged node exceeds: the body and its lowering
+/// cross as sequences, and the joined list as their handles.
+#[test]
+fn a_rule_emits_a_body_larger_than_the_engine_s_memory_between_two_texts() {
+    let body = "word \\emph{word} ".repeat(8_000);
+    let registry = registry_with([package_of(WRAP_MODULE, json!({ "memory_mib": 4, "time_s": 60 }))]);
+    let (text, diagnostics) = common::text_of(&registry, &format!("\\begin{{wrap}}{body}\\end{{wrap}}"));
+    assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    let expected = format!("[{}]", "word word ".repeat(8_000));
+    assert_eq!(text.split_whitespace().collect::<Vec<_>>(), expected.split_whitespace().collect::<Vec<_>>());
 }

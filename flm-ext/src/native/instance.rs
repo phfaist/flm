@@ -17,11 +17,10 @@
 //! is answered as it is ([`Reply::Typed`]), and the handler row converts it.
 //! No JSON value is built for an entry's arguments but the configuration, or
 //! read from its reply but the reports of `packages`. Each request and each
-//! lending the guest makes meanwhile
-//! runs on the call's frame, which the state's loaded extension finds
-//! (`guest::abi::in_frame`), and its `console` output goes to the state's
-//! console sink. At the outermost level, an instance a panic poisoned is
-//! dropped.
+//! lending the guest makes meanwhile runs on the call's frame, which the
+//! state's loaded extension finds (`guest::abi::in_frame`), and its `console`
+//! output goes where the state's loaded extension says. At the outermost
+//! level, an instance a panic poisoned is dropped.
 //!
 //! # Dropping an instance
 //!
@@ -30,8 +29,8 @@
 //! the extension's crate, and their `Drop` is code of the extension. The
 //! engine drops an instance outside its entries: after a panic, at the
 //! outermost level, which may be inside another extension's request; when
-//! its extension is no longer held (the sweep at the next entry on the
-//! thread); when its `define` fails, or the load's `packages`; and at the
+//! its extension is no longer held (the sweep at the next entry or the next
+//! load on the thread); when its `define` fails, or the load's `packages`; and at the
 //! thread's end. So [`NativeInstance`]'s `Drop` takes those objects out of
 //! the state and drops them while the instance's own state is current. A request one of them
 //! sends is then answered for this extension, never for the extension whose
@@ -53,14 +52,15 @@ use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::{Arc, Weak};
 
+use flm_core::progress::Scope;
 use serde_json::json;
 
 use crate::binding::{inner_data, Binding, EntryArg, Instance, Registered, Reply};
 use crate::engine::ExtensionIdentity;
 use crate::guest::entry::{self, EntryReply};
 use crate::guest::state::{self, Loaded, State};
-use crate::guest::CompiledExtension;
-use crate::host::ConsoleSink;
+use crate::guest::NamedExtension;
+use crate::host::Console;
 use crate::runtime::ExtError;
 
 /// One extension the native engine loaded: what every instance of it on
@@ -73,10 +73,10 @@ pub(crate) struct NativeLoaded {
     pub id: u64,
     /// The identity and the stem, for the messages and the natives.
     pub extension: ExtensionIdentity,
-    /// The extension's code.
-    pub compiled: &'static CompiledExtension,
+    /// The extension's row of the table of code: its stem and its code.
+    pub code: NamedExtension,
     /// Where `console` output goes.
-    pub console: ConsoleSink,
+    pub console: Console,
 }
 
 impl NativeLoaded {
@@ -105,16 +105,16 @@ pub(crate) struct NativeInstance {
 
 impl NativeInstance {
     /// Creates an instance of `extension` on this thread: a fresh guest state
-    /// of the loaded extension (its identity, its load's number and its
-    /// console sink), then its entry `define(stem)` called (outside any
-    /// handler call).
+    /// of the loaded extension (its identity, its load's number and where
+    /// its console output goes), then its entry `define(stem)` called
+    /// (outside any handler call).
     ///
     /// # Errors
     ///
     /// [`ExtError::Handler`]: `define` panics or answers an error.
     pub(crate) fn create(extension: &NativeLoaded) -> Result<NativeInstance, ExtError> {
         let loaded =
-            Loaded { extension: extension.extension.clone(), load: extension.id, console: Arc::clone(&extension.console) };
+            Loaded { extension: extension.extension.clone(), load: extension.id, console: extension.console.clone() };
         let created = NativeInstance {
             state: Rc::new(State::for_load(loaded)),
             registered: Registered::default(),
@@ -160,11 +160,10 @@ impl NativeInstance {
         args: &[EntryArg<'_>],
         what: &str,
     ) -> Result<Result<EntryReply, ExtError>, ExtError> {
-        let define = extension.compiled.define();
         // The instance's own guest state, current for the entry and restored after it: the
         // extensions compiled into the program share the guest client's thread-local state.
         let _installed = state::install(Rc::clone(&self.state));
-        panic::catch_unwind(AssertUnwindSafe(|| entry::call(entry, args, define))).map_err(|payload| {
+        panic::catch_unwind(AssertUnwindSafe(|| entry::call(entry, args, std::slice::from_ref(&extension.code)))).map_err(|payload| {
             self.poisoned.set(true);
             let message = panic_message(payload.as_ref());
             ExtError::Handler { detail: format!("{what} must run without a panic: {message}"), data: json!({ "panic": message }) }
@@ -184,7 +183,8 @@ fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
 
 /// An instance in a thread's map, with the loaded extension it is an instance
 /// of, held weakly: once every holder of the extension is gone, the next
-/// entry into any native instance on the thread drops it.
+/// entry into any native instance on the thread, and the next load of a
+/// native extension on the thread, drop it ([`sweep`]).
 struct Kept {
     /// The instance.
     instance: Rc<NativeInstance>,
@@ -213,9 +213,37 @@ thread_local! {
     static INSTANCES: RefCell<HashMap<u64, Kept>> = RefCell::new(HashMap::new());
 }
 
+/// Drops this thread's instances of the extensions no one holds any more,
+/// unless a call is running on them.
+///
+/// Both ways an instance enters the thread's map sweep first
+/// ([`Binding::enter`] and [`keep`]), so that the map never holds more than
+/// the instances of one generation of dropped extensions. A thread that only
+/// loads extensions (a preparation that fails after the load runs no handler)
+/// therefore drops the instances of the previous load at each load.
+fn sweep() {
+    let swept = INSTANCES.with(|instances| {
+        let mut instances = instances.borrow_mut();
+        let mut swept = Vec::new();
+        instances.retain(|_, kept| {
+            let keep = kept.extension.strong_count() > 0 || kept.instance.depth.get() > 0;
+            if !keep {
+                swept.push(Rc::clone(&kept.instance));
+            }
+            keep
+        });
+        swept
+    });
+    // Dropped after the map's borrow ends.
+    drop(swept);
+}
+
 /// Keeps `instance`, the one the load of `extension` created, in this
-/// thread's map, so that the registry build on the loading thread uses it.
+/// thread's map, so that the registry build on the loading thread uses it,
+/// after dropping the thread's instances of extensions no one holds any more
+/// ([`sweep`]).
 pub(crate) fn keep(extension: &Arc<NativeLoaded>, instance: NativeInstance) {
+    sweep();
     let kept = Kept { instance: Rc::new(instance), extension: Arc::downgrade(extension) };
     INSTANCES.with(|instances| instances.borrow_mut().insert(extension.id, kept));
 }
@@ -274,26 +302,15 @@ impl Binding for NativeLoaded {
     }
 
     /// Finds this thread's instance of the extension, after dropping the
-    /// instances of extensions no one holds any more; creates it when the
-    /// thread has none. Then runs `run` on it.
+    /// instances of extensions no one holds any more ([`sweep`]); creates it when the
+    /// thread has none. Then runs `run` on it. A native extension asks whether its build
+    /// is cancelled itself: `progress` is not read.
     fn enter(
         self: Arc<Self>,
+        _progress: &Scope,
         run: &mut dyn FnMut(&mut dyn Instance) -> Result<Reply, ExtError>,
     ) -> Result<Reply, ExtError> {
-        let swept = INSTANCES.with(|instances| {
-            let mut instances = instances.borrow_mut();
-            let mut swept = Vec::new();
-            instances.retain(|_, kept| {
-                let keep = kept.extension.strong_count() > 0 || kept.instance.depth.get() > 0;
-                if !keep {
-                    swept.push(Rc::clone(&kept.instance));
-                }
-                keep
-            });
-            swept
-        });
-        // Dropped after the map's borrow ends.
-        drop(swept);
+        sweep();
         let existing = INSTANCES.with(|instances| instances.borrow().get(&self.id).map(|kept| Rc::clone(&kept.instance)));
         let instance = match existing {
             Some(instance) => instance,

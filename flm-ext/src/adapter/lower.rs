@@ -36,17 +36,18 @@ use flm_core::core::data::table::{ProjectCx, TableRef, TableType};
 use flm_core::core::lowering::{
     LowerCx as CoreLowerCx, LowerError, Lower as CoreLower, Lowerer as CoreLowerer, Lowering as CoreLowering,
     LoweringDecl as CoreLoweringDecl, LoweringRule as CoreLoweringRule, NodeRegion,
+    UncheckedOutputDecl as CoreUncheckedOutputDecl,
 };
 use flm_core::core::registry::{BuildError, FeatureBuilder as CoreFeatureBuilder, Finalizer};
 use flm_core::core::stage::TreesTable as CoreTreesTable;
 use flm_core::dump::project::{node_ref_value, tree_ref_value, ProjectOptions};
 use flm_core::lang::{Flm, FlmDiagnostic, PresPayload};
 use flm_core::model::addr::{NodeAddr, TreeId};
-use flm_core::model::names::{CapName, ElementName, Name};
+use flm_core::model::names::{BackendName, CapName, ElementName, Name};
 use flm_core::model::options::{OptionRef, TypeKey};
-use flm_core::stdcore::backends::latex_recomposed::LatexRecomposedRenderOptions;
-use flm_core::stdcore::features::math::MathRecomposeOptions;
-use flm_core::stdcore::backends::lowering::{lower_region_content, lower_run, LoweredTrees as CoreLoweredTrees};
+use flm_core::stdlib::backends::latex_recomposed::LatexRecomposedRenderOptions;
+use flm_core::stdlib::features::math::MathRecomposeOptions;
+use flm_core::stdlib::backends::lowering::{lower_region_content, lower_run, LoweredTrees as CoreLoweredTrees};
 use flm_core::techy::core::node::{BuildId, NodeRef, NodeTree};
 use flm_core::techy::serialize::SerialValue;
 use serde_json::Value;
@@ -58,11 +59,12 @@ use crate::adapter::payloads::{payload_from_value, DataPayload};
 use crate::adapter::stage::{projection_value, tree_id_of, tree_of, LoweredTreesFacade, TreesTableFacade};
 use crate::adapter::table::ExtTable;
 use crate::adapter::tables::{AnchorsFacade, CountersFacade, Seen};
-use flm_core::stdcore::features::numbering::Counters as CoreCounters;
-use flm_core::stdcore::features::refs::Anchors as CoreAnchors;
-use crate::adapter::values::{check_data, diagnostic_to_core, node_addr_to_value};
-use crate::api::core::data::table::{ExtTableRead, TableValue};
+use flm_core::stdlib::features::numbering::Counters as CoreCounters;
+use flm_core::stdlib::features::refs::Anchors as CoreAnchors;
+use crate::adapter::values::{check_data, diagnostic_to_core};
+use crate::api::core::data::table::TableValue;
 use crate::api::core::lowering::{ExtRule, Lower, LowerCx, Lowerer, Lowering, Staged};
+use crate::api::core::run::Trees;
 use crate::api::core::stage::TreesTable;
 use crate::api::techy::error::Diagnostic;
 use crate::api::techy::node::{Node, Tree};
@@ -97,6 +99,16 @@ impl Finalizer for RuleFinalizer {
             options: rule.decl.options.iter().map(|name| option_ref(name)).collect(),
             produces: rule.decl.produces.iter().map(|name| ElementName::from(name.as_str())).collect(),
             selection_requires: rule.decl.selection_requires.iter().map(|name| Name::from(name.as_str())).collect(),
+            unchecked_output: rule
+                .decl
+                .unchecked_output
+                .iter()
+                .map(|output| CoreUncheckedOutputDecl {
+                    backend: BackendName::from(output.backend.as_str()),
+                    written: output.written.clone(),
+                    reader: output.reader.clone(),
+                })
+                .collect(),
         };
         let mut tables = reads;
         tables.extend(reads_opt);
@@ -129,10 +141,10 @@ impl Finalizer for RuleFinalizer {
     }
 }
 
-/// The option types of the standard package that a rule built by an
+/// The option types of the standard features that a rule built by an
 /// extension reads by their names, each with its typed read: the two the
 /// `math` library's LaTeX parts read through the lowerer
-/// ([`api::stdcore::features::math`](crate::api::stdcore::features::math)),
+/// ([`api::stdlib::features::math`](crate::api::stdlib::features::math)),
 /// which a rule declared from data could not read otherwise, since a read by
 /// name is a read of an option type declared from data.
 const STANDARD_OPTIONS: [(&str, TypedRead); 2] = [
@@ -467,7 +479,7 @@ impl LowererCore for LowererFacade<'_, '_> {
     fn get_owned<'s>(&self, _: Token, name: &str) -> Result<Option<TableValue<'s>>, ExtError> {
         let Some((table, ty)) = self.read(name)? else { return Ok(None) };
         if let Some(table) = table.downcast_ref::<ExtTable>() {
-            return Ok(Some(TableValue::Ext(Box::new(ItemsCopy(table.items().to_vec())))));
+            return Ok(Some(TableValue::Ext(Box::new(table.clone()))));
         }
         if let Some(table) = table.downcast_ref::<CoreTreesTable>() {
             let trees = table.trees.iter().map(|(id, tree)| (*id, Arc::clone(tree))).collect();
@@ -637,23 +649,6 @@ impl Lowerer for LowererFacade<'_, '_> {
 
 // --- what a read answers -----------------------------------------------------------------------
 
-/// An extension's own table, as a copy of its items: what
-/// [`LowererCore::get_owned`] answers.
-struct ItemsCopy(Vec<Value>);
-
-impl Sealed for ItemsCopy {}
-
-impl ExtTableRead for ItemsCopy {
-    fn items(&self) -> Vec<Value> {
-        self.0.clone()
-    }
-
-    fn items_at(&self, addr: &NodeAddr) -> Vec<Value> {
-        let key = node_addr_to_value(addr);
-        self.0.iter().filter(|item| item.get("addr") == Some(&key)).cloned().collect()
-    }
-}
-
 /// A rewrite's trees, as their shared trees: what
 /// [`LowererCore::get_owned`] answers.
 struct TreesCopy(Vec<(TreeId, Arc<NodeTree<Flm>>)>);
@@ -661,8 +656,8 @@ struct TreesCopy(Vec<(TreeId, Arc<NodeTree<Flm>>)>);
 impl Sealed for TreesCopy {}
 
 impl TreesTable for TreesCopy {
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
-        self.0.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
+    fn trees(&self) -> Trees {
+        Trees::new(self.0.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect())
     }
 
     fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {

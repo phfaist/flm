@@ -9,19 +9,23 @@
    that its rules override the library's layered rules. */
 
 :where(:root) {
-  /* The colors: the text, a muted text for numbers, proofs and captions, the
-     links, the rose background and the warm rules of the bands. */
+  /* The colors: the text, a muted text for numbers and proofs, the links,
+     the rose background and the warm rules of the bands, the light shade of
+     the bar and the sidebar, and the deeper shade of the sidebar's entry
+     under the pointer or being read. */
   --ln-text: #27191a;
   --ln-muted: #8C7068;
   --ln-accent: #2B7A6F;
   --ln-accent-hover: #1F5C54;
   --ln-accent-bg: #FAF0EE;
+  --ln-panel-bg: #FBF6F4;
+  --ln-entry-bg: #F3E4E0;
   --ln-border: #D4B5AD;
   --ln-band-color: #C4877A;
   --ln-bg: #fff;
   --ln-selection: rgba(43, 122, 111, 0.18);
-  /* The thin rule of the bar, the sidebar, the buttons, the title block,
-     the notes after the content and the proofs. */
+  /* The thin rule of the buttons, the title block, the notes after the
+     content and the proofs. */
   --ln-rule: 1px solid var(--ln-border);
   --ln-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
 
@@ -51,14 +55,19 @@
   --ln-bar-gap: 1rem;
   --ln-bar-padding: 0 1rem;
   --ln-bar-title-weight: 600;
-  --ln-chapter-lead: "\203A";
-  --ln-chapter-lead-gap: 0.6em;
+  --ln-unit-lead: "\203A";
+  --ln-unit-lead-gap: 0.6em;
   --ln-button-size: 1.9em;
+  --ln-button-icon-size: 1.15em;
   --ln-button-radius: 4px;
   --ln-button-gap: 0.25rem;
+  --ln-button-group-gap: 0.75rem;
   --ln-disabled-opacity: 0.35;
 
-  /* The sidebar, its label and the triangle toggle. */
+  /* The sidebar, its label and the unfold toggle.  The toggle's two icons are
+     images, drawn in the color of the toggle's text: two chevrons pointing
+     apart while the sections are folded, pointing together while everything
+     is open. */
   --ln-sidebar-size: 0.9rem;
   --ln-sidebar-line-height: 1.4;
   --ln-sidebar-padding: 1rem 1rem 2rem 1.25rem;
@@ -66,24 +75,21 @@
   --ln-label-weight: 600;
   --ln-label-spacing: 0.08em;
   --ln-label-space-below: 0.75em;
-  --ln-toggle-width: 1.6rem;
-  --ln-toggle-height: 1.3rem;
-  --ln-toggle-radius: 3px;
-  --ln-toggle-icon-size: 0.95rem;
-  --ln-folded-icon: "\25B8";
-  --ln-open-icon: "\25BE";
+  --ln-toggle-width: 1.9rem;
+  --ln-toggle-height: 1.9rem;
+  --ln-toggle-radius: 4px;
+  --ln-toggle-icon-size: 1rem;
+  --ln-folded-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 5.5l3.5-2.5 3.5 2.5M4.5 10.5l3.5 2.5 3.5-2.5'/%3E%3C/svg%3E");
+  --ln-open-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 2.5l3.5 2.5 3.5-2.5M4.5 13.5l3.5-2.5 3.5 2.5'/%3E%3C/svg%3E");
 
   /* The entries of the table of contents in the sidebar. */
   --ln-entry-padding: 0.15em 0.4em 0.15em 0.5em;
   --ln-entry-radius: 3px;
   --ln-entry-number-gap: 0.3em;
   --ln-current-weight: 600;
-  --ln-part-entry-space: 1.1em;
-  --ln-part-entry-size: 0.78rem;
-  --ln-part-entry-spacing: 0.06em;
-  --ln-chapter-entry-space: 0.35em;
-  --ln-chapter-entry-weight: 600;
-  --ln-current-chapter-entry-weight: 700;
+  --ln-major-entry-space: 0.35em;
+  --ln-major-entry-weight: 600;
+  --ln-current-major-entry-weight: 700;
 
   /* The motions. */
   --ln-fast: 0.15s ease;
@@ -103,32 +109,27 @@
   --ln-backmatter-size: 0.95rem;
   --ln-backmatter-heading-size: 1.1rem;
 
-  /* The headings of the content, by level: a part (level 0) and a chapter
-     (level 1) as bands, a section (level 2), a subsection (level 3). */
+  /* The headings of the content.  The values --ln-major-heading-* (a heading
+     at the navigation level or above it, set as a band) and
+     --ln-minor-heading-* (a heading below it) are read by the rules that the
+     lecture-notes compose template writes after this stylesheet, as are the
+     values --ln-major-entry-* of the entries. */
   --ln-heading-number-gap: 0.15em;
   --ln-band-rule: 5px solid var(--ln-band-color);
-  --ln-part-size: 1.6rem;
-  --ln-part-weight: bold;
-  --ln-part-spacing: 0.03em;
-  --ln-part-padding: 1em 0.75em;
-  --ln-part-space-above: 5em;
-  --ln-part-space-below: 1em;
-  --ln-chapter-weight: normal;
-  --ln-chapter-line-height: 1.35;
-  --ln-chapter-padding: 1.1em 1em;
-  --ln-chapter-space-above: 4.5em;
-  --ln-chapter-space-below: 1.75em;
-  --ln-section-weight: bold;
-  --ln-section-space-above: 1.5em;
-  --ln-section-space-below: 0.8em;
-  --ln-subsection-weight: normal;
-  --ln-subsection-style: italic;
-  --ln-subsection-space-above: 1.2em;
-  --ln-subsection-space-below: 0.6em;
-  --ln-anchor-gap: 0.4em;
-  --ln-anchor-size: 0.85em;
+  --ln-major-heading-weight: normal;
+  --ln-major-heading-line-height: 1.35;
+  --ln-major-heading-padding: 1.1em 1em;
+  --ln-major-heading-space-above: 4.5em;
+  --ln-major-heading-space-below: 1.75em;
+  --ln-minor-heading-weight: bold;
+  --ln-minor-heading-space-above: 1.5em;
+  --ln-minor-heading-space-below: 0.8em;
+  --ln-anchor-gap: 0.7em;
+  --ln-anchor-padding: 0 0.2em;
+  --ln-anchor-size: 0.9em;
 
-  /* The text's elements: defined terms, theorems, proofs, floats, quotations. */
+  /* The text's elements: defined terms, theorems, proofs, floats (the margin
+     on each side of a caption is a share of the column's width), quotations. */
   --ln-term-decoration: underline dotted 1pt;
   --ln-defterm-weight: 600;
   --ln-theorem-style: italic;
@@ -136,11 +137,12 @@
   --ln-proof-padding: 1em;
   --ln-float-padding: 1rem 0;
   --ln-caption-align: left;
-  --ln-caption-number-weight: 600;
+  --ln-caption-margin: 5%;
   --ln-quote-style: italic;
 
   /* The previews: the popup's widths, its spaces, its look, and its layer
      above the bar and the drawer. */
+  --ln-preview-min-width: min(24rem, 90vw);
   --ln-preview-max-width: min(32rem, 90vw);
   --ln-preview-max-height: 20rem;
   --ln-preview-padding: 0.75em 1em;
@@ -170,14 +172,18 @@
   --flm-margin-note-gap: 1.25rem;
   --flm-margin-note-color: var(--ln-muted);
   --flm-toc-indent: 1em;
+  --flm-toc-space-below: 0;
+  --flm-metadata-title-space-below: 0;
+  --flm-metadata-line-height: var(--ln-line-height);
   --flm-floats-spacing: 1.5rem;
-  --flm-floats-caption-size: 0.92rem;
+  --flm-floats-caption-size: 1em;
+  --flm-xnotes-list-size: 1em;
   --flm-math-display-space-above: var(--ln-math-space);
   --flm-math-display-space-below: var(--ln-math-space);
 }
 
 /* The page's text.  The bar is sticky: the browser keeps the point it scrolls
-   to (a link's target, a chapter) below it. */
+   to (a link's target, a heading) below it. */
 html {
   scroll-padding-top: calc(var(--ln-bar-height) + var(--ln-scroll-gap));
 }
@@ -201,7 +207,8 @@ body {
 /* flm-lecturenotes: the frame of the page.
    A sticky bar across the top; under it, the main column and, on the right, the
    sidebar, a scroll box of its own as high as the window under the bar.  The
-   page scrolls as a whole.  The elements are the page's own (classes under the
+   bar and the sidebar stand apart from the text by a light shade, with no
+   rule.  The page scrolls as a whole.  The elements are the page's own (classes under the
    prefix ln-): .ln-app holds .ln-topbar, .ln-sidebar and .ln-main. */
 
 .ln-app {
@@ -224,8 +231,7 @@ body {
   height: var(--ln-bar-height);
   padding: var(--ln-bar-padding);
   box-sizing: border-box;
-  background: var(--ln-bg);
-  border-bottom: var(--ln-rule);
+  background: var(--ln-panel-bg);
   font-size: var(--ln-bar-size);
 }
 .ln-book-title {
@@ -237,7 +243,7 @@ body {
 .ln-book-title:hover {
   color: var(--ln-accent);
 }
-.ln-current-chapter {
+.ln-current-unit {
   flex: 1;
   min-width: 0;
   color: var(--ln-muted);
@@ -245,11 +251,11 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ln-current-chapter::before {
-  content: var(--ln-chapter-lead);
-  margin-right: var(--ln-chapter-lead-gap);
+.ln-current-unit::before {
+  content: var(--ln-unit-lead);
+  margin-right: var(--ln-unit-lead-gap);
 }
-.ln-current-chapter:empty::before {
+.ln-current-unit:empty::before {
   content: none;
 }
 .ln-topbar-nav {
@@ -257,6 +263,9 @@ body {
   gap: var(--ln-button-gap);
 }
 .ln-topbar-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   line-height: 1;
   cursor: pointer;
@@ -267,6 +276,15 @@ body {
   width: var(--ln-button-size);
   height: var(--ln-button-size);
   padding: 0;
+}
+/* The buttons' icons, drawn in the color of the button's text. */
+.ln-topbar-nav button svg {
+  width: var(--ln-button-icon-size);
+  height: var(--ln-button-icon-size);
+}
+/* The sidebar's button stands apart from the two arrows. */
+.ln-topbar-nav .ln-sidebar-toggle {
+  margin-left: var(--ln-button-group-gap);
 }
 .ln-topbar-nav button:hover {
   color: var(--ln-accent);
@@ -305,8 +323,7 @@ body {
   overflow-y: auto;
   padding: var(--ln-sidebar-padding);
   box-sizing: border-box;
-  border-left: var(--ln-rule);
-  background: var(--ln-bg);
+  background: var(--ln-panel-bg);
   font-size: var(--ln-sidebar-size);
   line-height: var(--ln-sidebar-line-height);
   /* reaching the sidebar's end does not scroll the page */
@@ -328,15 +345,18 @@ body {
 .ln-sidebar-buttons {
   display: inline-flex;
 }
-/* The triangle toggle: pointing right while the sections of the chapters not
-   being read are folded, down while everything is open. */
+/* The unfold toggle: two chevrons pointing apart while the entries below the
+   units not being read are folded, pointing together while everything is
+   open.  The icon is the toggle's text color seen through the image. */
 .ln-toc-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   line-height: 1;
   cursor: pointer;
   background: none;
-  border: var(--ln-rule);
-  border-color: transparent;
+  border: none;
   border-radius: var(--ln-toggle-radius);
   color: var(--ln-muted);
   width: var(--ln-toggle-width);
@@ -344,15 +364,19 @@ body {
   padding: 0;
 }
 .ln-toc-toggle::before {
-  content: var(--ln-folded-icon);
-  font-size: var(--ln-toggle-icon-size);
+  content: "";
+  width: var(--ln-toggle-icon-size);
+  height: var(--ln-toggle-icon-size);
+  background: currentColor;
+  mask: var(--ln-folded-icon) center / contain no-repeat;
 }
 .ln-toc-all .ln-toc-toggle::before {
-  content: var(--ln-open-icon);
+  mask-image: var(--ln-open-icon);
 }
+/* Under the pointer, the toggle takes the highlight of the sidebar's entries. */
 .ln-toc-toggle:hover {
   color: var(--ln-accent);
-  border-color: var(--ln-border);
+  background: var(--ln-entry-bg);
 }
 
 /* ── The main column ─────────────────────────────────────────────────────── */
@@ -411,12 +435,14 @@ body {
 }
 
 /* flm-lecturenotes: the table of contents in the sidebar.
-   The table is the FLM piece flm.toc (.flm-toc: nested lists of links).  The
-   script gives each entry (the li) the level of the heading it leads to
-   (data-ln-level), marks the chapters' entries (.ln-chapter) and the entry of
-   the chapter being read (.ln-open), and marks the current entry's link
-   (aria-current).  While the page is folded (no class ln-toc-all on the root
-   element), only the chapter being read shows its sections. */
+   The table is the FLM piece flm.toc (.flm-toc: nested lists of links); each
+   entry (the li) carries its heading's level in the attribute data-flm-level.
+   The script marks the current entry's link (aria-current) and the entry of
+   the unit being read (.ln-open).  The rules that depend on an entry's level
+   (the entries at the navigation level and above it, those below it, and the
+   folding of the table) are not in this stylesheet: the lecture-notes compose
+   template of FLM writes them, from its settings, after it (the file
+   groups.css of the template). */
 
 .flm-toc .flm-pres-link[data-flm-kind="toc"] {
   display: block;
@@ -427,12 +453,12 @@ body {
 }
 .flm-toc .flm-pres-link[data-flm-kind="toc"]:hover {
   color: var(--ln-accent);
-  background: var(--ln-accent-bg);
+  background: var(--ln-entry-bg);
   text-decoration: none;
 }
 .flm-toc .flm-pres-link[data-flm-kind="toc"][aria-current="true"] {
   color: var(--ln-accent);
-  background: var(--ln-accent-bg);
+  background: var(--ln-entry-bg);
   font-weight: var(--ln-current-weight);
 }
 .flm-toc .flm-toc-entry-number {
@@ -440,39 +466,6 @@ body {
   font-weight: normal;
   margin-right: var(--ln-entry-number-gap);
   font-variant-numeric: tabular-nums;
-}
-
-/* A part (level 0): an uppercase group label. */
-.flm-toc li[data-ln-level="0"] {
-  margin-top: var(--ln-part-entry-space);
-}
-.flm-toc li[data-ln-level="0"] > .flm-pres-link {
-  text-transform: uppercase;
-  letter-spacing: var(--ln-part-entry-spacing);
-  font-size: var(--ln-part-entry-size);
-  color: var(--ln-muted);
-}
-/* A chapter (level 1). */
-.flm-toc li[data-ln-level="1"] {
-  margin-top: var(--ln-chapter-entry-space);
-}
-.flm-toc li[data-ln-level="1"] > .flm-pres-link {
-  font-weight: var(--ln-chapter-entry-weight);
-}
-.flm-toc li[data-ln-level="1"] > .flm-pres-link[aria-current="true"] {
-  font-weight: var(--ln-current-chapter-entry-weight);
-}
-/* A section (level 2). */
-.flm-toc li[data-ln-level="2"] > .flm-pres-link {
-  color: var(--ln-muted);
-}
-.flm-toc li[data-ln-level="2"] > .flm-pres-link[aria-current="true"] {
-  color: var(--ln-accent);
-}
-
-/* Folded: a chapter's sections show only for the chapter being read. */
-:root:not(.ln-toc-all) .flm-toc li.ln-chapter:not(.ln-open) > .flm-pres-list {
-  display: none;
 }
 
 /* flm-lecturenotes: the title block, the content and the notes after it.
@@ -489,13 +482,13 @@ body {
   margin-bottom: var(--ln-title-space-below);
   border-bottom: var(--ln-rule);
 }
-.flm-meta-title {
+.flm-metadata-title {
   font-size: var(--ln-title-size);
   font-weight: var(--ln-title-weight);
   line-height: var(--ln-title-line-height);
 }
-.flm-meta-author,
-.flm-meta-date {
+.flm-metadata-author,
+.flm-metadata-date {
   padding-top: var(--ln-subtitle-gap);
   font-size: var(--ln-subtitle-size);
   color: var(--ln-muted);
@@ -504,6 +497,10 @@ body {
 /* ── The notes after the content (footnotes, references) ─────────────────── */
 .ln-backmatter {
   --flm-heading-size-1: var(--ln-backmatter-heading-size);
+  /* The rule above the notes is the back matter's own: a list of notes draws
+     none of its own, nor the space between such a rule and its content. */
+  --flm-xnotes-list-rule: none;
+  --flm-xnotes-list-padding: 0;
   margin-top: var(--ln-backmatter-space-above);
   padding-top: var(--ln-backmatter-padding);
   border-top: var(--ln-rule);
@@ -513,57 +510,24 @@ body {
   display: none;
 }
 
-/* ── The headings of the content, by level ───────────────────────────────── */
-.flm-content .flm-pres-block--heading {
-  position: relative;
-}
+/* ── The headings of the content ─────────────────────────────────────────── */
+/* Each heading carries its level in the attribute data-flm-level, and the
+   library sets its size by its HTML level (h1, h2, ...).  The rules that
+   depend on a heading's level (a band at the navigation level and above it,
+   another weight and spacing below it) are not in this stylesheet: the
+   lecture-notes compose template of FLM writes them, from its settings, after
+   it (the file groups.css of the template). */
 .flm-content .flm-pres-block--heading .flm-heading-number {
   color: var(--ln-muted);
   font-weight: inherit;
   margin-right: var(--ln-heading-number-gap);
 }
-/* A part (level 0): large uppercase text with a little letter spacing, on a
-   band. */
-.flm-content .flm-pres-block--heading[data-flm-level="0"] {
-  --flm-heading-weight: var(--ln-part-weight);
-  --flm-heading-space-above: var(--ln-part-space-above);
-  --flm-heading-space-below: var(--ln-part-space-below);
-  font-size: var(--ln-part-size);
-  text-transform: uppercase;
-  letter-spacing: var(--ln-part-spacing);
-  padding: var(--ln-part-padding);
-  border-left: var(--ln-band-rule);
-  background: var(--ln-accent-bg);
-}
-/* A chapter (level 1): a band. */
-.flm-content .flm-pres-block--heading[data-flm-level="1"] {
-  --flm-heading-weight: var(--ln-chapter-weight);
-  --flm-heading-line-height: var(--ln-chapter-line-height);
-  --flm-heading-space-above: var(--ln-chapter-space-above);
-  --flm-heading-space-below: var(--ln-chapter-space-below);
-  padding: var(--ln-chapter-padding);
-  border-left: var(--ln-band-rule);
-  background: var(--ln-accent-bg);
-}
-/* A section (level 2). */
-.flm-content .flm-pres-block--heading[data-flm-level="2"] {
-  --flm-heading-weight: var(--ln-section-weight);
-  --flm-heading-space-above: var(--ln-section-space-above);
-  --flm-heading-space-below: var(--ln-section-space-below);
-}
-/* A subsection (level 3). */
-.flm-content .flm-pres-block--heading[data-flm-level="3"] {
-  --flm-heading-weight: var(--ln-subsection-weight);
-  --flm-heading-space-above: var(--ln-subsection-space-above);
-  --flm-heading-space-below: var(--ln-subsection-space-below);
-  font-style: var(--ln-subsection-style);
-}
-/* The discreet anchor the script adds to each heading of the content: shown
-   while the pointer is over the heading, in the space to its left. */
+/* The discreet anchor the script adds at the end of each heading of the
+   content, after its title: shown while the pointer is over the heading, and
+   left out of a selection of the heading's text. */
 .ln-anchor {
-  position: absolute;
-  right: 100%;
-  padding-right: var(--ln-anchor-gap);
+  margin-left: var(--ln-anchor-gap);
+  padding: var(--ln-anchor-padding);
   opacity: 0;
   color: var(--ln-muted);
   font-size: var(--ln-anchor-size);
@@ -572,6 +536,7 @@ body {
   text-transform: none;
   letter-spacing: normal;
   text-decoration: none;
+  user-select: none;
   transition: opacity var(--ln-fast);
 }
 .flm-pres-block--heading:hover > .ln-anchor,
@@ -612,17 +577,14 @@ body {
 .flm-theorems-theorem[data-flm-kind~="prooflike"]:hover {
   color: var(--ln-text);
 }
-/* A float: its caption muted and set left. */
+/* A float: its caption set as the text, aligned left, and narrower than the
+   column by a margin on each side. */
 .flm-pres-block.flm-floats-float {
   padding: var(--ln-float-padding);
 }
 .flm-floats-float-caption {
-  color: var(--ln-muted);
+  margin-inline: var(--ln-caption-margin);
   text-align: var(--ln-caption-align);
-}
-.flm-floats-float-caption .flm-floats-float-number {
-  color: var(--ln-text);
-  font-weight: var(--ln-caption-number-weight);
 }
 .flm-quote {
   color: var(--ln-muted);
@@ -675,7 +637,9 @@ body {
    The popup that shows a copy of what a link points to (a reference, a
    defined term, a citation, a footnote).  The script adds it at the end of the
    page's body and places it below or above the link; it scrolls past its
-   maximum height.  Headings in it are set in the popup's size, with no space
+   maximum height.  It is never narrower than its minimum width, whatever it
+   shows, so that a displayed formula's number stands apart from the formula
+   and a narrow figure's caption has room.  Headings in it are set in the popup's size, with no space
    above. */
 
 /* A previewed link: no callout of the system on a long press, which opens the
@@ -700,6 +664,7 @@ body {
   position: absolute;
   z-index: var(--ln-preview-layer);
   box-sizing: border-box;
+  min-width: var(--ln-preview-min-width);
   max-width: var(--ln-preview-max-width);
   max-height: var(--ln-preview-max-height);
   overflow-y: auto;
@@ -721,6 +686,11 @@ body {
   margin: var(--ln-preview-more-space) 0 0;
   color: var(--ln-muted);
   font-style: italic;
+}
+/* The ellipsis where the preview of an inline target leaves out the text of
+   its block beyond the context it keeps. */
+.ln-preview-cut {
+  color: var(--ln-muted);
 }
 
 /* flm-lecturenotes: printing.  The bar, the sidebar and the preview popup are

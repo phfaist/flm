@@ -253,7 +253,7 @@ fn a_presentation_payload_projects_through_its_project_method() {
 #[test]
 fn a_document_role_and_an_accessible_name_project_by_name() {
     use flm_core::model::names::Name;
-    use flm_core::stdcore::backends::pres::{DocRole, LinkPayload};
+    use flm_core::stdlib::backends::pres::{DocRole, LinkPayload};
 
     let lang = lang(Vec::new());
     let pres = element("t.pres");

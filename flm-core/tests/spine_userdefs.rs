@@ -1,5 +1,5 @@
 //! The `expand-in-tree` lowering rule of
-//! `flm_core::stdcore::features::userdefs`, through the whole pipeline: every
+//! `flm_core::stdlib::features::userdefs`, through the whole pipeline: every
 //! definition's element is reachable on the text backend through its own rule
 //! and no hole; an `always` definition schedules `expand-always` in every plan
 //! that lowers; a `per-plan` definition cannot be kept beside a backend; a use
@@ -20,30 +20,30 @@ use techy::core::node::{NodeRef, NodeTree};
 use flm_core::model::addr::TreeId;
 use flm_core::model::element::{ElementSpec, element_of};
 use flm_core::lang::FlmGroupType;
-use flm_core::stdcore::CHECK_WORKFLOW;
-use flm_core::stdcore::backends::pres;
+use flm_core::stdlib::CHECK_WORKFLOW;
+use flm_core::stdlib::backends::pres;
 use flm_core::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use flm_core::model::names::{CapName, ElementName};
 use flm_core::core::plan::{Overrides, Plan, PlanError};
-use flm_core::core::registry::{FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::data::table::{Table, TableName};
 use flm_core::lang::Flm;
 use flm_core::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
-use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::refs::UnresolvedRefs;
-use flm_core::stdcore::features::userdefs::{
+use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy, UserDefinition};
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::refs::UnresolvedRefs;
+use flm_core::stdlib::features::userdefs::{
     KEPT, UserdefsConfig, element_name, expand_in_tree_rule, rule_name,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
 
 use common::lowering::{lowered, text as text_of};
 use common::pipeline;
 use common::spine::{overrides, render, text_plan};
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{identifiers, run_workflow};
 
 /// A registry over the package with `definitions` and the test-only
 /// features `extra`.
@@ -51,9 +51,9 @@ fn registry_over(
     definitions: Vec<Definition>,
     extra: Vec<Arc<dyn FlmFeature>>,
 ) -> Arc<FlmRegistry> {
-    let config = StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions));
+    let config = StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions));
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(config));
+    builder.use_package(add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     for feature in extra {
         builder.feature(feature);
@@ -343,4 +343,26 @@ fn a_substituted_verbatim_argument_prints_as_text() {
         let text = text_of(&run);
         assert!(text.contains(verbatim_run), "{document:?} printed:\n{text}");
     }
+}
+
+// --- the memory of a registry -------------------------------------------------------------------
+
+/// The compiled templates of a user definition and the compiled labels of the lists
+/// feature refer to the registry's language, and the elements of that language read
+/// them. The language owns them (`LangOwned`), so that dropping the registry frees the
+/// language: an element that owned them would keep the whole language allocated.
+#[test]
+fn dropping_the_registry_frees_its_language() {
+    let registry = registry_over(vec![hello(), note()], Vec::new());
+    let compiled = registry
+        .elements()
+        .iter()
+        .filter_map(|entry| entry.element.value_as::<UserDefinition>())
+        .all(|definition| definition.compiled().is_some());
+    assert!(compiled);
+    let providers: Vec<_> = registry.lang().providers().iter().map(Arc::downgrade).collect();
+    drop(registry);
+    let kept: Vec<String> =
+        providers.iter().filter_map(|provider| provider.upgrade()).map(|provider| provider.name().to_string()).collect();
+    assert!(kept.is_empty(), "these packages of the language are still allocated: {kept:?}");
 }

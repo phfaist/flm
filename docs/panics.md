@@ -3,12 +3,13 @@
 This page lists every item of the public interface that can panic, states the
 condition under which it panics, and links the item's documentation. It covers
 every crate of this documentation: the library [`flm_core`](crate), the host
-library `flm-main`, the command-line program `flm-cli`, the introspection library
-`flm-info`, the extension layer `flm-ext`, the crate of the shipped extensions
-`flm-extensions`, and the extensions written in Rust `flmdoc`, `phfpack`,
-`profile-pdf-latex` and `syntax-highlight`. Every item listed belongs to `flm_core`,
-except the one item of `flm-ext` in the last section; `flm-main`, `flm-cli`,
-`flm-info`, `flm-extensions` and the four extensions document no panicking item.
+library `flm-host`, the command-line program `flm`, the introspection library
+`flm-info`, the extension layer `flm-ext`, and the crate of the shipped extensions
+`flm-extensions`, whose modules hold the extensions written in Rust (`flmdoc`,
+`math-techxt`, `phfpack`, `profile-pdf-latex`, `profile-tty` and `syntax-highlight`).
+Every item listed belongs to `flm_core`, except the one item of `flm-ext` in the last
+section; `flm-host`, `flm`, `flm-info` and `flm-extensions`, its six extensions included,
+document no panicking item.
 
 An item that can panic states the condition in a `# Panics` section of its own
 documentation; this page restates that condition on the item's line. A change to the
@@ -32,8 +33,8 @@ item states in its `# Panics` section. These requirements fall into six groups:
 - **Identifiers used with the wrong registry, layout document or text output.**
   A number that a [registry](crate::core::registry) assigned, a node identifier
   of a layout document ([`DocBuf`](crate::layout::doc::DocBuf)), or a position
-  mark ([`TextMark`](crate::stdcore::backends::text::TextMark)) of a text output
-  ([`TextOutput`](crate::stdcore::backends::text::TextOutput)) is meaningful only
+  mark ([`TextMark`](crate::stdlib::backends::text::TextMark)) of a text output
+  ([`TextOutput`](crate::stdlib::backends::text::TextOutput)) is meaningful only
   for the registry, layout document or text output that produced it. Used with
   another one, the identifier is either out of range, which panics, or it
   addresses the wrong entry.
@@ -58,7 +59,7 @@ item states in its `# Panics` section. These requirements fall into six groups:
   of more than about four billion entries, or placing more than about two
   billion trees in a document, panics instead of letting the count wrap around.
 - **Output written out of order, or into the wrong kind of element, through the
-  [HTML sink](crate::stdcore::backends::html::HtmlSink).** The sink is the
+  [HTML sink](crate::stdlib::backends::html::HtmlSink).** The sink is the
   writer through which the HTML backend's emitter writes the bytes of a page. Closing an element the
   sink never opened, taking the output while an element is still open, or writing
   unescaped content into an element whose content a browser does not read as raw
@@ -176,17 +177,23 @@ itself is a mistake in that code, and the methods below panic on it.
 - [`SettingsDecl::config`](crate::core::settings::SettingsDecl::config) and
   [`SettingsDecl::config_from`](crate::core::settings::SettingsDecl::config_from)
   — a field of the configuration type has the name of a key already declared,
-  the declaration already has a configuration, or the type is not read from a
-  map of named fields.
+  a field is named `enabled`, the declaration already has a configuration, or
+  the type is not read from a map of named fields.
 - [`SettingsDecl::options`](crate::core::settings::SettingsDecl::options) —
   `bind` is [`Bind::Registry`](crate::model::options::Bind::Registry) (a value
   fixed when the registry is built belongs in the feature's configuration), a
-  field of the option type has the name of a key already declared, or the option
-  type is not read from a map of named fields.
+  field of the option type has the name of a key already declared, a field is
+  named `enabled`, or the option type is not read from a map of named fields.
 - [`SettingsDecl::merge_entries`](crate::core::settings::SettingsDecl::merge_entries)
-  — `key` is a nested path rather than one settings key (it contains a `.` or a
-  `*`), or
-  `default_entries` fails or returns something other than a map.
+  — `path` reaches no node of the declaration's schema, or `default_entries`
+  fails or returns something other than a map.
+- [`SettingsDecl::remove_false`](crate::core::settings::SettingsDecl::remove_false),
+  [`SettingsDecl::default_on_null`](crate::core::settings::SettingsDecl::default_on_null),
+  [`SettingsDecl::markup`](crate::core::settings::SettingsDecl::markup) and
+  [`SettingsDecl::path`](crate::core::settings::SettingsDecl::path) — `path`
+  reaches no node of the declaration's schema.
+- [`SettingsDecl::open_entries`](crate::core::settings::SettingsDecl::open_entries)
+  — `path` reaches no node of the declaration's schema.
 
 ## `core::plan`
 
@@ -268,67 +275,67 @@ document input can reach either panic. `Default::default` on either type calls
   — the same condition, since it builds a
   [`PlaceholderSpec`](crate::lang::rewrites::userdefs::template::PlaceholderSpec).
 
-## `stdcore::backends::html::sink`
+## `stdlib::backends::html::sink`
 
-The [HTML sink](crate::stdcore::backends::html::HtmlSink) is the writer through
+The [HTML sink](crate::stdlib::backends::html::HtmlSink) is the writer through
 which the HTML backend's emitter writes the bytes of a page. Code that writes through it
 must close every element it opens, write unescaped content only into an element
 whose content a browser reads as raw text, and check every tag and attribute
 name before writing it
-([`is_valid_tag_name`](crate::stdcore::backends::html::is_valid_tag_name),
-[`is_valid_attribute_name`](crate::stdcore::backends::html::is_valid_attribute_name)).
+([`is_valid_tag_name`](crate::stdlib::backends::html::is_valid_tag_name),
+[`is_valid_attribute_name`](crate::stdlib::backends::html::is_valid_attribute_name)).
 No document input can reach any of the conditions below: a tag or attribute name
 written by a lowering rule reaches the sink only through the
-[HTML emitter](crate::stdcore::backends::html::emit), which checks it, reports a
+[HTML emitter](crate::stdlib::backends::html::emit), which checks it, reports a
 name that fails as `flm.html.invalid-name`, and writes, in place of that node,
 an empty element marked as unsupported (`<span class="flm-pres-unsupported">`).
 
-- [`HtmlSink::close`](crate::stdcore::backends::html::HtmlSink::close) — no
+- [`HtmlSink::close`](crate::stdlib::backends::html::HtmlSink::close) — no
   element is open.
-- [`HtmlSink::finish`](crate::stdcore::backends::html::HtmlSink::finish) — an
+- [`HtmlSink::finish`](crate::stdlib::backends::html::HtmlSink::finish) — an
   element is still open, so the HTML handed over would be incomplete; the panic
   message gives every element left open.
-- [`HtmlSink::raw_text_element`](crate::stdcore::backends::html::HtmlSink::raw_text_element)
+- [`HtmlSink::raw_text_element`](crate::stdlib::backends::html::HtmlSink::raw_text_element)
   — the tag is neither `style` nor `script`, the two elements whose content a
   browser reads as raw text. The content is written unescaped, so in another
   element a browser would read it as markup. This check runs in every build.
   *Debug builds only*, additionally: an attribute name fails the check above.
-- [`HtmlSink::open_block`](crate::stdcore::backends::html::HtmlSink::open_block),
-  [`HtmlSink::open_inline`](crate::stdcore::backends::html::HtmlSink::open_inline),
-  [`HtmlSink::void_block`](crate::stdcore::backends::html::HtmlSink::void_block),
-  [`HtmlSink::void_inline`](crate::stdcore::backends::html::HtmlSink::void_inline)
+- [`HtmlSink::open_block`](crate::stdlib::backends::html::HtmlSink::open_block),
+  [`HtmlSink::open_inline`](crate::stdlib::backends::html::HtmlSink::open_inline),
+  [`HtmlSink::void_block`](crate::stdlib::backends::html::HtmlSink::void_block),
+  [`HtmlSink::void_inline`](crate::stdlib::backends::html::HtmlSink::void_inline)
   — *debug builds only*: the tag name fails the check above. A release build
   writes the name unchanged, which may produce markup the caller did not intend.
-- [`TagBuilder::attr`](crate::stdcore::backends::html::TagBuilder::attr),
-  [`TagBuilder::attr_json`](crate::stdcore::backends::html::TagBuilder::attr_json),
-  [`TagBuilder::flag`](crate::stdcore::backends::html::TagBuilder::flag) —
+- [`TagBuilder::attr`](crate::stdlib::backends::html::TagBuilder::attr),
+  [`TagBuilder::attr_json`](crate::stdlib::backends::html::TagBuilder::attr_json),
+  [`TagBuilder::flag`](crate::stdlib::backends::html::TagBuilder::flag) —
   *debug builds only*: the attribute name fails the check above, with the same
   consequence in a release build.
 
-## `stdcore::backends::latex::preamble`
+## `stdlib::backends::latex::preamble`
 
 Both functions panic when the constant data of untechxt's builtin
 Unicode-to-LaTeX table breaks an invariant: the chunks of its builtin profiles
 ([`PROFILES`](crate::untechxt::builtin::needs_profiles::PROFILES)), as
-[`table_chunks`](crate::stdcore::backends::latex::packages::table_chunks) lists
+[`table_chunks`](crate::stdlib::backends::latex::packages::table_chunks) lists
 them. The tests of that module check the invariant over the table as shipped;
 no document input can reach either panic.
 
-- [`chunk_pieces`](crate::stdcore::backends::latex::preamble::chunk_pieces) — a
+- [`chunk_pieces`](crate::stdlib::backends::latex::preamble::chunk_pieces) — a
   chunk of declarations (a chunk that loads no LaTeX package; see
-  [`is_package_chunk`](crate::stdcore::backends::latex::packages::is_package_chunk))
+  [`is_package_chunk`](crate::stdlib::backends::latex::packages::is_package_chunk))
   is not one block of declarations for every engine: it has more than one case
   (a variant of the chunk for a set of engines), or its one case does not apply
   to every engine listed in
-  [`ENGINES`](crate::stdcore::backends::latex::packages::ENGINES); or the chunk
+  [`ENGINES`](crate::stdlib::backends::latex::packages::ENGINES); or the chunk
   declares no name (no math alphabet, math symbol, text symbol or symbol font)
-  that the [definition piece](crate::stdcore::backends::latex::LatexPreambleDef)
+  that the [definition piece](crate::stdlib::backends::latex::LatexPreambleDef)
   made from it can test before writing the declarations (the piece writes them
   only when no command of that name exists).
-- [`standard_pieces`](crate::stdcore::backends::latex::preamble::standard_pieces)
+- [`standard_pieces`](crate::stdlib::backends::latex::preamble::standard_pieces)
   — the same condition, since it calls `chunk_pieces`.
 
-## `stdcore::backends::lowering`
+## `stdlib::backends::lowering`
 
 Most of these items read a lowering rule selection
 ([`SelectedRules`](crate::core::plan::SelectedRules): the rule a plan chose for
@@ -338,43 +345,43 @@ registry, a rule number is out of range for that registry's list of rules, and
 the item panics. A plan and the registry it was built from always match, so
 only values from two registries paired by hand can reach this panic.
 
-- [`lower_tree`](crate::stdcore::backends::lowering::lower_tree) —
+- [`lower_tree`](crate::stdlib::backends::lowering::lower_tree) —
   `inputs.selected` was built against a registry other than `inputs.registry`
-  (the fields of [`LoweringInputs`](crate::stdcore::backends::lowering::LoweringInputs)).
-- [`lower_value`](crate::stdcore::backends::lowering::lower_value) — the same
+  (the fields of [`LoweringInputs`](crate::stdlib::backends::lowering::LoweringInputs)).
+- [`lower_value`](crate::stdlib::backends::lowering::lower_value) — the same
   condition as `lower_tree`. A panic of a rewrite stage, or of a stage run again
   during [value catch-up](crate::guide::concepts_overview#value-catch-up), while
   the synthesized value given to this call is brought up to date also propagates
   out of this call, as out of [`StageCx::resolve_value`](crate::core::run::StageCx::resolve_value).
-- [`rank`](crate::stdcore::backends::lowering::rank) — `selected` was built
+- [`rank`](crate::stdlib::backends::lowering::rank) — `selected` was built
   against a registry other than `registry`.
-- [`selection_requires`](crate::stdcore::backends::lowering::selection_requires)
+- [`selection_requires`](crate::stdlib::backends::lowering::selection_requires)
   — the same condition as `rank`.
-- [`rules_needs`](crate::stdcore::backends::lowering::rules_needs) — the rule
+- [`rules_needs`](crate::stdlib::backends::lowering::rules_needs) — the rule
   selection that the plan context `cx` ([`PlanCx`](crate::core::plan::PlanCx))
   carries was built against a registry other than the one `cx` holds.
-- [`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage), in its
+- [`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage), in its
   [`Stage::needs`](crate::core::stage::Stage::needs) and
   [`Stage::run`](crate::core::stage::Stage::run) implementations — the rule
   selection that the plan carries was built against a registry other than the
   one that the plan context ([`PlanCx`](crate::core::plan::PlanCx)) or the run
   holds.
 
-## `stdcore::backends::pieces`
+## `stdlib::backends::pieces`
 
-- [`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage), in its
+- [`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage), in its
   [`Stage::needs`](crate::core::stage::Stage::needs) and
   [`Stage::run`](crate::core::stage::Stage::run) implementations — the condition
-  of [`rules_needs`](crate::stdcore::backends::lowering::rules_needs) above. Its
+  of [`rules_needs`](crate::stdlib::backends::lowering::rules_needs) above. Its
   `run` also lets through a panic of a rewrite stage or of a stage run again
   while a [piece](crate::core::piece::Piece) (a document-level value a backend
   places beside the content) is brought up to date, as
   [`StageCx::resolve_value`](crate::core::run::StageCx::resolve_value) does.
 
-## `stdcore::backends::text`
+## `stdlib::backends::text`
 
-- [`TextOutput::slice`](crate::stdcore::backends::text::TextOutput::slice) — the
-  byte range of the given [`TextMark`](crate::stdcore::backends::text::TextMark)
+- [`TextOutput::slice`](crate::stdlib::backends::text::TextOutput::slice) — the
+  byte range of the given [`TextMark`](crate::stdlib::backends::text::TextMark)
   lies outside the output's text or does not start and end on character
   boundaries. A mark taken from this output's own `marks`, with the output
   unchanged since printing, never panics; a mark from another output, a mark

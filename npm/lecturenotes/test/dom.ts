@@ -10,6 +10,11 @@ export class FakeText {
   cloneNode(): FakeText {
     return new FakeText(this.textContent);
   }
+  remove(): void {
+    if (this.parentNode === null) return;
+    this.parentNode.childNodes = this.parentNode.childNodes.filter((n) => n !== this);
+    this.parentNode = null;
+  }
 }
 
 type FakeNode = FakeElement | FakeText;
@@ -88,6 +93,20 @@ export class FakeElement {
     if (child.parentNode !== null) child.parentNode.childNodes = child.parentNode.childNodes.filter((n) => n !== child);
     child.parentNode = this;
     this.childNodes.push(child);
+    return child;
+  }
+  get firstChild(): FakeNode | null {
+    return this.childNodes[0] ?? null;
+  }
+  get nextSibling(): FakeNode | null {
+    const siblings = this.parentNode?.childNodes ?? [];
+    return siblings[siblings.indexOf(this) + 1] ?? null;
+  }
+  insertBefore<T extends FakeNode>(child: T, before: FakeNode | null): T {
+    if (before === null) return this.appendChild(child);
+    if (child.parentNode !== null) child.parentNode.childNodes = child.parentNode.childNodes.filter((n) => n !== child);
+    child.parentNode = this;
+    this.childNodes.splice(this.childNodes.indexOf(before), 0, child);
     return child;
   }
   remove(): void {

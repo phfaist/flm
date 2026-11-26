@@ -1,0 +1,44 @@
+/* The rules of the lecture-notes page that depend on a heading's group, written with the
+   template's selectors of the groups after the stylesheet of the bundle, whose values
+   (--ln-major-*, --ln-minor-*) they read. */
+
+/* A heading at the navigation level or above it: a band. */
+.flm-content .flm-pres-block--heading{{ css_selectors.headings.major }} {
+  --flm-heading-weight: var(--ln-major-heading-weight);
+  --flm-heading-line-height: var(--ln-major-heading-line-height);
+  --flm-heading-space-above: var(--ln-major-heading-space-above);
+  --flm-heading-space-below: var(--ln-major-heading-space-below);
+  padding: var(--ln-major-heading-padding);
+  border-left: var(--ln-band-rule);
+  background: var(--ln-accent-bg);
+}
+/* A heading below the navigation level. */
+.flm-content .flm-pres-block--heading{{ css_selectors.headings.minor }} {
+  --flm-heading-weight: var(--ln-minor-heading-weight);
+  --flm-heading-space-above: var(--ln-minor-heading-space-above);
+  --flm-heading-space-below: var(--ln-minor-heading-space-below);
+}
+
+/* An entry of the table of contents at the navigation level or above it: in bold, with
+   a space above. */
+.flm-toc li{{ css_selectors.headings.major }} {
+  margin-top: var(--ln-major-entry-space);
+}
+.flm-toc li{{ css_selectors.headings.major }} > .flm-pres-link {
+  font-weight: var(--ln-major-entry-weight);
+}
+.flm-toc li{{ css_selectors.headings.major }} > .flm-pres-link[aria-current="true"] {
+  font-weight: var(--ln-current-major-entry-weight);
+}
+/* An entry below the navigation level: in the lighter color, except the current entry
+   and the entry under the pointer, which keep the accent. */
+.flm-toc li{{ css_selectors.headings.minor }} > .flm-pres-link:not([aria-current="true"], :hover) {
+  color: var(--ln-muted);
+}
+
+/* Folded (no class ln-toc-all on the root element): the entries below an entry at the
+   navigation level show only for the unit being read (the class ln-open, which the
+   script sets). */
+:root:not(.ln-toc-all) .flm-toc li{{ css_selectors.headings.navigation }}:not(.ln-open) > .flm-pres-list {
+  display: none;
+}

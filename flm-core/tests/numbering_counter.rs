@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use flm_core::lang::{build_language, BuiltLang, LangInputs};
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::pres::read::recompose_source;
-use flm_core::stdcore::features::numbering::{
+use flm_core::stdlib::backends::pres::read::recompose_source;
+use flm_core::stdlib::features::numbering::{
     format, format_many, identifier_text, Ancestor, CounterStyle, CounterStyleDecl, CounterValue,
     Delimiters, FormatError, FormatOptions, JoinDecl, NumberFormat, NumberTemplate,
     NumberedValue, Parent,

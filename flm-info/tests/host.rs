@@ -1,18 +1,18 @@
-//! The layer over the host library (cargo feature `flm-main`): the environment of a
+//! The layer over the host library (cargo feature `flm-host`): the environment of a
 //! document prepared in memory, which uses a data extension found in the folder
 //! `_flmextensions` beside it.
 
-#![cfg(feature = "flm-main")]
+#![cfg(feature = "flm-host")]
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
+use flm_core::progress::Scope;
 use flm_info::Environment;
 use flm_info::host::{ExtensionOrigin, PackageOrigin};
-use flm_main::files::MemoryFiles;
-use flm_main::packages::ExtensionFolder;
-use flm_main::seed::MathChoice;
-use flm_main::session::{Input, Request, prepare};
+use flm_host::files::MemoryFiles;
+use flm_host::packages::ExtensionFolder;
+use flm_host::seed::MathChoice;
+use flm_host::session::{Input, Request, prepare};
 
 /// A data extension that sets the text backend's width; its manifest writes a description
 /// and an author.
@@ -30,15 +30,15 @@ fn files() -> MemoryFiles {
 }
 
 fn request() -> Request {
-    let mut request = Request::new(Input::File(PathBuf::from("doc/paper.flm")));
+    let mut request = Request::new(Input::File(String::from("doc/paper.flm")));
     request.default_math = MathChoice::processor("passthrough");
     request.profile = Some(String::from("text"));
-    request.extension_folders = vec![ExtensionFolder { path: PathBuf::from("doc/_flmextensions"), required: false }];
+    request.extension_folders = vec![ExtensionFolder { path: String::from("doc/_flmextensions"), required: false }];
     request
 }
 
 fn environment() -> Environment {
-    let prepared = prepare(request(), Arc::new(files()), &[]).expect("the document is prepared");
+    let prepared = prepare(request(), Arc::new(files()), &[], &Scope::none()).expect("the document is prepared");
     Environment::of_prepared(&prepared)
 }
 

@@ -31,8 +31,10 @@
 //! Diagnostic data never carries the displayed text, so that a test that checks
 //! the data does not depend on the wording. A problem type
 //! ([`PlaceholderProblem`], [`DefinitionProblem`]) appears in the data as a map
-//! with a stable `kind` token and the problem's fields; the text of the message
-//! comes from the problem's `Display` implementation alone.
+//! with a stable `kind` token and the problem's fields. A problem type has no
+//! text of its own: the condition that carries it ([`BadPlaceholder`],
+//! [`BadDefinition`]) writes the whole message, one wording for each problem,
+//! from the problem and the condition's other fields.
 
 use std::fmt;
 
@@ -49,9 +51,7 @@ use techy::latexlike::Mode;
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.userdefs.recursion-limit",
-    message = "definitions may be expanded inside one another at most {limit} levels deep, \
-               and expanding ‘{name}’ here would exceed that limit; a definition that uses \
-               itself, directly or through other definitions, expands without end"
+    message = "Recursion limit reached ({limit} levels) while expanding ‘{name}’"
 )]
 pub struct RecursionLimit {
     /// The definition whose use site could not be expanded, as an author
@@ -87,34 +87,6 @@ pub enum PlaceholderProblem {
     Unresolvable,
     /// A default argument value that refers to itself through other default values.
     DefaultCycle,
-}
-
-impl fmt::Display for PlaceholderProblem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PlaceholderProblem::OutOfRange { arity } => {
-                write!(
-                    f,
-                    "no argument has this number; the definition has {arity} numbered argument(s)"
-                )
-            }
-            PlaceholderProblem::UnknownName => {
-                f.write_str("no argument and no computed placeholder has this name")
-            }
-            PlaceholderProblem::NoBody => {
-                f.write_str("only an environment's template can refer to its body")
-            }
-            PlaceholderProblem::SubstitutionNotAccepted => {
-                f.write_str("this placeholder cannot take a bracketed ‘[…]’ part")
-            }
-            PlaceholderProblem::Unresolvable => {
-                f.write_str("it has no value at this use")
-            }
-            PlaceholderProblem::DefaultCycle => {
-                f.write_str("default argument values must not refer to each other in a cycle")
-            }
-        }
-    }
 }
 
 impl PlaceholderProblem {
@@ -154,10 +126,7 @@ impl ToDiagnosticValue for PlaceholderProblem {
 /// definition is refused; at expansion, the use site is replaced by its literal
 /// source text.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
-#[diagnostic(
-    id = "flm.userdefs.bad-placeholder",
-    message = "the placeholder ‘#{reference}’ in the template of ‘{name}’ is invalid: {reason}"
-)]
+#[diagnostic(id = "flm.userdefs.bad-placeholder")]
 pub struct BadPlaceholder {
     /// The definition whose template holds the placeholder, as an author
     /// writes it (`\foo`).
@@ -167,6 +136,48 @@ pub struct BadPlaceholder {
     pub reference: String,
     /// What is wrong with the placeholder.
     pub reason: PlaceholderProblem,
+}
+
+impl fmt::Display for BadPlaceholder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let BadPlaceholder { name, reference, reason } = self;
+        match reason {
+            PlaceholderProblem::OutOfRange { arity: 0 } => write!(
+                f,
+                "Invalid argument number ‘#{reference}’: ‘{name}’ has no numbered arguments"
+            ),
+            PlaceholderProblem::OutOfRange { arity: 1 } => write!(
+                f,
+                "Invalid argument number ‘#{reference}’: ‘{name}’ has only argument number ‘#1’"
+            ),
+            PlaceholderProblem::OutOfRange { arity } => write!(
+                f,
+                "Invalid argument number ‘#{reference}’: ‘{name}’ has arguments ‘#1’..‘#{arity}’"
+            ),
+            PlaceholderProblem::UnknownName => write!(
+                f,
+                "Invalid argument or placeholder name ‘#{reference}’ in ‘{name}’"
+            ),
+            PlaceholderProblem::NoBody => write!(
+                f,
+                "Invalid placeholder ‘#{reference}’; ‘{name}’ has no body"
+            ),
+            PlaceholderProblem::SubstitutionNotAccepted => write!(
+                f,
+                "Placeholder ‘#{reference}’ in definition of ‘{name}’ does not accept any \
+                 bracketed modifiers (‘[…]’)"
+            ),
+            PlaceholderProblem::Unresolvable => write!(
+                f,
+                "No value for argument or placeholder ‘#{reference}’ in the definition of ‘{name}’"
+            ),
+            PlaceholderProblem::DefaultCycle => write!(
+                f,
+                "Cyclic recursion in default argument values for argument or placeholder \
+                 ‘#{reference}’ in the definition of ‘{name}’"
+            ),
+        }
+    }
 }
 
 /// What is wrong with a definition as a whole: the detail of [`BadDefinition`].
@@ -227,38 +238,6 @@ pub enum DefinitionProblem {
     },
 }
 
-impl fmt::Display for DefinitionProblem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DefinitionProblem::NoTemplate => f.write_str("it declares no template"),
-            DefinitionProblem::NotCompiled => f.write_str(
-                "its template could not be compiled, for a reason reported earlier",
-            ),
-            DefinitionProblem::NotInForceInMode { mode } => {
-                write!(
-                    f,
-                    "it is used here in {}, and its template cannot be parsed there",
-                    mode_phrase(*mode)
-                )
-            }
-            DefinitionProblem::UnknownDefault { key } => {
-                write!(f, "a default value is declared for ‘{key}’, which is not an argument")
-            }
-            DefinitionProblem::Minting { detail } => {
-                write!(f, "the template language could not be prepared: {detail}")
-            }
-            DefinitionProblem::ParseFailed { detail } => {
-                write!(f, "the template could not be parsed: {detail}")
-            }
-            DefinitionProblem::TackOnPlaceholder { reference } => write!(
-                f,
-                "a template cannot refer to ‘#{reference}’: that argument collects the \
-                 commands written after a call, such as ‘\\label’"
-            ),
-        }
-    }
-}
-
 impl DefinitionProblem {
     /// The stable token for the problem in diagnostic data.
     pub fn kind(&self) -> &'static str {
@@ -302,14 +281,6 @@ impl ToDiagnosticValue for DefinitionProblem {
     }
 }
 
-/// How a message refers to a parsing mode: `a formula` or `running text`.
-fn mode_phrase(mode: Mode) -> &'static str {
-    match mode {
-        Mode::Math => "a formula",
-        _ => "running text",
-    }
-}
-
 /// The stable token for a parsing mode in diagnostic data: `text` or `math`, the
 /// tokens with which a definition's modes are written
 /// ([`DefinitionModes::token`](super::DefinitionModes::token)).
@@ -319,6 +290,15 @@ fn mode_token(mode: Mode) -> &'static str {
         _ => "text",
     }
 }
+
+/// How a message refers to a parsing mode
+fn mode_phrase(mode: Mode) -> &'static str {
+    match mode {
+        Mode::Math => "math mode",
+        _ => "text mode",
+    }
+}
+
 
 /// Condition `flm.userdefs.bad-definition`: a definition cannot be compiled as
 /// declared, found when the registry is built. With the problem
@@ -331,15 +311,51 @@ fn mode_token(mode: Mode) -> &'static str {
 /// of the registry is built; at a use site, the use site is replaced by its
 /// literal source text.
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
-#[diagnostic(
-    id = "flm.userdefs.bad-definition",
-    message = "the definition of ‘{name}’ cannot be used: {problem}"
-)]
+#[diagnostic(id = "flm.userdefs.bad-definition")]
 pub struct BadDefinition {
     /// The definition, as an author writes it (`\foo`).
     pub name: String,
     /// What is wrong with the definition.
     pub problem: DefinitionProblem,
+}
+
+impl fmt::Display for BadDefinition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let BadDefinition { name, problem } = self;
+        match problem {
+            DefinitionProblem::NoTemplate => {
+                write!(f, "Missing definition template for ‘{name}’")
+            }
+            DefinitionProblem::NotCompiled => write!(
+                f,
+                "Failed to compile definition of ‘{name}’"
+            ),
+            DefinitionProblem::NotInForceInMode { mode } => write!(
+                f,
+                "Definition of ‘{name}’ fails to parse in {}",
+                mode_phrase(*mode)
+            ),
+            DefinitionProblem::UnknownDefault { key } => write!(
+                f,
+                "Default value given for invalid argument ‘{key}’ in definition of ‘{name}’"
+            ),
+            DefinitionProblem::Minting { detail } => write!(
+                f,
+                "Parsing the definition of ‘{name}’ failed (minting failed): {detail}"
+            ),
+            DefinitionProblem::ParseFailed { detail } => write!(
+                f,
+                "Parsing the definition of ‘{name}’ failed: {detail}"
+            ),
+            DefinitionProblem::TackOnPlaceholder { reference } => write!(
+                f,
+// ### Problem: this should not be a diagnostic. TackOnPlaceholder is a specific argument type. The BadDefinition diagnostic should know nothing about specific argument types.
+                "the definition of ‘{name}’ cannot be used: a template cannot refer to \
+                 ‘#{reference}’: that argument collects the commands written after a call, such \
+                 as ‘\\label’"
+            ),
+        }
+    }
 }
 
 /// Condition `flm.userdefs.expansion-failed`: the expand pass failed for a reason
@@ -352,7 +368,7 @@ pub struct BadDefinition {
 #[derive(Debug, Clone, PartialEq, Eq, DiagnosticInfo)]
 #[diagnostic(
     id = "flm.userdefs.expansion-failed",
-    message = "the user definitions could not be expanded: {detail}"
+    message = "Definition expansion pass failed: {detail}"
 )]
 pub struct ExpansionFailed {
     /// The failure, as text.

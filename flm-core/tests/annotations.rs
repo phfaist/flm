@@ -11,21 +11,25 @@ mod common;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{FlmRegistry, RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{FlmRegistry, PackageEntry, RegistryBuildError, RegistryBuilder, RegistryInputs};
+use flm_core::dump::diag::expect;
 use flm_core::lang::mint::{DefinitionShape, FlmArgumentParser};
 use flm_core::lang::{Flm, FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::doc::{Fragment, FragmentLayout};
 use flm_core::model::element::element_value;
 use flm_core::model::names::FeatureName;
 use flm_core::model::options::{Bind, OptionKey};
-use flm_core::stdcore::features::annotations::{
+use flm_core::stdlib::features::annotations::{
     ANNOTATION, AnnotationElement, AnnotationParser, AnnotationsConfig, AnnotationsRenderOptions,
     Annotator, FEATURE, Form, TEXT_ARG, form_of,
 };
-use flm_core::stdcore::features::refs::{ANCHORS, encode_anchor};
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig, package};
+use flm_core::stdlib::features::refs::{ANCHORS, encode_anchor};
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig, add_features};
 use techy::core::constructs::ArgumentParser;
+use serde_json::json;
 use techy::core::node::NodeRef;
+
+use common::stdlib::{clashing_names, refusing_features};
 
 /// The two annotators these tests use: `phf` with the initials `PhF`,
 /// annotator 0, and `abc` with none, annotator 1.
@@ -37,18 +41,18 @@ fn two_annotators() -> AnnotationsConfig {
 
 /// The standard package with the annotations feature under `config`.
 fn with_config(config: AnnotationsConfig) -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().annotations(config))
+    common::stdlib::registry(StdlibConfig::new().annotations(config))
 }
 
-/// What the registry build under `config` reported, rendered; a build that
-/// succeeds is a test failure.
-fn build_error(config: AnnotationsConfig) -> String {
+/// What the registry build under `config` reported; a build that succeeds is
+/// a test failure.
+fn build_error(config: AnnotationsConfig) -> RegistryBuildError {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().annotations(config)));
+    builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new().annotations(config)));
     builder.use_package(flm_core::math_passthrough::package());
     match builder.build(&RegistryInputs::new()) {
         Ok(_) => panic!("the registry build was expected to fail"),
-        Err(error) => error.render(),
+        Err(error) => error,
     }
 }
 
@@ -58,7 +62,7 @@ fn build_error(config: AnnotationsConfig) -> String {
 
 #[test]
 fn the_default_configuration_declares_no_annotator_and_builds() {
-    assert!(StdcoreConfig::new().annotations.annotators.is_empty());
+    assert!(StdlibConfig::new().annotations.annotators.is_empty());
     let registry = with_config(AnnotationsConfig::new());
     assert!(registry.elements_named("flm.annotations.annotation").is_empty());
 }
@@ -66,14 +70,14 @@ fn the_default_configuration_declares_no_annotator_and_builds() {
 #[test]
 fn a_configuration_the_feature_refuses_names_the_culprit_at_registry_build() {
     let bad_command = build_error(AnnotationsConfig::new().annotator(Annotator::new("ph1")));
-    assert!(bad_command.contains("`ph1`"), "{bad_command}");
+    assert_eq!(refusing_features(&bad_command), [FEATURE], "{bad_command}");
     let environment = build_error(AnnotationsConfig::new().annotator(Annotator::new("end")));
-    assert!(environment.contains("`\\end`"), "{environment}");
+    assert_eq!(refusing_features(&environment), [FEATURE], "{environment}");
     let twice = build_error(two_annotators().annotator(Annotator::new("phf")));
-    assert!(twice.contains("`\\phf`"), "{twice}");
+    assert_eq!(refusing_features(&twice), [FEATURE], "{twice}");
     for initials in ["", " ", "\t"] {
         let blank = build_error(AnnotationsConfig::new().annotator(Annotator::new("phf").initials(initials)));
-        assert!(blank.contains("`\\phf`"), "{initials:?}: {blank}");
+        assert_eq!(refusing_features(&blank), [FEATURE], "{initials:?}: {blank}");
     }
 }
 
@@ -106,7 +110,7 @@ fn the_configuration_enters_the_registry_digest() {
 #[test]
 fn a_command_another_feature_declares_is_the_registry_builds_own_clash() {
     let error = build_error(AnnotationsConfig::new().annotator(Annotator::new("emph")));
-    assert!(error.contains("emph"), "{error}");
+    assert_eq!(clashing_names(&error), ["emph"], "{error}");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -219,8 +223,9 @@ fn a_passage_the_input_ends_before_closing_is_reported_over_what_was_read() {
     let found = annotations(&fragment);
     assert_eq!(delimiters(&found[0]), ("".into(), "".into()));
     assert_eq!(content_text(&found[0]), "passage");
-    let rendered = fragment.diags().render_all();
-    assert!(rendered.contains("\\endphf"), "{rendered}");
+    expect(fragment.diags().iter(), "flm.annotations.unterminated")
+        .data(json!({ "command": "phf", "end_command": "endphf" }))
+        .once();
 }
 
 #[test]
@@ -331,8 +336,8 @@ fn a_heading_is_identified_from_its_highlight_and_its_words_not_from_its_comment
     // `sec--Some_draft_notescheck_this` with the remark read as words.
     let registry = with_config(two_annotators());
     let document = "\\section{Some \\phf{draft} notes\\phf[check this]}\n\nText.";
-    let run = common::stdcore::run_workflow(&registry, CHECK_WORKFLOW, &[document], &Overrides::none());
-    assert_eq!(common::stdcore::identifiers(&run), Vec::<String>::new());
+    let run = common::stdlib::run_workflow(&registry, CHECK_WORKFLOW, &[document], &Overrides::none());
+    assert_eq!(common::stdlib::identifiers(&run), Vec::<String>::new());
     let anchors = run.table(&ANCHORS).expect("declared").expect("written");
     let ids: Vec<String> = anchors.ids.values().flatten().cloned().collect();
     assert_eq!(ids, [format!("sec--{}", encode_anchor("Some draft notes"))]);

@@ -29,7 +29,7 @@ use flm_core::model::aspects::{BlockRole, BlockRoleAspect, InlineSpacing};
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::{ElementSpec, element_of};
 use flm_core::model::names::ElementName;
-use flm_core::stdcore::backends::pres::read::payload_of;
+use flm_core::stdlib::backends::pres::read::payload_of;
 use techy::core::node::{BuildId, NodeRef, NodeTree, display_tree};
 use techy::error::DiagnosticInfo;
 use techy::serialize::SerialValue;

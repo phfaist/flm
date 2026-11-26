@@ -14,6 +14,18 @@
 //! presentation through the [`Lowerer`]'s methods, each answering the staged
 //! nodes as [`Staged`] values.
 //!
+//! A rule's [`LoweringDecl`] declares, with
+//! [`unchecked_output`](LoweringDecl::unchecked_output), the backends on
+//! which nothing checks what the rule writes before the program that reads
+//! the output does: a plan that selects the rule on one of them keeps one
+//! warning per backend and feature, which every run of the plan reports at
+//! its start as the Warning `flm.run.unchecked-output`, naming the feature
+//! that registered the rule. A [`LoweringRule`] also holds a rule that a
+//! helper of the library built, with the library's body and declaration: the
+//! rules of `math-passthrough` that [`math_passthrough`](crate::api::math_passthrough)
+//! answers under a name of the extension's, as the extension `math-techxt`
+//! registers on the two LaTeX backends.
+//!
 //! [`pres_tree`] has no counterpart in `flm-core`: it stages a whole tree of
 //! presentation nodes, written as data, in one call.
 
@@ -105,7 +117,11 @@ pub trait Lower: Send + Sync {
 
 /// Mirrors [`Lowering`](flm_core::core::lowering::Lowering): what a rule's
 /// body answers for one node. What differs: the nodes are [`Staged`] values,
-/// each of which the same call must have staged, and each named once.
+/// each of which the same call must have staged, and each named once. Across
+/// a binding, the staged nodes of an `Emit` are a sequence of staged nodes, a
+/// list of staged nodes, or a joined list of staged nodes and sequences (see
+/// the [mapping rules](crate::api#the-mapping-rules)), so that a rule passes
+/// on the staged nodes a method returned without reading them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Lowering {
     /// Copy the node into the presentation tree unchanged, and lower its
@@ -122,7 +138,8 @@ pub enum Lowering {
 /// the registry declares for that name once every feature has registered (a
 /// table no feature declares is read as an extension's own); an option type
 /// is named by its name, as a feature's `settings.options` declares it
-/// ([`LoweringDecl::option_named`](flm_core::core::lowering::LoweringDecl::option_named)).
+/// ([`LoweringDecl::option_named`](flm_core::core::lowering::LoweringDecl::option_named));
+/// an unchecked output names its backend by its name ([`UncheckedOutputDecl`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LoweringDecl {
     /// The capabilities the rule requires.
@@ -137,6 +154,26 @@ pub struct LoweringDecl {
     pub produces: Vec<String>,
     /// The requirements the rule records whenever it is selected.
     pub selection_requires: Vec<String>,
+    /// The backends on which what the rule writes is checked by nothing that
+    /// reads the output after FLM, each with what is written and what reads
+    /// it.
+    pub unchecked_output: Vec<UncheckedOutputDecl>,
+}
+
+/// Mirrors [`UncheckedOutputDecl`](flm_core::core::lowering::UncheckedOutputDecl):
+/// one backend on which a lowering rule writes output that nothing checks
+/// before the program reading that output does
+/// ([`LoweringDecl::unchecked_output`]). What differs: the backend by its
+/// name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UncheckedOutputDecl {
+    /// The backend whose output holds what the rule writes, by its name.
+    pub backend: String,
+    /// What the rule writes, as a noun phrase ("each formula's LaTeX
+    /// source").
+    pub written: String,
+    /// What reads the output, as a noun phrase ("LuaLaTeX").
+    pub reader: String,
 }
 
 impl LoweringDecl {
@@ -173,7 +210,7 @@ impl LoweringDecl {
     /// which names an option type declared from data; the two standard option
     /// types the `math` library's LaTeX parts read,
     /// `MathRecomposeOptions` and `LatexRecomposedRenderOptions`
-    /// ([`api::stdcore::features::math`](crate::api::stdcore::features::math)),
+    /// ([`api::stdlib::features::math`](crate::api::stdlib::features::math)),
     /// are named by those names and declared as their typed reads, so that a
     /// rule that calls the parts declares them here. Their values are read by
     /// the parts, not by [`Lowerer::option`].
@@ -193,6 +230,21 @@ impl LoweringDecl {
         self.selection_requires.push(id.into());
         self
     }
+
+    /// Mirrors [`LoweringDecl::unchecked_output`](flm_core::core::lowering::LoweringDecl::unchecked_output):
+    /// adds the backend `backend`, on which what the rule writes is checked
+    /// by nothing that reads the output after FLM, with what is written
+    /// (`written`) and what reads it (`reader`), each a noun phrase that
+    /// completes the plan's warning. What differs: the backend by its name.
+    pub fn unchecked_output(
+        mut self,
+        backend: impl Into<String>,
+        written: impl Into<String>,
+        reader: impl Into<String>,
+    ) -> LoweringDecl {
+        self.unchecked_output.push(UncheckedOutputDecl { backend: backend.into(), written: written.into(), reader: reader.into() });
+        self
+    }
 }
 
 /// Mirrors [`LoweringRule`](flm_core::core::lowering::LoweringRule): a
@@ -200,7 +252,7 @@ impl LoweringDecl {
 ///
 /// What differs: an opaque value, read through the methods below, which holds
 /// either a rule an extension built with [`LoweringRule::new`] or one a helper
-/// made ([`expand_in_tree_rule_for`](crate::api::stdcore::features::userdefs::expand_in_tree_rule_for));
+/// made ([`expand_in_tree_rule_for`](crate::api::stdlib::features::userdefs::expand_in_tree_rule_for));
 /// [`FeatureBuilder::lowering_rule`](crate::api::core::registry::FeatureBuilder::lowering_rule)
 /// takes both.
 #[derive(Clone)]
@@ -340,7 +392,11 @@ pub trait LowerCx: LowerCxCore {}
 /// otherwise); a diagnostic is the extension API's [`Diagnostic`]; errors are
 /// [`ExtError`], and a `flm-core` error is [`ExtError::Core`] of kind `lower`
 /// (see [`Lower`] for what then follows); [`lang`](Lowerer::lang) answers
-/// the built language as a façade lent for the call. Left out: `layout()` (the region layout serves a helper of the
+/// the built language as a façade lent for the call. Across a binding, a
+/// method that returns several staged nodes returns a sequence of staged
+/// nodes, and a parameter of several nodes or staged nodes takes a sequence
+/// or a joined list (see the [mapping rules](crate::api#the-mapping-rules)).
+/// Left out: `layout()` (the region layout serves a helper of the
 /// block structure that has no mirror); the type-erased `get_erased` and
 /// `option_erased`, whose by-name forms [`get`](Lowerer::get) and
 /// [`option`](Lowerer::option) replace them; the typed helpers `pres_with`,
@@ -471,7 +527,7 @@ pub trait Lowerer: Sealed + LowererCore {
     /// data, the projection of the element's payload type, read back through
     /// that type's `from_projection`; the elements whose payload can be read
     /// so are those of the standard presentation vocabulary
-    /// ([`pres::names::ALL`](flm_core::stdcore::backends::pres::names::ALL))
+    /// ([`pres::names::ALL`](flm_core::stdlib::backends::pres::names::ALL))
     /// and the HTML construct `flm.pres.html.tag` with children (its markup
     /// body is not offered).
     ///
@@ -518,7 +574,7 @@ pub trait Lowerer: Sealed + LowererCore {
     /// Mirrors [`Lowerer::lower_region`](flm_core::core::lowering::Lowerer::lower_region).
     /// What differs: no shape function; the region's content is lowered as
     /// one run of siblings, as `flm-core`'s
-    /// [`lower_region_content`](flm_core::stdcore::backends::lowering::lower_region_content)
+    /// [`lower_region_content`](flm_core::stdlib::backends::lowering::lower_region_content)
     /// does. A binding does not offer this method, since an address crosses
     /// as data that nothing takes back.
     ///
@@ -549,9 +605,13 @@ pub trait Lowerer: Sealed + LowererCore {
 /// A tree of presentation nodes written as data, for [`pres_tree`]: no
 /// `flm-core` counterpart.
 ///
-/// Across a binding: `{"element", "payload", "children": [...]}` for a node,
-/// `{"build": <staged node>}` for a node the body already staged,
-/// `{"text": "…"}` for characters.
+/// Across a binding, a tree is written in three shapes:
+///
+/// - `{"element", "payload", "children": [...]}` for a presentation node;
+/// - `{"build": staged}` for nodes the body already staged, where `staged`
+///   is one staged node, a sequence of staged nodes, or a joined list of
+///   staged nodes and sequences;
+/// - `{"text": "…"}` for characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PresTree {
     /// A presentation node: its element, its payload (as
@@ -564,15 +624,18 @@ pub enum PresTree {
         /// The children, in order.
         children: Vec<PresTree>,
     },
-    /// A node the body staged before (lowered content), placed here.
-    Build(Staged),
+    /// The nodes the body staged before (lowered content), placed here in
+    /// order.
+    Build(Vec<Staged>),
     /// Characters, staged as [`Lowerer::text`] stages them.
     Text(String),
 }
 
 /// No `flm-core` counterpart: stages the tree `tree` in one call, through
-/// [`Lowerer::pres`] and [`Lowerer::text`], children first, and answers the
-/// staged root. A [`PresTree::Build`] is answered as it is.
+/// [`Lowerer::pres`] and [`Lowerer::text`], children first, and returns the
+/// tree's staged nodes: the one node staged for a [`PresTree::Node`] or a
+/// [`PresTree::Text`], and the staged nodes of a [`PresTree::Build`] as they
+/// are. Across a binding, the staged nodes are a sequence of staged nodes.
 ///
 /// A binding calls it once for a tree of tens or hundreds of nodes where one
 /// call per node would make the crossings the cost of lowering.
@@ -581,16 +644,16 @@ pub enum PresTree {
 ///
 /// The first error of [`Lowerer::pres`] or [`Lowerer::text`]; what was staged
 /// before it stays staged and unplaced.
-pub fn pres_tree(lw: &mut dyn Lowerer, cx: &mut dyn LowerCx, tree: &PresTree) -> Result<Staged, ExtError> {
+pub fn pres_tree(lw: &mut dyn Lowerer, cx: &mut dyn LowerCx, tree: &PresTree) -> Result<Vec<Staged>, ExtError> {
     match tree {
-        PresTree::Build(staged) => Ok(*staged),
-        PresTree::Text(text) => lw.text(cx, text),
+        PresTree::Build(staged) => Ok(staged.clone()),
+        PresTree::Text(text) => Ok(vec![lw.text(cx, text)?]),
         PresTree::Node { element, payload, children } => {
             let mut staged = Vec::with_capacity(children.len());
             for child in children {
-                staged.push(pres_tree(lw, cx, child)?);
+                staged.extend(pres_tree(lw, cx, child)?);
             }
-            lw.pres(cx, element, payload, staged)
+            Ok(vec![lw.pres(cx, element, payload, staged)?])
         }
     }
 }

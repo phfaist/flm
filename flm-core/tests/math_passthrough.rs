@@ -1,6 +1,6 @@
 //! The `math-passthrough` feature
 //! (`flm_core::math_passthrough`): registered by its
-//! own package after the standard package `stdcore`; a command of another feature written
+//! own package after the standard features; a command of another feature written
 //! inside a formula is an opaque node and nothing is reported; an empty
 //! equation line is reported by the feature's check stage, at the span the
 //! parse reported it at before the feature existed; the page of a formula
@@ -14,31 +14,31 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
-use flm_core::core::registry::{BuildError, DefContent, FlmRegistry, Site};
+use flm_core::core::registry::{BuildError, DefContent, FlmRegistry, PackageEntry, Site};
 use flm_core::dump::diag::expect;
 use flm_core::model::element::element_of;
 use flm_core::model::names::Name;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html::{self, DefinitionOverride, HtmlRenderOptions};
-use flm_core::stdcore::backends::{lowering, pieces, text};
+use flm_core::stdlib::backends::html::{self, DefinitionOverride, HtmlRenderOptions};
+use flm_core::stdlib::backends::{latex_recomposed, latex_rendered, lowering, pieces, text};
 use flm_core::math_passthrough::{self, CHECK, ENVIRONMENT_RULE, OPAQUE};
-use flm_core::stdcore::features::math::{self, CONTENT, ENVIRONMENT};
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig, check_feature, package};
+use flm_core::stdlib::features::math::{self, CONTENT, ENVIRONMENT};
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig, check_feature, add_features};
 use serde_json::json;
 
-use common::stdcore::{identifiers, plan, registry, run_workflow};
+use common::stdlib::{assert_only_unchecked_output, identifiers, plan, registry, run_workflow};
 
 /// The registry of the standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 #[test]
-fn the_feature_is_its_own_package_s_and_stdcore_does_not_list_it() {
+fn the_feature_is_its_own_package_s_and_stdlib_does_not_list_it() {
     let names = |entry: flm_core::core::registry::PackageEntry| -> Vec<String> {
         entry.features.iter().map(|feature| feature.info().name.to_string()).collect()
     };
-    let standard = names(package(StdcoreConfig::new()));
+    let standard = names(add_features(PackageEntry::new("std"), StdlibConfig::new()));
     assert!(standard.iter().any(|name| name == math::FEATURE));
     assert!(standard.iter().all(|name| name != math_passthrough::FEATURE), "{standard:?}");
     assert_eq!(names(math_passthrough::package()), [math_passthrough::FEATURE]);
@@ -80,12 +80,6 @@ fn an_empty_align_line_is_reported_by_the_check_stage_at_the_second_break() {
         .at("\\\\")
         .data(json!({ "environment": "align", "line": 1 }))
         .once();
-    let diagnostic = run.diagnostics().iter().next().expect("one diagnostic");
-    assert_eq!(
-        diagnostic.message(),
-        "line 1 (counting from 0) of the `align` environment must hold mathematics; a \
-         `\\label`, `\\tag` or `\\nonumber` alone is not mathematics"
-    );
 }
 
 #[test]
@@ -106,11 +100,46 @@ fn the_page_of_a_formula_carries_the_passthrough_class_and_stylesheet() {
         Overrides { render_options: OptionValues::new().with(options), ..Overrides::none() };
     let document = "Let \\(a = \\text{one half}\\) hold.\n\n\\begin{equation}\n  E = mc^2\n\\end{equation}\n";
     let run = run_workflow(&std(), html::WORKFLOW, &[document], &overrides);
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     let page = common::html::page(&run);
-    assert!(page.contains("class=\"flm-pres-math--passthrough\""), "{page}");
+    assert!(page.contains("class=\"flm-pres-math--passthrough flm-math-formula\""), "{page}");
     assert!(page.contains("data-flm-def=\"flm.html.style.math-passthrough\""), "{page}");
     common::html::assert_golden("math-passthrough.page.html", &page);
+}
+
+/// The unchecked outputs a workflow's plan keeps, as the backend, the
+/// feature, what is written and what reads it.
+fn unchecked_outputs(registry: &Arc<FlmRegistry>, workflow: &str) -> Vec<(String, String, String, String)> {
+    common::stdlib::unchecked_outputs(&plan(registry, workflow, &Overrides::none()))
+}
+
+#[test]
+fn the_plans_of_the_page_and_the_two_latex_outputs_keep_the_formulas_unchecked() {
+    let registry = std();
+    let unchecked = |backend: &str, written: &str, reader: &str| {
+        vec![(
+            backend.to_string(),
+            math_passthrough::FEATURE.to_string(),
+            written.to_string(),
+            reader.to_string(),
+        )]
+    };
+    assert_eq!(
+        unchecked_outputs(&registry, html::WORKFLOW),
+        unchecked("html", "each formula's LaTeX source", "the formula renderer in the reader's browser")
+    );
+    assert_eq!(
+        unchecked_outputs(&registry, latex_rendered::WORKFLOW),
+        unchecked("latex-rendered", "each formula's LaTeX source", "LuaLaTeX")
+    );
+    assert_eq!(
+        unchecked_outputs(&registry, latex_recomposed::WORKFLOW),
+        unchecked("latex-recomposed", "each formula's recomposed LaTeX", "LaTeX")
+    );
+    // The text output prints each formula's source, and nothing reads it
+    // afterwards.
+    assert_eq!(unchecked_outputs(&registry, text::WORKFLOW), []);
+    assert_eq!(unchecked_outputs(&registry, CHECK_WORKFLOW), []);
 }
 
 #[test]

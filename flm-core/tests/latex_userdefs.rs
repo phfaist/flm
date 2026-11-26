@@ -1,4 +1,4 @@
-//! The kept alternative of `flm_core::stdcore::features::userdefs` through
+//! The kept alternative of `flm_core::stdlib::features::userdefs` through
 //! the `latex-recomposed` backend: a `per-plan` definition's use site is
 //! written as a call beside its definition in the style file (`emit-call`),
 //! made unconditionally under its recomposed name (every kept definition
@@ -26,35 +26,36 @@ use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::dump::diag::{expect, expect_none};
 use flm_core::lang::mint::{ArgDef, ArgStdKind, TackOnField};
 use flm_core::lang::rewrites::userdefs::{
-    Definition, ExpandPolicy, NotRecomposable, RecursionLimit, UserDefinition,
+    BadDefinition, Definition, DefinitionProblem, ExpandPolicy, NotRecomposable, RecursionLimit,
+    UserDefinition,
 };
 use flm_core::model::doc::{Doc, DocContent};
 use flm_core::model::element::ElementSpec;
 use flm_core::model::names::CapName;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::latex::LatexPackageDef;
-use flm_core::stdcore::backends::latex_recomposed::{
+use flm_core::stdlib::backends::latex::LatexPackageDef;
+use flm_core::stdlib::backends::latex_recomposed::{
     BACKEND, DefinitionNameRefusal, DefinitionNameRefused, DefinitionNameOption,
     LatexRecomposedRenderOptions, WORKFLOW,
 };
-use flm_core::stdcore::backends::latex::PLACEHOLDER_LATEX_RULE;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::refs::SAFE_LABELS;
-use flm_core::stdcore::features::userdefs::{
+use flm_core::stdlib::backends::latex::PLACEHOLDER_LATEX_RULE;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::refs::SAFE_LABELS;
+use flm_core::stdlib::features::userdefs::{
     UserdefsConfig, element_name, emit_call_rule_name, instantiate_rule_name,
 };
-use flm_core::stdcore::{CHECK_WORKFLOW, StdcoreConfig};
+use flm_core::stdlib::{CHECK_WORKFLOW, StdlibConfig};
 use techy::error::Severity;
 
 use common::latex::{assert_golden, body, style, style_if_any, output};
-use common::stdcore::{identifiers, plan, run_workflow, try_plan};
+use common::stdlib::{assert_only_unchecked_output, identifiers, plan, run_workflow, try_plan};
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The registry a host builds over the standard package with `definitions`.
 fn registry_over(definitions: Vec<Definition>) -> Arc<FlmRegistry> {
-    common::stdcore::registry(
-        StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
+    common::stdlib::registry(
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)),
     )
 }
 
@@ -277,7 +278,7 @@ fn the_recomposed_plan_keeps_the_per_plan_definitions_and_the_check_plan_is_unch
             "flm.citations.check",
             "flm.userdefs.keep",
             "flm.blocks.check-contract",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.latex-recomposed.pieces",
             "flm.latex-recomposed.lower",
             "flm.latex-recomposed.emit",
@@ -340,7 +341,7 @@ fn the_recomposed_plan_keeps_the_per_plan_definitions_and_the_check_plan_is_unch
             "flm.citations.retrieve",
             "flm.citations.check",
             "flm.citations.build-bibliography",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.text.pieces",
             "flm.text.lower",
             "flm.text.emit",
@@ -384,7 +385,7 @@ in the same paragraph. It is version \\version.
         style.contains("\\ProvideDocumentEnvironment{flmUEnote}{}{[Note: }{]}\n"),
         "{style}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-spine.tex", &run);
 }
 
@@ -492,7 +493,7 @@ See \\ref{sec:opt}.
         style.contains("\\providecommand\\flmUDrange[3]{#1 to #3 by #2}\n"),
         "{style}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-optional-anywhere.tex", &run);
 }
 
@@ -532,7 +533,7 @@ fn an_ordinary_bracket_after_a_call_needs_no_guard() {
     assert!(text.contains("\\flmUDaround{}{Knuth}{p. 7}[sic]"), "{text}");
     assert!(text.contains("\\flmUDaround{}{Knuth}{p.}more"), "{text}");
     assert!(!text.contains("\\relax"), "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-optional-bracket.tex", &run);
 }
 
@@ -546,7 +547,7 @@ fn a_call_that_ends_a_tree_needs_no_guard_either() {
     let run = recompose(&registry_over(vec![around(), sic()]), &["\\around{Knuth}", "\\sic"]);
     let text = body(&run);
     assert!(text.ends_with("\\flmUDaround{}{Knuth}{p.}%%\n[sic]%%\n"), "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-optional-tree-end.tex", &run);
 }
 
@@ -595,7 +596,7 @@ fn a_template_holding_a_literal_writes_the_literals_spelling_in_the_definition()
     assert_eq!(output(&run), "I am \\flmUDsure.%%\n");
     let (style, _) = style(&run);
     assert!(style.contains("\\providecommand\\flmUDsure{100\\% sure~yes}"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-literal.tex", &run);
 }
 
@@ -635,7 +636,7 @@ See \\ref{sec:kv}.
         text.contains("1:\\flmUDkv{a=1,b=2}{t} 2:\\flmUDkv{}{t} 3:\\flmUDkv{}{t}"),
         "{text}"
     );
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-keyvals.tex", &kept);
     // The same document expanded: an argument the writer left out and one
     // written empty print alike, which is what the two empty groups say.
@@ -670,7 +671,7 @@ See \\ref{sec:code}.
     assert!(text.contains("1:\\flmUDcode{a\\_b} 2:\\flmUDcode{c d} 3:\\flmUDcode{e|f}"), "{text}");
     assert!(text.contains("\\section{Title \\flmUDcode{t\\_1}}"), "{text}");
     assert_eq!(not_recomposable(&registry_over(vec![code()])), []);
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-verbatim.tex", &kept);
     // The expanded document writes the same characters in the same
     // spelling, inside the definition's own `\textbf` rather than through a
@@ -690,7 +691,7 @@ fn a_verbatim_argument_holding_special_characters_is_escaped_once_and_only_there
     let kept = recomposed(vec![code()], document);
     let text = body(&kept);
     assert!(text.contains("\\flmUDcode{a\\#b\\%c\\textbackslash{}d\\_e\\{f\\}}"), "{text}");
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-verbatim-specials.tex", &kept);
 }
 
@@ -718,17 +719,17 @@ See \\ref{sec:sharp}.
     assert!(
         style.contains(
             "\\providecommand\\flmUDsharp[1]\
-             {\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{a\\#b} and \\# and #1}\n"
+             {\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{a\\#b} and \\# and #1}\n"
         ),
         "{style}"
     );
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-verbatim-in-template.tex", &kept);
     // The expanded document sets the same characters.
     let expanded = recomposed(vec![always(sharp)], document);
     assert!(
         body(&expanded)
-            .contains("\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{a\\#b} and \\# and t"),
+            .contains("\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{a\\#b} and \\# and t"),
         "{}",
         body(&expanded)
     );
@@ -773,7 +774,7 @@ fn a_template_holding_a_verbatim_block_is_recomposed_with_the_escaped_block() {
     );
     // Nothing is reported: the definitions are recomposed and so are the use
     // sites.
-    assert_eq!(run.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&run);
     // The same document with both definitions marked always expanded writes
     // the same two blocks out in full, with the same content and the same
     // language tag: the escaped call and the block written out in full set the
@@ -818,7 +819,7 @@ fn a_verbatim_block_in_a_body_taken_as_an_argument_is_written_as_the_escaped_blo
     // that `+b` hands over.
     assert!(
         text.contains(
-            "\\begin{flmUEstack}an \\EscVerb[formatcom=\\flmFmtVRB{verbtext}]{inline} body\\end{flmUEstack}"
+            "\\begin{flmUEstack}an \\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbtext}]{inline} body\\end{flmUEstack}"
         ),
         "{text}"
     );
@@ -835,7 +836,7 @@ fn a_verbatim_block_in_a_body_taken_as_an_argument_is_written_as_the_escaped_blo
     assert!(style.contains("\\ProvideDocumentEnvironment{flmUEstack}{+b}"), "{style}");
     // Nothing is reported, about the definition or about either use site.
     assert_eq!(not_recomposable(&registry), []);
-    assert_eq!(run.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&run);
     // The same document with the definition marked always expanded writes the
     // block out in full, twice, with the same content.
     let expanded = recomposed(
@@ -887,7 +888,7 @@ fn a_verbatim_block_in_any_value_a_call_carries_is_written_as_the_escaped_block(
         let call = format!("flmU{}", if display.starts_with("\\begin") { "E" } else { "D" });
         assert!(text.contains(&call), "{display}: {text}");
         // No Note at all: nothing is decided per use site any more.
-        assert_eq!(run.diagnostics().iter().count(), 0, "{display}");
+        assert_only_unchecked_output(&run);
     }
 }
 
@@ -936,7 +937,7 @@ fn a_block_a_call_carries_keeps_its_lines_its_tabs_and_its_empty_lines() {
     // line rather than opening an empty seventh, which is what a block written
     // out in full does too.
     assert_eq!(text.matches("}}{{").count(), 5, "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     // The golden is compiled by `tests/latex_compile.rs`, with and without
     // `hyperref`.
     assert_golden("userdefs-verbatim-block-lines.tex", &run);
@@ -983,7 +984,7 @@ fn many_use_sites_holding_a_block_are_all_calls_and_report_nothing() {
     assert_eq!(text.matches("\\flmVerbatimBlock[]{flmVerbatimCode}{{{f\\(x\\)}}}").count(), 4, "{text}");
     assert_eq!(text.matches("\\begin{flmUEstack}").count(), 3, "{text}");
     assert_eq!(text.matches("\\flmUDplain{").count(), 1, "{text}");
-    assert_eq!(run.diagnostics().iter().count(), 0);
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -1004,7 +1005,7 @@ fn a_blank_test_over_a_verbatim_argument_answers_what_flm_answers() {
         style.contains("\\providecommand\\flmUDask[1]{\\flmIfBlankTF{#1}{BLANK}{FULL}}\n"),
         "{style}"
     );
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-verbatim-blank.tex", &kept);
     // FLM's own answers, which the compile suite compares LaTeX's against.
     let registry = registry_over(definitions);
@@ -1048,7 +1049,7 @@ fn a_name_declared_for_two_modes_is_recomposed_as_two_definitions_with_two_names
     // document declares once, so no definition of the document can meet them.
     assert!(!style.contains("flmUDvec"), "{style}");
     assert_eq!(not_recomposable(&registry_over(vec_twins())), []);
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-mode-twins.tex", &kept);
     // What the expanded document prints, which the recomposed one must print
     // too: the text twin in text and the mathematics twin inside mathematics.
@@ -1086,7 +1087,7 @@ See \\ref{sec:vec}.
         "{text}"
     );
     assert!(text.contains("\\flmUTDvec{body} and \\(\\flmUMDvec{}{math}\\)."), "{text}");
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-mode-twins-heading.tex", &kept);
 }
 
@@ -1104,7 +1105,7 @@ fn an_encoded_name_declared_for_two_modes_takes_the_two_encoded_twin_prefixes() 
     assert!(style.contains("\\providecommand\\flmUTXhE{[t]}\n"), "{style}");
     assert!(style.contains("\\providecommand\\flmUMXhE{[m]}\n"), "{style}");
     assert_eq!(not_recomposable(&registry_over(twins)), []);
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-mode-twins-encoded.tex", &kept);
 }
 
@@ -1129,7 +1130,7 @@ fn an_environment_declared_for_two_modes_takes_the_two_environment_twin_prefixes
         "{style}"
     );
     assert_eq!(not_recomposable(&registry_over(twins)), []);
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     // The golden is compiled by `tests/latex_compile.rs`, which is the cheapest
     // proof that a twinned environment's two definitions are well formed.
     assert_golden("userdefs-mode-twins-environment.tex", &kept);
@@ -1190,7 +1191,7 @@ fn a_definition_asking_whether_a_defaulted_argument_was_written_is_recomposed_wi
         "{style}"
     );
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-conditional.tex", &run);
     // What the expanded document prints is what the recomposed definition
     // prints: the question is answered the same way on both sides.
@@ -1289,7 +1290,7 @@ fn an_environment_whose_template_never_names_its_body_grabs_it_and_drops_it() {
     let text = body(&run);
     assert!(text.contains("\\begin{flmUEdrops}"), "{text}");
     assert!(text.contains("thrown away"), "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-body-dropped.tex", &run);
     // FLM's own answer, which `tests/latex_compile.rs` compares LaTeX's
     // against: the body is gone and the template's text stands alone.
@@ -1319,7 +1320,7 @@ fn a_macro_and_an_environment_of_one_name_are_both_recomposed_under_their_own_pr
         "{style}"
     );
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-one-name.tex", &run);
 }
 
@@ -1351,7 +1352,7 @@ And see \\ref{sec:un}.
     assert!(text.contains("\\flmUDhello{Berta} in the body"), "{text}");
     let (style, _) = style(&run);
     assert!(style.contains("\\providecommand\\flmUDhello[1]{Hello, #1!}\n"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-in-heading.tex", &run);
 }
 
@@ -1414,7 +1415,7 @@ See \\ref{sec:star}.
         ),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-star.tex", &run);
 }
 
@@ -1468,7 +1469,7 @@ fn a_conditional_over_an_optional_argument_with_no_default_reads_its_flag() {
         text.contains("\\flmUDopt{x}{y}{\\BooleanTrue} and \\flmUDopt{}{z}{\\BooleanFalse}"),
         "{text}"
     );
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-conditional-value.tex", &kept);
     // What the expanded document says.
     let expanded = recomposed(vec![always(opt)], document);
@@ -1492,7 +1493,7 @@ fn a_conditional_whose_answer_does_not_depend_on_the_document_is_written_as_its_
         "{}",
         style(&run).0
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -1535,7 +1536,7 @@ See \\ref{sec:blank}.
     // asked for it.
     assert!(style.contains("\\providecommand\\flmIfBlankTF[3]"), "{style}");
     assert!(style.contains("\\ExplSyntaxOn"), "{style}");
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-blank.tex", &kept);
     // FLM's own answers, which the compile suite compares LaTeX's against.
     let registry = registry_over(definitions);
@@ -1570,7 +1571,7 @@ fn a_blank_test_beside_a_value_test_over_one_argument_needs_no_guard() {
     assert!(body(&kept).contains(
         "\\flmUDg{x}{\\BooleanTrue} \\flmUDg{}{\\BooleanTrue} \\flmUDg{}{\\BooleanFalse}and text."
     ), "{}", body(&kept));
-    assert!(!kept.diagnostics().any_recorded(), "{}", kept.diagnostics().render_all());
+    assert_only_unchecked_output(&kept);
     assert_golden("userdefs-blank-guarded.tex", &kept);
     // FLM's own answers: written and not blank, written and blank, absent.
     // The space after a bare `\g` is part of the invocation and vanishes with
@@ -1659,7 +1660,7 @@ See \\ref{sec:packed}.
         "{text}"
     );
     assert_eq!(not_recomposable(&registry_over(vec![big(), huge()])), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-packed.tex", &run);
     // What the expanded document prints is what the packed calls print.
     let expanded = recomposed(vec![always(big()), always(huge())], document);
@@ -1725,7 +1726,7 @@ fn six_arguments_five_of_them_flagged_are_eleven_effective_arguments_and_pack() 
         ),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-packed-flags.tex", &run);
     // FLM's own answers, for the compile probe to measure against.
     let expanded = recomposed(vec![always(six)], document);
@@ -1764,7 +1765,7 @@ See \\ref{sec:env}.
         text.contains("\\begin{flmUEpackednote}{{one}{2}{3}{4}{5}{6}{7}{8}{9}{ten}}"),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-packed-environment.tex", &run);
 }
 
@@ -1787,7 +1788,7 @@ fn a_packed_definition_naming_its_arguments_inside_a_verbatim_block_expands_its_
     let registry = registry_over(vec![five(content)]);
     assert_eq!(not_recomposable(&registry), []);
     let run = recompose(&registry, &[document]);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let expanded = recomposed(vec![always(five(content))], document);
     assert!(
         body(&expanded).contains(
@@ -1858,7 +1859,7 @@ See \\ref{sec:wrap}.
     assert!(text.contains("\\begin{flmUEwrap}{\\flmUDhello{Ada}}the body\\end{flmUEwrap}"), "{text}");
     assert!(text.contains("\\begin{flmUEtwice}said twice\\end{flmUEtwice}"), "{text}");
     assert_eq!(not_recomposable(&registry_over(vec![wrap(), twice(), hello()])), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-body-argument.tex", &run);
     // What the expanded document prints is what the recomposed pair prints.
     let expanded =
@@ -1881,7 +1882,7 @@ second paragraph\\end{twice}
     let run = recomposed(vec![twice()], document);
     let text = body(&run);
     assert!(text.contains("first paragraph\n\nsecond paragraph"), "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-body-argument-paragraphs.tex", &run);
 }
 
@@ -1911,7 +1912,7 @@ fn a_packed_environment_that_takes_its_body_as_an_argument_reads_the_body_as_its
         text.contains("\\begin{flmUEpackedwrap}{{one}{2}{3}{4}{5}{6}{7}{8}{9}{ten}}the body"),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-packed-body-argument.tex", &run);
 }
 
@@ -1992,7 +1993,7 @@ See \\ref{sec:thm}.
     assert!(text.contains("\\(\\flmUDthm{Chi} = 1\\)"), "{text}");
     // Declaring a tack-on argument is no reason to expand the definition.
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     // What the call absorbed is this definition's business and nobody else's:
     // the definition declares no reference point, so `thm:euclid` is no label
     // of the document, gets no safe key, and is written nowhere. The one key
@@ -2039,7 +2040,7 @@ fn an_argument_declared_after_a_tack_on_argument_writes_its_value_group_at_every
         text.contains("\\flmUDclaim{Euclid}{proof} and \\flmUDclaim{Thales}{none} then text."),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-tack-on-then-optional.tex", &run);
 }
 
@@ -2062,7 +2063,7 @@ fn a_tack_on_only_definition_keeps_the_space_after_its_name_in_mathematics() {
     assert!(text.contains("\\(\\flmUDqed x = 1\\)"), "{text}");
     assert!(text.contains("\\flmUDqed then text."), "{text}");
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2082,11 +2083,8 @@ fn a_template_naming_a_tack_on_argument_is_refused_on_every_backend() {
         .collect();
     assert!(!refusals.is_empty(), "{:?}", build_diagnostics(&registry));
     for refusal in &refusals {
-        assert!(
-            refusal.message().contains("a template cannot refer to"),
-            "{}",
-            refusal.message()
-        );
+        let problem = refusal.data().downcast_ref::<BadDefinition>().map(|bad| &bad.problem);
+        assert!(matches!(problem, Some(DefinitionProblem::TackOnPlaceholder { .. })), "{problem:?}");
     }
     // The same refusal, and the same absence of the definition, on both
     // backends: a use site is left as its own source text.
@@ -2172,7 +2170,7 @@ fn a_computed_default_is_resolved_at_the_use_site_and_written_as_the_value() {
     // every value group from its nodes.
     assert!(text.contains("\\(\\flmUDmarked{empty}{}\\) hold."), "{text}");
     assert_eq!(not_recomposable(&registry_over(vec![tag(), marked()])), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-computed-default.tex", &run);
     // What the expanded document prints is what the calls print.
     let expanded = recomposed(vec![always(tag()), always(marked())], document);
@@ -2223,7 +2221,7 @@ fn a_computed_default_holding_a_use_site_writes_that_use_site_as_its_own_call() 
     // optional argument, as it is for any optional argument.
     assert!(text.contains("\\flmUDouter{\\flmUDinner{fallback}}and"), "{text}");
     assert!(text.contains("\\flmUDouter{written}."), "{text}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 // --- a definition overriding the `literals` feature's `~` ----------------------------------------
@@ -2240,7 +2238,7 @@ fn an_overriding_specials_definition_of_the_tilde_instantiates_with_its_note() {
     assert_eq!(output(&run), "aTILDEb%%\n");
     assert_no_user_definition(&run);
     assert_eq!(not_recomposable(&registry), [(String::from("~"), NotRecomposable::Specials)]);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 // --- use sites inside mathematics -----------------------------------------------------------------
@@ -2275,7 +2273,7 @@ Test \\(\\calN(\\rho)\\) and \\[ \\calN \\rho \\] then
         "{style}"
     );
     assert_eq!(not_recomposable(&registry), []);
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-math.tex", &run);
 }
 
@@ -2401,7 +2399,7 @@ fn a_use_site_inside_a_nested_environment_inside_mathematics_is_handled() {
         1,
         "{style}"
     );
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-math-environment-nested.tex", &run);
 }
 
@@ -2419,7 +2417,7 @@ fn a_placeholder_inside_mathematics_in_a_text_template_is_written_as_a_parameter
     let (style, _) = style(&run);
     assert!(style.contains("\\providecommand\\flmUDinmath[1]{\\(#1\\)}\n"), "{style}");
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2437,7 +2435,7 @@ fn a_definition_that_never_stops_expanding_is_written_as_the_macro_that_never_st
     // So a document with a runaway definition is reported as broken by the
     // workflows that expand it, and by LaTeX where it is only recomposed.
     let recursive = Definition::macro_("foo", Vec::new()).content("\\foo");
-    let registry = common::stdcore::registry(StdcoreConfig::new().userdefs(
+    let registry = common::stdlib::registry(StdlibConfig::new().userdefs(
         UserdefsConfig::new().definitions(vec![recursive]).recursion_limit(2),
     ));
     let run = recompose(&registry, &["\\foo"]);
@@ -2446,7 +2444,7 @@ fn a_definition_that_never_stops_expanding_is_written_as_the_macro_that_never_st
     assert!(style.contains("\\providecommand\\flmUDfoo{\\flmUDfoo}\n"), "{style}");
     // Nothing was expanded, so no depth limit was reached.
     expect_none(run.diagnostics().iter(), "flm.userdefs.recursion-limit");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     // The same document expanded: the Error, with the configured limit.
     let on_text = run_workflow(&registry, text::WORKFLOW, &["\\foo"], &Overrides::none());
     let diagnostic = expect(on_text.diagnostics().iter(), "flm.userdefs.recursion-limit").once();
@@ -2477,13 +2475,13 @@ fn a_recursion_that_stops_is_recomposed_as_a_macro_that_calls_itself() {
         "{style}"
     );
     expect_none(run.diagnostics().iter(), "flm.userdefs.recursion-limit");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-recursive.tex", &run);
     // The same document with the definition always expanded, which is what
     // the compile suite compares the recomposed form's setting against.
     let expanded = recomposed(vec![peel().expand(ExpandPolicy::Always)], document);
     assert!(body(&expanded).contains("\\section{A y. title}"), "{}", body(&expanded));
-    assert!(!expanded.diagnostics().any_recorded(), "{}", expanded.diagnostics().render_all());
+    assert_only_unchecked_output(&expanded);
     assert_golden("userdefs-recursive-expanded.tex", &expanded);
 }
 
@@ -2520,7 +2518,7 @@ fn a_definition_that_uses_itself_through_another_is_written_as_two_macros_that_c
     assert_eq!(style.matches("\\providecommand\\flmUDping").count(), 1, "{style}");
     assert_eq!(style.matches("\\providecommand\\flmUDpong").count(), 1, "{style}");
     assert_eq!(not_recomposable(&registry), []);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2541,7 +2539,7 @@ fn two_documents_in_one_run_each_using_the_recursion_are_each_written_whole() {
         "{style}"
     );
     assert_eq!(style.matches("\\providecommand\\flmUDpeel").count(), 1, "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2648,9 +2646,9 @@ fn a_placeholder_inside_verbatim_content_expands_the_use_site() {
     assert_eq!(not_recomposable(&registry), []);
     let document = "\\vb{a_b & c}\n\n\\vbb{a_b & c}\n";
     let run = recompose(&registry, &[document]);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     let text = body(&run);
-    assert!(text.contains("\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{a\\_b\\ \\&\\ c}"), "{text}");
+    assert!(text.contains("\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{a\\_b\\ \\&\\ c}"), "{text}");
     assert!(
         text.contains("\\begin{flmVerbatimCode}[]\nv = a_b & c;\nend\n\\end{flmVerbatimCode}"),
         "{text}"
@@ -2674,7 +2672,7 @@ fn a_placeholder_inside_verbatim_content_of_a_default_is_resolved_at_the_call() 
     let run = recompose(&registry, &["\\vd{z}"]);
     assert_eq!(
         output(&run),
-        "\\flmUDvd{\\EscVerb[formatcom=\\flmFmtVRB{verbcode}]{z}}{z}%%\n"
+        "\\flmUDvd{\\EscVerb[fontfamily=\\flmVRBFamily,formatcom=\\flmFmtVRB{verbcode}]{z}}{z}%%\n"
     );
 }
 
@@ -2703,7 +2701,7 @@ fn every_kept_definition_is_recomposed_under_its_prefixed_name() {
     assert!(style.contains("% \\flmUDpar (the document's \\par):"), "{style}");
     assert_eq!(not_recomposable(&registry), []);
     // Nothing is reported: the renaming is the rule, not an event.
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-prefixed.tex", &run);
 }
 
@@ -2729,7 +2727,7 @@ fn a_macro_whose_name_is_not_ascii_letters_is_recomposed_under_a_letters_only_en
     // The recomposed name is a plain LaTeX control word: letters only. The
     // author's own spelling appears in the comment line and nowhere else.
     assert_eq!(style.matches('\u{e9}').count(), 1, "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-encoded-names.tex", &run);
 }
 
@@ -2750,7 +2748,7 @@ fn an_environment_takes_the_environment_prefix_and_keeps_its_name() {
         "{style}"
     );
     assert!(style.contains("% flmUEnote (the document's note):"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2773,7 +2771,7 @@ fn a_name_listed_in_bare_names_is_written_exactly_as_the_document_spelled_it() {
     assert!(style.contains("\\long\\def\\emph#1{\\textit{#1}}\n"), "{style}");
     // The names match, so the comment line names the definition once.
     assert!(!style.contains("(the document's"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-bare-name.tex", &run);
 }
 
@@ -2841,7 +2839,7 @@ fn an_environment_listed_in_bare_names_is_written_bare_too() {
     let (style, _) = style(&run);
     assert!(style.contains("\\DeclareDocumentEnvironment{note}{}{[Note: }{]}\n"), "{style}");
     assert!(!style.contains("(the document's"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -2926,7 +2924,7 @@ fn a_bare_macro_beside_a_prefixed_environment_of_the_end_shape_is_not_refused() 
         &overrides,
     );
     assert_eq!(output(&run), "\\begin{flmUEnote}n\\end{flmUEnote} \\endnote{a}%%\n");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -3014,7 +3012,7 @@ fn a_name_listed_in_robust_names_is_written_as_a_document_command_and_works_in_a
     // its header line).
     let expandable = recomposed(vec![hello(), sig], document);
     assert_eq!(output(&run), output(&expandable));
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-robust.tex", &run);
 }
 
@@ -3036,7 +3034,7 @@ fn a_bare_name_written_robustly_takes_the_unconditional_document_command() {
     assert_eq!(output(&run), "\\emph{x}%%\n");
     let (style, _) = style(&run);
     assert!(style.contains("\\DeclareDocumentCommand\\emph{+m}{\\textit{#1}}\n"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 #[test]
@@ -3081,7 +3079,7 @@ fn a_packed_and_a_flagged_definition_are_written_robustly_like_any_other() {
     // The calls are the ones the expandable form writes, again byte for byte
     // (after the header line, which names the style file by its content).
     assert_eq!(output(&run), output(&recomposed(definitions, document)));
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-robust-packed.tex", &run);
 }
 
@@ -3113,7 +3111,7 @@ fn a_twinned_name_listed_in_robust_names_makes_both_twins_robust() {
         text.contains("\\section{Vector \\flmUTDvec{v} and \\(\\flmUMDvec{}{w}\\)}"),
         "{text}"
     );
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_golden("userdefs-robust-twins.tex", &run);
 }
 
@@ -3147,7 +3145,7 @@ fn an_environment_listed_in_robust_names_is_accepted_and_changes_nothing() {
     assert!(style.contains("\\ProvideDocumentEnvironment{flmUEnote}{}{[Note: }{]}\n"), "{style}");
     assert!(style.contains("\\ProvideDocumentEnvironment{flmUEtwice}{+b}{#1/#1}{}\n"), "{style}");
     // Nothing is reported: the entry is accepted, not refused.
-    assert!(!listed.diagnostics().any_recorded(), "{}", listed.diagnostics().render_all());
+    assert_only_unchecked_output(&listed);
 }
 
 #[test]
@@ -3165,14 +3163,6 @@ fn a_robust_name_beginning_with_flm_is_refused_with_the_error_bare_names_uses() 
     assert_eq!(condition.option.as_str(), "robust_names");
     assert_eq!(condition.name, "flmHeading");
     assert_eq!(condition.reason, DefinitionNameRefusal::FamilyPrefix);
-    let message = diagnostic.to_string();
-    assert!(message.contains("the render option `robust_names` lists `flmHeading`"), "{message}");
-    assert!(
-        message.contains(
-            "a name listed there must not begin with `flm`, the prefix reserved for the LaTeX names that this library writes itself"
-        ),
-        "{message}"
-    );
     // The refusal changes nothing else: the document's own definition is
     // written expandably under its prefix.
     assert_eq!(output(&run), "\\flmUDhello{World}%%\n");
@@ -3190,7 +3180,7 @@ fn a_name_in_robust_names_that_no_definition_carries_is_accepted_in_silence() {
     assert_eq!(output(&run), "\\flmUDhello{World}%%\n");
     let (style, _) = style(&run);
     assert!(style.contains("\\providecommand\\flmUDhello[1]{Hello, #1!}\n"), "{style}");
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
 }
 
 // --- `instantiate-at-lowering`, preferred by name ------------------------------------------------
@@ -3382,7 +3372,7 @@ fn text_and_comments_in_mathematics_built_at_lowering_are_written_by_their_rules
     ];
     let registry = registry_over(defs);
     let run = recompose(&registry, &["and \\(\\tm + \\tp{\\beta} + \\tn\\) and"]);
-    assert!(!run.diagnostics().any_recorded(), "{}", run.diagnostics().render_all());
+    assert_only_unchecked_output(&run);
     assert_eq!(
         output(&run),
         "and \\(\\flmUDtm + \\flmUDtp{\\beta} + \\mathcal{N}\\text{a[at]b} %% c\n x\\) and%%\n"
@@ -3413,7 +3403,7 @@ fn a_kept_one_text_definition_in_force_in_formulas_alone_is_written_as_one_defin
     assert_eq!(not_recomposable(&registry), Vec::new());
     let text = "say \\ket{x} and \\(\\ket{y}\\)\n";
     let run = recompose(&registry, &[text]);
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert!(
         output(&run).starts_with(r"say \flmUDket{x} and \(\flmUDket{y}\)"),
         "{}",

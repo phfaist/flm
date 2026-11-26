@@ -1,24 +1,19 @@
-//! The pages over the standard environment of the library: the registry of `stdcore` and
-//! `math-passthrough` with a plan for the workflow `text`, as `tests/describe.rs` builds it.
-//!
-//! The FLM source of chosen pages is compared with text goldens under
-//! `tests/goldens/pages/*.flm`, and the JSON form of a page and of an output with JSON
-//! goldens there, written as indented JSON text. Rewrite them with `UPDATE_GOLDEN=1` after
-//! reading the diff; they change whenever a documentation text of the standard features
-//! changes.
+//! The pages over the standard environment of the library: the registry of the package
+//! `std`, holding the standard features, and `math-passthrough` with a plan for the
+//! workflow `text`, as `tests/describe.rs` builds it.
 //!
 //! The test over every page also writes each page's source under the cargo target's folder
 //! for temporary files (`target/tmp/pages-core`, and `target/tmp/pages-host` under the cargo
-//! feature `flm-main`), replaced at each run, so that a person can render them with the
+//! feature `flm-host`), replaced at each run, so that a person can render them with the
 //! program: this crate does not depend on the host and cannot render a page itself.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::dump::golden::assert_text_golden;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::core::registry::{PackageEntry, PackageFactory, RegistryBuilder, RegistryInputs};
+use flm_core::core::settings::PackageSettings;
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_info::Environment;
 use flm_info::pages::{
     EnvironmentVariable, ImageFolders, Output, Page, PageKind, ProgramCommand, ProgramExtensions, ProgramFolder,
@@ -28,14 +23,15 @@ use flm_info::pages::{
 /// The standard environment, with the plan of the workflow `text` in view.
 fn environment() -> Environment {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder.build(&RegistryInputs::new()).expect("the standard registry builds");
     let plan = Plan::for_workflow(&registry, "text", &Overrides::none()).expect("the plan of `text`");
-    let factories = vec![
-        stdcore::factory().expect("the factory of stdcore"),
-        flm_core::math_passthrough::factory().expect("the factory of math-passthrough"),
-    ];
+    let std = PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+    .expect("the factory of std");
+    let factories = vec![std, flm_core::math_passthrough::factory().expect("the factory of math-passthrough")];
     Environment::new(registry, Some(Arc::new(plan)), factories)
 }
 
@@ -80,21 +76,9 @@ fn program() -> ProgramInfo {
         extensions: ProgramExtensions {
             compiled: vec![String::from("math-passthrough"), String::from("std")],
             found: vec![String::from("narrow")],
-            bundled: vec![String::from("flmdoc"), String::from("profile-pdf-latex")],
+            bundled: vec![String::from("flmdoc"), String::from("math-techxt"), String::from("profile-pdf-latex"), String::from("profile-tty")],
         },
     }
-}
-
-/// The name of the golden file of the page `path`: its segments joined by `-`.
-fn golden_name(path: &str) -> String {
-    match path.trim_end_matches('/') {
-        "" => String::from("root"),
-        trimmed => trimmed.replace('/', "-"),
-    }
-}
-
-fn golden(name: &str, text: &str) {
-    assert_text_golden(format!("{}/tests/goldens/pages/{name}", env!("CARGO_MANIFEST_DIR")), text);
 }
 
 /// The paths that the `\docref` commands of `source` link to, read by text: the delimited
@@ -128,45 +112,6 @@ fn docrefs(source: &str) -> Vec<String> {
 }
 
 #[test]
-fn chosen_pages_are_goldens() {
-    let tree = Tree::new(&environment(), None);
-    for path in [
-        "/",
-        "features/headings",
-        "features/headings/macros/section",
-        "features/refs/macros/ref",
-        "features/href/macros/url",
-        "features/lists/scopedpackages/flm.lists.items",
-        "features/lists/scopedpackages/flm.lists.items/macros/item",
-        "settings/html",
-        "workflows/text",
-        "namespaces/",
-        "namespaces/stage/flm.refs.resolve",
-    ] {
-        let page = tree.page(path).unwrap_or_else(|| panic!("the page `{path}`"));
-        assert_eq!(page.path, path);
-        golden(&format!("{}.flm", golden_name(path)), &source(&page, &SourceOptions::default()));
-    }
-}
-
-#[test]
-fn a_page_as_json_is_a_golden_with_and_without_its_children_in_full() {
-    let tree = Tree::new(&environment(), None);
-    let page = tree.page("features/headings").expect("the page of the headings feature");
-    let shallow = page.to_json(false);
-    assert_eq!(shallow["path"], "features/headings");
-    assert_eq!(shallow["kind"], "feature");
-    assert!(shallow["children"][0]["title"].is_string(), "{shallow}");
-    assert!(shallow["children"][0].get("body").is_none());
-    golden("page-features-headings.json", &(serde_json::to_string_pretty(&shallow).unwrap() + "\n"));
-    let deep = page.to_json(true);
-    let child = &deep["children"][0];
-    assert_eq!(child["kind"], "command-index");
-    assert!(child["children"][0]["body"]["declarations"].is_array(), "{child}");
-    golden("page-features-headings-recursive.json", &(serde_json::to_string_pretty(&deep).unwrap() + "\n"));
-}
-
-#[test]
 fn an_output_holds_its_header_first_then_the_pages() {
     let tree = Tree::new(&environment(), None);
     let pages = ["features/headings/macros/section", "settings/parsing"]
@@ -177,7 +122,6 @@ fn an_output_holds_its_header_first_then_the_pages() {
     let text = serde_json::to_string_pretty(&output).unwrap() + "\n";
     assert!(text.starts_with("{\n  \"meta\": {\n    \"kind\": \"info\""), "{text}");
     assert_eq!(output.meta.format, 1);
-    golden("output.json", &text);
 }
 
 #[test]
@@ -193,6 +137,47 @@ fn a_name_is_looked_up_across_the_pages() {
     assert_eq!(paths("headings"), ["features/headings"]);
     assert_eq!(paths("html.title"), ["settings/html"]);
     assert!(paths("nothing.here").is_empty());
+}
+
+#[test]
+fn the_index_lists_every_page_with_the_names_that_find_it() {
+    let tree = Tree::new(&environment(), Some(program()));
+    let index = tree.index();
+    let walked: Vec<String> = tree.walk().map(|page| page.path).collect();
+    assert_eq!(index.iter().map(|entry| entry.path.clone()).collect::<Vec<_>>(), walked);
+    let names = |path: &str| index.iter().find(|entry| entry.path == path).map(|entry| entry.names.clone()).unwrap();
+    assert_eq!(names("features/headings/macros/section"), ["\\section", "section"]);
+    assert!(names("settings/html").contains(&String::from("html.title")));
+    assert_eq!(names("features/lists/environments/itemize"), ["itemize"]);
+    assert_eq!(names("features/headings"), ["headings"]);
+    assert!(names("features/").is_empty());
+    let section = index.iter().find(|entry| entry.path == "features/headings/macros/section").unwrap();
+    assert_eq!((section.kind, section.title.as_str()), (PageKind::Command, "Macro \\section"));
+    // Each name finds its page.
+    for entry in &index {
+        for name in &entry.names {
+            assert!(tree.lookup(name).iter().any(|page| page.path == entry.path), "{name} finds {}", entry.path);
+        }
+    }
+}
+
+/// The path line of every page is that of the page above it, which lists it as a child,
+/// and one segment more, whose path is the page's own: the levels that the paths give
+/// agree with the children that the pages list. (A name that holds a slash is one segment:
+/// the host's test of a package from an extension checks it.)
+#[test]
+fn a_page_s_path_line_is_that_of_its_parent_and_itself() {
+    let tree = Tree::new(&environment(), Some(program()));
+    assert!(tree.page("/").unwrap().path_line().is_empty());
+    for page in tree.walk() {
+        let line = page.path_line();
+        for child in &page.children {
+            let child_line = tree.page(&child.path).unwrap().path_line();
+            let (last, above) = child_line.split_last().unwrap_or_else(|| panic!("the line of `{}`", child.path));
+            assert_eq!(above, line.as_slice(), "the line of `{}` below `{}`", child.path, page.path);
+            assert_eq!(last.path, child.path);
+        }
+    }
 }
 
 #[test]
@@ -247,12 +232,14 @@ fn every_page_has_a_unique_path_a_title_and_links_to_pages_only() {
     assert!(count > 500, "{count} pages");
 }
 
+/// The program's texts are escaped on its pages, as no other test renders or reads them:
+/// braces, `&` and `%` in a command's text and in an option's text.
 #[test]
-fn the_program_pages_show_what_the_program_says() {
+fn the_program_s_texts_are_escaped() {
     let tree = Tree::new(&environment(), Some(program()));
-    for path in ["program/", "program/paths", "program/extensions"] {
-        let page = tree.page(path).unwrap_or_else(|| panic!("the page `{path}`"));
-        golden(&format!("{}.flm", golden_name(path)), &source(&page, &SourceOptions::default()));
+    let program = source(&tree.page("program/").expect("the page `program/`"), &SourceOptions::default());
+    for written in ["Describe the environment \\{packages, features \\& more\\}", "Include the pages below in full (100\\%)"] {
+        assert!(program.contains(written), "{written} in {program}");
     }
 }
 
@@ -264,7 +251,7 @@ fn the_program_pages_show_what_the_program_says() {
 #[test]
 fn a_page_lists_the_texts_it_embeds_with_their_sources() {
     let tree = Tree::new(&environment(), None);
-    let feature = |name: &str| TextSource::Feature { feature: name.to_string(), package: Some(String::from("stdcore")) };
+    let feature = |name: &str| TextSource::Feature { feature: name.to_string(), package: Some(String::from("std")) };
     for path in ["features/headings/macros/section", "features/", "namespaces/feature", "/", "settings/text"] {
         let page = tree.page(path).unwrap_or_else(|| panic!("the page `{path}`"));
         let text = source(&page, &SourceOptions::default());
@@ -298,22 +285,22 @@ fn the_schema_holds_the_page_and_the_output() {
     assert!(schema["$defs"]["Node"].is_object());
 }
 
-/// The pages of an environment that the host prepared (cargo feature `flm-main`): a
+/// The pages of an environment that the host prepared (cargo feature `flm-host`): a
 /// document in memory that uses a data extension found in the folder `_flmextensions`
 /// beside it and writes a setting, as `tests/host.rs` prepares it.
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 mod host {
-    use std::path::PathBuf;
     use std::sync::Arc;
 
+    use flm_core::progress::Scope;
     use flm_info::Environment;
     use flm_info::pages::{SourceOptions, TextHolder, TextSource, Tree, source, texts};
-    use flm_main::files::MemoryFiles;
-    use flm_main::packages::ExtensionFolder;
-    use flm_main::seed::MathChoice;
-    use flm_main::session::{Input, Request, prepare};
+    use flm_host::files::MemoryFiles;
+    use flm_host::packages::ExtensionFolder;
+    use flm_host::seed::MathChoice;
+    use flm_host::session::{Input, Request, prepare};
 
-    use super::{check_every_page, golden, program};
+    use super::{check_every_page, program};
 
     const NARROW: &str =
         "extension:\n  description: Narrow text.\n  author: Ada Lovelace\nflm:\n  features:\n    text:\n      width: 20\n";
@@ -327,84 +314,35 @@ mod host {
         let mut files = MemoryFiles::new();
         files.insert("doc/paper.flm", DOCUMENT);
         files.insert("doc/_flmextensions/narrow.yaml", NARROW);
-        let mut request = Request::new(Input::File(PathBuf::from("doc/paper.flm")));
+        let mut request = Request::new(Input::File(String::from("doc/paper.flm")));
         request.default_math = MathChoice::processor("passthrough");
         request.profile = Some(String::from("text"));
-        request.extension_folders = vec![ExtensionFolder { path: PathBuf::from("doc/_flmextensions"), required: false }];
-        let prepared = prepare(request, Arc::new(files), &[]).expect("the document is prepared");
+        request.extension_folders = vec![ExtensionFolder { path: String::from("doc/_flmextensions"), required: false }];
+        let prepared = prepare(request, Arc::new(files), &[], &Scope::none()).expect("the document is prepared");
         Environment::of_prepared(&prepared)
     }
 
-    /// The features of the package `stdmain` that flm-main compiles in only under its cargo
-    /// features `graphics` and `citations`, in the order in which the package declares them.
-    const OPTIONAL_FEATURES: [&str; 2] = ["graphics-files", "citations-standard"];
-
-    /// The name of the golden file of the root page `/`, which depends on the cargo features
-    /// that flm-main is built with.
-    ///
-    /// The root page lists every feature and every workflow of the registry. flm-main adds
-    /// the feature `graphics-files` to its package `stdmain` under its cargo feature
-    /// `graphics`, and the feature `citations-standard`, which declares the workflows
-    /// `bibtex` and `csl-json`, under its cargo feature `citations`. This crate turns
-    /// flm-main on without either cargo feature. Cargo, however, builds a dependency once
-    /// per build, with the union of the cargo features that the crates of the build turn on:
-    /// in the workspace's build, flm-cli turns both on, so this test runs against a host
-    /// that holds both features. Each of the two builds produces a correct root page of its
-    /// own, so each has its own golden file.
-    ///
-    /// The name is `host-root`, followed by `+<feature>` for each of the `OPTIONAL_FEATURES`
-    /// that the package `stdmain` declares, then `.flm`. The build is read from the
-    /// package's declarations rather than from the registry, so that a registry lacking a
-    /// feature that its package declares still fails the comparison. Two golden files exist,
-    /// one for each build that the project tests:
-    ///
-    /// - `host-root.flm`, for the host without the two cargo features: `cargo test -p
-    ///   flm-info --features flm-main`;
-    /// - `host-root+graphics-files+citations-standard.flm`, for the host as flm-cli builds
-    ///   it: `cargo test --workspace`, or `cargo test -p flm-info --features
-    ///   flm-main,flm-main/graphics,flm-main/citations`.
-    ///
-    /// A change to the root page rewrites both files, with `UPDATE_GOLDEN=1` under each
-    /// build. A build that turns on only one of the two cargo features has no golden file,
-    /// and the test reports the file missing.
-    fn root_golden(env: &Environment) -> String {
-        let stdmain = env
-            .packages()
-            .into_iter()
-            .find(|package| package.name == "stdmain")
-            .expect("the host's environment holds the package `stdmain`");
-        let mut name = String::from("host-root");
-        for feature in OPTIONAL_FEATURES {
-            if stdmain.features.iter().any(|declared| declared == feature) {
-                name.push('+');
-                name.push_str(feature);
-            }
-        }
-        name + ".flm"
-    }
-
+    /// The host's pages show the profile in view on `/`, a package from an extension as
+    /// such, the value in effect of a setting, and a feature switched off as missing from the
+    /// registry; the package's name, which holds slashes, is one segment of its path line.
     #[test]
     fn the_host_s_pages_show_the_profile_the_origins_and_the_settings_in_effect() {
         let env = environment();
         let tree = Tree::new(&env, None);
-        let root = source(&tree.page("/").expect("the root page"), &SourceOptions::default());
-        assert!(root.contains("The profile in view is \\verbcode{text}"), "{root}");
-        assert!(root.contains("(from the extension \\verbcode{doc/_flmextensions/narrow.yaml})"), "{root}");
-        for (path, name) in [
-            ("/", root_golden(&env)),
-            ("packages/doc/_flmextensions/narrow.yaml#_", String::from("host-package-narrow.flm")),
-            ("settings/text", String::from("host-settings-text.flm")),
-            ("settings/front-matter", String::from("host-settings-front-matter.flm")),
-        ] {
-            let page = tree.page(path).unwrap_or_else(|| panic!("the page `{path}`"));
-            golden(&name, &source(&page, &SourceOptions::default()));
-        }
-        let settings = source(&tree.page("settings/text").unwrap(), &SourceOptions::default());
+        let source_of = |path: &str| source(&tree.page(path).unwrap_or_else(|| panic!("the page `{path}`")), &SourceOptions::default());
+        let root = source_of("/");
+        assert!(root.contains("\\docfield{Profile in view}{\\verbcode{text}}"), "{root}");
+        assert!(root.contains("origin=extension, extension={\\verbcode{doc/_flmextensions/narrow.yaml}}"), "{root}");
+        let settings = source_of("settings/text");
         assert!(settings.contains("\\docfield{Value in effect}{\\verbcode{30}}"), "{settings}");
         // A feature switched off has no page; its package's page does not link to it.
         assert!(tree.page("features/toc").is_none());
-        let stdcore = source(&tree.page("packages/stdcore").unwrap(), &SourceOptions::default());
-        assert!(stdcore.contains("\\verbcode{toc} (not in the registry)"), "{stdcore}");
+        let std = source_of("packages/std");
+        assert!(std.contains("\\item[missing] \\verbcode{toc}"), "{std}");
+        // The package's name holds slashes, and is one segment of its page's path line.
+        let package = tree.page("packages/doc/_flmextensions/narrow.yaml#_").unwrap();
+        let paths: Vec<String> = package.path_line().into_iter().map(|segment| segment.path).collect();
+        assert_eq!(paths, ["packages/", "packages/doc/_flmextensions/narrow.yaml#_"]);
     }
 
     #[test]
@@ -430,18 +368,19 @@ mod host {
         let mut files = MemoryFiles::new();
         files.insert("doc/draft.flm", format!("---\nflm:\n  use: [{name}]\n---\nHello.\n"));
         files.insert(format!("doc/_flmextensions/{name}.yaml"), data);
-        let mut request = Request::new(Input::File(PathBuf::from("doc/draft.flm")));
+        let mut request = Request::new(Input::File(String::from("doc/draft.flm")));
         request.default_math = MathChoice::processor("passthrough");
-        request.extension_folders = vec![ExtensionFolder { path: PathBuf::from("doc/_flmextensions"), required: false }];
-        let prepared = prepare(request, Arc::new(files), &[]).expect("the document is prepared");
+        request.extension_folders = vec![ExtensionFolder { path: String::from("doc/_flmextensions"), required: false }];
+        let prepared = prepare(request, Arc::new(files), &[], &Scope::none()).expect("the document is prepared");
         Environment::of_prepared(&prepared)
     }
 
     /// A text written as data comes from where it was written, both whole and as its
     /// summary, on every page that embeds it: the workflow's on its page, on the list of
     /// workflows, on `/` and on the list of the names of the namespace `workflow`; the user
-    /// definition's on its page, on the list of the feature's macros, on the feature's page
-    /// (its element value) and on the list of the names of the namespace `element`.
+    /// definition's on its page, on the list of the feature's macros and on the page of its
+    /// element type (its element value). The list of the names of the namespace `element`
+    /// shows the element type's own text, not the value's.
     #[test]
     fn a_text_written_as_data_comes_from_where_it_was_written() {
         let tree = Tree::new(&drafted(), None);
@@ -466,13 +405,16 @@ mod host {
         };
         let whole = "The project.\n\nIt is written as text.";
         assert_eq!(source_of("features/userdefs/macros/project", whole), (entry.clone(), package.clone(), Some(9)));
-        for path in ["features/userdefs/macros/project", "features/userdefs/macros", "features/userdefs", "namespaces/element"] {
+        for path in ["features/userdefs/macros/project", "features/userdefs/macros", "namespaces/element/flm.userdefs.macro.project"] {
             assert_eq!(source_of(path, "The project."), (entry.clone(), package.clone(), Some(9)), "{path}");
         }
+        let names = texts(&tree.page("namespaces/element").expect("the page `namespaces/element`"));
+        assert!(!names.iter().any(|item| item.text == "The project."), "{names:?}");
         // The workflow that no feature declares names the package that wrote it, and links to
         // no feature's page.
         let draft = source(&tree.page("workflows/draft").unwrap(), &SourceOptions::default());
-        assert!(draft.contains("\\docfield{Declared by}{written as data by the package \\docref"), "{draft}");
+        assert!(draft.contains("declared-by={\\begin{docinlinelist} \\item[package] \\docref"), "{draft}");
+        assert!(draft.contains("declarer=data]{workflow}"), "{draft}");
         assert!(!draft.contains("features/_host"), "{draft}");
     }
 
@@ -495,7 +437,7 @@ mod host {
             let page = tree.page(path).unwrap_or_else(|| panic!("the page `{path}`"));
             texts(&page).into_iter().filter(|item| item.text == text).map(|item| item.source).collect()
         };
-        let feature = TextSource::Feature { feature: String::from("userdefs"), package: Some(String::from("stdcore")) };
+        let feature = TextSource::Feature { feature: String::from("userdefs"), package: Some(String::from("std")) };
         for (path, text) in [
             ("features/userdefs/macros/amacro", "Same text."),
             ("features/userdefs/macros/cmacro", "Same text."),

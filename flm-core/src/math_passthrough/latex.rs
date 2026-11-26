@@ -18,14 +18,14 @@
 //! Every formula of the recomposed LaTeX (`\(…\)`, `\[…\]`, and each equation line
 //! of a display-math environment) is written by the mathematics writer of the
 //! `userdefs` feature
-//! ([`write_math_run`](crate::stdcore::features::userdefs::kept::write_math_run)):
+//! ([`write_math_run`](crate::stdlib::features::userdefs::kept::write_math_run)):
 //! the source byte for byte, except where a user definition is used. A use of a
 //! user definition that can be written back as a LaTeX definition is written as a
 //! call, and its definition is written to the style file, as for a use in text; a
 //! use of any other user definition is written as its expansion. Nothing inside a
 //! formula is lowered
 //! through the rules except a text command, which is lowered like document text
-//! ([`TEXT_LATEX_RULE`](crate::stdcore::features::math::latex::TEXT_LATEX_RULE)),
+//! ([`TEXT_LATEX_RULE`](crate::stdlib::features::math::latex::TEXT_LATEX_RULE)),
 //! and a source comment, which is staged as a comment node
 //! for the emitter.
 //!
@@ -55,7 +55,7 @@
 //! ([`environment_opening`], [`environment_closing`]), the lines as the
 //! library's line writer ([`stage_lines`]) writes them: for each line in order
 //! its content (item 1 below), the library's closing part of a line
-//! ([`line_closing`](crate::stdcore::features::math::latex::line_closing):
+//! ([`line_closing`](crate::stdlib::features::math::latex::line_closing):
 //! items 2 to 5), and the run of whitespace of item 6:
 //!
 //! 1. The line's content, written by the mathematics writer: raw nodes under the
@@ -69,7 +69,7 @@
 //!    `)` when the tag is not starred. The content is document text, so the
 //!    emitter escapes it.
 //! 3. The line's labels, in order, as one group in `\flmLabels`, a [LaTeX
-//!    hook](crate::stdcore::backends::latex::preamble) (a macro that the style
+//!    hook](crate::stdlib::backends::latex::preamble) (a macro that the style
 //!    file defines with a plain default and that a user redefines in the
 //!    document's preamble; see *What is written for a line's labels*).
 //! 4. `\nonumber` when the line is marked with it, as a macro construct with no
@@ -81,7 +81,7 @@
 //!    indentation after it), when the newline rule took it off, as a raw node.
 //!
 //! **The newline rule** is the `math` library's
-//! ([`normalize_line_newlines`](crate::stdcore::features::math::latex::normalize_line_newlines);
+//! ([`normalize_line_newlines`](crate::stdlib::features::math::latex::normalize_line_newlines);
 //! the library's module documentation, *The newline rule*, states it in full).
 //! Inside a line's content, every run of spaces, tabs and newlines that holds a
 //! newline is written as one newline followed by the indentation after the run's
@@ -95,7 +95,7 @@
 //!
 //! Every environment except `equation` is defined by the LaTeX package `amsmath`,
 //! which the rule then requests (records a package request for; see
-//! [`packages`](crate::stdcore::backends::latex::packages)). A body reported as malformed (an empty line, reported by the
+//! [`packages`](crate::stdlib::backends::latex::packages)). A body reported as malformed (an empty line, reported by the
 //! feature's check stage, or a label or tag on a line without a number,
 //! reported by the `math` feature when the body is parsed) is written back as
 //! the author wrote it; those Errors are the only report.
@@ -110,11 +110,11 @@
 //! - [`emit_flm_math_environment_macro`](MathRecomposeOptions::emit_flm_math_environment_macro)
 //!   writes the environment as `\flmMathEnvironment{<name>}{<arguments>}{<body>}`
 //!   instead, a LaTeX hook defined over `\begin`…`\end` by the definition piece
-//!   [`MATH_ENVIRONMENT`](crate::stdcore::backends::latex::preamble::MATH_ENVIRONMENT),
+//!   [`MATH_ENVIRONMENT`](crate::stdlib::backends::latex::preamble::MATH_ENVIRONMENT),
 //!   which the rule then requires. The hook is a LaTeX hook like `\flmLabels`
 //!   (item 3 above); a definition piece is the unit of LaTeX definitions that
 //!   defines it
-//!   ([`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)).
+//!   ([`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)).
 //!   The six environments take no arguments, so `<arguments>` is empty.
 //!
 //! # What is written for a line's labels
@@ -122,8 +122,8 @@
 //! A label written on an equation line is data of that line, and
 //! [`ENVIRONMENT_LATEX_RULE`] writes it. Every label of the recomposed LaTeX is
 //! written inside the LaTeX hook `\flmLabels{…}`, in mathematics as after a
-//! heading: each label through [`stage_label`](crate::stdcore::features::refs::stage_label), and the line's labels together
-//! through [`stage_label_group`](crate::stdcore::features::refs::stage_label_group), as in `\flmLabels{\label{ref1}\label{ref2}}`.
+//! heading: each label through [`stage_label`](crate::stdlib::features::refs::stage_label), and the line's labels together
+//! through [`stage_label_group`](crate::stdlib::features::refs::stage_label_group), as in `\flmLabels{\label{ref1}\label{ref2}}`.
 //! The group makes every label after the first on a line refer to that line's
 //! number, which `amsmath` alone does not do. The render option
 //! [`label_hooks`](LatexRecomposedRenderOptions::label_hooks) turns the group off
@@ -135,12 +135,12 @@
 //!
 //! - **With the references feature**, the table holds a safe label for the label
 //!   (the key under which the recomposed LaTeX writes it,
-//!   [`SafeLabels`]), and [`stage_label`](crate::stdcore::features::refs::stage_label) writes it.
-//! - **Without it**, the table is absent, and [`stage_label`](crate::stdcore::features::refs::stage_label) writes the label as
+//!   [`SafeLabels`]), and [`stage_label`](crate::stdlib::features::refs::stage_label) writes it.
+//! - **Without it**, the table is absent, and [`stage_label`](crate::stdlib::features::refs::stage_label) writes the label as
 //!   the document wrote it, byte for byte and **unescaped**; what LaTeX makes of
 //!   a character it treats specially is the caller's concern. The choice between
 //!   the two cases is made by
-//!   [`label_spelling`](crate::stdcore::features::refs::label_spelling).
+//!   [`label_spelling`](crate::stdlib::features::refs::label_spelling).
 //!
 //! When the table is absent, the render option
 //! [`drop_math_labels_without_refs`](LatexRecomposedRenderOptions::drop_math_labels_without_refs)
@@ -174,16 +174,19 @@ use crate::core::lowering::{
 use crate::core::registry::{BuildError, FeatureBuilder};
 use crate::lang::Flm;
 use crate::lang::structural::MATH;
-use crate::stdcore::backends::latex::construct::{DEFINITION, MACRO, RAW};
-use crate::stdcore::backends::latex::{LatexDefinitionPayload, LatexMacroPayload, LatexRawPayload};
-use crate::stdcore::backends::latex_recomposed::{BACKEND, LatexRecomposedRenderOptions};
-use crate::stdcore::features::math::frame::line_frames;
-use crate::stdcore::features::math::latex::{
+use crate::model::names::RuleName;
+use crate::stdlib::backends::latex::construct::{DEFINITION, MACRO, RAW};
+use crate::stdlib::backends::latex::{LatexDefinitionPayload, LatexMacroPayload, LatexRawPayload};
+use crate::stdlib::backends::latex_recomposed::{BACKEND, LatexRecomposedRenderOptions};
+use crate::stdlib::features::math::frame::line_frames;
+use crate::stdlib::features::math::latex::{
     environment_closing, environment_opening, group_closing, group_opening, stage_lines,
 };
-use crate::stdcore::features::math::{ENVIRONMENT, MathRecomposeOptions};
-use crate::stdcore::features::refs::{SAFE_LABELS, SafeLabels};
-use crate::stdcore::features::userdefs::kept::stage_math_run;
+use crate::stdlib::features::math::{ENVIRONMENT, MathRecomposeOptions};
+use crate::stdlib::features::refs::{SAFE_LABELS, SafeLabels};
+use crate::stdlib::features::userdefs::kept::stage_math_run;
+
+use super::recomposed_unchecked;
 
 /// The name of the recomposition rule of the display-math environments
 /// (`flm.math.environment`) of passthrough mathematics,
@@ -221,19 +224,43 @@ impl Lower for MathLatexRule {
     }
 }
 
-/// The rule [`MATH_LATEX_RULE`], ready to be registered: it targets
-/// `flm.math`, produces the raw construct and the definition construct (for a
-/// user definition used inside mathematics), and is the default on the
-/// `latex-recomposed` backend only.
+/// The rule [`MATH_LATEX_RULE`], ready to be registered: [`math_rule_named`]
+/// under that name.
 pub fn math_rule() -> LoweringRule {
+    math_rule_named(MATH_LATEX_RULE)
+}
+
+/// The library's rule of `flm.math` for the `latex-recomposed` backend,
+/// under the rule name `name`, ready to be registered by any feature: its
+/// body is [`MathLatexRule`], it targets `flm.math`, reads two option types
+/// (the `math` feature's [`MathRecomposeOptions`] and the backend's
+/// [`LatexRecomposedRenderOptions`]), produces the raw construct and the
+/// definition construct (for a user definition used inside mathematics), is
+/// the default on the `latex-recomposed` backend only, declares its output
+/// unchecked there (see the [module documentation](super), *Output that
+/// nothing checks*), and carries the library's description. [`math_rule`] is
+/// this rule under [`MATH_LATEX_RULE`].
+///
+/// A feature that registers the rule declares beside it, as [`register`]
+/// does, a peer declaration ([`PeerName`](crate::core::registry::PeerName))
+/// of the backend ([`FeatureBuilder::peer_backend`]) and of the two
+/// construct elements ([`FeatureBuilder::peer_element`]: [`RAW`], of payload
+/// type [`LatexRawPayload`], and [`DEFINITION`], of payload type
+/// [`LatexDefinitionPayload`]). The feature that registers the rule is its
+/// owner: a plan that keeps its unchecked output names that feature in the
+/// [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput),
+/// with the texts the library declares.
+pub fn math_rule_named(name: impl Into<RuleName>) -> LoweringRule {
     LoweringRule::new(
-        MATH_LATEX_RULE,
+        name,
         MATH,
-        LoweringDecl::new()
-            .option::<MathRecomposeOptions>()
-            .option::<LatexRecomposedRenderOptions>()
-            .produces(RAW)
-            .produces(DEFINITION),
+        recomposed_unchecked(
+            LoweringDecl::new()
+                .option::<MathRecomposeOptions>()
+                .option::<LatexRecomposedRenderOptions>()
+                .produces(RAW)
+                .produces(DEFINITION),
+        ),
         Arc::new(MathLatexRule),
         DefaultMark::OnBackends(vec![BACKEND.into()]),
     )
@@ -250,7 +277,7 @@ pub fn math_rule() -> LoweringRule {
 /// part ([`environment_closing`]).
 ///
 /// The rule returns a [`LowerError`] when the node carries no
-/// [`MathEnvironment`](crate::stdcore::features::math::MathEnvironment), when a
+/// [`MathEnvironment`](crate::stdlib::features::math::MathEnvironment), when a
 /// table or an option cannot be read, or when a node could not be staged.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EnvironmentLatexRule;
@@ -273,27 +300,52 @@ impl Lower for EnvironmentLatexRule {
     }
 }
 
-/// The rule [`ENVIRONMENT_LATEX_RULE`], ready to be registered: it targets
+/// The rule [`ENVIRONMENT_LATEX_RULE`], ready to be registered:
+/// [`environment_rule_named`] under that name.
+pub fn environment_rule() -> LoweringRule {
+    environment_rule_named(ENVIRONMENT_LATEX_RULE)
+}
+
+/// The library's rule of `flm.math.environment` for the `latex-recomposed`
+/// backend, under the rule name `name`, ready to be registered by any
+/// feature: its body is [`EnvironmentLatexRule`], it targets
 /// `flm.math.environment`, reads the safe-labels table optionally and two
-/// option types (its own [`MathRecomposeOptions`] and the backend's
-/// [`LatexRecomposedRenderOptions`]), produces the macro, raw and
-/// definition constructs (the last for a user definition used on a line), and
-/// is the default on the `latex-recomposed` backend only.
+/// option types (the `math` feature's [`MathRecomposeOptions`] and the
+/// backend's [`LatexRecomposedRenderOptions`]), produces the macro, raw and
+/// definition constructs (the last for a user definition used on a line), is
+/// the default on the `latex-recomposed` backend only, declares its output
+/// unchecked there (see the [module documentation](super), *Output that
+/// nothing checks*), and carries the library's description.
+/// [`environment_rule`] is this rule under [`ENVIRONMENT_LATEX_RULE`].
 ///
 /// A line's labels are written from the line's own data; the module
 /// documentation, *What is written for a line's labels*, says what the table
 /// and the backend's options change.
-pub fn environment_rule() -> LoweringRule {
+///
+/// A feature that registers the rule declares beside it, as [`register`]
+/// does, a peer declaration ([`PeerName`](crate::core::registry::PeerName))
+/// of the backend ([`FeatureBuilder::peer_backend`]), of the three construct
+/// elements ([`FeatureBuilder::peer_element`]: [`MACRO`], [`RAW`] and
+/// [`DEFINITION`], of payload types [`LatexMacroPayload`],
+/// [`LatexRawPayload`] and [`LatexDefinitionPayload`]) and of the safe-labels
+/// table ([`FeatureBuilder::peer_table`]: [`SAFE_LABELS`], of value type
+/// [`SafeLabels`]). The feature that registers the rule is its owner: a plan
+/// that keeps its unchecked output names that feature in the
+/// [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput),
+/// with the texts the library declares.
+pub fn environment_rule_named(name: impl Into<RuleName>) -> LoweringRule {
     LoweringRule::new(
-        ENVIRONMENT_LATEX_RULE,
+        name,
         ENVIRONMENT,
-        LoweringDecl::new()
-            .reads_opt(SAFE_LABELS)
-            .option::<MathRecomposeOptions>()
-            .option::<LatexRecomposedRenderOptions>()
-            .produces(MACRO)
-            .produces(RAW)
-            .produces(DEFINITION),
+        recomposed_unchecked(
+            LoweringDecl::new()
+                .reads_opt(SAFE_LABELS)
+                .option::<MathRecomposeOptions>()
+                .option::<LatexRecomposedRenderOptions>()
+                .produces(MACRO)
+                .produces(RAW)
+                .produces(DEFINITION),
+        ),
         Arc::new(EnvironmentLatexRule),
         DefaultMark::OnBackends(vec![BACKEND.into()]),
     )

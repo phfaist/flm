@@ -1,256 +1,258 @@
 //! `flm-core` is the Rust library that implements FLM ("flexible latexlike
-//! markup"), a markup language for documents. FLM is written with a syntax
-//! borrowed from LaTeX (backslash commands, `\begin{…}…\end{…}` environments,
-//! blank lines between paragraphs), but each construct says what a part of the
-//! document *means* rather than how it looks, so that one source can be rendered
-//! in several output formats.
+//! markup"), a markup language for documents. FLM borrows its syntax from
+//! LaTeX: commands begin with a backslash, environments are written as
+//! `\begin{…}…\end{…}`, and a blank line separates two paragraphs. Each
+//! construct of FLM expresses the meaning of a part of the document, not its
+//! appearance, so that one source can be rendered in several output formats.
 //!
-//! The library parses FLM source, processes the parsed document, and renders it.
-//! It ships four output formats: plain text, HTML, LaTeX for LuaLaTeX with
-//! everything the library resolves already resolved (the *rendered LaTeX*), and
-//! LaTeX source written back close to what an author would type (the *recomposed
-//! LaTeX*). It is built on
-//! [techy], a parser toolkit for LaTeX-like languages, which supplies the
-//! tokenizer, the parser and the node tree. The command-line program `flm` (crate
-//! `flm-cli`) and the host library `flm-main`, which finds and reads a document's
-//! files and settings and writes the outputs, are built on this crate.
+//! The library parses FLM source, processes the document, and renders it in
+//! four output formats: plain text, HTML, *rendered LaTeX* and *recomposed
+//! LaTeX*. Rendered LaTeX is LaTeX for LuaLaTeX in which FLM has already
+//! resolved the numbering, the cross-references and the other computed
+//! content. Recomposed LaTeX is LaTeX source close to what an author would
+//! type; it leaves the numbering and the cross-references to LaTeX.
 //!
-//! Nothing in the processing reads or writes files (the only file access in the
-//! crate is the test tool [`dump::golden`]). A caller supplies the source text,
-//! receives the output as values ([artifacts](core::artifact::Artifact), each
-//! one file's worth of output), and decides where they go. When a document
-//! includes other files, the caller supplies an [input
-//! resolver](lang::InputResolver) that finds and reads them.
+//! The library is built on [techy], a parser toolkit for LaTeX-like
+//! languages, which provides the tokenizer, the parser and the node tree. The
+//! library `flm-host`, which finds and reads the files and the settings of a
+//! document and writes its outputs, uses this library, and so does the
+//! command-line program `flm` (crate `flm`).
+//!
+//! The processing reads and writes no files. A program that uses the library
+//! provides the source text and receives the output as
+//! [artifacts](core::artifact::Artifact): each artifact is a value that
+//! contains the content of one output file. The program decides where to
+//! write the artifacts. When a document includes other files with `\input`,
+//! the program provides an [input resolver](lang::InputResolver), which finds
+//! and reads these files.
 //!
 //! # Using the library
 //!
-//! A program that renders an FLM document takes five steps. The
-//! [Introduction](guide::introduction#embedding-the-library) shows them in one
-//! complete program, and [Embedding flm-core](guide::embedding) describes each
-//! of them in full.
+//! A program that renders an FLM document takes the following five steps. The
+//! [Introduction](guide::introduction#embedding-the-library) shows them in a
+//! complete program, and the chapter [Embedding flm-core](guide::embedding)
+//! describes each of them in full.
 //!
-//! 1. **Build a registry.** A [registry](core::registry) is the frozen record
-//!    of everything the language and the pipeline consult for a set of
-//!    features: the elements an author can write, the stages, the tables, the
-//!    backends, the workflows and the other things the features declared. It
-//!    is built once with a
-//!    [`RegistryBuilder`](core::registry::RegistryBuilder) from
-//!    [features](core::registry::FlmFeature), Rust values that each contribute a
-//!    related bundle of these things, and the finished
-//!    [`FlmRegistry`](core::registry::FlmRegistry) is shared by every document.
-//!    The standard package [`stdcore`] holds the features of the standard language
-//!    and the four backends; [`stdcore::package`] prepares it for registration.
-//!    A registry that renders formulas also needs a feature that processes
-//!    mathematics, such as the one of the package [`math_passthrough`].
-//! 2. **Parse the source and assemble a document.**
+//! 1. **Build a registry.** A [registry](core::registry) contains the
+//!    definitions used to parse and process documents: the commands and
+//!    environments that an author can write, the processing stages, the tables
+//!    of computed data, the backends, the workflows, and so on. These
+//!    definitions are made in *features*: a
+//!    [feature](core::registry::FlmFeature) is a Rust value that contributes a
+//!    group of related definitions to a registry. Build the registry with a
+//!    [`RegistryBuilder`](core::registry::RegistryBuilder); most programs add
+//!    to it a package that holds the standard features of [`stdlib`]
+//!    ([`stdlib::add_features`]). The
+//!    result, an [`FlmRegistry`](core::registry::FlmRegistry), cannot be
+//!    changed after it is built. For documents that contain mathematics, the
+//!    registry also needs a feature that processes mathematics, such as the
+//!    feature of the package [`math_passthrough`]. Without such a feature,
+//!    each formula is reported as an error when the document is rendered.
+//! 2. **Parse the source and place it in a document.**
 //!    [`parse_fragment`](lang::parse_fragment) parses one source text into a
-//!    [fragment](model::doc::Fragment), which is then placed in a
-//!    [document](model::doc::Doc). [`assemble`](model::assemble::assemble) parses
-//!    a primary file together with the files it includes.
-//! 3. **Ask for a plan.** A [plan](core::plan::Plan) is the list of
-//!    [stages](core::stage::Stage) (the units of processing work) that
-//!    satisfies a [plan request](core::plan::PlanRequest), in dependency order.
-//!    The caller does not list the stages: in the plan request it states the
-//!    [capabilities](core::registry::CapabilityDef) it wants (named states of
-//!    processing, such as a rendered output), usually by choosing a
-//!    [workflow](core::registry::WorkflowDef) (a named set of demands together
-//!    with the choices that go with them, held in the registry) with
-//!    [`Plan::for_workflow`](core::plan::Plan::for_workflow), and the library
-//!    selects the stages that provide them and orders them.
-//! 4. **Execute a run.** A [run](core::run::Run) is one execution of one plan
-//!    over one document ([`Run::execute`](core::run::Run::execute)).
-//! 5. **Read the results.** What a run computed is held in typed
-//!    [tables](core::data::table::Table), read with
-//!    [`Run::table`](core::run::Run::table). Each output (a rendered format such
-//!    as `text` or `html`) produces an [artifact
-//!    set](core::artifact::ArtifactSet), which the run holds in that output's
-//!    table.
+//!    [fragment](model::doc::Fragment), and the program places the fragment in
+//!    a [document](model::doc::Doc). To parse a file together with the files
+//!    that it includes, use [`assemble`](model::assemble::assemble).
+//! 3. **Build a plan.** A [plan](core::plan::Plan) is the list of
+//!    [stages](core::stage::Stage) that a run executes, in the order of their
+//!    dependencies. A stage is one unit of processing work. The program states
+//!    in a [plan request](core::plan::PlanRequest) which *capabilities* it
+//!    wants. A [capability](core::registry::CapabilityDef) is a named state of
+//!    processing, such as a rendered output. The library then selects the
+//!    stages that provide these capabilities and orders them. Usually, the
+//!    program uses a [workflow](core::registry::WorkflowDef), a complete plan
+//!    request stored in the registry under a name such as `html`, and builds
+//!    the plan with [`Plan::for_workflow`](core::plan::Plan::for_workflow).
+//! 4. **Execute a run.** A [run](core::run::Run) is one execution of a plan
+//!    over a document. Create the run with [`Run::new`](core::run::Run::new)
+//!    and execute it with [`Run::execute`](core::run::Run::execute).
+//! 5. **Read the results.** A run stores what it computes in typed
+//!    [tables](core::data::table::Table), which
+//!    [`Run::table`](core::run::Run::table) returns. The files of an output,
+//!    such as the HTML page, form an [artifact
+//!    set](core::artifact::ArtifactSet), which is stored in the table
+//!    declared for that output ([`OutputDef`](core::registry::OutputDef)).
 //!    The problems found in the document are
-//!    [diagnostics](guide::concepts_overview#diagnostics), read with
-//!    [`Run::diagnostics`](core::run::Run::diagnostics).
+//!    [diagnostics](guide::concepts_overview#diagnostics), which
+//!    [`Run::diagnostics`](core::run::Run::diagnostics) returns.
 //!
-//! A program that adds commands, checks or output formats of its own writes
-//! features and registers them beside the standard package, exactly as the
-//! standard package registers its own; [Extending FLM](guide::extending)
-//! describes that work.
+//! The registry and the plan do not depend on a document. A program therefore
+//! builds them once and uses them for every document that it processes.
+//!
+//! A program that adds commands, checks or output formats of its own defines
+//! them in features, and adds these features to the registry beside the
+//! standard features. The standard features register in the same way. The
+//! chapter [Extending FLM](guide::extending) describes this work.
 //!
 //! # How a document is processed
 //!
-//! Three design decisions shape the whole library. The [Concepts
-//! overview](guide::concepts_overview) defines each concept they rely on.
+//! Three design decisions shape the library. The [Concepts
+//! overview](guide::concepts_overview) explains each of them.
 //!
-//! 1. **The parsed node tree is the document model.** Every node of techy's
-//!    node tree carries the [element](model::element::ElementSpec) that says
-//!    what the node means, and the library never converts the parsed tree into a
-//!    second representation. See [the document
-//!    tree](guide::concepts_overview#the-document-tree).
-//! 2. **The trees are frozen early, and computed data is stored beside them.**
-//!    Only [rewrite stages](core::stage::RewriteStage) change the trees, and
-//!    they all run first; in the standard package they insert the content of
-//!    included files, expand the definitions an author wrote, and lay content
-//!    out in paragraphs and blocks. After them the trees never change. Every
-//!    later stage stores what it computes in typed *tables* beside the trees
-//!    (numbers, references, the [presentation
-//!    tree](guide::concepts_overview#backends-lowering-and-outputs) of each
-//!    backend, the output
-//!    text), or checks the document and reports diagnostics. See [frozen trees
-//!    and computed data](guide::concepts_overview#frozen-trees-and-computed-data).
-//! 3. **The library derives the processing from what the caller asks for.** A
-//!    stage declares the capabilities it provides and the capabilities it
-//!    requires; a caller *demands* capabilities (asks the plan for stages that
-//!    provide them; see [`PlanRequest`](core::plan::PlanRequest)), and the library builds the plan that satisfies those
-//!    demands. See [stages, capabilities, and
+//! 1. **The parsed node trees are the only representation of a document.** A
+//!    document consists of the node trees that techy's parser produces. Each
+//!    node stores an [element](model::element::ElementSpec), a value that
+//!    describes what the node means, such as a heading or emphasis. The
+//!    library does not convert the trees into another data structure. See [the
+//!    document tree](guide::concepts_overview#the-document-tree).
+//! 2. **The trees are frozen early, and computed data is stored in tables.**
+//!    The *rewrite stages* run first, and they are the only stages that change
+//!    the trees. Among the standard features, they insert the content of included
+//!    files, expand user-defined macros and environments, and group the
+//!    content into paragraphs and blocks. After the rewrite stages, the trees
+//!    are *frozen*, and no later stage changes them. Each later stage stores
+//!    what it computes in tables, such as the numbers of the headings or the
+//!    output text, or it checks the document and reports diagnostics. [Frozen
+//!    trees and computed
+//!    data](guide::concepts_overview#frozen-trees-and-computed-data) explains
+//!    the reasons for this design.
+//! 3. **The library derives the processing from what a program requests.**
+//!    Each stage is declared with the capabilities that it provides and the
+//!    capabilities that it requires. A program *demands* capabilities in its
+//!    plan request, and the library builds the plan that provides them. A
+//!    feature can therefore add a stage without any change to the other
+//!    stages: the stage runs in every plan that needs a capability that it
+//!    provides. See [stages, capabilities, and
 //!    plans](guide::concepts_overview#stages-capabilities-and-plans).
 //!
 //! # Modules
 //!
-//! - [`model`] — the document model: dotted names, tree and node addresses,
-//!   elements and their aspects, fragments and documents, and the option values
-//!   bound on a document.
-//! - [`lang`] — FLM's language over techy: the language type, the parse entry
-//!   points, the building of techy packages from the features' element
-//!   declarations ([`lang::mint`]), the recursion guard and worker threads
-//!   ([`lang::guard`]), and the three rewrite passes: splicing of included
-//!   files, expansion of user definitions, and block structure
-//!   ([`lang::rewrites`]).
-//! - [`core`] — the processing framework: stages, the store of computed tables,
-//!   services, lowering rules, artifacts, the registry, plan construction, and
-//!   runs.
-//! - [`stdcore`] — the standard package: the features of the standard language,
-//!   the presentation elements and lowering shared by every backend, and the
-//!   `text`, `latex-recomposed` and `html` backends.
-//! - [`math_passthrough`] — the package `math-passthrough`, which uses `stdcore`:
-//!   mathematics carried to the output as written, one of the features that
-//!   process mathematics.
-//! - [`layout`] — the text layout engine used by the plain-text backend: a
-//!   description of the intended text and a printer that wraps and indents it.
-//! - [`dump`] — inspection and test tooling: the projection of trees, tables and
-//!   diagnostics that tests compare, golden files, assertions on diagnostics, and
-//!   the serialization of parses used by the `flm dump` command.
-//! - [`guide`] — the guide chapters (see below).
+//! - [`model`]: the document model. It defines documents and fragments, the
+//!   elements that the nodes store and their aspects, the addresses of trees
+//!   and nodes, dotted names, and the option values set on a document.
+//! - [`lang`]: the FLM language on top of techy. It contains the parse
+//!   functions, the construction of techy's command specifications from the
+//!   elements defined in the features ([`lang::mint`]), the recursion
+//!   guard and the worker threads ([`lang::guard`]), and the rewrite passes
+//!   that insert included files, expand user definitions and group content
+//!   into blocks ([`lang::rewrites`]).
+//! - [`core`]: the processing framework. It contains the registry, stages and
+//!   the tables of computed data, plans and runs, lowering rules, artifacts,
+//!   services and settings.
+//! - [`stdlib`]: the standard features. They provide the commands and
+//!   environments of the language, the stages that structure and check a
+//!   document, and the four backends `text`, `html`, `latex-rendered` and
+//!   `latex-recomposed`. [`stdlib::add_features`] adds them to a package that
+//!   a program declares.
+//! - [`math_passthrough`]: the package `math-passthrough`. Its feature
+//!   processes mathematics by copying the source of each formula to the output
+//!   as the author wrote it.
+//! - [`layout`]: the text layout engine, which wraps and indents text to a
+//!   given line width. The plain-text backend uses it.
+//! - [`progress`]: the progress sheet of a build: the rows of the work under
+//!   way and how far each is, the request to stop a build, and the sink of the
+//!   log lines that the work writes.
+//! - [`dump`]: tools to inspect and test what the library holds in memory:
+//!   projections of trees, tables and diagnostics that tests compare, golden
+//!   files, assertions on diagnostics, and the serialization of parses that
+//!   the command `flm dump` prints.
+//! - [`guide`]: the chapters of the guide (see [Guide](#guide) below).
 //!
 //! # Cargo features
 //!
-//! Both features are on by default.
+//! The crate has two Cargo features, and both are enabled by default.
 //!
-//! - `parallel`: a [run](core::run::Run) applies a stage that works tree by
-//!   tree to the document's trees at the same time, on the threads of a pool
-//!   (through the `rayon` crate). The output is the same as with the feature off, when
-//!   all the work runs on one thread;
-//!   [`RunOptions::sequential`](core::run::RunOptions::sequential) asks for
-//!   one thread at run time.
-//! - `docs`: the documentation texts of the declarations a
-//!   [registry](core::registry) is built from (of a command, an argument, a
-//!   feature, a stage, a table, a setting, a heading kind, a counter, a cell
-//!   style, and the other things a registry holds) are kept, so that a program
-//!   can show them. A program that never shows these texts, such as one
-//!   compiled to WebAssembly, turns the feature off and then does not carry
-//!   them. With the feature off:
-//!   - every builder method, builder function and constructor that takes a
-//!     documentation text stores an empty text instead, such as
-//!     [`ElementDef::docs`](lang::mint::ElementDef::docs),
-//!     [`FeatureBuilder::argument_role`](core::registry::FeatureBuilder::argument_role),
-//!     [`HeadingDecl::docs`](stdcore::features::headings::HeadingDecl::docs),
-//!     [`CounterDecl::docs`](stdcore::features::numbering::CounterDecl::docs)
-//!     and [`CellStyle::fixed`](stdcore::features::cells::CellStyle::fixed);
-//!     so does the registration of a scoped package, a stylesheet or a script
-//!     ([`FeatureBuilder::scoped_package`](core::registry::FeatureBuilder::scoped_package),
-//!     [`style_def`](core::registry::FeatureBuilder::style_def),
-//!     [`script_def`](core::registry::FeatureBuilder::script_def));
-//!   - the library reads the texts written in settings data (of a user
-//!     definition, a heading kind or a workflow) through these same builders,
-//!     so they are dropped too;
-//!   - a text that a program assigns directly to a public `docs` field is
-//!     kept, and so is the text of a LaTeX package request given among a
-//!     backend's render options, which is an option and not a declaration.
+//! - `parallel`: A [run](core::run::Run) executes independent work in
+//!   parallel, on a thread pool of the `rayon` crate. For instance, a stage
+//!   that runs once per tree runs on all the trees of a document at the same
+//!   time. The output is the same as without the feature. To run all the work
+//!   on one thread in a build with this feature, pass
+//!   [`RunOptions::sequential`](core::run::RunOptions::sequential) to
+//!   [`Run::execute`](core::run::Run::execute).
+//! - `docs`: The library stores the documentation texts given with the
+//!   definitions of a registry: the texts of the commands, of their
+//!   arguments, of the features, of the stages, of the tables, of the
+//!   settings, and so on. The command `flm info` shows these texts. A program
+//!   that never shows them, such as a WebAssembly build, can disable the
+//!   feature; the library then stores no documentation text.
 //!
-//!   Turning the feature off changes neither the rendered output of a document
-//!   nor the [registry digest](model::digest), which does not include the
-//!   texts. Besides the texts themselves, two things change: the JSON Schema
-//!   of a feature's settings
+//!   When the feature is disabled, every builder method and constructor that
+//!   takes a documentation text, such as
+//!   [`ElementDef::docs`](lang::mint::ElementDef::docs), stores an empty text.
+//!   This also applies to the texts read from settings data, such as the
+//!   description of a user definition or of a workflow, because they pass
+//!   through the same builder methods. A text that a program assigns directly
+//!   to a public `docs` field is kept.
+//!
+//!   Disabling the feature changes neither the rendered output of a document
+//!   nor the [registry digest](core::registry::FlmRegistry::digest). The JSON
+//!   Schema of a feature's settings
 //!   ([`SettingsDecl::json_schema`](core::settings::SettingsDecl::json_schema))
-//!   loses its top-level description, which is made of the documentation
-//!   texts the feature gives its settings declaration (the descriptions of the
-//!   individual settings stay: they are part of the schema itself, compiled
-//!   from the Rust documentation comments of the settings types or written in
-//!   the schema a feature gives as data); and the error
-//!   [`RunError::MissingExternal`](core::run::RunError::MissingExternal) no
-//!   longer quotes the description of the missing table.
+//!   then has no top-level description, but it keeps the descriptions of the
+//!   individual settings.
 //!
 //! # Module layering
 //!
-//! Each top-level module uses only the modules on levels below its own:
+//! The top-level modules form layers, and each module uses only the modules of
+//! its own layer and of the layers below it:
 //!
 //! ```text
-//! {model, lang} < core < dump < stdcore < math_passthrough        layout standalone
+//! {model, lang} < core < dump < stdlib < math_passthrough        layout, progress standalone
 //! ```
 //!
-//! [`model`] and [`lang`] form one level, not two: a node carries its element,
-//! so the language needs the model, and the model's fragments are typed by the
-//! language, so the model needs the language. Together they use no other module
-//! of this crate. [`core`] uses both; [`dump`] uses those three; [`stdcore`]
-//! uses all of them and the [`layout`] engine; [`math_passthrough`] uses
-//! [`stdcore`] and the levels below it. [`layout`] uses no other module of
-//! this crate. Within [`stdcore`], only the backends
-//! ([`stdcore::backends`]) use the layout engine and the Unicode-to-LaTeX
-//! encoder [`untechxt`]. Because each module uses only the levels below it, the
-//! dependencies between the modules have no cycles.
+//! The modules [`model`] and [`lang`] form one layer because each uses the
+//! other. The parser defined in [`lang`] stores an element in each node, and
+//! elements are defined in [`model`]. A fragment, defined in [`model`],
+//! contains a tree of the FLM language defined in [`lang`]. The [`layout`]
+//! module uses no other module of this crate, and [`stdlib`] uses it in
+//! addition to the modules of the lower layers. The [`progress`] module uses
+//! no other module of this crate either, and [`core`] and [`stdlib`] use it.
 //!
 //! # Guide
 //!
-//! The [`guide`] module holds the narrative documentation; the other modules
-//! are the API reference, and the two link each other throughout. Start with
-//! the [Introduction](guide::introduction). The [Concepts
-//! overview](guide::concepts_overview) defines the library's main concepts, one
-//! section each. The [guide's landing page](guide) lists every chapter: the
-//! language syntax and the `flm` program for authors and users; the document
-//! model, the pipeline, rendering, numbering, extending and embedding for
-//! programmers; the [list of panicking items](guide::panics); the [migration
-//! guide from the Python implementation](guide::python_flm_migration); and the [AI
-//! guide](guide::ai_guide), a condensed orientation written to be loaded into an
-//! AI assistant's context.
+//! The [`guide`] module contains the narrative documentation of FLM, and the
+//! other modules form the API reference. Start with the
+//! [Introduction](guide::introduction). The [Concepts
+//! overview](guide::concepts_overview) defines the main concepts of the
+//! library, one per section. The [guide's landing page](guide) lists all
+//! chapters: the chapters on the language and on the `flm` program for
+//! authors, the chapters on the library for programmers, and condensed
+//! chapters for AI assistants.
 //!
 //! [techy]: https://github.com/phfaist/techy
 
-/// The parser toolkit FLM is built on, re-exported at exactly the version this
-/// crate is compiled against.
+/// Re-exports the parser toolkit techy, on which FLM is built. The re-exported
+/// crate is the version of techy that `flm-core` is compiled against.
 ///
-/// A program, an extension crate or a backend that uses FLM needs techy's own
-/// types: sources, node trees, diagnostics, serialization sessions. Use them
-/// through `flm_core::techy` rather than through a techy dependency of your own.
-/// Two versions of techy in one build are two unrelated sets of types, and a
-/// value of one is not accepted by the functions of the other; the re-export
-/// guarantees that the program uses the version this crate uses.
+/// A program or an extension that uses FLM works with techy's types, such as
+/// node trees, diagnostics and serialization sessions. Use these types through
+/// `flm_core::techy` rather than through a dependency on techy in your own
+/// crate. If a build contains two versions of techy, the types of one version
+/// are distinct from the types of the other, and the functions of one version
+/// do not accept the values of the other. The re-export ensures that your code
+/// uses the same version of techy as `flm-core`.
 pub use techy;
 
-/// The Unicode-to-LaTeX encoder (the crate `untechxt`), re-exported at exactly
-/// the version this crate is compiled against.
+/// Re-exports the Unicode-to-LaTeX encoder `untechxt`. The re-exported crate is
+/// the version of `untechxt` that `flm-core` is compiled against.
 ///
-/// `untechxt` holds a table that writes each character as LaTeX source, records
-/// what each such LaTeX form needs in a document's preamble (a package, a font
-/// encoding), and protects a form from merging with the text written after it.
-/// It does not depend on FLM or on any document model. The LaTeX family's
-/// escaping ([`stdcore::backends::latex::escape`]) writes every non-ASCII
-/// character of a document's text through it, and the preamble needs it records
-/// ([`PreambleNeeds`](untechxt::preamble::PreambleNeeds),
-/// [`Profile`](untechxt::preamble::Profile)) appear in this crate's own
-/// interface. Use the crate through `flm_core::untechxt` rather than through a
-/// dependency of your own, for the reason given at [`techy`].
+/// `untechxt` converts text into LaTeX source. It replaces each character that
+/// LaTeX does not accept, or treats specially, with LaTeX code that prints the
+/// character, and it records what this code needs in the preamble of a LaTeX
+/// document, such as a package or a font encoding. The LaTeX backends of
+/// `flm-core` take the LaTeX code for each non-ASCII character of a document
+/// from `untechxt` ([`stdlib::backends::latex::escape`]), and the interface of
+/// that module contains types of `untechxt`, such as
+/// [`PreambleNeeds`](untechxt::preamble::PreambleNeeds). Use `untechxt` through
+/// `flm_core::untechxt` rather than through a dependency in your own crate, for
+/// the reason given in the documentation of [`techy`].
 pub use untechxt;
 
 // The cargo feature `docs` is tested in this one function, which each builder
 // calls in its own body, never where a builder is called: those calls number
 // in the hundreds, and every one added would have to remember the test.
-/// Returns the documentation text `docs` as a builder method stores it: the
-/// text itself when the cargo feature `docs` is on, and an empty text when it
-/// is off, so that a build without the feature keeps no documentation text.
+/// Returns the documentation text `docs` when the Cargo feature `docs` is
+/// enabled, and an empty string when it is disabled.
 ///
-/// Every builder method, builder function and constructor that stores a
-/// documentation text passes it through this function, in its own body, and
-/// so does a library function that builds such a value without one (the LaTeX
-/// definitions derived from the Unicode-to-LaTeX table); a reader of data
-/// sets the text through a builder. The code that calls a builder never tests
-/// the feature.
+/// Every builder method and constructor that stores a documentation text
+/// passes the text through this function, so that a build without the feature
+/// stores no documentation text. The code that calls these builder methods,
+/// including the code that reads definitions from settings data, therefore
+/// does not test the feature itself. Library code that sets a documentation
+/// text without a builder method calls this function directly. For instance,
+/// the shared LaTeX module ([`stdlib::backends::latex`]) calls it for the
+/// LaTeX definitions that it derives from the Unicode-to-LaTeX table of
+/// [`untechxt`].
 #[inline]
 pub(crate) fn kept_docs(docs: impl Into<String>) -> String {
     #[cfg(feature = "docs")]
@@ -274,69 +276,75 @@ pub mod lang;
 pub mod layout;
 pub mod math_passthrough;
 pub mod model;
-pub mod stdcore;
+pub mod progress;
+pub mod stdlib;
 
 // Narrative documentation: markdown pages in the workspace-level `docs/` rendered as
-// doc-only modules. `cfg(doc)` keeps them out of compiled code; rustdoc (including
-// doctest collection) builds with `--cfg doc`, so code blocks in these pages still run
-// as doctests. The docs sidebar pins these pages in a "Guide" section
-// (docs/rustdoc-header.html, wired up in .cargo/config.toml); new chapters must also be
-// added to GUIDE_PAGES there and to the chapter index in docs/guide.md. The full
-// procedure is in Documentation_Structure.md ("Guides included in rustdoc").
+// doc-only modules. They are read through the symbolic link `flm-core/docs` to `../docs`,
+// so that the crate's package holds them. `cfg(doc)` keeps them out of compiled code;
+// rustdoc (including doctest collection) builds with `--cfg doc`, so code blocks in these
+// pages still run as doctests. The docs sidebar pins these pages in a "Guide" section
+// (docs/rustdoc-header.html, wired up in .cargo/config.toml). A new chapter takes four
+// steps: its file `docs/NAME.md`, its module in the block below, its entry in
+// GUIDE_PAGES of docs/rustdoc-header.html, and its line in the chapter index of
+// docs/guide.md.
 #[cfg(doc)]
-#[doc = include_str!("../../docs/guide.md")]
+#[doc = include_str!("../docs/guide.md")]
 pub mod guide {
     // User Guide.
-    #[doc = include_str!("../../docs/introduction.md")]
+    #[doc = include_str!("../docs/introduction.md")]
     pub mod introduction {}
 
-    #[doc = include_str!("../../docs/language-syntax.md")]
+    #[doc = include_str!("../docs/language-syntax.md")]
     pub mod language_syntax {}
 
-    #[doc = include_str!("../../docs/command-line.md")]
+    #[doc = include_str!("../docs/std-flm.md")]
+    pub mod std_flm {}
+
+    #[doc = include_str!("../docs/command-line.md")]
     pub mod command_line {}
 
     // Developer Guide.
-    #[doc = include_str!("../../docs/concepts-overview.md")]
+    #[doc = include_str!("../docs/concepts-overview.md")]
     pub mod concepts_overview {}
 
-    #[doc = include_str!("../../docs/document-model.md")]
+    #[doc = include_str!("../docs/document-model.md")]
     pub mod document_model {}
 
-    #[doc = include_str!("../../docs/pipeline.md")]
+    #[doc = include_str!("../docs/pipeline.md")]
     pub mod pipeline {}
 
-    #[doc = include_str!("../../docs/rendering.md")]
+    #[doc = include_str!("../docs/rendering.md")]
     pub mod rendering {}
 
-    #[doc = include_str!("../../docs/numbering.md")]
+    #[doc = include_str!("../docs/numbering.md")]
     pub mod numbering {}
 
-    #[doc = include_str!("../../docs/extending.md")]
+    #[doc = include_str!("../docs/extending.md")]
     pub mod extending {}
 
-    #[doc = include_str!("../../docs/embedding.md")]
+    #[doc = include_str!("../docs/embedding.md")]
     pub mod embedding {}
 
-    #[doc = include_str!("../../docs/panics.md")]
+    #[doc = include_str!("../docs/panics.md")]
     pub mod panics {}
 
-    #[doc = include_str!("../../docs/python-flm-migration.md")]
+    #[doc = include_str!("../docs/python-flm-migration.md")]
     pub mod python_flm_migration {}
 
     // AI Guide.
-    #[doc = include_str!("../../docs/ai-guide.md")]
+    #[doc = include_str!("../docs/ai-guide.md")]
     pub mod ai_guide {}
 
-    #[doc = include_str!("../../docs/ai-guide-document-model.md")]
+    #[doc = include_str!("../docs/ai-guide-document-model.md")]
     pub mod ai_guide_document_model {}
 
-    #[doc = include_str!("../../docs/ai-guide-pipeline.md")]
+    #[doc = include_str!("../docs/ai-guide-pipeline.md")]
     pub mod ai_guide_pipeline {}
 
-    #[doc = include_str!("../../docs/ai-guide-extending.md")]
+    #[doc = include_str!("../docs/ai-guide-extending.md")]
     pub mod ai_guide_extending {}
 
-    #[doc = include_str!("../../docs/ai-guide-embedding.md")]
+    #[doc = include_str!("../docs/ai-guide-embedding.md")]
     pub mod ai_guide_embedding {}
 }

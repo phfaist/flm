@@ -20,13 +20,14 @@
 //! services are present. The extension's late-initialization hooks and
 //! finalizers are wrapped as `ExtLateInit` and `ExtFinalizer`.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use flm_core::core::artifact::ArtifactSet;
 use flm_core::core::data::table::TableType;
 use flm_core::core::region::Regions;
-use flm_core::stdcore::backends::lowering::LoweredTrees;
-use flm_core::stdcore::backends::pieces::stage::LoweredPieces;
+use flm_core::stdlib::backends::lowering::LoweredTrees;
+use flm_core::stdlib::backends::pieces::stage::LoweredPieces;
 use flm_core::core::registry::{
     BackendDef as CoreBackendDef, BuildError, CapabilityDef, DefinitionText, FeatureBuilder as CoreFeatureBuilder,
     Finalizer, LateInit as CoreLateInit, LateInitError,
@@ -40,6 +41,7 @@ use flm_core::model::options::TypeKey;
 use flm_core::lang::rewrites::userdefs::UserDefinition as CoreUserDefinition;
 
 use crate::adapter::aspects::{ExtReferenceable, ExtSectioning};
+use crate::engine::ModuleReport;
 use crate::adapter::diag::HANDLER_FAILED;
 use crate::adapter::expand::ExtExpand;
 use crate::adapter::names::Owner;
@@ -70,27 +72,30 @@ use crate::sealed::{BuiltLangCore, DurableOwner, Sealed, Token};
 /// of the feature being registered, the extension's stem and the package's
 /// name, the host services the package declared (which its stages and
 /// handler objects lend), the feature's final configuration (which a
-/// template module's `describe` receives), and the user definitions whose
-/// elements were registered so far.
+/// template module's `describe` receives), the template modules the feature
+/// declares, and the user definitions whose elements were registered so far.
 pub(crate) struct BuilderFacade<'a, 'b> {
     b: &'a mut CoreFeatureBuilder<'b>,
     owner: &'a Owner,
     services: &'a Arc<DeclaredServices>,
     configuration: &'a serde_json::Value,
+    modules: &'a BTreeMap<String, ModuleReport>,
     definitions: Vec<Arc<CoreUserDefinition>>,
 }
 
 impl<'a, 'b> BuilderFacade<'a, 'b> {
     /// The façade over `b` for a feature of the package and extension `owner`,
-    /// registered with the final configuration `configuration`, whose stages
-    /// and handler objects lend the host services `services`.
+    /// registered with the final configuration `configuration`, declaring the
+    /// template modules `modules` ([`FeatureReport::templates`](crate::engine::FeatureReport::templates)),
+    /// whose stages and handler objects lend the host services `services`.
     pub(crate) fn new(
         b: &'a mut CoreFeatureBuilder<'b>,
         owner: &'a Owner,
         services: &'a Arc<DeclaredServices>,
         configuration: &'a serde_json::Value,
+        modules: &'a BTreeMap<String, ModuleReport>,
     ) -> BuilderFacade<'a, 'b> {
-        BuilderFacade { b, owner, services, configuration, definitions: Vec::new() }
+        BuilderFacade { b, owner, services, configuration, modules, definitions: Vec::new() }
     }
 
     /// Contributes `value` to `slot` as `how` says ([`services::contribute`]).
@@ -100,6 +105,7 @@ impl<'a, 'b> BuilderFacade<'a, 'b> {
             owner: self.owner,
             feature: &feature,
             configuration: self.configuration,
+            modules: self.modules,
             services: self.services,
         };
         services::contribute(self.b, &who, slot, value, how)
@@ -159,6 +165,11 @@ impl FeatureBuilder for BuilderFacade<'_, '_> {
         self.owner.check("element", element_name_of(&def))?;
         let core = self.element_to_core(def)?;
         self.b.element(core).map_err(core_error)
+    }
+
+    fn element_type_text(&mut self, name: &str, docs: &str) -> Result<(), ExtError> {
+        self.owner.check("element type", name)?;
+        self.b.element_type_text(name, docs).map_err(core_error)
     }
 
     fn fallback(&mut self, def: FallbackDef) -> Result<(), ExtError> {
@@ -421,6 +432,7 @@ impl FeatureBuilder for BuilderFacade<'_, '_> {
             owner: self.owner.clone(),
             services: Arc::clone(self.services),
             configuration: self.configuration.clone(),
+            modules: self.modules.clone(),
         };
         self.b.finalizer(Arc::new(finalizer)).map_err(core_error)
     }
@@ -469,12 +481,15 @@ pub(crate) struct ExtFinalizer {
     /// The feature's final configuration, which the second round's builder
     /// hands a template module's `describe` as the first round's does.
     pub(crate) configuration: serde_json::Value,
+    /// The template modules the feature declares, which the second round's
+    /// builder checks a contributed module against as the first round's does.
+    pub(crate) modules: BTreeMap<String, ModuleReport>,
 }
 
 impl Finalizer for ExtFinalizer {
     fn finalize(&self, b: &mut CoreFeatureBuilder<'_>) -> Result<(), BuildError> {
         let feature = b.feature().clone();
-        let mut facade = BuilderFacade::new(b, &self.owner, &self.services, &self.configuration);
+        let mut facade = BuilderFacade::new(b, &self.owner, &self.services, &self.configuration, &self.modules);
         let result = self.hook.finalize(&mut facade);
         // A definition a finalizer declares is compiled by a late-init hook
         // of its own, as one `register` declares.

@@ -207,9 +207,9 @@ pub fn size_of_use(site: &Node, slots: &[(usize, SlotKind)]) -> Result<Result<Si
         let text = match kind {
             SlotKind::Star => FIT.to_string(),
             SlotKind::Marker(i) => SIZE_COMMANDS[i].to_string(),
-            SlotKind::Bracket => text_of(&content)?,
-            SlotKind::Backtick => match content.first() {
-                Some(wrapper) => text_of(&wrapper.children()?)?,
+            SlotKind::Bracket => text_of(&content.to_vec()?)?,
+            SlotKind::Backtick => match content.get(0)? {
+                Some(wrapper) => text_of(&wrapper.children()?.to_vec()?)?,
                 None => continue,
             },
         };

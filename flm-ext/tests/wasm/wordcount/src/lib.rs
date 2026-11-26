@@ -19,9 +19,9 @@ use flm_ext::guest::lang::rewrites::userdefs::{
     Definition, Expand, ExpandCx, Expander, Expansion, UserDefinition,
 };
 use flm_ext::guest::lang::text::chars_text;
-use flm_ext::guest::stdcore::features::userdefs::{element_name_under, expand_in_tree_rule_for};
+use flm_ext::guest::stdlib::features::userdefs::{element_name_under, expand_in_tree_rule_for};
 use flm_ext::guest::techy::error::Diagnostic;
-use flm_ext::guest::techy::node::Node;
+use flm_ext::guest::techy::node::{Node, NodeKindName};
 use flm_ext::guest::{Extension, Feature, Package};
 use serde_json::{Value, json};
 
@@ -63,7 +63,7 @@ fn settings() -> Value {
 fn extension(ext: &mut Extension) {
     ext.package(
         "_",
-        Package::new().uses(["stdcore"]).feature(
+        Package::new().feature(
             "wordcount",
             Feature::new()
                 .title("Word count")
@@ -101,7 +101,7 @@ impl Expand for Shout {
     fn expand(&self, node: &Node, cx: &mut ExpandCx, xp: &mut Expander) -> Result<Expansion, ExtError> {
         let nodes = node.argument_content_nodes_named("text")?.unwrap_or_default();
         match chars_text(&nodes)? {
-            Some(text) => Ok(Expansion::Emit(vec![cx.stage_chars(&format!("{}{}", text.to_uppercase(), self.suffix))?])),
+            Some(text) => Ok(Expansion::Emit(vec![cx.stage_chars(&format!("{}{}", text.to_uppercase(), self.suffix))?].into())),
             None => Ok(Expansion::Emit(xp.recover(
                 cx,
                 node,
@@ -133,10 +133,8 @@ impl Stage for Count {
         let tree = cx.tree_id()?.unwrap_or_default();
         let mut words = 0;
         if let Some(my_tree) = cx.my_tree()? {
-            for node in my_tree.root()?.descendants()? {
-                if node.is_chars()? {
-                    words += helpers::count_words(&node.chars()?.unwrap_or_default(), min);
-                }
+            for node in my_tree.root()?.descendants()?.kinds(&[NodeKindName::Chars])? {
+                words += helpers::count_words(&node?.chars()?.unwrap_or_default(), min);
             }
         }
         out.table(WORDS)?.push(json!({ "tree": tree, "words": words }))?;
@@ -167,8 +165,10 @@ impl Stage for Todos {
 
     fn run(&self, cx: &StageCx, out: &mut StageOut) -> Result<(), ExtError> {
         let Some(TableValue::Trees(trees)) = cx.get("flm.userdefs.always-expanded")? else { return Ok(()) };
-        for (tree, expanded) in trees.trees()? {
+        for pair in trees.trees()? {
+            let (tree, expanded) = pair?;
             for node in expanded.root()?.descendants()? {
+                let node = node?;
                 if node.is_callable()? && node.element_name()? == self.element {
                     let text = chars_text(&node.argument_content_nodes_named("text")?.unwrap_or_default())?;
                     out.table(TODOS)?.push(json!({ "tree": tree, "text": text }))?;

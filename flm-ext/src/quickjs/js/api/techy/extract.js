@@ -2,7 +2,7 @@
 // `flm-ext/src/api/techy/extract.rs`; do not edit.
 //
 // Mirrors techy's extraction helpers, reached as `flm_core::techy::extract`: key-value lists.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 const MODULE = module("techy/extract");
 
@@ -32,5 +32,9 @@ export class KeyValEntry extends Handle {
   value() { return call(this, "value", []); }
   // Mirrors `KeyValEntry::value_content`.
   value_content() { return call(this, "value_content", []); }
+  // Mirrors `key_value_pieces` of `flm_core::lang::copy`, called with the bracket the list was read
+  // from and this entry's value: the value as pieces of the document, whitespace at either end
+  // dropped.
+  value_pieces() { return call(this, "value_pieces", []); }
 }
 register_class("key_val_entry", KeyValEntry);

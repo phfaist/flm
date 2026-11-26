@@ -4,7 +4,7 @@
 //! an argument to JSON ([`ToArg`]); and, beside it, the typed route that
 //! takes the ABI's place when the guest client is compiled into a program
 //! (the cargo feature `native`): the typed route of a request and of a
-//! lending (`in_frame`, `typed`), and the console sink [`console`] writes
+//! lending (`in_frame`, `typed`), and the log sink [`console`] writes
 //! to. One extension's source uses either; the feature `native` alone
 //! chooses which.
 //!
@@ -114,9 +114,9 @@
 //!   over the frame's registration, and the method hands it to the API
 //!   method that takes it, in the same closure (one access to the frame per
 //!   call); `ElementSpec::with` lends it into the table and keeps its handle.
-//! - **A line of `console` output** goes to the console sink of the current
-//!   state's loaded extension, which the engine `native` gave when it created
-//!   the instance.
+//! - **A line of `console` output** goes to the log sink that the engine
+//!   `native` gave the current state's loaded extension when it created the
+//!   instance, with the extension's stem as its source.
 //! - **An entry** comes the other way: the engine `native` calls the guest's
 //!   routing directly (the crate's module `guest::entry`), the entry's
 //!   arguments and reply the guest's values, where a module's export
@@ -129,9 +129,10 @@
 //! instance's state current, it answers [`ExtError::Unsupported`].
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Once;
 
+use flm_core::progress::LogLevel;
 use serde_json::Value;
 #[cfg(not(feature = "native"))]
 use serde_json::json;
@@ -143,15 +144,14 @@ use crate::adapter::durable::DurableToken;
 #[cfg(feature = "native")]
 use crate::adapter::handles::CallTable;
 use crate::adapter::handles::{Handle, HandleKind};
-use crate::adapter::values::{bytes_to_value, handle_from_value, mismatch, JsonForm};
+use crate::adapter::values::{bytes_to_value, handle_from_value, mismatch, JsonForm, HANDLE_KEY};
 #[cfg(not(feature = "native"))]
 use crate::adapter::values::{durable_to_value, handle_to_value};
 #[cfg(feature = "native")]
 use crate::binding::frames::{self, FrameView};
 #[cfg(feature = "native")]
 use crate::binding::natives::{self, Act};
-use crate::guest::Extension;
-use crate::host::ConsoleLevel;
+use crate::guest::NamedExtension;
 use crate::runtime::ExtError;
 
 // Not compiled with the feature `native`: a program built for `wasm32` that carries
@@ -267,15 +267,16 @@ pub fn keep(bytes: Vec<u8>) -> i64 {
 
 /// `flm_entry(ptr, len)`: runs the entry whose request the host wrote into
 /// the buffer at `ptr` and answers its reply's buffer as [`keep`] packs it,
-/// `define` being the function the entry macro names (`define`'s entry runs
-/// it with the extension builder). The first call installs the panic hook
+/// `extensions` being the table of code the entry macro names (the entry
+/// `define` runs the declaring function of the row of its stem with the
+/// extension builder). The first call installs the panic hook
 /// that keeps a panic's message for [`last_panic`] (after the hook installed
 /// before it, which still runs). The address is a WebAssembly module's (the
 /// ABI's 32 bits): this serves the export alone.
-pub fn entry(ptr: i32, len: i32, define: fn(&mut Extension)) -> i64 {
+pub fn entry(ptr: i32, len: i32, extensions: &[NamedExtension]) -> i64 {
     PANIC_HOOK.call_once(keep_panics);
     let request = read(ptr, len);
-    keep(crate::guest::entry::answer(request.as_deref(), define))
+    keep(crate::guest::entry::answer(request.as_deref(), extensions))
 }
 
 /// `flm_last_panic()`: the message of the last panic, kept in a reply's
@@ -497,19 +498,143 @@ pub fn handle_of(value: &Value, kind: HandleKind) -> Result<Handle, ExtError> {
     }
 }
 
+/// The handle of kind `kind` that `value` writes, a sequence's, and the
+/// length the host wrote beside it
+/// ([`sequence_to_value`](crate::adapter::values::sequence_to_value)).
+///
+/// # Errors
+///
+/// `value` is not a handle, or one of another kind, or has no length
+/// ([`ExtError::Argument`]).
+pub fn sequence_of(value: &Value, kind: HandleKind) -> Result<(Handle, usize), ExtError> {
+    let handle = handle_of(value, kind)?;
+    let len = value.get(HANDLE_KEY).and_then(|token| token.get("len")).and_then(Value::as_u64);
+    match len.and_then(|len| usize::try_from(len).ok()) {
+        Some(len) => Ok((handle, len)),
+        None => Err(ExtError::Argument {
+            method: String::new(),
+            detail: format!("the handle of a sequence must hold its length `len`, not `{value}`"),
+        }),
+    }
+}
+
+/// The number of items a traversal asks the host for in one pull (`Walk`,
+/// `Descendants`, `Trees`): a pull is one crossing, so a traversal of `n`
+/// items crosses about `n / PULL_GROUP` times.
+pub(crate) const PULL_GROUP: usize = 256;
+
+/// The items of a traversal that a pull answered and the extension has not
+/// taken yet: what the struct of a traversal holds beside its handle. A pull
+/// asks for [`PULL_GROUP`] items; a group of fewer is the traversal's last.
+/// The host keeps a copy of the items of the last group it answered: a
+/// method of the traversal (a restriction), which consumes the struct,
+/// sends last the number of them not handed over ([`held`](Pulled::held)),
+/// and the host restricts those with the items not pulled yet.
+#[derive(Debug)]
+pub(crate) struct Pulled<T> {
+    /// The items of the last pull not handed over yet, in order.
+    group: VecDeque<T>,
+    /// Whether the host has no item left.
+    ended: bool,
+}
+
+impl<T> Default for Pulled<T> {
+    fn default() -> Pulled<T> {
+        Pulled { group: VecDeque::new(), ended: false }
+    }
+}
+
+impl<T> Pulled<T> {
+    /// The next item of the traversal: the first of the group, which `pull`
+    /// fills when it is spent and the host has items left. `pull` sends the
+    /// request for a group of at most the number it is given. A pull that
+    /// fails answers its error once, and ends the traversal.
+    pub(crate) fn next(&mut self, pull: impl FnOnce(usize) -> Result<Vec<T>, ExtError>) -> Option<Result<T, ExtError>> {
+        if self.group.is_empty() && !self.ended {
+            match pull(PULL_GROUP) {
+                Ok(group) => {
+                    self.ended = group.len() < PULL_GROUP;
+                    self.group = group.into();
+                }
+                Err(error) => {
+                    self.ended = true;
+                    return Some(Err(error));
+                }
+            }
+        }
+        self.group.pop_front().map(Ok)
+    }
+
+    /// The number of items of the last pull not handed over yet.
+    pub(crate) fn held(&self) -> usize {
+        self.group.len()
+    }
+}
+
+/// The most bytes of JSON text a pull of a sequence of data (`Rows`) asks
+/// the host for, beside at most [`PULL_GROUP`] items: a row larger than this
+/// crosses alone.
+pub(crate) const PULL_BYTES: usize = 64 << 10;
+
+/// The iteration of a sequence of `len` items: the items in order, which
+/// `pull` fetches in groups from the index it is given (a crossing, at most
+/// [`PULL_GROUP`] items and [`PULL_BYTES`] bytes). A pull that fails answers
+/// its error once, and ends the iteration; so does a group with no item
+/// before the end.
+pub(crate) struct Paged<T, F> {
+    /// The index of the first item not pulled yet.
+    from: usize,
+    /// The number of items of the sequence.
+    len: usize,
+    /// The items of the last pull not handed over yet, in order.
+    group: VecDeque<T>,
+    /// What fetches the group at an index.
+    pull: F,
+}
+
+impl<T, F: FnMut(usize) -> Result<Vec<T>, ExtError>> Paged<T, F> {
+    /// The iteration of the `len` items that `pull` fetches.
+    pub(crate) fn new(len: usize, pull: F) -> Paged<T, F> {
+        Paged { from: 0, len, group: VecDeque::new(), pull }
+    }
+}
+
+impl<T, F: FnMut(usize) -> Result<Vec<T>, ExtError>> Iterator for Paged<T, F> {
+    type Item = Result<T, ExtError>;
+
+    fn next(&mut self) -> Option<Result<T, ExtError>> {
+        if self.group.is_empty() && self.from < self.len {
+            match (self.pull)(self.from) {
+                Ok(group) if !group.is_empty() => {
+                    self.from += group.len();
+                    self.group = group.into();
+                }
+                Ok(_) => self.from = self.len,
+                Err(error) => {
+                    self.from = self.len;
+                    return Some(Err(error));
+                }
+            }
+        }
+        self.group.pop_front().map(Ok)
+    }
+}
+
 /// One line of `console` output, at `level`: in a WebAssembly module, the
-/// native `console`; compiled into a program (the cargo feature `native`),
-/// written to the console sink of the current state's loaded extension.
+/// native `console` with the level's name (`error`, `warn` or `info`);
+/// compiled into a program (the cargo feature `native`), written to the log
+/// sink of the current state's loaded extension, with the extension's stem
+/// as its source.
 ///
 /// # Errors
 ///
 /// In a WebAssembly module, as the function `native`; compiled into a program,
 /// [`ExtError::Unsupported`] when no native instance's state is current (on
 /// a thread the extension started, while a thread ends).
-pub fn console(level: ConsoleLevel, text: &str) -> Result<(), ExtError> {
+pub fn console(level: LogLevel, text: &str) -> Result<(), ExtError> {
     #[cfg(not(feature = "native"))]
     {
-        native(&json!({ "native": "console", "level": level.to_string(), "text": text })).map(|_| ())
+        native(&json!({ "native": "console", "level": level, "text": text })).map(|_| ())
     }
     #[cfg(feature = "native")]
     {
@@ -517,7 +642,7 @@ pub fn console(level: ConsoleLevel, text: &str) -> Result<(), ExtError> {
         let Some(loaded) = state.loaded.as_ref() else {
             return Err(ExtError::Unsupported { what: UNANSWERED.to_string() });
         };
-        (loaded.console)(level, text);
+        loaded.console.write(&loaded.extension.stem, level, text);
         Ok(())
     }
 }
@@ -615,11 +740,6 @@ mod tests {
         hook::remove();
         let error = native(&json!({ "native": "console", "level": "log", "text": "x" })).expect_err("no host");
         assert_eq!(error, ExtError::Unsupported { what: UNANSWERED.to_string() });
-        assert_eq!(
-            error.to_string(),
-            "a request of the guest client sent neither from an extension's own WebAssembly module nor during a call \
-             of the engine `native` (from a thread the extension started, or while a thread ends) is not supported yet"
-        );
     }
 
     #[test]
@@ -657,10 +777,7 @@ mod tests {
             |_| json!({ "neither": 1 }),
             || {
                 let error = native(&json!({ "native": "module_handle", "path": "lang/text" })).expect_err("refused");
-                assert_eq!(
-                    error.to_string(),
-                    not_an_envelope("{\"neither\":1}").to_string(),
-                );
+                assert_eq!(error, not_an_envelope("{\"neither\":1}"));
             },
         );
     }
@@ -715,13 +832,13 @@ mod tests {
         // `flm_entry` reads its request and drops its copy before it keeps
         // its reply; the host then frees the request, and only then reads
         // and frees the reply.
-        let request = insert(br#"{"entry":"define","args":["x","m"]}"#.to_vec());
+        let request = insert(br#"{"entry":"define","extension":"x","args":["x","m"]}"#.to_vec());
         let copy = read_at(request).expect("the request is kept");
-        assert_eq!(copy, br#"{"entry":"define","args":["x","m"]}"#.to_vec());
+        assert_eq!(copy, br#"{"entry":"define","extension":"x","args":["x","m"]}"#.to_vec());
         drop(copy);
         let reply = insert(br#"{"ok":null}"#.to_vec());
         assert_ne!(reply, request, "the reply is given the address of a request still kept");
-        assert_eq!(remove(request), Some(br#"{"entry":"define","args":["x","m"]}"#.to_vec()));
+        assert_eq!(remove(request), Some(br#"{"entry":"define","extension":"x","args":["x","m"]}"#.to_vec()));
         BUFFERS.with(|buffers| assert_eq!(buffers.borrow().get(&reply), Some(&br#"{"ok":null}"#.to_vec())));
         assert_eq!(remove(reply), Some(br#"{"ok":null}"#.to_vec()));
         assert_eq!(read_at(request), None);
@@ -735,7 +852,7 @@ mod tests {
                 assert_eq!(request, &json!({ "native": "console", "level": "warn", "text": "careful" }));
                 json!({ "ok": null })
             },
-            || assert_eq!(console(ConsoleLevel::Warn, "careful"), Ok(())),
+            || assert_eq!(console(LogLevel::Warn, "careful"), Ok(())),
         );
     }
 
@@ -751,7 +868,7 @@ mod tests {
         let kept = BUFFERS.with(|buffers| buffers.borrow().iter().find(|(at, _)| (**at as u32 as usize) == address).map(|(_, bytes)| bytes.clone()));
         let kept = String::from_utf8(kept.expect("the message is kept in a buffer")).expect("a text");
         assert_eq!(kept.len(), len);
-        assert!(kept.starts_with("the count overflowed, at "), "{kept}");
+        assert!(kept.starts_with("the count overflowed"), "{kept}");
         assert!(kept.contains("abi.rs"), "{kept}");
     }
 

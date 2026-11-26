@@ -1,5 +1,5 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{flmrecomposed.e3aec03d}
+\ProvidesPackage{flmrecomposed.fb355141}
 % --- packages ---
 % flm.latex.pkg.amsmath
 \RequirePackage{amsmath}
@@ -17,9 +17,13 @@
 % --- commands and environments the library defines for the document ---
 % flm.latex.def.verbatim
 % Verbatim content. Inline content is written as
-%   \EscVerb[formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
+%   \EscVerb[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{<kind>}]{<escaped content>}
 % and block content as the flmVerbatimCode environment. \EscVerb comes with
 % fvextra 1.5 (2022) and later, which this file requires.
+% \flmVRBFamily, the font family of the surrounding text, is given to fancyvrb
+% as fontfamily: fancyvrb keeps that family, and each kind's hook alone sets the
+% font. It is expandable, as fancyvrb's fontfamily needs.
+\providecommand\flmVRBFamily{\f@family}
 % \flmFmtVRB{<kind>} runs the hook \flmFmtVRB<kind>; redefine
 % \flmFmtVRBverbtext, \flmFmtVRBverbcode or \flmFmtVRBverba to change how
 % that kind of verbatim content is set.
@@ -43,12 +47,13 @@
   \begin{Verbatim}[formatcom=\flmFmtVRB{verbcode}]}%
   {\end{Verbatim}}
 % flmVerbatimText[<lang>]: a block of plain verbatim text, set with the
-% verbtext hook. It takes the same optional argument as flmVerbatimCode and
-% ignores it, so that one command (\flmVerbatimBlock below), which always
-% writes the brackets, serves either environment.
+% verbtext hook in the font family of the surrounding text. It takes the same
+% optional argument as flmVerbatimCode and ignores it, so that one command
+% (\flmVerbatimBlock below), which always writes the brackets, serves either
+% environment.
 \ProvideDocumentEnvironment{flmVerbatimText}{O{}}{%
   \VerbatimEnvironment
-  \begin{Verbatim}[formatcom=\flmFmtVRB{verbtext}]}%
+  \begin{Verbatim}[fontfamily=\flmVRBFamily,formatcom=\flmFmtVRB{verbtext}]}%
   {\end{Verbatim}}
 % \flmVerbatimBlock[<options>]{<environment>}{<lines>}: one block of verbatim
 % content written as a single macro call, for the places a block cannot be

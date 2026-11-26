@@ -486,6 +486,38 @@ pub struct ArgumentRoleEntry {
     pub owner: FeatureName,
 }
 
+/// The documentation text of an element type, with the feature that gave it.
+///
+/// An element type is the name its element values share; each value carries
+/// a text of its own ([`ElementSpec::docs`]), and the type may have one more
+/// text, which says what the nodes of the type mean, whatever their value.
+/// The text comes from one of three places:
+///
+/// - a feature that declares the type, through
+///   [`FeatureBuilder::element_type_text`](super::FeatureBuilder::element_type_text);
+/// - the language, for each of its [structural
+///   elements](crate::lang::structural), with
+///   [`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER) as its owner;
+/// - the declaration of a [presentation
+///   element](super::FeatureBuilder::presentation_element), whose text is
+///   also the text of its type, since a presentation element is the only
+///   value of its type.
+///
+/// A registry holds at most one text per element type
+/// ([`FlmRegistry::element_type_text`]); a type of which no declaration gives
+/// a text has none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElementTypeText {
+    /// The element type's name.
+    pub element: ElementName,
+    /// The documentation text: what the nodes of this type mean.
+    pub docs: String,
+    /// The feature that gave the text, or
+    /// [`LANGUAGE_OWNER`](crate::lang::mint::LANGUAGE_OWNER) for a structural
+    /// element type.
+    pub owner: FeatureName,
+}
+
 /// One [peer declaration](PeerName) of an argument role as the registry holds
 /// it ([`FeatureBuilder::peer_argument_role`](super::FeatureBuilder::peer_argument_role)).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -613,7 +645,9 @@ pub struct WorkflowEntry {
 ///   [`aspect_bitset`](FlmRegistry::aspect_bitset),
 ///   [`has_aspect`](FlmRegistry::has_aspect),
 ///   [`aspect_names`](FlmRegistry::aspect_names),
-///   [`occurrable_elements`](FlmRegistry::occurrable_elements).
+///   [`occurrable_elements`](FlmRegistry::occurrable_elements),
+///   [`element_type_texts`](FlmRegistry::element_type_texts),
+///   [`element_type_text`](FlmRegistry::element_type_text).
 /// - **Capabilities, collections and tables.**
 ///   [`capabilities`](FlmRegistry::capabilities), [`cap_id`](FlmRegistry::cap_id),
 ///   [`capability`](FlmRegistry::capability),
@@ -715,6 +749,7 @@ pub struct FlmRegistry {
     peer_element_values: Vec<PeerElementValueEntry>,
     argument_roles: Vec<ArgumentRoleEntry>,
     peer_argument_roles: Vec<PeerArgumentRoleEntry>,
+    element_type_texts: BTreeMap<ElementName, ElementTypeText>,
     declarations: Declarations,
     digest: u64,
     build_diagnostics: FlmDiagnostics,
@@ -1116,6 +1151,11 @@ impl FlmRegistry {
                 owner: record.owner,
             })
             .collect();
+        let element_type_texts: BTreeMap<ElementName, ElementTypeText> = roster
+            .element_type_texts
+            .into_iter()
+            .map(|text| (text.element.clone(), text))
+            .collect();
         // The declarations are kept as the build leaves them: moved, not
         // copied, now that nothing else reads them.
         let declarations =
@@ -1160,6 +1200,7 @@ impl FlmRegistry {
             peer_element_values,
             argument_roles,
             peer_argument_roles,
+            element_type_texts,
             declarations,
             digest,
             build_diagnostics,
@@ -1334,6 +1375,22 @@ impl FlmRegistry {
                     .collect(),
             }),
         }
+    }
+
+    /// Every documentation text of an element type, in the order of the
+    /// types' names: the texts of the language's structural element types,
+    /// of the presentation elements, and those that features gave
+    /// ([`FeatureBuilder::element_type_text`](super::FeatureBuilder::element_type_text)).
+    /// An element type of which no declaration gives a text is not listed.
+    pub fn element_type_texts(&self) -> impl Iterator<Item = &ElementTypeText> + '_ {
+        self.element_type_texts.values()
+    }
+
+    /// The documentation text of the element type `name`, with the feature
+    /// that gave it; `None` when no declaration gives that type a text, or
+    /// when no feature declares it. See [`ElementTypeText`].
+    pub fn element_type_text(&self, name: &str) -> Option<&ElementTypeText> {
+        self.element_type_texts.get(name)
     }
 
     /// The set of every registered element that carries the aspect `A`, given
@@ -1573,7 +1630,7 @@ impl FlmRegistry {
     /// check that a backend can write every element ignores it; each entry's
     /// [`set_aside`](RuleEntry::set_aside) lists the unresolved names. Empty
     /// for a registry in which every peer declaration resolves, such as one
-    /// built from the standard package alone.
+    /// built from the standard features alone.
     pub fn set_aside_rules(&self) -> impl Iterator<Item = &RuleEntry> + '_ {
         self.rules.iter().filter(|entry| entry.is_set_aside())
     }

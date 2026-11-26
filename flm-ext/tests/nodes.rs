@@ -10,6 +10,7 @@ use flm_core::model::doc::FragmentLayout;
 use flm_core::techy::core::node::NodeTree;
 use flm_ext::adapter::node::NodeFacade;
 use flm_ext::api::core::lowering::{chars_at_lowering, spelling_at_lowering};
+use flm_ext::api::lang::copy::WrittenPiece;
 use flm_ext::api::lang::mint::Mode;
 use flm_ext::api::lang::rewrites::blocks::argument_holds_blocks;
 use flm_ext::api::lang::text::{chars_text, read_chars, CharsContent};
@@ -37,7 +38,7 @@ fn root_of(text: &str) -> BoxNode {
 
 /// The first descendant of `root` named `name`.
 fn named(root: &dyn Node<'static>, name: &str) -> BoxNode {
-    root.descendants().into_iter().find(|node| node.name().as_deref() == Some(name)).expect("the node is there")
+    root.descendants().find(|node| node.name().as_deref() == Some(name)).expect("the node is there")
 }
 
 /// The characters of each node of `nodes`.
@@ -72,7 +73,7 @@ fn children_and_descendants_are_in_document_order() {
     assert_eq!(root.child_count(), 2);
     let kinds: Vec<NodeKindName> = root.children().iter().map(|node| node.kind()).collect();
     assert_eq!(kinds, [NodeKindName::Callable, NodeKindName::Chars]);
-    let descendants = root.descendants();
+    let descendants: Vec<_> = root.descendants().collect();
     let read: Vec<(NodeKindName, Option<String>)> = descendants.iter().map(|node| (node.kind(), node.chars())).collect();
     assert_eq!(
         read,
@@ -137,7 +138,7 @@ fn a_body_and_a_slot_are_read_as_nodes() {
 #[test]
 fn a_star_argument_reports_whether_it_was_written() {
     let root = root_of("\\section*{One} \\section{Two}");
-    let sections: Vec<BoxNode> = root.descendants().into_iter().filter(|node| node.name().as_deref() == Some("section")).collect();
+    let sections: Vec<BoxNode> = root.descendants().filter(|node| node.name().as_deref() == Some("section")).collect();
     let starred: Vec<bool> = sections.iter().map(|node| node.argument_is_provided("star").expect("declared")).collect();
     assert_eq!(starred, [true, false]);
     let options = sections.first().map(|node| node.argument_is_provided("options").expect("declared"));
@@ -177,6 +178,22 @@ fn key_values_are_read_from_an_optional_argument() {
 }
 
 #[test]
+fn the_value_of_a_key_value_entry_is_answered_as_nodes_of_the_bracket_and_text() {
+    let root = root_of("\\section[alt= Short \\emph{x} , numbered=false]{Title}");
+    let section = named(&*root, "section");
+    let options = section.argument_content_nodes_named("options").expect("declared").expect("written");
+    let list = parse_keyval_drop_annotations(&options).expect("a key-value list");
+    let pieces = list.get("alt").expect("an entry").value_pieces().expect("a value");
+    // The characters split off the text node that holds the key, then the command, which is
+    // the node of the document: whitespace at either end dropped.
+    assert_eq!(pieces.len(), 2);
+    assert!(matches!(&pieces[0], WrittenPiece::Text(text) if text == "Short "));
+    let WrittenPiece::Node(emph) = &pieces[1] else { panic!("the command is a node") };
+    assert_eq!(emph.name().as_deref(), Some("emph"));
+    assert_eq!(emph.span(), named(&*root, "emph").span());
+}
+
+#[test]
 fn key_values_are_read_only_from_consecutive_children_of_one_node() {
     let root = root_of("\\emph{ab} cd");
     let empty = parse_keyval_drop_annotations(&[]).expect("the empty list");
@@ -184,7 +201,7 @@ fn key_values_are_read_only_from_consecutive_children_of_one_node() {
     assert_eq!(empty.len(), 0);
     assert!(empty.iter().is_empty());
     // Two nodes of different parents.
-    let scattered: Vec<BoxNode> = root.descendants().into_iter().filter(|node| node.is_chars()).collect();
+    let scattered: Vec<BoxNode> = root.descendants().filter(|node| node.is_chars()).collect();
     let refused = parse_keyval_drop_annotations(&scattered).map(|_| ());
     assert!(matches!(refused, Err(ExtError::Argument { ref method, .. }) if method == "parse_keyval_drop_annotations"), "{refused:?}");
     // Two children out of order.
@@ -242,7 +259,7 @@ fn an_argument_laid_out_as_blocks_holds_blocks() {
 #[test]
 fn element_value_is_none_on_a_standard_element() {
     let root = root_of("\\emph{ab} \\section{T}");
-    assert!(root.descendants().iter().all(|node| node.element_value().is_none()));
+    assert!(root.descendants().all(|node| node.element_value().is_none()));
     assert!(root.element_value().is_none());
 }
 
@@ -252,7 +269,7 @@ fn a_span_gives_byte_offsets_and_its_text() {
     let emph = named(&*root, "emph");
     assert_eq!(emph.span(), Span { start: 3, end: 12 });
     assert_eq!(emph.span_content(), "\\emph{ab}");
-    let leaf = emph.descendants().into_iter().find(|node| node.is_chars()).expect("the characters");
+    let leaf = emph.descendants().find(|node| node.is_chars()).expect("the characters");
     assert_eq!(leaf.span(), Span { start: 9, end: 11 });
     assert_eq!(leaf.span_content(), "ab");
     assert_eq!(root.span(), Span { start: 0, end: 12 });
@@ -264,7 +281,7 @@ fn mode_is_math_inside_a_formula() {
     assert_eq!(root.mode(), Mode::Text);
     let text = root.child(0).expect("the text");
     assert_eq!(text.mode(), Mode::Text);
-    let formula = root.descendants().into_iter().find(|node| node.chars().as_deref() == Some("x+1")).expect("the formula's characters");
+    let formula = root.descendants().find(|node| node.chars().as_deref() == Some("x+1")).expect("the formula's characters");
     assert_eq!(formula.mode(), Mode::Math);
 }
 
@@ -295,7 +312,7 @@ fn a_lowered_list_node_answers_its_slots_and_a_heading_its_payload() {
 
     use flm_ext::api::core::data::table::TableValue;
     use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
-    use flm_core::stdcore::backends::pres;
+    use flm_core::stdlib::backends::pres;
 
     let log: Arc<Mutex<Vec<String>>> = Arc::default();
     let seen = Arc::clone(&log);
@@ -341,7 +358,7 @@ fn text_under(nodes: &[Box<dyn Node<'_> + '_>]) -> String {
     let mut text = String::new();
     for node in nodes {
         text.extend(node.chars());
-        text.extend(node.descendants().iter().filter_map(|node| node.chars()));
+        text.extend(node.descendants().filter_map(|node| node.chars()));
     }
     text
 }

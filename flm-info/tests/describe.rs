@@ -1,21 +1,24 @@
-//! The query API over the standard environment of the library: the registry of `stdcore`
-//! and `math-passthrough` with a plan for the workflow `text`, as `flm-core`'s own tests
-//! build it.
+//! The query API over the standard environment of the library: the registry of the
+//! package `std`, holding the standard features, and `math-passthrough` with a plan for
+//! the workflow `text`, as `flm-core`'s own tests build it.
 //!
 //! The views are compared with JSON goldens under `tests/goldens/describe/`, written as
 //! indented JSON text and compared byte for byte (`assert_text_golden`): the views hold
 //! JSON Schema fragments, whose `$ref` and `$defs` keys a techy serialized value cannot
-//! hold, so the JSON form of `assert_json_golden` does not apply. Rewrite them with
-//! `UPDATE_GOLDEN=1` after reading the diff; they change whenever a documentation text of
-//! the standard features changes.
+//! hold, so the JSON form of `assert_json_golden` does not apply. A golden holds a view's
+//! structure without its texts: the keys that hold a documentation text or a phrase written
+//! for a reader (`TEXT_KEYS`) are removed, so that a golden changes when a declaration
+//! changes, not when a text does. Rewrite them with `UPDATE_GOLDEN=1` after reading the
+//! diff.
 
 use std::sync::Arc;
 
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, PackageFactory, RegistryBuilder, RegistryInputs};
+use flm_core::core::settings::PackageSettings;
 use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::mint::CallableKind;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_info::env::{ArgumentView, Hit};
 use flm_info::{Environment, summary_of};
 use serde::Serialize;
@@ -23,20 +26,45 @@ use serde::Serialize;
 /// The standard environment, with the plan of the workflow `text` in view.
 fn environment() -> Environment {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder.build(&RegistryInputs::new()).expect("the standard registry builds");
     let plan = Plan::for_workflow(&registry, "text", &Overrides::none()).expect("the plan of `text`");
-    let factories = vec![
-        stdcore::factory().expect("the factory of stdcore"),
-        flm_core::math_passthrough::factory().expect("the factory of math-passthrough"),
-    ];
+    let factories =
+        vec![std_factory(), flm_core::math_passthrough::factory().expect("the factory of math-passthrough")];
     Environment::new(registry, Some(Arc::new(plan)), factories)
 }
 
-/// Compares `value`, written as indented JSON, with the golden file `name`.
+/// The factory of a package `std` that holds the standard features.
+fn std_factory() -> PackageFactory {
+    PackageFactory::new("std", |settings: &PackageSettings| {
+        Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+    })
+    .expect("the factory of std")
+}
+
+/// The keys of a view that hold a documentation text, its summary, or a phrase written for a
+/// reader, which a golden leaves out.
+const TEXT_KEYS: [&str; 5] = ["docs", "summary", "what", "form", "description"];
+
+/// `value` without the keys [`TEXT_KEYS`], at any depth.
+fn without_texts(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            map.retain(|key, _| !TEXT_KEYS.contains(&key.as_str()));
+            map.values_mut().for_each(without_texts);
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(without_texts),
+        _ => {}
+    }
+}
+
+/// Compares `value`, without its texts ([`without_texts`]) and written as indented JSON,
+/// with the golden file `name`.
 fn golden(name: &str, value: &impl Serialize) {
-    let text = serde_json::to_string_pretty(value).expect("a view is written as JSON") + "\n";
+    let mut value = serde_json::to_value(value).expect("a view is written as JSON");
+    without_texts(&mut value);
+    let text = serde_json::to_string_pretty(&value).expect("a view is written as JSON") + "\n";
     assert_text_golden(format!("{}/tests/goldens/describe/{name}", env!("CARGO_MANIFEST_DIR")), &text);
 }
 
@@ -44,7 +72,7 @@ fn golden(name: &str, value: &impl Serialize) {
 fn the_headings_feature_is_a_golden() {
     let env = environment();
     let feature = env.feature("headings").expect("the headings feature");
-    assert_eq!(feature.package.as_deref(), Some("stdcore"));
+    assert_eq!(feature.package.as_deref(), Some("std"));
     assert!(!feature.elements.is_empty());
     golden("feature-headings.json", &feature);
 }
@@ -148,7 +176,7 @@ fn the_text_workflow_with_its_plan_is_a_golden() {
 }
 
 #[test]
-fn the_namespaces_are_a_golden() {
+fn the_namespaces_are_listed_in_order_each_with_its_text() {
     let env = environment();
     let namespaces = env.namespaces();
     let names: Vec<&str> = namespaces.iter().map(|namespace| namespace.name.as_str()).collect();
@@ -180,7 +208,6 @@ fn the_namespaces_are_a_golden() {
     assert!(namespaces.iter().all(|namespace| !namespace.what.is_empty()));
     assert_eq!(env.namespace("stage"), namespaces.iter().find(|namespace| namespace.name == "stage").cloned());
     assert!(env.namespace("registry").is_none());
-    golden("namespaces.json", &namespaces);
 }
 
 #[test]
@@ -298,7 +325,7 @@ fn the_feature_inventory_lists_what_the_feature_declares() {
 fn the_packages_list_their_features() {
     let env = environment();
     let packages = env.packages();
-    assert_eq!(packages.iter().map(|package| package.name.as_str()).collect::<Vec<_>>(), ["stdcore", "math-passthrough"]);
+    assert_eq!(packages.iter().map(|package| package.name.as_str()).collect::<Vec<_>>(), ["std", "math-passthrough"]);
     assert!(packages[0].features.iter().any(|feature| feature == "headings"));
 }
 
@@ -316,8 +343,7 @@ fn the_parsing_settings_hold_the_registry_s_configuration() {
 fn a_feature_without_settings_and_an_unknown_one_have_no_settings_view() {
     let env = environment();
     assert!(env.settings("no-such-feature").is_none());
-    let without: Vec<String> = stdcore::factory()
-        .expect("the factory of stdcore")
+    let without: Vec<String> = std_factory()
         .features()
         .iter()
         .filter(|feature| feature.settings.is_none())

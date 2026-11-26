@@ -11,11 +11,12 @@
    adds a stylesheet or a script of its own. */
 @layer flm {
   :root {
-    /* The line above a list of xnotes, the list's text size, and the space
-       above it. */
+    /* The line above a list of xnotes, the list's text size, the space
+       above it, and the space between the line and the list's content. */
     --flm-xnotes-list-rule: 1px solid #999;
     --flm-xnotes-list-size: 0.9em;
     --flm-xnotes-list-space: 2em;
+    --flm-xnotes-list-padding: 1em;
     /* The text before and after an xnote shown in place. */
     --flm-xnotes-inplace-open: "[";
     --flm-xnotes-inplace-close: "]";
@@ -23,9 +24,12 @@
 
   /* A list of xnotes: the block with the role doc-endnotes that carries the
      kind token `xnotes`.  An xnote shown in place as a block carries the
-     kind token too; the role tells the two apart. */
+     kind token too; the role tells the two apart.  The list's first child,
+     its heading, takes no space above it (flm.html.style.headings), so the
+     list leaves the space between its line and its content. */
   .flm-pres-block[data-flm-kind~="xnotes"][role="doc-endnotes"] {
     margin-top: var(--flm-xnotes-list-space);
+    padding-top: var(--flm-xnotes-list-padding);
     border-top: var(--flm-xnotes-list-rule);
     font-size: var(--flm-xnotes-list-size);
   }
@@ -291,7 +295,7 @@
    the text).  Apart from the :root rule that declares the custom
    properties, every selector begins with a class of the HTML contract, the
    set of classes and attributes that this backend promises to write (the
-   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   table CONVENTIONS of the Rust module flm_core::stdlib::backends::html).
    The values a page can adjust are the custom properties declared on :root
    below.  All rules are in the cascade layer flm, so any rule of the page
    outside that layer overrides them.
@@ -783,11 +787,12 @@
 </style>
     <style data-flm-def="flm.html.style.page">/* flm.html.style.page */
 /* The page's own typography and the width of its content.  This is the
-   only stylesheet of the HTML backend with a rule whose selector does not
+   only stylesheet of the HTML backend with rules whose selectors do not
    begin with a class of the HTML contract (the classes and attributes that
    the backend promises to write), apart from the :root rule that declares
-   the custom properties: it styles the page's body, which a document does
-   not have.  No element requires it: the backend adds it to the style and
+   the custom properties: it sets the text size on the page's root element
+   and styles the page's body, which a document does not have.  No element
+   requires it: the backend adds it to the style and
    script definitions of every page that it renders (the definitions table
    flm.html.definitions).  A host that places the HTML output in a page of
    its own leaves this stylesheet out through the HTML backend's render
@@ -802,9 +807,14 @@
     --flm-page-line-height: 1.5;
     --flm-page-color: #1a1a1a;
     --flm-page-background: #ffffff;
-    /* How wide the content runs, and the space around it. */
+    /* How wide the content runs, and the space around it: on its left and
+       right sides, and above and below it.  The space above and below is the
+       space on the sides unless a page sets it apart; it follows a value of
+       --flm-page-padding that a page sets on :root, where the custom
+       properties are set. */
     --flm-page-measure: 42rem;
     --flm-page-padding: 1.5rem;
+    --flm-page-padding-vertical: var(--flm-page-padding);
     /* The width of the column for the notes set beside the text, and the gap
        before it: the same two values as in flm.html.style.core, declared here
        as well because each stylesheet declares every property it uses.  A
@@ -814,17 +824,25 @@
     --flm-margin-note-gap: 1rem;
   }
 
-  /* The page itself.  Apart from the :root rules that declare custom
-     properties, this is the only rule of the backend's stylesheets that does
-     not begin with a class of the HTML contract.  It styles the body of the
-     page, which is why a host that places the HTML output in a page of its
-     own leaves this stylesheet out (see the top of this stylesheet). */
+  /* The page's text size, set on the page's root element rather than on its
+     body: the rem unit is the root element's size, and the stylesheets give
+     in rem the lengths that follow the page's text rather than the text
+     around them (the width of the content, a note beside the text, the
+     document's title). */
+  :root {
+    font-size: var(--flm-page-size);
+  }
+
+  /* The page itself.  Apart from the :root rules, this is the only rule of
+     the backend's stylesheets that does not begin with a class of the HTML
+     contract.  With the rule above, it styles the page, which is why a host
+     that places the HTML output in a page of its own leaves this stylesheet
+     out (see the top of this stylesheet). */
   body {
     margin: 0;
     background: var(--flm-page-background);
     color: var(--flm-page-color);
     font-family: var(--flm-page-family);
-    font-size: var(--flm-page-size);
     line-height: var(--flm-page-line-height);
   }
 
@@ -837,13 +855,15 @@
      --flm-margin-note-column of flm.html.style.core, so that the notes
      inside it are placed in the column.  52rem is the content's width with
      the column (42rem + 8rem + 1rem) plus a little room; it is written as a
-     number because a media condition cannot read a custom property, so a
-     page that widens the text or the column writes its own condition. */
+     number because a media condition cannot read a custom property, and a
+     rem in a media condition is the browser's text size, not the page's, so
+     a page that widens the text or the column, or sets a text size other
+     than the browser's, writes its own condition. */
   .flm-content {
     box-sizing: border-box;
     max-width: var(--flm-page-measure);
     margin: 0 auto;
-    padding: var(--flm-page-padding);
+    padding: var(--flm-page-padding-vertical) var(--flm-page-padding);
   }
   @media (min-width: 52rem) {
     .flm-content {
@@ -947,7 +967,7 @@
   </li>
 </ul>
 <p class="flm-pres-par">A footnote.<sup class="flm-pres-span flm-xnotes-xnote-mark" id="fnref--1yuhk" data-flm-style="superscript"><a class="flm-pres-link" href="#fn-1" role="doc-noteref" aria-label="Footnote 1" data-flm-kind="xnote">1</a></sup></p>
-<p class="flm-pres-par">A formula <span class="flm-pres-math--passthrough" data-flm-display="inline">\(x = y <tex-html><span class="flm-pres-math--text" data-flm-command="text"> where <span class="flm-pres-span flm-annotations-highlight" data-flm-kind="phf annotator-0"><span class="flm-pres-deco-margin"><span class="flm-pres-span flm-annotations-initials" data-flm-kind="phf annotator-0">PhF</span></span>y</span> is marked</span></tex-html>\)</span> in the text.</p>
+<p class="flm-pres-par">A formula <span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="inline">\(x = y <tex-html><span class="flm-pres-math--text" data-flm-command="text"> where <span class="flm-pres-span flm-annotations-highlight" data-flm-kind="phf annotator-0"><span class="flm-pres-deco-margin"><span class="flm-pres-span flm-annotations-initials" data-flm-kind="phf annotator-0">PhF</span></span>y</span> is marked</span></tex-html>\)</span> in the text.</p>
 <p class="flm-pres-par">A user definition’s template: <span class="flm-pres-span flm-annotations-comment" data-flm-kind="phf annotator-0"><span class="flm-pres-deco-margin"><span class="flm-pres-span flm-annotations-initials" data-flm-kind="phf annotator-0">PhF</span></span>check this</span>.</p>
       <div class="flm-pres-block flm-xnotes-footnote-list" role="doc-endnotes" data-flm-kind="xnotes footnote">
   <h2 class="flm-pres-block--heading" data-flm-heading="xnotes" data-flm-level="2" data-flm-toc="false">Footnotes</h2>
@@ -969,11 +989,11 @@
    may write inside a formula, because FLM does not inspect the content of a
    formula.  A host that renders mathematics written by authors it does not
    trust replaces this part with a configuration of its own; the
-   documentation of the Rust module flm_core::stdcore::backends::html::mathjax
+   documentation of the Rust module flm_core::stdlib::backends::html::mathjax
    gives that configuration.  After the configuration object come a listener
    that follows a link inside a formula when it is clicked, and the code that
    keeps the formulas typeset while a script of the page updates parts of the
-   page in place. */
+   page in place or shows a copy of part of it. */
 window.MathJax = {
   loader: {load: ['[tex]/texhtml']},
   tex: {
@@ -1016,7 +1036,18 @@ document.addEventListener('click', function (event) {
    typesets the formula; and on the event, it typesets the formulas of the
    region that carry no such attribute: the new formulas, and those whose
    source changed.  Before the renderer has started, there is nothing to do,
-   because the renderer typesets every formula of the page when it starts. */
+   because the renderer typesets every formula of the page when it starts.
+   A script that shows a copy of part of the page elsewhere on the page (a
+   popup that previews the target of a link, say) dispatches the event
+   `flm:content-copied` on the element holding the copy once the copy is in
+   the page; the copy holds none of the page's identifiers and keeps the
+   attribute of each element it copies.  On that event, this code typesets the
+   formulas of the copy that are not typeset: those that carry no attribute,
+   and those that the renderer had not typeset when they were copied (in its
+   lazy mode, it typesets a formula only when the formula scrolls into view),
+   each of which first gets back the HTML of its attribute, without the
+   identifiers in it.  It also makes the renderer forget the formulas it
+   typeset in a copy that is no longer in the page. */
 (function () {
   var ORIGINAL = 'data-flm-original-html';
   var formulas = window.MathJax.startup.elements.join(', ');
@@ -1041,6 +1072,31 @@ document.addEventListener('click', function (event) {
     renderer.startup.promise = renderer.startup.promise.then(function () {
       var fresh = record(untypeset(event.target));
       if (fresh.length > 0) { return renderer.typesetPromise(fresh); }
+    });
+  });
+  function typeset(element) {
+    return element.querySelector('mjx-container') !== null && element.querySelector('mjx-lazy') === null;
+  }
+  var copies = [];
+  document.addEventListener('flm:content-copied', function (event) {
+    var renderer = window.MathJax;
+    if (!renderer.startup || !renderer.startup.promise) { return; }
+    renderer.startup.promise = renderer.startup.promise.then(function () {
+      var gone = copies.filter(function (copy) { return !copy.isConnected; });
+      if (gone.length > 0) { renderer.typesetClear(gone); }
+      copies = copies.filter(function (copy) { return copy.isConnected; });
+      var waiting = Array.prototype.filter.call(event.target.querySelectorAll(formulas), function (element) {
+        if (!element.hasAttribute(ORIGINAL)) { return true; }
+        if (typeset(element)) { return false; }
+        element.innerHTML = element.getAttribute(ORIGINAL);
+        Array.prototype.forEach.call(element.querySelectorAll('[id]'), function (inner) {
+          inner.removeAttribute('id');
+        });
+        return true;
+      });
+      if (waiting.length === 0) { return; }
+      copies.push(event.target);
+      return renderer.typesetPromise(record(waiting));
     });
   });
 })();

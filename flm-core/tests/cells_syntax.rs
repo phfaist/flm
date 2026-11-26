@@ -1,4 +1,4 @@
-//! The `cells` feature's syntax (`flm_core::stdcore::features::cells`): the
+//! The `cells` feature's syntax (`flm_core::stdlib::features::cells`): the
 //! environment and the commands of its body parsed where they are visible, each
 //! command's block role by position (test 1), blank lines in the body and in a
 //! `\celldata`'s data (test 2), the styles argument's parser (test 16), the
@@ -11,7 +11,8 @@ use std::sync::Arc;
 
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, PackageEntry, RegistryBuildError,
+    RegistryBuilder, RegistryInputs,
 };
 use flm_core::core::run::Run;
 use flm_core::lang::Flm;
@@ -19,14 +20,14 @@ use flm_core::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
 use flm_core::model::addr::TreeId;
 use flm_core::model::aspects::{BlockRole, block_role_of};
 use flm_core::model::element::{ElementSpec, element_of};
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::cells::{
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::cells::{
     self, CellStyle, CellStylesParser, CellsConfig, STYLES_SLOT,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::core::node::NodeRef;
 
-use common::stdcore::{identifiers, run_workflow};
+use common::stdlib::{identifiers, refusing_features, run_workflow};
 
 /// The report of a macro no declaration defines.
 const UNKNOWN_MACRO: &str = "core.specs.unresolvable-command";
@@ -35,26 +36,29 @@ const UNKNOWN_MACRO: &str = "core.specs.unresolvable-command";
 const UNKNOWN_ENVIRONMENT: &str = "latexlike.environments.unknown-environment";
 
 /// The standard package with the `cells` environment an ordinary environment.
-fn global() -> StdcoreConfig {
-    StdcoreConfig::new().cells(CellsConfig::new().global(true))
+fn global() -> StdlibConfig {
+    StdlibConfig::new().cells(CellsConfig::new().global(true))
 }
 
 /// The registry of the standard package under `config`, with `features` after
 /// it.
-fn registry_with(config: StdcoreConfig, features: Vec<Arc<dyn FlmFeature>>) -> Arc<FlmRegistry> {
+fn registry_with(config: StdlibConfig, features: Vec<Arc<dyn FlmFeature>>) -> Arc<FlmRegistry> {
     try_registry(config, features).unwrap_or_else(|error| panic!("the registry build failed: {error}"))
 }
 
 /// The registry of the standard package under `config`, with `features` after
-/// it, or the build's error rendered.
-fn try_registry(config: StdcoreConfig, features: Vec<Arc<dyn FlmFeature>>) -> Result<Arc<FlmRegistry>, String> {
+/// it, or the build's error.
+fn try_registry(
+    config: StdlibConfig,
+    features: Vec<Arc<dyn FlmFeature>>,
+) -> Result<Arc<FlmRegistry>, RegistryBuildError> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(config));
+    builder.use_package(add_features(PackageEntry::new("std"), config));
     builder.use_package(flm_core::math_passthrough::package());
     for feature in features {
         builder.feature(feature);
     }
-    builder.build(&RegistryInputs::new()).map_err(|error| error.render())
+    builder.build(&RegistryInputs::new())
 }
 
 /// Runs the `check` workflow over `document`: the tree it freezes is laid out
@@ -246,8 +250,8 @@ impl FlmFeature for Probe {
 
 #[test]
 fn the_parsers_identity_is_in_the_registry_digest() {
-    let angles = registry_with(StdcoreConfig::new(), vec![Arc::new(Probe { angles: true })]);
-    let brackets = registry_with(StdcoreConfig::new(), vec![Arc::new(Probe { angles: false })]);
+    let angles = registry_with(StdlibConfig::new(), vec![Arc::new(Probe { angles: true })]);
+    let brackets = registry_with(StdlibConfig::new(), vec![Arc::new(Probe { angles: false })]);
     assert_ne!(angles.digest(), brackets.digest());
 }
 
@@ -255,7 +259,7 @@ fn the_parsers_identity_is_in_the_registry_digest() {
 
 #[test]
 fn under_the_default_the_environment_is_unknown_between_paragraphs() {
-    let registry = registry_with(StdcoreConfig::new(), Vec::new());
+    let registry = registry_with(StdlibConfig::new(), Vec::new());
     let run = check(&registry, "Before.\n\n\\begin{cells}\\cell{A}\\end{cells}\n\nAfter.");
     assert!(identifiers(&run).contains(&String::from(UNKNOWN_ENVIRONMENT)));
     assert!(nodes_named(&run, cells::ENVIRONMENT).is_empty());
@@ -263,15 +267,15 @@ fn under_the_default_the_environment_is_unknown_between_paragraphs() {
 
 #[test]
 fn two_registries_differing_in_the_switch_have_different_digests() {
-    let default = registry_with(StdcoreConfig::new(), Vec::new());
+    let default = registry_with(StdlibConfig::new(), Vec::new());
     let global = registry_with(global(), Vec::new());
     assert_ne!(default.digest(), global.digest());
 }
 
 #[test]
 fn without_floats_under_the_default_the_registry_builds() {
-    let features = common::stdcore::package_features_but(StdcoreConfig::new(), "floats");
-    let registry = common::stdcore::registry_over(features);
+    let features = common::stdlib::package_features_but(StdlibConfig::new(), "floats");
+    let registry = common::stdlib::registry_over(features);
     let run = check(&registry, "\\begin{cells}\\cell{A}\\end{cells}");
     assert!(identifiers(&run).contains(&String::from(UNKNOWN_ENVIRONMENT)));
 }
@@ -296,25 +300,25 @@ impl FlmFeature for HostStyles {
 
 #[test]
 fn a_contribution_redeclaring_a_shipped_style_is_a_registry_error() {
-    let error = try_registry(StdcoreConfig::new(), vec![Arc::new(HostStyles(vec!["green"]))])
+    let error = try_registry(StdlibConfig::new(), vec![Arc::new(HostStyles(vec!["green"]))])
         .expect_err("a clash");
-    assert!(error.contains("`green` may not be declared twice"), "{error}");
+    assert_eq!(refusing_features(&error), [cells::FEATURE], "{error}");
 }
 
 #[test]
 fn a_custom_style_name_must_be_lowercase_letters_and_digits() {
     for name in ["Orange", "or-ange", "1st"] {
-        let error = try_registry(StdcoreConfig::new(), vec![Arc::new(HostStyles(vec![name]))])
+        let error = try_registry(StdlibConfig::new(), vec![Arc::new(HostStyles(vec![name]))])
             .expect_err("refused");
-        assert!(error.contains(name), "{error}");
+        assert_eq!(refusing_features(&error), [cells::FEATURE], "{name}: {error}");
     }
-    assert!(try_registry(StdcoreConfig::new(), vec![Arc::new(HostStyles(vec!["orange2"]))]).is_ok());
+    assert!(try_registry(StdlibConfig::new(), vec![Arc::new(HostStyles(vec!["orange2"]))]).is_ok());
 }
 
 #[test]
 fn a_feature_contributing_styles_builds_without_the_cells_feature() {
-    let mut features = common::stdcore::package_features_but(StdcoreConfig::new(), "cells");
+    let mut features = common::stdlib::package_features_but(StdlibConfig::new(), "cells");
     features.push(Arc::new(HostStyles(vec!["orange"])));
-    let _ = common::stdcore::registry_over(features);
+    let _ = common::stdlib::registry_over(features);
 }
 

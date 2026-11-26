@@ -177,40 +177,43 @@ fn the_fragments_are_spliced_once() {
 fn the_surface_has_the_pinned_counts() {
     let inventory = read_inventory();
     let count = |class: ItemClass| inventory.of_class(class).count();
-    assert_eq!(count(ItemClass::SealedTrait), 31, "the sealed façade traits");
+    assert_eq!(count(ItemClass::SealedTrait), 35, "the sealed façade traits");
     assert_eq!(count(ItemClass::ExtensionTrait), 10, "the extension-side traits");
-    assert_eq!(count(ItemClass::OpaqueType), 9, "the opaque value types");
-    assert_eq!(count(ItemClass::Constant), 114, "the constants");
+    assert_eq!(count(ItemClass::OpaqueType), 13, "the opaque value types");
+    assert_eq!(count(ItemClass::Constant), 115, "the constants");
     let dispatched: Vec<&str> = inventory.modules.iter().filter(|module| has_module_arms(module)).map(|module| module.path.as_str()).collect();
     assert_eq!(
         dispatched,
         [
             "core/artifact",
             "core/lowering",
+            "host",
             "lang/mint",
             "lang/rewrites/blocks",
             "lang/rewrites/userdefs",
             "lang/structural",
             "lang/text",
-            "stdcore/backends/html",
-            "stdcore/backends/latex",
-            "stdcore/backends/latex/packages",
-            "stdcore/backends/latex/preamble",
-            "stdcore/backends/lowering",
-            "stdcore/backends/pres",
-            "stdcore/features/citations",
-            "stdcore/features/compose",
-            "stdcore/features/math",
-            "stdcore/features/numbering",
-            "stdcore/features/refs",
-            "stdcore/features/userdefs",
+            "math_passthrough",
+            "math_passthrough/latex",
+            "stdlib/backends/html",
+            "stdlib/backends/latex",
+            "stdlib/backends/latex/packages",
+            "stdlib/backends/latex/preamble",
+            "stdlib/backends/lowering",
+            "stdlib/backends/pres",
+            "stdlib/features/citations",
+            "stdlib/features/compose",
+            "stdlib/features/math",
+            "stdlib/features/numbering",
+            "stdlib/features/refs",
+            "stdlib/features/userdefs",
             "techy/extract",
         ],
         "the modules with functions, constructors or constants"
     );
     // The guest client's surface: its structs, the methods of its impl
     // blocks and its module functions (including workflow lowering preferences).
-    assert_eq!(guest_out::counts(&guest_out::emit(&inventory)), (35, 157, 34), "the structs, methods and functions of `src/guest/generated.rs`");
+    assert_eq!(guest_out::counts(&guest_out::emit(&inventory)), (43, 179, 43), "the structs, methods and functions of `src/guest/generated.rs`");
 }
 
 /// Whether `module` is reached through a module handle: it has a free
@@ -232,6 +235,7 @@ fn the_mapping_table_matches_the_inventory() {
     check_crossing_types(&inventory, &mut failures);
     check_kinds(&inventory, &mut failures);
     check_lists(&inventory, &mut failures);
+    check_handle_lists(&inventory, &mut failures);
     check_unit_enums(&inventory, &mut failures);
     check_written_out_values(&mut failures);
     assert!(failures.is_empty(), "{}", failures.join("\n"));
@@ -304,6 +308,10 @@ fn check_crossing_types(inventory: &Inventory, failures: &mut Vec<String>) {
         match (&item.class, &item.kind) {
             (ItemClass::SealedTrait | ItemClass::ExtensionTrait | ItemClass::OpaqueType, ItemKind::Trait { methods, .. } | ItemKind::Type { methods, .. }) => {
                 let kind = mapping::kind_of(owner).map(|row| row.kind);
+                // A traversal's items cross through its pull.
+                if let Some(items) = mapping::kind_of(owner).and_then(mapping::KindRow::pulls) {
+                    crossing.check(items, &format!("the items of `{owner}`"), file);
+                }
                 for method in methods {
                     // An extension-side trait's methods are the interface a
                     // script's object implements: all of them cross.
@@ -333,6 +341,12 @@ fn check_crossing_types(inventory: &Inventory, failures: &mut Vec<String>) {
                 crossing.check_signature(owner, function, file);
             }
             _ => {}
+        }
+    }
+    // A list sequence's items cross through its pull and its `get`.
+    for row in mapping::KINDS.iter().filter(|row| mapping::list_of_kind(row.kind).is_some()) {
+        if let Some(items) = row.pulls() {
+            crossing.check(items, &format!("the items of the kind `{}`", row.kind), MAPPING_FILE);
         }
     }
     for row in mapping::TYPES {
@@ -369,7 +383,23 @@ fn check_kinds(inventory: &Inventory, failures: &mut Vec<String>) {
         {
             failures.push(format!("the entry `{entry}` of the kind `{}` of `{MAPPING_FILE}` must be a variant of `Entry` in `src/adapter/handles.rs`", row.kind));
         }
-        if let Some(rust) = row.rust
+        if let Some(list) = mapping::list_of_kind(row.kind) {
+            if !matches!(row.receiver, mapping::Receiver::Indexed(_)) || inventory.definition(list.class()).is_some() {
+                failures.push(format!(
+                    "the kind `{}` of `{MAPPING_FILE}` must be a sequence whose class `{}` no item under `src/api/` names",
+                    row.kind,
+                    list.class()
+                ));
+            }
+            for rust in [list.list().as_str(), list.taken] {
+                if mapping::row(rust).is_none() || !mapping::GUEST_OWN.contains(&rust) {
+                    failures.push(format!("the type `{rust}` of the kind `{}` must be a type row and an entry of `GUEST_OWN` in `{MAPPING_FILE}`", row.kind));
+                }
+            }
+            if inventory.module(list.module).is_none() {
+                failures.push(format!("the module `{}` of the kind `{}` of `{MAPPING_FILE}` must be a module of the surface", list.module, row.kind));
+            }
+        } else if let Some(rust) = row.rust
             && !inventory.definition(rust).is_some_and(|(_, item)| matches!(item.class, ItemClass::SealedTrait | ItemClass::ExtensionTrait | ItemClass::OpaqueType))
         {
             failures.push(format!("the kind `{}` of `{MAPPING_FILE}` must name a trait or an opaque type under `src/api/`, not `{rust}`", row.kind));
@@ -542,6 +572,154 @@ fn check_lists(inventory: &Inventory, failures: &mut Vec<String>) {
     }
 }
 
+/// What the interface hands to an extension, against the rule that no list
+/// of handles crosses unless it is a sequence (`LISTS`) or a list of
+/// `HANDLE_LISTS`: the results of the methods, functions and constructors
+/// that are dispatched, the parameters of the methods of an extension-side
+/// trait (the host calls them), and the fields of every record these hold.
+/// An argument of the interface is a list the extension built itself, as is
+/// a data class, whose methods its binding answers on its own fields; a pull
+/// is the bindings' own (no item of `src/api/` declares it).
+struct HandleLists<'a> {
+    /// The surface.
+    inventory: &'a Inventory,
+    /// The records whose fields were checked already.
+    records: BTreeSet<String>,
+    /// The entries of `HANDLE_LISTS` that a list of handles used.
+    used: BTreeSet<(&'static str, &'static str)>,
+    /// The failures, appended to the test's.
+    failures: &'a mut Vec<String>,
+}
+
+impl HandleLists<'_> {
+    /// Checks what the interface hands over through the type `ty`, at the
+    /// member `member` of `owner` (a method, a function, a field) defined in
+    /// `file`.
+    fn check(&mut self, ty: &str, owner: &str, member: &str, file: &str) {
+        if mapping::LISTS.iter().any(|list| list.list() == ty) {
+            return;
+        }
+        match mapping::shape(ty) {
+            mapping::Shape::Ref { inner, .. } | mapping::Shape::Slice(inner) => self.check(&inner, owner, member, file),
+            mapping::Shape::Tuple(elems) => elems.iter().for_each(|elem| self.check(elem, owner, member, file)),
+            mapping::Shape::Generic { head, args } => {
+                if head == "Vec"
+                    && let [item] = args.as_slice()
+                    && self.holds_handle(item, &mut BTreeSet::new())
+                {
+                    match mapping::HANDLE_LISTS.iter().find(|entry| entry.owner == owner && entry.member == member) {
+                        Some(entry) => {
+                            self.used.insert((entry.owner, entry.member));
+                        }
+                        None => self.failures.push(format!(
+                            "`{owner}::{member}` (`{file}`) must not answer a list of `{item}` (its items hold handles): a list that grows \
+                             with the document must cross as a sequence or a traversal; a list bounded by one construct of the document must \
+                             have an entry of `HANDLE_LISTS` in `{MAPPING_FILE}` with its reason"
+                        )),
+                    }
+                }
+                // A `Result`'s error holds no handle.
+                let args = if head == "Result" { &args[..1] } else { &args[..] };
+                args.iter().for_each(|arg| self.check(arg, owner, member, file));
+            }
+            mapping::Shape::Plain(name) => self.check_record(&name),
+            mapping::Shape::Dyn(_) | mapping::Shape::Impl(_) => {}
+        }
+    }
+
+    /// Checks the fields of the record `name` of `src/api/` (a struct's, or
+    /// those of an enum's variants), once.
+    fn check_record(&mut self, name: &str) {
+        let Some((module, Item { kind: ItemKind::Type { fields, variants, .. }, class: ItemClass::DataClass | ItemClass::DataType, .. })) =
+            self.inventory.definition(name)
+        else {
+            return;
+        };
+        if !self.records.insert(name.to_string()) {
+            return;
+        }
+        for field in fields {
+            self.check(&field.ty, name, &field.name, &module.file);
+        }
+        for variant in variants {
+            let owner = format!("{name}::{}", variant.name);
+            for field in &variant.fields {
+                self.check(&field.ty, &owner, &field.name, &module.file);
+            }
+        }
+    }
+
+    /// Whether the type `ty` holds a handle: a handle kind's type, an
+    /// opaque type, a façade, or a record with a field that holds one
+    /// (`seen`, the records on the way, ends a recursion).
+    fn holds_handle(&self, ty: &str, seen: &mut BTreeSet<String>) -> bool {
+        if mapping::row(ty).is_some_and(|row| row.ts == mapping::Ts::Handle) {
+            return true;
+        }
+        match mapping::shape(ty) {
+            mapping::Shape::Ref { inner, .. } | mapping::Shape::Slice(inner) => self.holds_handle(&inner, seen),
+            mapping::Shape::Tuple(elems) => elems.iter().any(|elem| self.holds_handle(elem, seen)),
+            mapping::Shape::Generic { head, args } => {
+                let args = if head == "Result" { &args[..1] } else { &args[..] };
+                args.iter().any(|arg| self.holds_handle(arg, seen))
+            }
+            mapping::Shape::Dyn(bounds) => bounds.iter().any(|bound| mapping::kind_of(bound).is_some()),
+            mapping::Shape::Impl(_) => false,
+            mapping::Shape::Plain(name) => {
+                if mapping::kind_of(&name).is_some() {
+                    return true;
+                }
+                let Some((_, item)) = self.inventory.definition(&name) else { return false };
+                match &item.kind {
+                    _ if item.class == ItemClass::OpaqueType => true,
+                    ItemKind::Type { fields, variants, .. } if seen.insert(name.clone()) => fields
+                        .iter()
+                        .chain(variants.iter().flat_map(|variant| &variant.fields))
+                        .any(|field| self.holds_handle(&field.ty, seen)),
+                    _ => false,
+                }
+            }
+        }
+    }
+}
+
+/// No method, function or field of a record of `src/api/` hands an
+/// extension a list of handles, but a sequence and the lists of
+/// `HANDLE_LISTS`; every entry of `HANDLE_LISTS` names such a list.
+fn check_handle_lists(inventory: &Inventory, failures: &mut Vec<String>) {
+    let mut lists = HandleLists { inventory, records: BTreeSet::new(), used: BTreeSet::new(), failures };
+    for (module, item) in inventory.items() {
+        let file = module.file.as_str();
+        let owner = item.name.as_str();
+        match (&item.class, &item.kind) {
+            (ItemClass::ExtensionTrait, ItemKind::Trait { methods, .. }) => {
+                for method in methods {
+                    for param in &method.params {
+                        lists.check(&param.ty, owner, &method.name, file);
+                    }
+                }
+            }
+            (ItemClass::SealedTrait | ItemClass::OpaqueType, ItemKind::Trait { methods, .. } | ItemKind::Type { methods, .. }) => {
+                for method in methods.iter().filter(|method| !mapping::is_excluded(owner, &method.name)) {
+                    lists.check(&method.output, owner, &method.name, file);
+                }
+            }
+            (ItemClass::Function, ItemKind::Function(function)) if !mapping::is_excluded(&module.path, owner) => {
+                lists.check(&function.output, &module.path, owner, file);
+            }
+            _ => {}
+        }
+    }
+    for entry in mapping::HANDLE_LISTS {
+        if !lists.used.contains(&(entry.owner, entry.member)) {
+            lists.failures.push(format!(
+                "the entry `{}::{}` of `HANDLE_LISTS` in `{MAPPING_FILE}` must name a member of `src/api/` that answers a list of handles",
+                entry.owner, entry.member
+            ));
+        }
+    }
+}
+
 /// The methods of a trait or a type; none for any other item.
 fn methods(item: &Item) -> &[Function] {
     match &item.kind {
@@ -608,19 +786,19 @@ fn the_constants_are_read_from_the_compiled_table() {
         inventory.of_class(ItemClass::Constant).map(|(module, item)| (module.path.clone(), item.name.clone())).collect();
     let table: Vec<(&str, &str, Value)> = names.iter().map(|(module, name)| (module.as_str(), name.as_str(), json!(name))).collect();
     let values = constant_values(&inventory, &table, false).expect("every constant");
-    assert_eq!(values.len(), 114);
+    assert_eq!(values.len(), 115);
     assert_eq!(values[0].2, json!(values[0].1));
     let missing = table.iter().filter(|(_, name, _)| *name != "TAG").cloned().collect::<Vec<_>>();
     assert_eq!(
         constant_values(&inventory, &missing, true),
-        Err("the constant `TAG` of `src/api/stdcore/backends/html.rs` must be in the compiled table of constants before the \
+        Err("the constant `TAG` of `src/api/stdlib/backends/html.rs` must be in the compiled table of constants before the \
              JavaScript and the TypeScript can be written: `src/adapter/generated.rs` was rewritten; build the crate and run \
              `UPDATE_GOLDEN=1 cargo test -p flm-ext --test api_surface` again"
             .to_string())
     );
     assert_eq!(
         constant_values(&inventory, &missing, false),
-        Err("the constant `TAG` of `src/api/stdcore/backends/html.rs` must be in the compiled table of constants before the \
+        Err("the constant `TAG` of `src/api/stdlib/backends/html.rs` must be in the compiled table of constants before the \
              JavaScript and the TypeScript can be written: build the crate and run `UPDATE_GOLDEN=1 cargo test -p flm-ext --test \
              api_surface` again"
             .to_string())
@@ -633,8 +811,8 @@ fn the_compiled_table_holds_every_constant_with_its_value() {
     let compiled = flm_ext::adapter::constants();
     let values = constant_values(&inventory, &compiled, false).unwrap_or_else(|message| panic!("{message}"));
     assert_eq!(values.len(), compiled.len(), "the compiled table holds the inventory's constants and no other");
-    let tag = values.iter().find(|(module, name, _)| module == "stdcore/backends/html" && name == "TAG").map(|(_, _, value)| value);
-    assert_eq!(tag, Some(&json!(flm_ext::api::stdcore::backends::html::TAG)));
+    let tag = values.iter().find(|(module, name, _)| module == "stdlib/backends/html" && name == "TAG").map(|(_, _, value)| value);
+    assert_eq!(tag, Some(&json!(flm_ext::api::stdlib::backends::html::TAG)));
 }
 
 #[test]
@@ -646,16 +824,16 @@ fn names_answers_every_constant_of_its_module() {
     let modules: BTreeSet<&str> = compiled.iter().map(|(module, _, _)| *module).collect();
     assert_eq!(modules.into_iter().collect::<Vec<_>>(), [
         "lang/structural",
-        "stdcore/backends/html",
-        "stdcore/backends/latex",
-        "stdcore/backends/latex/packages",
-        "stdcore/backends/latex/preamble",
-        "stdcore/backends/pres",
-        "stdcore/features/citations",
-        "stdcore/features/compose",
-        "stdcore/features/math",
-        "stdcore/features/numbering",
-        "stdcore/features/refs",
+        "stdlib/backends/html",
+        "stdlib/backends/latex",
+        "stdlib/backends/latex/packages",
+        "stdlib/backends/latex/preamble",
+        "stdlib/backends/pres",
+        "stdlib/features/citations",
+        "stdlib/features/compose",
+        "stdlib/features/math",
+        "stdlib/features/numbering",
+        "stdlib/features/refs",
     ]);
     for module in inventory.modules.iter().filter(|module| module.items.iter().any(|item| item.class == ItemClass::Constant)) {
         let handle = module_handle(&module.path).unwrap_or_else(|| panic!("the module `{}` has a handle", module.path));
@@ -672,8 +850,8 @@ fn names_answers_every_constant_of_its_module() {
     }
     // The presentation elements and slots, against the library's own.
     let mut table = CallTable::new(1);
-    let pres = call(&mut table, module_handle("stdcore/backends/pres").expect("a handle"), "names", &json!([])).expect("names");
-    assert_eq!(pres["ALL"], json!(flm_core::stdcore::backends::pres::names::ALL));
-    assert_eq!(pres["BODY_SLOT"], json!(flm_core::stdcore::backends::pres::names::BODY_SLOT));
+    let pres = call(&mut table, module_handle("stdlib/backends/pres").expect("a handle"), "names", &json!([])).expect("names");
+    assert_eq!(pres["ALL"], json!(flm_core::stdlib::backends::pres::names::ALL));
+    assert_eq!(pres["BODY_SLOT"], json!(flm_core::stdlib::backends::pres::names::BODY_SLOT));
     assert_eq!(pres.as_object().map(serde_json::Map::len), Some(27));
 }

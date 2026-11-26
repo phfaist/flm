@@ -23,7 +23,7 @@
 //! outputs](crate::guide::concepts_overview#backends-lowering-and-outputs))
 //! uses the engine when its output is text in columns: it builds one layout
 //! document while it walks its input, then prints it once. In this library
-//! the text backend's emitter ([`crate::stdcore::backends::text`]) is the only
+//! the text backend's emitter ([`crate::stdlib::backends::text`]) is the only
 //! caller of the printer; the HTML emitter and the presentation helpers use
 //! [`is_breakable_space`] so that they split words at the same characters.
 //! [The plain-text backend](crate::guide::rendering#the-plain-text-backend)
@@ -72,13 +72,22 @@
 //!   stack or at column 0, as their [`RawPolicy`] says.
 //! - **[`table`](DocBuf::table) columns are computed** from each column's
 //!   narrowest and widest content: the width left over is shared out in
-//!   proportion to each column's room to grow, in whole columns; cells are
-//!   wrapped at their column's width, columns are two spaces apart, and a
-//!   rule of `-` is drawn under the header rows.
+//!   proportion to each column's room to grow, in whole columns, after the
+//!   gutters or the frame are subtracted from the width; cells are wrapped at
+//!   their column's width and drawn as the table's [`TableFrame`] says: two
+//!   spaces apart with a rule of `-` under the header rows (`Gutter`), or
+//!   inside a frame of box-drawing characters with a rule of the frame under
+//!   the header rows (`Box`). A table given a border mark reports what it
+//!   draws under that mark, one span per run of drawn characters on a line.
 //! - **[`mark`](DocBuf::mark) positions**: [`print_full`] reports, for every
 //!   occurrence of a mark, the byte range and the 0-based line and column
 //!   range of the marked part's content characters, in the order the marks
-//!   are opened. A mark never changes the layout.
+//!   are opened; a table's border runs and the marks inside its cells follow
+//!   the marks opened before the table, the cells' marks row by row and
+//!   column by column, each placed where its cell's text lands in the table.
+//!   A mark inside a cell over several lines of the cell gives one span per
+//!   line of the cell, because the table interleaves the cell's lines with
+//!   the rest of the row. A mark never changes the layout.
 //! - **Determinism**: the output depends only on the layout document, the root
 //!   node passed to the printer and the profile. The printer uses no hash-map
 //!   iteration and no floating point, and the record it keeps of the table
@@ -146,7 +155,6 @@
 //!
 //! # Known limitations
 //!
-//! - Marks inside table cells are not reported.
 //! - The fitting scan does not count indentation, so an indentation node
 //!   inside a group at the start of a line is not counted against that group's
 //!   first line. Emitters keep indentation outside groups, which avoids the
@@ -175,6 +183,8 @@ pub mod printer;
 mod table;
 mod width;
 
-pub use doc::{is_breakable_space, ColAlign, ColSpec, DocBuf, DocId, MarkId, RawPolicy, TableCell};
+pub use doc::{
+    is_breakable_space, ColAlign, ColSpec, DocBuf, DocId, MarkId, RawPolicy, TableCell, TableFrame,
+};
 pub use printer::{print, print_full, LineCol, MarkSpan, PrintOutput, Profile};
 pub use width::display_width;

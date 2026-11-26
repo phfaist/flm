@@ -1,11 +1,11 @@
 //! The text backend's run-in decoration idiom
-//! (`flm_core::stdcore::backends::text`): the stop this backend adds after a
+//! (`flm_core::stdlib::backends::text`): the stop this backend adds after a
 //! run-in decoration's content, the content it leaves alone, and the render
 //! option that decides what the stop is.
 //!
 //! The test "does the title already end in sentence punctuation?" is shared
 //! with every other backend
-//! (`flm_core::stdcore::backends::pres::ends_in_sentence_punctuation`); it is
+//! (`flm_core::stdlib::backends::pres::ends_in_sentence_punctuation`); it is
 //! exercised here over the trees the emitter walks, and in `tests/html_features.rs`
 //! over the same question on the HTML backend.
 
@@ -17,11 +17,11 @@ use techy::core::node::{BuildId, NodeTree};
 
 use flm_core::core::registry::FlmRegistry;
 use flm_core::lang::Flm;
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::pres::{
     self, DecoMarkPayload, DecorationPayload, ParPayload, SpanPayload, SpanStyle,
     ends_in_sentence_punctuation,
 };
-use flm_core::stdcore::backends::text::{Emitted, TextRenderOptions};
+use flm_core::stdlib::backends::text::{Emitted, TextRenderOptions};
 
 use common::lowering::{PresSite, emit_tree, emit_trees_under, registry};
 

@@ -14,9 +14,9 @@ use flm_core::core::plan::Overrides;
 use flm_core::lang::mint::{ArgDef, ArgStdKind, ElementDef, SyntaxDef};
 use flm_core::lang::rewrites::userdefs::Definition;
 use flm_core::lang::{FlmCallableType, FlmGroupType};
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::{html, text};
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::{html, text};
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
 use techy::core::node::{NodeRef, NodeTree};
 use techy::latexlike::Mode;
 
@@ -57,9 +57,9 @@ fn with_definitions(definitions: Vec<Definition>) -> Setup {
 }
 
 /// The compiled text-mode template tree of the definition `name`.
-fn template_tree<'s>(setup: &'s Setup, name: &str) -> &'s NodeTree<flm_core::lang::Flm> {
+fn template_tree(setup: &Setup, name: &str) -> std::sync::Arc<NodeTree<flm_core::lang::Flm>> {
     let compiled = setup.definition(name).compiled().expect("compiled");
-    compiled.variant(Mode::Text).expect("a text template").template().tree()
+    std::sync::Arc::clone(compiled.variant(Mode::Text).expect("a text template").template().tree())
 }
 
 /// The first node named `name` under `root`.
@@ -252,7 +252,7 @@ fn hard_inputs_neither_panic_nor_loop() {
 
 /// The standard package with `definitions`.
 fn registry(definitions: Vec<Definition>) -> std::sync::Arc<flm_core::core::registry::FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)))
+    common::stdlib::registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)))
 }
 
 /// The text output of `document`, whose run reports nothing.
@@ -260,18 +260,19 @@ fn text_output(
     registry: &std::sync::Arc<flm_core::core::registry::FlmRegistry>,
     document: &str,
 ) -> String {
-    let run = common::stdcore::run_workflow(registry, text::WORKFLOW, &[document], &Overrides::none());
-    assert!(common::stdcore::identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(registry, text::WORKFLOW, &[document], &Overrides::none());
+    assert!(common::stdlib::identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
     common::lowering::text(&run)
 }
 
-/// The HTML fragment of `document`, whose run reports nothing.
+/// The HTML fragment of `document`, whose run reports nothing but the Warnings
+/// of its plan's unchecked output.
 fn html_output(
     registry: &std::sync::Arc<flm_core::core::registry::FlmRegistry>,
     document: &str,
 ) -> String {
-    let run = common::stdcore::run_workflow(registry, html::WORKFLOW, &[document], &Overrides::none());
-    assert!(common::stdcore::identifiers(&run).is_empty(), "{}", run.diagnostics().render_all());
+    let run = common::stdlib::run_workflow(registry, html::WORKFLOW, &[document], &Overrides::none());
+    common::stdlib::assert_only_unchecked_output(&run);
     common::html::fragment(&run)
 }
 
@@ -308,8 +309,8 @@ fn a_literal_hash_in_a_template_label_reaches_the_output() {
 use flm_core::lang::text::{chars_text, read_chars, CharsSegment};
 use flm_core::lang::rewrites::userdefs::UserDefinition;
 use flm_core::model::aspects::Label;
-use flm_core::stdcore::features::math::eqref::eqref_target;
-use flm_core::stdcore::features::refs::{
+use flm_core::stdlib::features::math::eqref::eqref_target;
+use flm_core::stdlib::features::refs::{
     encode_anchor, field_text, hyperref_target, label_use, ref_targets,
 };
 
@@ -329,10 +330,13 @@ fn segment_words(content: &[CharsSegment<'_>]) -> Vec<String> {
 
 /// The segments of the one argument of the first node named `name` under
 /// `root`, or the reader's refusal.
-fn read_argument(root: NodeRef<'_, flm_core::lang::Flm>, name: &str) -> Result<Vec<String>, String> {
+fn read_argument(
+    root: NodeRef<'_, flm_core::lang::Flm>,
+    name: &str,
+) -> Result<Vec<String>, flm_core::lang::text::NotCharacters> {
     let node = named(root, name);
     let content = node.argument_content_nodes(0).expect("the argument");
-    read_chars(content.iter()).map(|read| segment_words(read.segments())).map_err(|e| e.to_string())
+    read_chars(content.iter()).map(|read| segment_words(read.segments()))
 }
 
 #[test]
@@ -390,7 +394,7 @@ fn the_reader_refuses_content_holding_a_command() {
     let fragment = parse(&lang, "\\box{a\\emph{b}c}");
     let root = fragment.tree().root();
     let refused = read_argument(root, "box").unwrap_err();
-    assert!(refused.contains("command"), "{refused}");
+    assert_eq!(fragment.tree().node(refused.node).span_content(), "\\emph{b}");
     let content = named(root, "box").argument_content_nodes(0).unwrap();
     assert_eq!(chars_text(content.iter()), None);
 }
@@ -403,7 +407,7 @@ fn the_reader_refuses_content_holding_mathematics() {
     let fragment = parse(&lang, "\\box{x\\(a\\)y}");
     let root = fragment.tree().root();
     let refused = read_argument(root, "box").unwrap_err();
-    assert!(refused.contains("mathematics"), "{refused}");
+    assert_eq!(fragment.tree().node(refused.node).span_content(), "\\(a\\)");
     let content = named(root, "box").argument_content_nodes(0).unwrap();
     assert_eq!(chars_text(content.iter()), None);
 }
@@ -423,7 +427,7 @@ fn std_template(
         .filter_map(|entry| entry.element.value_as::<UserDefinition>())
         .find(|value| value.definition().name == name)
         .and_then(|value| value.compiled())
-        .and_then(|compiled| compiled.variant(Mode::Text))
+        .and_then(|compiled| compiled.variant(Mode::Text).cloned())
         .map(|variant| std::sync::Arc::clone(variant.template().tree()))
         .unwrap_or_else(|| panic!("no compiled definition {name:?}"));
     (registry, tree)

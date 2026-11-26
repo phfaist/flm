@@ -104,6 +104,7 @@ use crate::core::data::table::{PieceClass, ProjectCx, Table};
 use crate::core::registry::{FlmRegistry, OutputDef};
 use crate::lang::origin::nowhere;
 use crate::lang::{FlmDiagnostic, FlmOrigin};
+use crate::model::digest::Fnv1a64;
 use crate::model::names::{CapName, Name, OutputName};
 
 /// A relative path, written with forward slashes and no leading slash.
@@ -178,6 +179,20 @@ impl fmt::Display for ArtifactId {
     }
 }
 
+/// Returns `text` with every character other than an ASCII letter, a digit, `-` and `_`
+/// written `_`, so that it can begin the name of an artifact, which the naming service
+/// writes into a path.
+pub(crate) fn name_safe(text: &str) -> String {
+    text.chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') { c } else { '_' }).collect()
+}
+
+/// Returns the name of an artifact that its content names, `<stem>-<digest>`: `stem` as
+/// given, a hyphen, and eight hexadecimal digits of `digest`. The name has no counter, so
+/// that one content given twice is one artifact.
+pub(crate) fn digest_name(stem: &str, digest: &Fnv1a64) -> String {
+    format!("{stem}-{:08x}", digest.value() >> 32)
+}
+
 /// The location of a file holding an artifact's bytes, written the way the
 /// host that produced the file writes paths.
 ///
@@ -209,8 +224,9 @@ pub enum ArtifactData {
     /// The files of a folder artifact (see the [module
     /// documentation](self#a-folder-artifact)), each by its path relative to
     /// the folder and its bytes, in the order the producer gives. Each path is
-    /// written with forward slashes, with no leading slash and no `.` or `..`
-    /// part, and no two are equal.
+    /// relative, written with forward slashes, and no two are equal; the host
+    /// places each file at its path with `.` and `..` resolved as text, and
+    /// refuses a path that leaves the output folder.
     Files(Vec<(RelPath, Vec<u8>)>),
 }
 
@@ -777,7 +793,7 @@ impl NamingScope {
 ///
 /// This library ships no implementation. A host contributes its naming scheme
 /// to the service slot `flm.artifacts.namer`
-/// ([`NAMER_SLOT`](crate::stdcore::backends::lowering::NAMER_SLOT)), which the
+/// ([`NAMER_SLOT`](crate::stdlib::backends::lowering::NAMER_SLOT)), which the
 /// standard `lowering` feature declares; see [`crate::core::services`] for
 /// service slots. When no host contributes a namer, the slot is empty, and a
 /// stage that needs the path of an artifact cannot obtain one.

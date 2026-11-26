@@ -1,0 +1,38 @@
+===== check =====
+===== text =====
+Error flm.graphics.unknown-key {"key":"scale"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size {"path":"figures/x.png"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path {} — at `\includegraphics{}`
+Error flm.floats.content-refused {"float_type":"figure","admitted":"exactly one image"} — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated {"float_type":"figure"} — at `\caption{Two}`
+Warning flm.graphics.unknown-size {"path":"figures/y.png"} — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect {"reason":"a ‘diagram’ without a ‘\\label’ is not numbered"} — at `\nonumber`
+Error flm.floats.caption-unknown-key {"key":"short"} — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size {"path":"figures/z.png"} — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size {"path":"figures/w.png"} — at `\includegraphics{figures/w.png}`
+Error flm.refs.nothing-to-show {"label":"figure:w"} — at `\ref{figure:w}`
+===== html =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"html","written":"each formula's LaTeX source","reader":"the formula renderer in the reader's browser","workflow":"html"} — at ``
+Error flm.graphics.unknown-key {"key":"scale"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size {"path":"figures/x.png"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path {} — at `\includegraphics{}`
+Error flm.floats.content-refused {"float_type":"figure","admitted":"exactly one image"} — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated {"float_type":"figure"} — at `\caption{Two}`
+Warning flm.graphics.unknown-size {"path":"figures/y.png"} — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect {"reason":"a ‘diagram’ without a ‘\\label’ is not numbered"} — at `\nonumber`
+Error flm.floats.caption-unknown-key {"key":"short"} — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size {"path":"figures/z.png"} — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size {"path":"figures/w.png"} — at `\includegraphics{figures/w.png}`
+Error flm.refs.nothing-to-show {"label":"figure:w"} — at `\ref{figure:w}`
+===== latex-recomposed =====
+Warning flm.run.unchecked-output {"feature":"math-passthrough","backend":"latex-recomposed","written":"each formula's recomposed LaTeX","reader":"LaTeX","workflow":"latex-recomposed"} — at ``
+Error flm.graphics.unknown-key {"key":"scale"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Warning flm.graphics.unknown-size {"path":"figures/x.png"} — at `\includegraphics[alt=x, scale=2]{figures/x.png}`
+Error flm.graphics.empty-path {} — at `\includegraphics{}`
+Error flm.floats.content-refused {"float_type":"figure","admitted":"exactly one image"} — at `\begin{figure}Only text, no image.\end{figure}`
+Error flm.floats.caption-repeated {"float_type":"figure"} — at `\caption{Two}`
+Warning flm.graphics.unknown-size {"path":"figures/y.png"} — at `\includegraphics{figures/y.png}`
+Note flm.floats.nonumber-without-effect {"reason":"a ‘diagram’ without a ‘\\label’ is not numbered"} — at `\nonumber`
+Error flm.floats.caption-unknown-key {"key":"short"} — at `\caption[short=Z]{Zed}`
+Warning flm.graphics.unknown-size {"path":"figures/z.png"} — at `\includegraphics{figures/z.png}`
+Warning flm.graphics.unknown-size {"path":"figures/w.png"} — at `\includegraphics{figures/w.png}`

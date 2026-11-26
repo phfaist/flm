@@ -1,5 +1,5 @@
 //! The `floats` feature on the recomposed LaTeX
-//! (`flm_core::stdcore::features::floats::latex`): the hook environment
+//! (`flm_core::stdlib::features::floats::latex`): the hook environment
 //! `\begin{flmFloat}{<type>}{<case>}` with its four cases, the caption and
 //! the labels, an unnumbered float's labels showing its caption, each used
 //! type's reference type for `zref-clever`, the definition piece and the
@@ -15,38 +15,39 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::core::run::Run;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::latex::{packages, preamble};
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::features::floats::latex::{FloatCase, PIECE, definition_piece};
-use flm_core::stdcore::features::floats::{FloatNumbering, FloatType, FloatsConfig};
-use flm_core::stdcore::features::numbering::{PluralWords, PrefixWords};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::latex::{packages, preamble};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::features::floats::latex::{FloatCase, PIECE, definition_piece};
+use flm_core::stdlib::features::floats::{FloatNumbering, FloatType, FloatsConfig};
+use flm_core::stdlib::features::numbering::{PluralWords, PrefixWords};
 
-use common::stdcore::{identifiers, identifiers_but_unknown_size};
+use common::stdlib::{UNCHECKED_OUTPUT, identifiers, identifiers_but_unknown_size};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The run of the recomposed LaTeX of `registry` over `document`.
 fn run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
-    common::stdcore::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
+    common::stdlib::run_workflow(registry, latex_recomposed::WORKFLOW, &[document], &Overrides::none())
 }
 
 /// The recomposed LaTeX and the style file of `document` under `registry`;
-/// the run must report nothing, and so must the text run, so that the
-/// document is one FLM accepts on every output.
+/// the run must report nothing but the Warning of its unchecked formulas,
+/// and the text run nothing, so that the document is one FLM accepts on
+/// every output (the Warnings of images of unknown size aside).
 fn written(registry: &Arc<FlmRegistry>, document: &str) -> (String, String, Run) {
-    let text = common::stdcore::run_workflow(
+    let text = common::stdlib::run_workflow(
         registry,
-        flm_core::stdcore::backends::text::WORKFLOW,
+        flm_core::stdlib::backends::text::WORKFLOW,
         &[document],
         &Overrides::none(),
     );
     assert_eq!(identifiers_but_unknown_size(&text), Vec::<String>::new(), "{}", text.diagnostics().render_all());
     let run = run(registry, document);
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     let output = common::latex::output(&run);
     let style = common::latex::style(&run).0;
     (output, style, run)
@@ -129,7 +130,7 @@ fn a_table_and_a_configured_type_declare_their_own_words() {
                         .with_variant("abbreviated", PluralWords::new("Diag.~", "Diags.~")),
                 ),
         );
-    let registry = common::stdcore::registry(StdcoreConfig::new().floats(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().floats(config));
     let (output, style, run) = written(
         &registry,
         "\\begin{table}T.\\caption{A table}\\label{table:t}\\end{table}\n\n\
@@ -178,13 +179,16 @@ fn the_recomposed_latex_reports_as_the_other_outputs_do() {
         "\\begin{table}\\label{fig:x}\\includegraphics{t.png}\\end{table}",
     ] {
         let latex = run(&registry, document);
-        let text = common::stdcore::run_workflow(
+        let text = common::stdlib::run_workflow(
             &registry,
-            flm_core::stdcore::backends::text::WORKFLOW,
+            flm_core::stdlib::backends::text::WORKFLOW,
             &[document],
             &Overrides::none(),
         );
-        assert_eq!(identifiers(&latex), identifiers(&text), "{document}");
+        // The same reports, after the Warning of the recomposed LaTeX's
+        // unchecked formulas.
+        let expected = [vec![UNCHECKED_OUTPUT.to_string()], identifiers(&text)].concat();
+        assert_eq!(identifiers(&latex), expected, "{document}");
     }
 }
 

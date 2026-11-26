@@ -1677,8 +1677,8 @@ pub mod wiring {
     use flm_core::core::run::{Run, RunOptions};
     use flm_core::lang::rewrites::userdefs::Definition;
     use flm_core::lang::{Flm, GuardPolicy, ParseOptions, parse_fragment};
-    use flm_core::stdcore::features::blocks::Blocks;
-    use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+    use flm_core::stdlib::features::blocks::Blocks;
+    use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
     use techy::core::node::{NodeRef, NodeTree};
 
     /// The registry over the `blocks` feature (the default text options) and
@@ -1809,15 +1809,15 @@ pub mod lowering {
     use flm_core::dump::project::{ProjectOptions, project_tree};
     use flm_core::lang::mint::{ElementDef, FlmPresentationSpec};
     use flm_core::lang::{Flm, FlmDiagnostic, FlmGroupType, FlmOrigin, FlmSource, PresPayload};
-    use flm_core::stdcore::backends::lowering::{self, LoweredTree, LoweredTrees, lowered_table};
-    use flm_core::stdcore::backends::pres::{self, CellsPayload, ListPayload};
-    use flm_core::stdcore::backends::pieces::{self, LoweredPieces};
-    use flm_core::stdcore::backends::text::{
+    use flm_core::stdlib::backends::lowering::{self, LoweredTree, LoweredTrees, lowered_table};
+    use flm_core::stdlib::backends::pres::{self, CellsPayload, ListPayload};
+    use flm_core::stdlib::backends::pieces::{self, LoweredPieces};
+    use flm_core::stdlib::backends::text::{
         self, Emitted, TEXT_OUTPUT, TextOutput, TextRenderOptions, emit,
     };
-    use flm_core::stdcore::features::blocks::Blocks;
-    use flm_core::stdcore::features::math;
-    use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+    use flm_core::stdlib::features::blocks::Blocks;
+    use flm_core::stdlib::features::math;
+    use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
     use techy::core::node::{
         BodySlotExt, BuildId, ChildRegion, ContentNodes, GroupData, NodeKind, NodeRef, NodeTree,
         NodeTreeBuilder, ParsedArguments, ParsedSlot, ParsedSlots, SlotRole,
@@ -1856,7 +1856,7 @@ pub mod lowering {
             lowering::feature(),
             pieces::feature(),
             text::feature(),
-            flm_core::stdcore::check_feature(),
+            flm_core::stdlib::check_feature(),
             Arc::new(Blocks::default()),
             Arc::new(Userdefs::new(UserdefsConfig::new())),
             math::feature(),
@@ -2071,8 +2071,8 @@ pub mod lowering {
     /// content (the default verbatim rule then takes the group), and a block
     /// over the quotation's structured body.
     pub fn toy_rules() -> Vec<LoweringRule> {
-        use flm_core::stdcore::backends::lowering::copy_run_verbatim;
-        use flm_core::stdcore::backends::pres::{
+        use flm_core::stdlib::backends::lowering::copy_run_verbatim;
+        use flm_core::stdlib::backends::pres::{
             HeadingPayload, BlockPayload, DecorationPayload, SpanPayload, SpanStyle,
             VerbatimDisplay, VerbatimKind, VerbatimPayload,
         };
@@ -2439,7 +2439,7 @@ pub mod lowering {
 // ============================================================================
 
 // ============================================================================
-// stdcore: helpers for `tests/stdcore_*.rs`
+// stdlib: helpers for `tests/stdlib_*.rs`
 // ============================================================================
 
 /// Helpers for the standard features' tests: registries over a chosen list
@@ -2447,44 +2447,51 @@ pub mod lowering {
 /// `blocks`, `math` and `refs` features contribute members to its
 /// collection), plans and runs of a named workflow, table projections through
 /// a run's frozen trees, the diagnostics' identifiers, and a golden path
-/// under `tests/goldens/stdcore/`.
-pub mod stdcore {
+/// under `tests/goldens/stdlib/`.
+pub mod stdlib {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use flm_core::core::plan::{Overrides, Plan, PlanError};
-    use flm_core::core::registry::{FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs};
+    use flm_core::core::plan::{Overrides, Plan, PlanError, PlanWarning};
+    use flm_core::core::registry::{
+        BuildError, FlmFeature, FlmRegistry, PackageEntry, RegistryBuildError, RegistryBuilder,
+        RegistryInputs,
+    };
     use flm_core::core::run::{Externals, Run, RunOptions};
     use flm_core::core::data::table::TableKey;
     use flm_core::dump::project::{ProjectOptions, Projector};
-    use flm_core::stdcore::{StdcoreConfig, package};
+    use flm_core::lang::LangBuildError;
+    use flm_core::lang::mint::{ClashKind, MintError};
+    use flm_core::stdlib::{StdlibConfig, add_features};
     use techy::error::Severity;
     use techy::serialize::SerialValue;
 
     use super::pipeline;
 
     /// The diagnostics of `run`, one line each, in the order reported: the
-    /// severity, the identifier, the message, and the first sixty characters
-    /// of the text the diagnostic's span covers (`— at `…``), a line break
-    /// written `\n`; then each frame of the diagnostic, in the order it holds
-    /// them, as its title and the text its span covers, cut the same way
-    /// (`— in `…` at `…``) — the form of the end-to-end suites' diagnostics
-    /// goldens.
+    /// severity, the identifier, the condition's data as compact JSON, and the
+    /// first sixty characters of the text the diagnostic's span covers
+    /// (`— at `…``), a line break written `\n`; then, for each frame of the
+    /// diagnostic, in the order it holds them, the text its span covers, cut
+    /// the same way (`— in a frame at `…``) — the form of the end-to-end
+    /// suites' diagnostics goldens. The message is not written: its wording is
+    /// not part of the library's contract, and a golden does not pin it.
     pub fn diagnostic_lines(run: &Run) -> String {
         use std::fmt::Write as _;
         let mut out = String::new();
         for diagnostic in run.diagnostics().iter() {
+            let data = SerialValue::from(diagnostic.data().serializable_data());
             write!(
                 out,
-                "{:?} {}: {} — at `{}`",
+                "{:?} {} {} — at `{}`",
                 diagnostic.severity(),
                 diagnostic.identifier(),
-                diagnostic.message(),
+                flm_core::dump::json::to_json(&data).expect("diagnostic data is JSON"),
                 cut(diagnostic.span().content())
             )
             .expect("writing to a string");
             for frame in diagnostic.frames() {
-                write!(out, " — in `{}` at `{}`", frame.title(), cut(frame.span().content()))
+                write!(out, " — in a frame at `{}`", cut(frame.span().content()))
                     .expect("writing to a string");
             }
             out.push('\n');
@@ -2492,17 +2499,12 @@ pub mod stdcore {
         out
     }
 
-    /// The title of the frame a diagnostic raised inside a spliced value
-    /// gains, spanning the node the value is shown at: pinned here in the
-    /// words the lowering driver writes.
-    pub const SHOWN_HERE: &str = "a copy of this content, shown here";
-
-    /// The frames of each diagnostic of `run`, in the order reported: each
-    /// frame's title and the byte offset its span starts at, in the order the
-    /// diagnostic holds them.
-    pub fn frames(run: &Run) -> Vec<Vec<(String, usize)>> {
+    /// The frames of each diagnostic of `run`, in the order reported: the
+    /// byte offset each frame's span starts at, in the order the diagnostic
+    /// holds them.
+    pub fn frames(run: &Run) -> Vec<Vec<usize>> {
         let frames = |d: &flm_core::lang::FlmDiagnostic| {
-            d.frames().iter().map(|f| (f.title().to_string(), f.span().span().start())).collect()
+            d.frames().iter().map(|f| f.span().span().start()).collect()
         };
         run.diagnostics().iter().map(frames).collect()
     }
@@ -2513,28 +2515,63 @@ pub mod stdcore {
         at.replace('\n', "\\n")
     }
 
+    /// The features that refused the failed registry build `error`, one per
+    /// error a feature returned ([`BuildError::Feature`], or
+    /// [`BuildError::LateInit`] from its late-initialization hook), in the
+    /// order found: what a test asserts of a configuration a feature refuses,
+    /// the error's text being free wording.
+    pub fn refusing_features(error: &RegistryBuildError) -> Vec<String> {
+        error
+            .errors
+            .iter()
+            .filter_map(|error| match error {
+                BuildError::Feature { feature, .. } | BuildError::LateInit { feature, .. } => {
+                    Some(feature.to_string())
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The command names that two features of the failed registry build
+    /// `error` both define ([`MintError::Clash`] of a name), in the order found.
+    pub fn clashing_names(error: &RegistryBuildError) -> Vec<String> {
+        error
+            .errors
+            .iter()
+            .filter_map(|error| match error {
+                BuildError::Lang(LangBuildError::Mint(MintError::Clash {
+                    kind: ClashKind::Symbol,
+                    symbol,
+                    ..
+                })) => Some(symbol.name.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The registry over `features`; a build error is a test failure.
     pub fn registry_over(features: Vec<Arc<dyn FlmFeature>>) -> Arc<FlmRegistry> {
         pipeline::registry(features)
     }
 
-    /// The registry a host builds: the `stdcore` package under `config`
+    /// The registry a host builds: the standard features under `config`
     /// through `RegistryBuilder::use_package`, default inputs.
-    pub fn registry(config: StdcoreConfig) -> Arc<FlmRegistry> {
+    pub fn registry(config: StdlibConfig) -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(config));
+        builder.use_package(add_features(PackageEntry::new("std"), config));
         builder.use_package(flm_core::math_passthrough::package());
         builder.build(&RegistryInputs::new()).unwrap_or_else(|error| {
             panic!("the registry build failed in phase {}:\n{}", error.phase, error.render())
         })
     }
 
-    /// The features of the `stdcore` package under `config`, in the package's
+    /// The standard features under `config`, in their
     /// order, then the feature of the package `math-passthrough`, but the one
     /// named `left_out`: what a test of a registry without one standard
     /// feature builds over.
-    pub fn package_features_but(config: StdcoreConfig, left_out: &str) -> Vec<Arc<dyn FlmFeature>> {
-        let features: Vec<Arc<dyn FlmFeature>> = package(config)
+    pub fn package_features_but(config: StdlibConfig, left_out: &str) -> Vec<Arc<dyn FlmFeature>> {
+        let features: Vec<Arc<dyn FlmFeature>> = add_features(PackageEntry::new("std"), config)
             .features
             .into_iter()
             .chain([flm_core::math_passthrough::feature()])
@@ -2603,12 +2640,73 @@ pub mod stdcore {
         run.diagnostics().iter().map(|d| d.identifier().to_string()).collect()
     }
 
+    /// The identifier of the Warning a run reports, before its own
+    /// diagnostics, for each output its plan keeps as unchecked
+    /// ([`PlanWarning::UncheckedOutput`](flm_core::core::plan::PlanWarning::UncheckedOutput)):
+    /// `math-passthrough` declares its formulas unchecked on `html`,
+    /// `latex-rendered` and `latex-recomposed`. A test whose subject is the
+    /// diagnostics of such a run lists it among them.
+    pub const UNCHECKED_OUTPUT: &str = "flm.run.unchecked-output";
+
+    /// Asserts that the diagnostics of `run` are exactly the Warnings
+    /// [`UNCHECKED_OUTPUT`] of the unchecked outputs its plan keeps, one per
+    /// such plan warning and with its message, and nothing else: what a test
+    /// whose subject is not the plan asserts of a run that reports nothing of
+    /// its own.
+    #[track_caller]
+    pub fn assert_only_unchecked_output(run: &Run) {
+        let expected: Vec<(String, Severity, String)> = run
+            .plan()
+            .warnings()
+            .iter()
+            .filter(|warning| matches!(warning, PlanWarning::UncheckedOutput { .. }))
+            .map(|warning| (UNCHECKED_OUTPUT.to_string(), Severity::Warning, warning.to_string()))
+            .collect();
+        let reported: Vec<(String, Severity, String)> = run
+            .diagnostics()
+            .iter()
+            .map(|d| (d.identifier().to_string(), d.severity(), d.message().to_string()))
+            .collect();
+        assert_eq!(reported, expected, "{}", run.diagnostics().render_all());
+    }
+
+    /// The unchecked outputs `plan` keeps, as the backend, the feature, what
+    /// is written and what reads it, in the order of its warnings.
+    pub fn unchecked_outputs(plan: &Plan) -> Vec<(String, String, String, String)> {
+        plan.warnings()
+            .iter()
+            .filter_map(|warning| match warning {
+                PlanWarning::UncheckedOutput { backend, feature, written, reader, .. } => {
+                    Some((backend.to_string(), feature.to_string(), written.clone(), reader.clone()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Asserts that `run` reported nothing at all: what a test asserts of a run
+    /// of the text or the check workflow, which keeps no unchecked output.
+    #[track_caller]
+    pub fn assert_no_diagnostics(run: &Run) {
+        assert_eq!(identifiers(run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    }
+
     /// The identifier and the severity of every diagnostic of the run, in the
     /// chained view's order: what a test asserts where the severity is part of
     /// the rule — an Error refuses what the document asked for, a Warning
     /// says that something changed nothing, a Note is a remark.
     pub fn reports(run: &Run) -> Vec<(String, Severity)> {
         run.diagnostics().iter().map(|d| (d.identifier().to_string(), d.severity())).collect()
+    }
+
+    /// The identifier of `diagnostic` and its condition's data as compact
+    /// JSON, one space apart (`flm.refs.unresolved {"label":"sec:x"}`): what a
+    /// test compares where it asserts which problem is reported, and with which
+    /// facts, never the message.
+    pub fn identifier_and_data(diagnostic: &flm_core::lang::FlmDiagnostic) -> String {
+        let data = SerialValue::from(diagnostic.data().serializable_data());
+        let json = flm_core::dump::json::to_json(&data).expect("diagnostic data is JSON");
+        format!("{} {json}", diagnostic.identifier())
     }
 
     /// The Warning an image draws where its size is not known: no option
@@ -2628,24 +2726,24 @@ pub mod stdcore {
         reports(run).into_iter().filter(|(id, _)| id != UNKNOWN_SIZE).collect()
     }
 
-    /// The path of the golden `tests/goldens/stdcore/<name>`.
+    /// The path of the golden `tests/goldens/stdlib/<name>`.
     pub fn golden_path(name: &str) -> PathBuf {
         let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         p.push("tests");
         p.push("goldens");
-        p.push("stdcore");
+        p.push("stdlib");
         p.push(name);
         p
     }
 }
 
 // ============================================================================
-// end stdcore
+// end stdlib
 // ============================================================================
 
 // ============================================================================
-// lists: the document `tests/stdcore_lists_html.rs` and
-// `tests/stdcore_lists_latex.rs` share
+// lists: the document `tests/stdlib_lists_html.rs` and
+// `tests/stdlib_lists_latex.rs` share
 // ============================================================================
 
 /// What the two suites of the `lists` feature on the HTML backend and in the
@@ -2681,9 +2779,9 @@ pub mod lists {
 
 /// Helpers for the whole-pipeline tests: the two reference documents whose
 /// text output at width 80 and 40 is pinned by goldens (one exercising every
-/// standard feature, one written in the vocabulary `stdcore::package()`
-/// offers), the user definitions they use, registries built from the package
-/// alone (plus a test-only feature where a test needs one), renders of the
+/// standard feature, one written in the vocabulary the standard features
+/// offer), the user definitions they use, registries built from the standard
+/// features alone (plus a test-only feature where a test needs one), renders of the
 /// `text` workflow at a width, table projections by name, a whole-run
 /// snapshot for
 /// the determinism tests, and a golden path under `tests/goldens/spine/`.
@@ -2694,7 +2792,7 @@ pub mod spine {
     use flm_core::model::options::OptionValues;
     use flm_core::core::plan::{Overrides, Plan};
     use flm_core::core::registry::{
-        FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs,
+        FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs,
     };
     use flm_core::core::run::{Externals, Run, RunOptions};
     use flm_core::core::data::table::Table;
@@ -2702,10 +2800,10 @@ pub mod spine {
     use flm_core::dump::to_json_pretty;
     use flm_core::lang::mint::ArgDef;
     use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy};
-    use flm_core::stdcore::backends::text::{self, TextRenderOptions};
-    use flm_core::stdcore::features::refs::{RefsRenderOptions, UnresolvedRefs};
-    use flm_core::stdcore::features::userdefs::UserdefsConfig;
-    use flm_core::stdcore::{StdcoreConfig, package};
+    use flm_core::stdlib::backends::text::{self, TextRenderOptions};
+    use flm_core::stdlib::features::refs::{RefsRenderOptions, UnresolvedRefs};
+    use flm_core::stdlib::features::userdefs::UserdefsConfig;
+    use flm_core::stdlib::{StdlibConfig, add_features};
     use techy::serialize::SerialValue;
 
     use super::pipeline;
@@ -2808,13 +2906,13 @@ enough to wrap somewhere. \u{25a1}
 
     /// The package configuration of the spine: the default text options and
     /// [`definitions`].
-    pub fn config() -> StdcoreConfig {
-        StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions()))
+    pub fn config() -> StdlibConfig {
+        StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions()))
     }
 
     // --- registries ----------------------------------------------------------------------
 
-    /// The registry every spine test starts from: `stdcore::package()` under
+    /// The registry every spine test starts from: the standard features under
     /// [`config`], nothing else.
     pub fn registry() -> Arc<FlmRegistry> {
         registry_with(Vec::new())
@@ -2824,7 +2922,7 @@ enough to wrap somewhere. \u{25a1}
     /// (the deliberately unknown element, the rule-reachability fixture).
     pub fn registry_with(features: Vec<Arc<dyn FlmFeature>>) -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(config()));
+        builder.use_package(add_features(PackageEntry::new("std"), config()));
         builder.use_package(flm_core::math_passthrough::package());
         for feature in features {
             builder.feature(feature);
@@ -2955,7 +3053,7 @@ pub mod latex {
     use flm_core::core::artifact::ArtifactSet;
     use flm_core::core::run::Run;
     use flm_core::dump::golden::assert_text_golden;
-    use flm_core::stdcore::backends::latex_recomposed::{DOCUMENT, style_artifact};
+    use flm_core::stdlib::backends::latex_recomposed::{DOCUMENT, style_artifact};
 
     /// The path of the golden `tests/goldens/latex/<name>`.
     pub fn golden_path(name: &str) -> PathBuf {
@@ -3128,9 +3226,9 @@ pub mod html {
     use flm_core::model::doc::FragmentLayout;
     use flm_core::dump::golden::assert_text_golden;
     use flm_core::lang::Flm;
-    use flm_core::stdcore::backends::html::{
-        DOCUMENT, EmittedTree, HtmlFragments, HtmlRenderOptions, OUTPUT_TABLE, WORKFLOW,
-        emit_tree,
+    use flm_core::stdlib::backends::html::{
+        DOCUMENT, EmittedTree, HtmlAllowedUrlSchemes, HtmlFragments, HtmlRenderOptions,
+        OUTPUT_TABLE, WORKFLOW, emit_tree,
     };
     use techy::core::node::NodeTree;
 
@@ -3152,16 +3250,17 @@ pub mod html {
         emit_with(tree, &HtmlRenderOptions::default())
     }
 
-    /// The emitter over one hand-built presentation tree, under `options`.
+    /// The emitter over one hand-built presentation tree, under `options` and
+    /// the default URL schemes.
     pub fn emit_with(tree: Arc<NodeTree<Flm>>, options: &HtmlRenderOptions) -> EmittedTree {
-        emit_tree(&tree, options)
+        emit_tree(&tree, options, &HtmlAllowedUrlSchemes::default())
     }
 
     /// The HTML of an emitted tree: the bytes of its segments, run together.
     /// A tree the emission placed contributes nothing here, since only the
     /// page assembly can write one.
     pub fn html(emitted: &EmittedTree) -> String {
-        use flm_core::stdcore::backends::html::HtmlSegment;
+        use flm_core::stdlib::backends::html::HtmlSegment;
         let mut out = String::new();
         for segment in &emitted.segments {
             if let HtmlSegment::Html(text) = segment {
@@ -3179,7 +3278,7 @@ pub mod html {
     /// paragraph break or a block element appears — is declared when the
     /// fragment is parsed, and it is what decides whether a paragraph element
     /// is written. A test about the layout therefore builds its document
-    /// here, rather than through `common::stdcore::run_workflow`, which parses
+    /// here, rather than through `common::stdlib::run_workflow`, which parses
     /// every text under the default layout. The document itself is built by
     /// `common::wiring::doc`, the one helper that parses under a chosen
     /// layout.
@@ -3192,7 +3291,7 @@ pub mod html {
         text: &str,
     ) -> Run {
         let doc = super::wiring::doc(registry, layout, &[text]);
-        let plan = super::stdcore::plan(registry, WORKFLOW, &Overrides::none());
+        let plan = super::stdlib::plan(registry, WORKFLOW, &Overrides::none());
         super::pipeline::run(&doc, &plan, &RunOptions::sequential())
     }
 
@@ -3263,7 +3362,7 @@ pub mod html {
 // ============================================================================
 
 // ============================================================================
-// pieces: the test feature of `tests/stdcore_pieces.rs` and
+// pieces: the test feature of `tests/stdlib_pieces.rs` and
 // `tests/html_pieces.rs`
 // ============================================================================
 
@@ -3284,8 +3383,8 @@ pub mod pieces {
     use flm_core::core::piece::{Piece, PieceDecl, PiecePlace};
     use flm_core::core::plan::PlanCx;
     use flm_core::core::registry::{
-        BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, RegistryBuilder,
-        RegistryInputs,
+        BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, PackageEntry,
+        RegistryBuilder, RegistryInputs,
     };
     use flm_core::core::run::StageCx;
     use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
@@ -3294,9 +3393,9 @@ pub mod pieces {
     use flm_core::model::addr::TreeId;
     use flm_core::model::doc::FragmentLayout;
     use flm_core::model::names::ElementName;
-    use flm_core::stdcore::backends::pieces::SLOT;
-    use flm_core::stdcore::backends::pres::{self, SubtreePayload};
-    use flm_core::stdcore::{StdcoreConfig, package};
+    use flm_core::stdlib::backends::pieces::SLOT;
+    use flm_core::stdlib::backends::pres::{self, SubtreePayload};
+    use flm_core::stdlib::{StdlibConfig, add_features};
 
     use super::lowering::{produces, rule};
 
@@ -3437,10 +3536,10 @@ pub mod pieces {
         }
     }
 
-    /// The `stdcore` package plus the test feature offering `pieces`.
+    /// The standard features plus the test feature offering `pieces`.
     pub fn registry(pieces: Vec<TestPiece>) -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(StdcoreConfig::new()));
+        builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
         builder.use_package(flm_core::math_passthrough::package());
         builder.feature(Arc::new(TestFeature { pieces }));
         builder.build(&RegistryInputs::new()).unwrap_or_else(|error| {
@@ -3473,8 +3572,8 @@ pub mod xnotes {
         NodeRegion,
     };
     use flm_core::core::registry::{
-        BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, RegistryBuilder,
-        RegistryInputs,
+        BuildError, FeatureBuilder, FeatureInfo, FlmFeature, FlmRegistry, PackageEntry,
+        RegistryBuilder, RegistryInputs,
     };
     use flm_core::lang::Flm;
     use flm_core::lang::copy::ValueContent;
@@ -3485,16 +3584,16 @@ pub mod xnotes {
     };
     use flm_core::model::element::ElementSpec;
     use flm_core::model::names::Name;
-    use flm_core::stdcore::backends::latex::construct::{MACRO, RAW};
-    use flm_core::stdcore::backends::latex_recomposed::{self, LatexRecomposedRenderOptions};
-    use flm_core::stdcore::backends::{html, pres};
-    use flm_core::stdcore::features::numbering::{COUNTERS, PrefixWords};
-    use flm_core::stdcore::features::refs::{ANCHORS, SAFE_LABELS};
-    use flm_core::stdcore::features::xnotes::{
+    use flm_core::stdlib::backends::latex::construct::{MACRO, RAW};
+    use flm_core::stdlib::backends::latex_recomposed::{self, LatexRecomposedRenderOptions};
+    use flm_core::stdlib::backends::{html, pres};
+    use flm_core::stdlib::features::numbering::{COUNTERS, PrefixWords};
+    use flm_core::stdlib::features::refs::{ANCHORS, SAFE_LABELS};
+    use flm_core::stdlib::features::xnotes::{
         self, XNOTES, XnoteKind, XnoteOf, XnotePlacement, XnoteSource, XnotesConfig, contribute_kind,
         ref_points,
     };
-    use flm_core::stdcore::{StdcoreConfig, package};
+    use flm_core::stdlib::{StdlibConfig, add_features};
     use techy::core::node::NodeRef;
 
     /// The test feature's name.
@@ -3593,7 +3692,7 @@ pub mod xnotes {
     /// configuration, the kind `footnote` — and the test feature beside it.
     pub fn registry() -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(StdcoreConfig::new()));
+        builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new()));
         builder.use_package(flm_core::math_passthrough::package());
         builder.feature(Arc::new(Addenda));
         builder.build(&RegistryInputs::new()).unwrap_or_else(|error| {
@@ -3789,7 +3888,7 @@ pub mod xnotes {
     pub fn two_notes_registry(config: XnotesConfig, kind: &str) -> Arc<FlmRegistry> {
         let of_kind = config.kinds.iter().find(|k| k.name.as_str() == kind).expect("a configured kind").clone();
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(StdcoreConfig::new().xnotes(config)));
+        builder.use_package(add_features(PackageEntry::new("std"), StdlibConfig::new().xnotes(config)));
         builder.use_package(flm_core::math_passthrough::package());
         builder.feature(Arc::new(TwoNotes::new(of_kind)));
         builder.build(&RegistryInputs::new()).unwrap_or_else(|error| {
@@ -3814,15 +3913,15 @@ pub mod citations {
     use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
 
-    use flm_core::core::registry::{FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs};
+    use flm_core::core::registry::{FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs};
     use flm_core::lang::copy::{copy_pieces_into_value, ValueContent, ValuePiece};
     use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
     use flm_core::model::doc::FragmentLayout;
-    use flm_core::stdcore::features::citations::{
+    use flm_core::stdlib::features::citations::{
         CitationAnswer, CitationEntry, CitationProvider, CitationProviderError, CitationRequest,
         CitationResult, ProviderCx, PROVIDERS_SLOT,
     };
-    use flm_core::stdcore::{package, StdcoreConfig};
+    use flm_core::stdlib::{add_features, StdlibConfig};
 
     /// Answers every key with an entry holding the key itself as plain text:
     /// the entry of `knuth84` reads `knuth84`.
@@ -3927,9 +4026,9 @@ pub mod citations {
 
     /// The standard package under `config` with `providers` contributed, in
     /// order.
-    pub fn registry_with(config: StdcoreConfig, providers: Vec<Arc<dyn CitationProvider>>) -> Arc<FlmRegistry> {
+    pub fn registry_with(config: StdlibConfig, providers: Vec<Arc<dyn CitationProvider>>) -> Arc<FlmRegistry> {
         let mut builder = RegistryBuilder::new();
-        builder.use_package(package(config));
+        builder.use_package(add_features(PackageEntry::new("std"), config));
         builder.use_package(flm_core::math_passthrough::package());
         for provider in providers {
             builder.contribute_to(PROVIDERS_SLOT, provider);
@@ -3941,7 +4040,7 @@ pub mod citations {
 
     /// The standard package under `config`, every key answered by
     /// [`EveryKey`].
-    pub fn registry(config: StdcoreConfig) -> Arc<FlmRegistry> {
+    pub fn registry(config: StdlibConfig) -> Arc<FlmRegistry> {
         registry_with(config, vec![Arc::new(EveryKey)])
     }
 
@@ -4010,17 +4109,19 @@ pub mod latex_rendered {
     use flm_core::core::registry::FlmRegistry;
     use flm_core::core::run::Run;
     use flm_core::dump::golden::assert_text_golden;
-    use flm_core::stdcore::backends::latex_rendered::{DOCUMENT, WORKFLOW, style_artifact};
+    use flm_core::stdlib::backends::latex_rendered::{DOCUMENT, WORKFLOW, style_artifact};
 
     /// The run of the `latex-rendered` workflow over `texts` under
-    /// `overrides`; any diagnostic but the Warning of an image whose size is
-    /// not known ([`UNKNOWN_SIZE`](super::stdcore::UNKNOWN_SIZE)) is a test
+    /// `overrides`; it must report the Warning of the unchecked formulas of
+    /// `math-passthrough` ([`UNCHECKED_OUTPUT`](super::stdlib::UNCHECKED_OUTPUT)),
+    /// and any other diagnostic but the Warning of an image whose size is not
+    /// known ([`UNKNOWN_SIZE`](super::stdlib::UNKNOWN_SIZE)) is a test
     /// failure.
     pub fn render(registry: &Arc<FlmRegistry>, texts: &[&str], overrides: &Overrides) -> Run {
-        let run = super::stdcore::run_workflow(registry, WORKFLOW, texts, overrides);
+        let run = super::stdlib::run_workflow(registry, WORKFLOW, texts, overrides);
         assert_eq!(
-            super::stdcore::identifiers_but_unknown_size(&run),
-            Vec::<String>::new(),
+            super::stdlib::identifiers_but_unknown_size(&run),
+            [super::stdlib::UNCHECKED_OUTPUT],
             "{}",
             run.diagnostics().render_all()
         );

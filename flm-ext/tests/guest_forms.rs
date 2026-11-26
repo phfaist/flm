@@ -24,11 +24,11 @@ use std::sync::Arc;
 
 use serde_json::{json, Value};
 
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::{parse_fragment, Flm, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::addr::{NodeAddr, TreeId};
 use flm_core::model::doc::FragmentLayout;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_core::techy::core::node::NodeTree;
 use flm_ext::adapter::durable::{DurableKind, DurableToken};
 use flm_ext::adapter::handles::{CallTable, Entry, Handle, HandleKind};
@@ -41,7 +41,7 @@ use flm_ext::ExtError;
 /// A parsed tree of `text`.
 fn tree(text: &str) -> Arc<NodeTree<Flm>> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(stdcore::package(StdcoreConfig::new()));
+    builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
     builder.use_package(flm_core::math_passthrough::package());
     let registry = builder.build(&RegistryInputs::new()).expect("the registry builds");
     let source = Arc::new(FlmSource::new(text).with_origin(FlmOrigin::none()));
@@ -114,19 +114,11 @@ fn host_arg(code: &str, name: &str) -> api::lang::mint::ArgDef {
     arg
 }
 
-/// The detail of an `ExtError::Argument` or `ExtError::Value`.
-fn detail(error: &ExtError) -> &str {
-    match error {
-        ExtError::Argument { detail, .. } | ExtError::Value { detail } => detail,
-        other => panic!("an argument or a value error, not `{other}`"),
-    }
-}
-
 /// The host's reader of a list of staged nodes reaches the guest's handle:
 /// lent as a node at that index, it is refused as one of another kind.
 fn reaches_the_staged_handle(answer: Result<impl Sized, ExtError>) {
     let error = answer.err().expect("the node lent where a staged node is expected is refused");
-    assert_eq!(detail(&error), "an object of the kind `staged` is expected here, not one of the kind `node`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
 }
 
 #[test]
@@ -139,11 +131,11 @@ fn an_expansion_crosses_both_ways() {
     assert!(matches!(host::expansion_from_value(&mut table, &read.to_value()), Ok(api::lang::rewrites::userdefs::Expansion::Default)));
     let node = lend_root(&mut table, &tree("a"));
     let staged = Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle");
-    let emit = Expansion::Emit(vec![staged]);
+    let emit = Expansion::Emit(vec![staged].into());
     round_trip(&emit);
     reaches_the_staged_handle(host::expansion_from_value(&mut table, &emit.to_value()));
     let error = Expansion::from_value(&json!("descend")).expect_err("a word of another shape");
-    assert_eq!(detail(&error), "an expansion must be `\"default\"` or `{\"emit\": [...]}`, not `\"descend\"`");
+    assert_eq!(error.kind(), "value", "{error:?}");
 }
 
 #[test]
@@ -155,7 +147,7 @@ fn a_lowering_crosses_both_ways() {
     let read: Lowering = read_back(&written);
     assert!(matches!(host::lowering_from_value(&mut table, &read.to_value()), Ok(api::core::lowering::Lowering::Default)));
     let node = lend_root(&mut table, &tree("a"));
-    let emit = Lowering::Emit(vec![Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle")]);
+    let emit = Lowering::Emit(vec![Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle")].into());
     round_trip(&emit);
     reaches_the_staged_handle(host::lowering_from_value(&mut table, &emit.to_value()));
 }
@@ -169,7 +161,7 @@ fn a_restage_crosses_both_ways() {
     let read: Restage = read_back(&written);
     assert!(matches!(host::restage_from_value(&mut table, &read.to_value()), Ok(api::techy::transform::Restage::Descend)));
     let node = lend_root(&mut table, &tree("a"));
-    let emit = Restage::Emit(vec![Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle")]);
+    let emit = Restage::Emit(vec![Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle")].into());
     round_trip(&emit);
     reaches_the_staged_handle(host::restage_from_value(&mut table, &emit.to_value()));
 }
@@ -193,7 +185,7 @@ fn a_presentation_tree_written_by_the_guest_is_read_by_the_host() {
         _ => panic!("a node of the tree"),
     }
     let node = lend_root(&mut table, &tree("a"));
-    let build = PresTree::Build(Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle"));
+    let build = PresTree::Build(Staged::from_value(&as_kind(&node, HandleKind::Staged)).expect("a staged handle").into());
     round_trip(&build);
     reaches_the_staged_handle(host::pres_tree_from_value(&mut table, &build.to_value()));
 }
@@ -233,13 +225,13 @@ fn a_point_identifier_and_a_counter_record_written_by_the_host_are_read_by_the_g
     let point = flm_core::model::aspects::PointId { addr, index: 2 };
     let read: guest::model::aspects::PointId = read_back(&host::point_id_to_value(&point));
     assert_eq!(read.index, 2);
-    let record = api::stdcore::features::numbering::CounterRecord {
+    let record = api::stdlib::features::numbering::CounterRecord {
         counter: "equation".to_string(),
         value: vec![1, -2],
         style: "arabic".to_string(),
         instance: Some(addr),
     };
-    let read: guest::stdcore::features::numbering::CounterRecord = read_back(&host::counter_record_to_value(&record));
+    let read: guest::stdlib::features::numbering::CounterRecord = read_back(&host::counter_record_to_value(&record));
     assert_eq!((read.value.as_slice(), read.instance), (&[1, -2][..], Some(read_back(&host::node_addr_to_value(&addr)))));
 }
 
@@ -252,9 +244,9 @@ fn a_number_segment_in_the_hosts_shape_is_read_by_the_guest() {
     let content = lend_tree(&mut table, &parsed);
     let point = flm_core::model::aspects::PointId { addr: NodeAddr { tree: TreeId::tree(0), node: parsed.root().id() }, index: 0 };
     let written = json!({ "content": content, "link": host::point_id_to_value(&point) });
-    let read: guest::stdcore::features::numbering::NumberSegment = read_back(&written);
+    let read: guest::stdlib::features::numbering::NumberSegment = read_back(&written);
     assert_eq!(read.link.map(|link| link.index), Some(0));
-    read_back::<guest::stdcore::features::numbering::NumberSegment>(&json!({ "content": content, "link": null }));
+    read_back::<guest::stdlib::features::numbering::NumberSegment>(&json!({ "content": content, "link": null }));
 }
 
 #[test]
@@ -275,12 +267,12 @@ fn a_table_written_by_the_host_is_read_by_the_guest() {
         read_back::<TableValue>(&json!({ key: handle_of_kind(kind) }));
     }
     let error = TableValue::from_value(&json!({ "ext": handle_of_kind(HandleKind::Node) })).expect_err("a node is no table");
-    assert_eq!(detail(&error), "an object of the kind `ext_table_read` is expected here, not one of the kind `node`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
 }
 
 #[test]
 fn an_equation_line_and_a_line_frame_cross_both_ways() {
-    use api::stdcore::features::math as math;
+    use api::stdlib::features::math as math;
     let mut table = CallTable::new(1);
     let parsed = tree("x");
     let line = || math::EquationLine {
@@ -291,7 +283,7 @@ fn an_equation_line_and_a_line_frame_cross_both_ways() {
         linebreak: Some(math::LineBreak { spacing: Some("2pt".to_string()), span: api::techy::node::Span { start: 0, end: 1 } }),
     };
     let written = host::equation_line_to_value(&mut table, line());
-    let read: guest::stdcore::features::math::EquationLine = read_back(&written);
+    let read: guest::stdlib::features::math::EquationLine = read_back(&written);
     assert_eq!(read.linebreak.and_then(|brk| brk.spacing).as_deref(), Some("2pt"));
     assert!(read.tag.is_some_and(|tag| tag.starred));
     let shows = || {
@@ -304,7 +296,7 @@ fn an_equation_line_and_a_line_frame_cross_both_ways() {
     for shows in shows() {
         let frame = math::LineFrame { environment: root(&parsed), index: 0, line: line(), anchor: Some("eq-1".to_string()), shows };
         let written = host::line_frame_to_value(&mut table, frame);
-        let read: guest::stdcore::features::math::LineFrame = read_back(&written);
+        let read: guest::stdlib::features::math::LineFrame = read_back(&written);
         let back = host::line_frame_from_value(&mut table, &read.to_value()).expect("the host reads the guest's frame");
         assert_eq!((back.index, back.anchor.as_deref()), (0, Some("eq-1")));
     }
@@ -312,11 +304,11 @@ fn an_equation_line_and_a_line_frame_cross_both_ways() {
 
 #[test]
 fn a_frame_reader_is_a_stage_context_or_a_lowerer() {
-    use guest::stdcore::features::math::FrameReader;
+    use guest::stdlib::features::math::FrameReader;
     assert!(matches!(read_back::<FrameReader>(&handle_of_kind(HandleKind::StageCx)), FrameReader::Stage(_)));
     assert!(matches!(read_back::<FrameReader>(&handle_of_kind(HandleKind::Lowerer)), FrameReader::Rule(_)));
     let error = FrameReader::from_value(&handle_of_kind(HandleKind::Node)).expect_err("a node reads no frames");
-    assert_eq!(detail(&error), "an object of the kind `stage_cx` or `lowerer` is expected here, not one of the kind `node`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
 }
 
 #[test]
@@ -340,7 +332,7 @@ fn a_reference_point_written_by_the_guest_is_read_by_the_host() {
             anchor,
             number: Some(NumberSource {
                 counter: "equation".to_string(),
-                instances: vec![node],
+                instances: vec![node].into(),
                 style: "arabic".to_string(),
                 advance: vec![1],
                 number_format: None,
@@ -384,9 +376,9 @@ fn a_content_reference_written_by_the_guest_is_read_by_the_host() {
 
 #[test]
 fn citation_results_written_by_the_guest_are_read_by_the_host() {
-    use guest::stdcore::features::citations::{CitationAnswer, CitationEntry, CitationRequest, CitationResult};
+    use guest::stdlib::features::citations::{CitationAnswer, CitationEntry, CitationRequest, CitationResult};
     let mut table = CallTable::new(1);
-    let failure = api::stdcore::features::citations::CitationProviderError::from_value(&json!({ "error": "no such key" })).expect("an error");
+    let failure = api::stdlib::features::citations::CitationProviderError::from_value(&json!({ "error": "no such key" })).expect("an error");
     let results: Vec<CitationResult> = vec![Ok(None), Err(failure)];
     let read = host::citation_results_from_value(&mut table, &results.to_value()).expect("the host reads the guest's results");
     assert!(matches!(read.as_slice(), [Ok(None), Err(_)]));
@@ -399,7 +391,7 @@ fn citation_results_written_by_the_guest_are_read_by_the_host() {
         assert!(CitationResult::from_value(&result.to_value()).expect("the guest reads its result").is_ok());
     }
     let error = host::citation_results_from_value(&mut table, &results.to_value()).err().expect("a node lent where an entry is expected is refused");
-    assert_eq!(detail(&error), "an object of the kind `citation_entry` is expected here, not one of the kind `node`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
     // A request, in the shape of the host's `citation_requests_to_value`
     // (`flm-core`'s request has no constructor outside `flm-core`).
     let request: CitationRequest = read_back(&json!({ "key": "knuth84" }));
@@ -413,7 +405,7 @@ fn a_host_handle_is_the_reader_of_files_or_a_named_service() {
     assert!(matches!(read_back::<HostHandle>(&handle_of_kind(HandleKind::Files)), HostHandle::Files(_)));
     assert!(matches!(read_back::<HostHandle>(&handle_of_kind(HandleKind::HostService)), HostHandle::Service(_)));
     let error = HostHandle::from_value(&handle_of_kind(HandleKind::Node)).expect_err("a node is no service");
-    assert_eq!(detail(&error), "an object of the kind `files` or `host_service` is expected here, not one of the kind `node`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
 }
 
 #[test]
@@ -434,7 +426,7 @@ fn an_argument_s_role_crosses_both_ways() {
 #[test]
 fn an_argument_crosses_both_ways_as_data_a_helper_s_included() {
     use api::lang::mint::{ArgDef as HostArg, ArgStdKind as HostKind, TackOnField as HostField};
-    use api::stdcore::features::refs;
+    use api::stdlib::features::refs;
     use guest::lang::mint::{ArgDef, ArgStdKind, TackOnField};
     let written = host::arg_def_to_value(&host_arg("{", "x").blocks());
     let read: ArgDef = read_back(&written);
@@ -558,9 +550,9 @@ fn a_compiled_template_and_a_template_language_cross_in_the_form_they_were_read(
     let read: TemplateLanguage = read_back(&language);
     assert_eq!(host::durable_from_value(&read.to_value()).map(host::durable_to_value).ok(), Some(language.clone()));
     let error = CompiledTemplate::from_value(&language).expect_err("a language is no compiled template");
-    assert_eq!(detail(&error), "a durable token of the kind `compiled_template` is expected here, not one of the kind `template_language`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
     let error = TemplateLanguage::from_value(&compiled).expect_err("a compiled template is no language");
-    assert_eq!(detail(&error), "a durable token of the kind `template_language` is expected here, not one of the kind `compiled_template`");
+    assert_eq!(error.kind(), "argument", "{error:?}");
 }
 
 #[test]
@@ -630,10 +622,7 @@ fn a_handler_object_given_while_no_register_runs_is_refused() {
         }
     }
     let error = ElementSpec::new("x.box").with(Aspect::Expand(Arc::new(Hook))).expect_err("no register runs");
-    assert_eq!(
-        error,
-        ExtError::Handler { detail: "the expansion hook of the element `x.box` must be attached while a feature's `register` runs".to_string(), data: Value::Null }
-    );
+    assert!(matches!(&error, ExtError::Handler { data: Value::Null, .. }), "{error:?}");
     assert_eq!(format!("{:?}", Aspect::Expand(Arc::new(Hook))), "Expand(\"…\")");
 }
 

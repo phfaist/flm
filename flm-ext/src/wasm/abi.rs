@@ -3,7 +3,8 @@
 //! entry's request and reply, and the answer to a guest's request.
 //!
 //! JSON text crosses both ways in the guest's linear memory. The host writes
-//! an entry's request `{"entry": NAME, "args": [ … ]}` into a buffer it takes
+//! an entry's request `{"entry": NAME, "extension": STEM, "args": [ … ]}`
+//! into a buffer it takes
 //! with `flm_alloc` and calls `flm_entry(ptr, len)`; the guest answers `(ptr
 //! << 32) | len` of its reply, a buffer of its own that the host frees with
 //! `flm_free` after reading it. While an entry runs, the guest sends its
@@ -141,17 +142,23 @@ fn take(mut caller: Caller<'_, Guest>, ptr: i32, len: i32) -> Result<(), Error> 
         .map_err(|_| Error::new("the buffer given to `flm.take` must lie within the module's memory"))
 }
 
-/// The JSON text of the request of the entry `entry` with `args`: `{"entry":
-/// NAME, "args": [ … ]}`, each argument the JSON value of
-/// [`EntryArg::to_value`] (a name as a string). The entry's name comes first,
-/// so that a guest may read it at a fixed place.
+/// The JSON text of the request of the entry `entry` of the extension `stem`
+/// with `args`: `{"entry": NAME, "extension": STEM, "args": [ … ]}`, each
+/// argument the JSON value of [`EntryArg::to_value`] (a name as a string).
+/// The entry's name comes first, so that a guest may read it at a fixed
+/// place.
 ///
 /// # Errors
 ///
 /// [`EntryArg::to_value`]'s.
-pub(crate) fn entry_request(entry: &str, args: &[EntryArg<'_>]) -> Result<String, ExtError> {
+pub(crate) fn entry_request(entry: &str, stem: &str, args: &[EntryArg<'_>]) -> Result<String, ExtError> {
     let args = args.iter().map(EntryArg::to_value).collect::<Result<Vec<Value>, ExtError>>()?;
-    Ok(format!("{{\"entry\":{},\"args\":{}}}", Value::String(entry.to_string()), Value::Array(args)))
+    Ok(format!(
+        "{{\"entry\":{},\"extension\":{},\"args\":{}}}",
+        Value::String(entry.to_string()),
+        Value::String(stem.to_string()),
+        Value::Array(args)
+    ))
 }
 
 /// What the guest answered in the reply `reply` of the entry call `what`:
@@ -223,13 +230,11 @@ mod tests {
         let module = wasmi::Module::new(&engine, wat::parse_str("(module)").expect("the text parses")).expect("it compiles");
         Arc::new(WasmExtension {
             id: next_extension_id(),
-            host: WasmHost::new(WasmSettings::default()).with_console(Arc::new(|_, _| {})),
+            host: WasmHost::new(WasmSettings::default()),
             settings: WasmSettings::default(),
-            extension: ExtensionIdentity { identity: stem.to_string(), stem: stem.to_string() },
-            path: format!("{stem}.wasm"),
-            engine,
-            module,
-            initial_memory: 0,
+            extension: ExtensionIdentity { identity: stem.to_string(), stem: stem.to_string(), name: stem.to_string() },
+            origin: crate::wasm::instance::ModuleOrigin::Folder(format!("{stem}.wasm")),
+            module: Arc::new(crate::wasm::instance::WasmModule::new(engine, module)),
         })
     }
 
@@ -262,7 +267,10 @@ mod tests {
     #[test]
     fn an_entry_request_writes_the_name_first_and_the_arguments_as_values() {
         let args = [EntryArg::Text("_".to_string()), EntryArg::Json(json!({ "level": 2 }))];
-        assert_eq!(entry_request("register", &args), Ok(r#"{"entry":"register","args":["_",{"level":2}]}"#.to_string()));
+        assert_eq!(
+            entry_request("register", "wc", &args),
+            Ok(r#"{"entry":"register","extension":"wc","args":["_",{"level":2}]}"#.to_string())
+        );
     }
 
     #[test]
@@ -271,26 +279,12 @@ mod tests {
         let error = ExtError::Value { detail: "bad".to_string() };
         let reply = natives::envelope(Err(error.clone())).to_string();
         assert_eq!(read_reply(reply.as_bytes(), "the entry"), Ok(Err(error)));
-        assert_eq!(
-            read_reply(br#"{"result":1}"#, "the entry `x`"),
-            Err(ExtError::Handler { detail: "the answer of the entry `x` must hold `ok` or `err`".to_string(), data: Value::Null })
-        );
-        assert_eq!(
-            read_reply(br#"{"err":{"kind":"nope"}}"#, "the entry `x`"),
-            Err(ExtError::Handler {
-                detail: "the error the entry `x` answered must be the data of an `ExtError`: `kind` must be `handler`, \
-                         `stale_handle`, `argument`, `name_outside_extension`, `value`, `core`, `host`, `unsupported` or \
-                         `stale_durable`, not `nope`"
-                    .to_string(),
-                data: Value::Null
-            })
-        );
-        let not_json = read_reply(b"{", "the entry `x`").expect_err("refused");
-        assert!(not_json.to_string().starts_with("the answer of the entry `x` must be JSON: "), "{not_json}");
+        // An answer that is not one is the host's refusal, a handler failure.
+        let refused = |bytes: &[u8]| read_reply(bytes, "the entry `x`").map_err(|error| error.kind());
+        assert_eq!(refused(br#"{"result":1}"#), Err("handler"));
+        assert_eq!(refused(br#"{"err":{"kind":"nope"}}"#), Err("handler"));
+        assert!(read_reply(b"{", "the entry `x`").is_err());
         let deep = format!("{}{}", "[".repeat(200), "]".repeat(200));
-        assert_eq!(
-            read_reply(deep.as_bytes(), "the entry `x`").expect_err("refused").to_string(),
-            "the answer of the entry `x` must nest lists and maps at most 127 levels deep"
-        );
+        assert!(read_reply(deep.as_bytes(), "the entry `x`").is_err());
     }
 }

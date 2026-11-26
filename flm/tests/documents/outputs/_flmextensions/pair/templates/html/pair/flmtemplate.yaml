@@ -1,0 +1,7 @@
+name: pair
+output: html
+engine: minijinja
+main: pair.html
+accepts: all
+artifacts:
+  shared: {file: ../../../shared.css}

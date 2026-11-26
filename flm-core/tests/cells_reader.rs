@@ -1,4 +1,4 @@
-//! The reader of a table of cells (`flm_core::stdcore::features::cells::read_grid`):
+//! The reader of a table of cells (`flm_core::stdlib::features::cells::read_grid`):
 //! the Python implementation's tests and their expected grids (test 3), the
 //! index, range, placement and mapping forms and the names (test 3), the style
 //! tokens (test 4), a span to the end of the table as finally built (test 5),
@@ -16,17 +16,17 @@ use flm_core::core::run::Run;
 use flm_core::lang::Flm;
 use flm_core::model::addr::TreeId;
 use flm_core::model::element::element_of;
-use flm_core::stdcore::backends::pres::{CellsPayload, GridPosition};
-use flm_core::stdcore::features::cells::{
+use flm_core::stdlib::backends::pres::{CellsPayload, GridPosition};
+use flm_core::stdlib::features::cells::{
     self, CellContent, CellStyle, CellsConfig, Grid, Styles, read_grid, shipped,
 };
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::StdlibConfig;
 use techy::core::node::NodeRef;
 
-use common::stdcore::run_workflow;
+use common::stdlib::run_workflow;
 
 fn registry() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new().cells(CellsConfig::new().global(true)))
+    common::stdlib::registry(StdlibConfig::new().cells(CellsConfig::new().global(true)))
 }
 
 /// The shipped styles, and three custom styles of a host's.
@@ -130,7 +130,7 @@ fn text_of<'t>(nodes: impl Iterator<Item = NodeRef<'t, Flm>>) -> String {
 fn assert_grid(document: &str, rows: u32, cols: u32, expected: &[&str]) -> CellsPayload {
     let (run, summary) = read(document);
     assert!(summary.problems.is_empty(), "{document}: {:?}", summary.problems);
-    assert!(common::stdcore::identifiers(&run).is_empty(), "{document}: {}", run.diagnostics().render_all());
+    assert!(common::stdlib::identifiers(&run).is_empty(), "{document}: {}", run.diagnostics().render_all());
     assert_eq!((summary.payload.rows, summary.payload.cols), (rows, cols), "{document}");
     assert_eq!(summary.cells, expected, "{document}");
     summary.payload

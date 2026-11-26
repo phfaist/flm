@@ -1,5 +1,5 @@
 //! User definitions through the whole pipeline to the text backend
-//! (`flm_core::stdcore::features::userdefs`): what each kind of definition
+//! (`flm_core::stdlib::features::userdefs`): what each kind of definition
 //! prints, the markup a template carries, and the blocks an expansion standing
 //! alone between two paragraphs leaves.
 
@@ -12,18 +12,18 @@ use flm_core::model::element::element_of;
 use flm_core::core::registry::FlmRegistry;
 use flm_core::lang::mint::ArgDef;
 use flm_core::lang::rewrites::userdefs::Definition;
-use flm_core::stdcore::backends::pres;
-use flm_core::stdcore::features::refs::UnresolvedRefs;
-use flm_core::stdcore::features::userdefs::UserdefsConfig;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::pres;
+use flm_core::stdlib::features::refs::UnresolvedRefs;
+use flm_core::stdlib::features::userdefs::UserdefsConfig;
+use flm_core::stdlib::StdlibConfig;
 
 use common::lowering::lowered;
 use common::spine::{overrides, render, text_at};
-use common::stdcore::registry;
+use common::stdlib::registry;
 
 /// The registry a host builds over the standard package with `definitions`.
 fn registry_over(definitions: Vec<Definition>) -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)))
+    registry(StdlibConfig::new().userdefs(UserdefsConfig::new().definitions(definitions)))
 }
 
 /// The text `document` prints as, never wrapped.

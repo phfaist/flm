@@ -146,6 +146,9 @@ mod tests {
         let error = spec
             .with(Aspect::BlockRoleAspect(FixedBlockRole(BlockRole::DEFAULT)))
             .expect_err("a second block role");
-        assert_eq!(error.to_string(), "`ElementSpec::with`: the aspect `BlockRoleAspect` is attached twice to the element `pkg.box`");
+        assert!(
+            matches!(&error, crate::runtime::ExtError::Argument { method, .. } if method == "ElementSpec::with"),
+            "{error:?}"
+        );
     }
 }

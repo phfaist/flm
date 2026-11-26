@@ -1,0 +1,6 @@
+# The backend's text: the pieces and the content laid out as one text.
+name: simple
+output: text
+engine: minijinja
+main: simple.txt
+accepts: all

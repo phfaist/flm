@@ -4,7 +4,9 @@
 // No `flm-core` counterpart: the host services a handler reaches, lent by `StageCx::host`,
 // `ProviderCx::host` and `TemplateCx::host` as a handle valid for the call — the `files` service
 // as `Files`, any other as a `HostService`.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+
+const MODULE = module("host");
 
 // No `flm-core` counterpart: a host service the package declared, as a handler calls it
 // (`crate::host::HostService` behind it).
@@ -17,14 +19,17 @@ export class HostService extends Handle {
 }
 register_class("host_service", HostService);
 
-// No `flm-core` counterpart: one of the two roots of the `files` service.
-export const FilesScope = Object.freeze({ Extension: "extension", Document: "document" });
-
 // No `flm-core` counterpart: the `files` host service, as a handler reads through it
 // (`crate::host::files` states the protocol).
 export class Files extends Handle {
-  // The text of the file at `path` in the root `scope`, or `None` (`null` to a script) when nothing
-  // is there.
-  read_text(scope, path) { return call(this, "read_text", [scope, path]); }
+  // The text of the file at `path`, or `None` (`null` to a script) when nothing is there.
+  read_text(path) { return call(this, "read_text", [path]); }
 }
 register_class("files", Files);
+
+// No `flm-core` counterpart: the qualified path of the file at `relative`
+// beside the module whose `import.meta` is `meta`, as Rust's `path` with
+// `meta.path` (the module's path inside the extension, which the engine sets):
+// `path(import.meta, "./style.css")` is `"self:templates/html/style.css"` in
+// the module `templates/html/letter.js`.
+export function path(meta, relative) { return call(MODULE, "path", [meta.path, relative]); }

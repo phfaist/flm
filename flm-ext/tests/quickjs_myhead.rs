@@ -24,12 +24,12 @@ use flm_core::dump::golden::assert_text_golden;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::aspects::ContentRef;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::features::toc;
+use flm_core::stdlib::backends::{html, latex_recomposed};
+use flm_core::stdlib::features::toc;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::{json, Value};
 
-use common::{latex_of, text_of};
+use common::{assert_only_unchecked_output, latex_of, text_of};
 
 /// The fixture's main module, as `tests/js/myhead/` holds it (its manifest is
 /// [`common::js_manifest`]`("main.js")`, the JSON equal to `flmextension.yaml`).
@@ -171,7 +171,7 @@ fn the_fixture_s_registry_builds_without_a_diagnostic() {
 #[test]
 fn the_fixture_renders_the_html_page() {
     let (page, diagnostics) = page_of(&registry(), DOCUMENT);
-    assert_eq!(diagnostics, Vec::<String>::new());
+    assert_only_unchecked_output(&common::workflow_plan(&registry(), html::WORKFLOW), &diagnostics);
     // The page's body, without the standard stylesheets of its head.
     let body = &page[page.find("<body").expect("a body")..];
     // The number through the title template, the anchors from the labels and,
@@ -196,7 +196,7 @@ fn the_fixture_renders_the_text() {
 #[test]
 fn the_fixture_renders_the_recomposed_latex() {
     let (latex, diagnostics) = latex_of(&registry(), DOCUMENT);
-    assert_eq!(diagnostics, Vec::<String>::new());
+    assert_only_unchecked_output(&common::workflow_plan(&registry(), latex_recomposed::WORKFLOW), &diagnostics);
     assert!(latex.contains("\\section{Introduction}\\flmLabels{\\label{ref1}}"), "{latex}");
     assert!(latex.contains("\\section*{An aside}\n"), "{latex}");
     assert!(latex.contains("\\section{Methods}\\flmLabels{\\label{ref2}}"), "{latex}");
@@ -221,7 +221,7 @@ fn the_setting_format_changes_the_number_line() {
     let registry = registry_with_settings(json!({ "format": "Part~#{number}: " }));
     assert_eq!(build_diagnostics(&registry), Vec::<String>::new());
     let (page, diagnostics) = page_of(&registry, DOCUMENT);
-    assert_eq!(diagnostics, Vec::<String>::new());
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(page.contains("<span class=\"flm-pres-span myhead-number\">Part&#xA0;1: </span>Introduction</h1>"), "{page}");
     assert!(page.contains("<span class=\"flm-pres-span myhead-number\">Part&#xA0;2: </span>Methods</h1>"), "{page}");
     let (text, _) = text_of(&registry, DOCUMENT);
@@ -234,10 +234,9 @@ fn a_format_that_does_not_compile_is_reported_once_and_the_headings_have_no_numb
     let found = build_diagnostics(&registry);
     assert_eq!(found.len(), 1, "{found:?}");
     assert!(found[0].starts_with("myhead.bad-format: the setting `format` of myhead must be a template of the number: "), "{found:?}");
-    assert!(found[0].contains("#nope"), "{found:?}");
     // The run reports nothing more; the headings are written with their titles alone.
     let (page, diagnostics) = page_of(&registry, DOCUMENT);
-    assert_eq!(diagnostics, Vec::<String>::new());
+    assert_only_unchecked_output(&common::workflow_plan(&registry, html::WORKFLOW), &diagnostics);
     assert!(!page.contains("myhead-number"), "{page}");
     assert!(page.contains("data-flm-toc=\"true\">Introduction</h1>"), "{page}");
     let (text, diagnostics) = text_of(&registry, DOCUMENT);

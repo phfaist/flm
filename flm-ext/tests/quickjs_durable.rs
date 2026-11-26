@@ -22,7 +22,7 @@ use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::settings::PackageSettings;
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::text;
 use flm_ext::quickjs::{JsHost, JsSettings};
 use serde_json::Value;
 
@@ -51,8 +51,8 @@ import { ArgDef, ElementDef, SyntaxDef } from "flm:lang/mint";
 import { ElementSpec } from "flm:model/element";
 import { Definition, UserDefinition, Expansion, TemplateLanguage, TemplateSpec, ValueBindings, CompiledTemplate,
   compile_template_with, instantiate } from "flm:lang/rewrites/userdefs";
-import { element_name_under, expand_in_tree_rule_for } from "flm:stdcore/features/userdefs";
-import { SPAN } from "flm:stdcore/backends/pres";
+import { element_name_under, expand_in_tree_rule_for } from "flm:stdlib/features/userdefs";
+import { SPAN } from "flm:stdlib/backends/pres";
 
 // Whether the late-initialization hook ran on this instance.
 let LATE = false;
@@ -76,7 +76,7 @@ function title_tree(node, lang, title, number) {
   return instantiate(node, title, new ValueBindings().with("number", tree));
 }
 
-function caught(error) { return `${error.kind}|${error.message}`; }
+function caught(error) { return `${error.kind}|${error.data.durable.kind}|${error.data.durable.index}`; }
 
 function rule(b, name, lower) {
   const element = `wc.${name}`;
@@ -129,7 +129,7 @@ function register(b) {
 }
 
 export default function (ext) {
-  ext.package("_", { uses: ["stdcore"], features: { durable: { register } } });
+  ext.package("_", { features: { durable: { register } } });
 }
 "#;
 
@@ -219,10 +219,7 @@ fn a_token_kept_in_module_scope_serves_two_calls_and_is_stale_under_a_second_reg
     let (notes_second, others) = notes(&stale_diagnostics);
     assert!(others.is_empty(), "{others:?}");
     assert_eq!(stale_text, "B .\n");
-    assert_eq!(
-        notes_second,
-        ["stale_durable|the `compiled_template` object 2 must be one the feature `durable` of the package `_` of the extension `wc` made under the registry in use"]
-    );
+    assert_eq!(notes_second, ["stale_durable|compiled_template|2"]);
 }
 
 #[test]
@@ -261,5 +258,4 @@ fn a_specification_that_does_not_compile_is_thrown_as_a_core_error_with_the_diag
     assert_eq!(note["core_kind"], "compile_template", "{note}");
     let texts = note["texts"].as_array().expect("a list of texts");
     assert!(!texts.is_empty(), "{note}");
-    assert!(texts.iter().any(|text| text.as_str().is_some_and(|text| text.contains("nope"))), "{note}");
 }

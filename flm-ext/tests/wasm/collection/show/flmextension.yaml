@@ -1,0 +1,5 @@
+extension:
+  description: Shows the value kept in the module's memory
+  engine: wasm
+  wasm:
+    module: ./collection.wasm

@@ -3,7 +3,7 @@
 //
 // Mirrors techy's node module, reached as `flm_core::techy::core::node`: the node reader, and the
 // trees `flm-core` shares.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // Mirrors `NodeRef` over the FLM language: a node of a tree, and its relatives.
 export class Node extends Handle {
@@ -77,6 +77,19 @@ export class Node extends Handle {
 }
 register_class("node", Node);
 
+// Mirrors techy's `Descendants`: an iterator over the descendants of a node, in document order, the
+// node itself excluded.
+export class Descendants extends Traversal {
+  // Mirrors `Iterator::filter` on techy's `Descendants`: the nodes not taken yet whose element has
+  // one of the names `names` (the name `Node::element_name` answers), in their order; the
+  // descendants of a node that does not match are still visited.
+  elements(names) { return call(this, "elements", [names, this._release()]); }
+  // Mirrors `Iterator::filter` on techy's `Descendants`: the nodes not taken yet whose kind
+  // (`Node::kind`) is one of `kinds`, in their order.
+  kinds(kinds) { return call(this, "kinds", [kinds, this._release()]); }
+}
+register_class("descendants", Descendants);
+
 // Mirrors `Arc<NodeTree<Flm>>`, techy's `NodeTree` over the FLM language shared through an `Arc`: a
 // whole tree, as `flm-core` answers one (a document's tree, a rewrite's output tree, a lowered
 // tree, a synthesized value, an instantiated template) and takes one (the value of an extra
@@ -90,3 +103,11 @@ register_class("tree", Tree);
 // Mirrors the variants of techy's `NodeKind`, by name: a closed enum, since `NodeKind` is generic
 // over the language.
 export const NodeKindName = Object.freeze({ Chars: "chars", Group: "group", Callable: "callable", Comment: "comment", List: "list" });
+
+// A sequence of nodes: several nodes in order, which a method returns as one object, with `len()`,
+// `is_empty()`, `get(i)` and iteration, which can be repeated. A function that takes several nodes
+// takes a sequence, or an array of nodes and sequences, joined in order.
+export class Nodes extends Sequence {
+  get(i) { return call(this, "get", [i]); }
+}
+register_class("nodes", Nodes);

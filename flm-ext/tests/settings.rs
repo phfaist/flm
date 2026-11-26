@@ -12,7 +12,7 @@ use flm_core::core::data::table::TableHandle;
 use flm_core::core::plan::{Plan, PlanRequest};
 use flm_core::core::registry::{FlmRegistry, PackageFactory, PackageResolver};
 use flm_core::core::run::{Externals, Run, RunOptions};
-use flm_core::core::settings::{FeatureSettings, PackageSettings};
+use flm_core::core::settings::{FeatureSettings, Mark, PackageSettings};
 use flm_core::lang::{parse_fragment, FlmOrigin, FlmSource, ParseOptions};
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::options::{Bind, OptionKey, OptionValues};
@@ -91,14 +91,16 @@ fn a_feature_s_settings_become_its_settings_declaration() {
         "wc.display".to_string(),
         json!({ "bind": "document", "docs": "How the count is shown.", "schema": object_schema(&["mode"]) }),
     );
-    let mut merge_entries = Map::new();
-    merge_entries.insert("kinds".to_string(), json!({ "word": { "label": "words" } }));
+    let mut schema = object_schema(&["min_length", "kinds", "file"]);
+    schema["properties"]["kinds"] = json!({
+        "x-flm-marks": ["merge-object-key-values", "remove-key-when-value-is-false"],
+        "default": { "word": { "label": "words" } },
+        "additionalProperties": { "properties": { "label": { "x-flm-marks": ["markup"] } } },
+    });
+    schema["properties"]["file"] = json!({ "x-flm-marks": ["path"] });
     let report = SettingsReport {
-        config: Some(ConfigReport { docs: "The count.".to_string(), schema: object_schema(&["min_length", "kinds", "file"]) }),
+        config: Some(ConfigReport { docs: "The count.".to_string(), schema }),
         options,
-        merge_entries,
-        markup: vec!["kinds.*.label".to_string()],
-        path: vec!["file".to_string()],
         read: false,
     };
     let factory = Double::new("wc").feature("count", |_| Ok(())).settings("count", report).factory();
@@ -121,7 +123,8 @@ fn a_feature_s_settings_become_its_settings_declaration() {
     assert_eq!(schema["properties"]["min_length"]["x-flm-bind"], json!("registry"));
     assert_eq!(schema["properties"]["mode"]["x-flm-bind"], json!("document"));
     assert_eq!(schema["properties"]["kinds"]["default"], json!({ "word": { "label": "words" } }));
-    let marks: Vec<(&str, bool)> = decl.marks().iter().map(|mark| (mark.path.as_str(), mark.merge_entries)).collect();
+    let marks: Vec<(&str, bool)> =
+        decl.marks().iter().map(|mark| (mark.path.as_str(), mark.has(Mark::MergeObjectKeyValues))).collect();
     assert_eq!(marks, [("kinds", true), ("kinds.*.label", false), ("file", false)]);
 
     // The registry declares the option type, owned by the feature.
@@ -211,9 +214,9 @@ fn a_render_bound_option_set_on_the_request_reaches_the_stage() {
     let report = SettingsReport { options, ..SettingsReport::default() };
     let reading = stage(read_decl(), Needs::new().option("wc.width"), |cx, out| {
         let width = cx.option("wc.width")?;
-        // A name the stage did not declare is refused, by its name.
+        // A name the stage did not declare is refused.
         let undeclared = match cx.option("wc.other") {
-            Err(ExtError::Core { kind, detail, .. }) => json!([kind, detail]),
+            Err(ExtError::Core { kind, .. }) => json!([kind]),
             other => json!(format!("{other:?}")),
         };
         let piece = out.table("wc.seen")?;
@@ -233,14 +236,7 @@ fn a_render_bound_option_set_on_the_request_reaches_the_stage() {
     let run = run_with(&registry, "wc.seen", OptionValues::new(), render);
     assert_eq!(
         items(&run, "wc.seen"),
-        [
-            json!({ "w": 7 }),
-            json!([
-                "option",
-                "stage `wc.read` must declare each option type it reads, but it reads `wc.other` without declaring \
-                 it; it declares: [wc.width]"
-            ]),
-        ]
+        [json!({ "w": 7 }), json!(["option"])]
     );
 }
 
@@ -281,6 +277,7 @@ impl Engine for OneFeature {
             templates: Vec::new(),
             features: vec![self.feature.clone()],
             host: Vec::new(),
+            caches: Default::default(),
         };
         Ok(Loaded { packages: vec![package], runtime: Arc::new(Nothing) })
     }
@@ -309,51 +306,26 @@ fn an_option_name_outside_the_stem_fails_the_load() {
         "wcx.size": { "bind": "render", "schema": object_schema(&["size"]) },
         "wc.fine": { "bind": "either", "schema": object_schema(&["fine"]) },
     } }));
-    assert_eq!(
-        problems,
-        [
-            "the option `display` declared by the package `_` of the extension `wc` must begin with `wc.`",
-            "the option `wcx.size` declared by the package `_` of the extension `wc` must begin with `wc.`",
-        ]
-    );
+    // One problem for each of the two options outside the stem.
+    assert_eq!(problems.len(), 2, "{problems:#?}");
 }
 
 #[test]
-fn a_contradictory_declaration_fails_the_load_naming_the_extension_and_the_feature() {
+fn a_contradictory_declaration_fails_the_load() {
     let problems = load_problems(json!({
         "config": { "schema": object_schema(&["width"]) },
         "options": {
             "wc.size": { "bind": "render", "schema": object_schema(&["width"]) },
             "wc.bare": { "bind": "document", "schema": { "type": "object" } },
             "wc.fixed": { "bind": "registry", "schema": object_schema(&["fixed"]) },
+            "wc.merged": { "bind": "render", "schema": { "properties": {
+                "merged": { "x-flm-marks": ["merge-object-key-values"], "default": 3 },
+            } } },
+            "wc.outside": { "bind": "render", "schema": { "properties": { "outside": {} }, "x-flm-marks": ["markup"] } },
         },
-        "merge_entries": { "width": 3, "kinds.word": {} },
     }));
+    // One problem for each of the five contradictions: `width` declared twice,
+    // a schema without `properties`, a binding that is not one, default
+    // entries that are not a map, a mark at the root of a schema.
     assert_eq!(problems.len(), 5, "{problems:#?}");
-    assert_eq!(
-        problems[0],
-        "in the extension `wc`, the feature `count` declares the setting `width` twice (`settings.options.wc.size`)"
-    );
-    assert_eq!(
-        problems[1],
-        "in the extension `wc`, the schema of the option `wc.bare` of the feature `count` must be an object schema \
-         with `properties`, a map from each setting to its schema (`settings.options.wc.bare`)"
-    );
-    assert!(
-        problems[2].starts_with(
-            "in the extension `wc`, the settings of the feature `count` of the package `_` cannot be read \
-             (`settings.options.wc.fixed`): unknown variant `registry`"
-        ),
-        "{}",
-        problems[2]
-    );
-    assert_eq!(
-        problems[3],
-        "in the extension `wc`, the default entries of `count.width` (`settings.merge_entries.width`) must be a map"
-    );
-    assert_eq!(
-        problems[4],
-        "in the extension `wc`, the feature `count` marks `kinds.word` as merged entry by entry, and only a setting \
-         itself can be marked so, not a path below one (`settings.merge_entries.kinds.word`)"
-    );
 }

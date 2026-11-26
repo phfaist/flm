@@ -39,15 +39,18 @@
 //!
 //! # Diagnostic conditions defined here
 //!
-//! The runner reports the first four conditions itself. Value catch-up returns
-//! the fifth inside its error, and a stage or a lowering rule builds and reports
-//! the sixth:
+//! The runner reports the first five conditions itself. Value catch-up returns
+//! the sixth inside its error, and a stage or a lowering rule builds and reports
+//! the seventh:
 //!
 //! - `flm.run.preferred-rule-set-aside` ([`PreferredRuleSetAside`]),
 //!   `flm.run.preferred-rule-not-candidate` ([`PreferredRuleNotCandidate`])
 //!   and `flm.run.ignored-preference` ([`IgnoredPreference`]), at Warning
 //!   severity at the start of the run, one for each preference of the plan
 //!   request that the plan could not follow;
+//! - `flm.run.unchecked-output` ([`UncheckedOutput`]), at Warning severity at
+//!   the start of the run, one for each backend and feature whose selected
+//!   lowering rules write output that nothing checks;
 //! - `flm.run.placed-twice` ([`PlacedTwice`]), at Error severity, when a
 //!   rewrite copied a node that places a tree of the document;
 //! - `flm.synth.nesting-too-deep` ([`SynthNestingTooDeep`]), the diagnostic
@@ -65,8 +68,8 @@ pub mod runner;
 pub use cx::{
     CatchUpError, CaughtUp, FrozenWalk, IgnoredPreference, MissingEntry,
     PreferredRuleNotCandidate, PreferredRuleSetAside, RewriteCx, StageCx,
-    SynthNestingTooDeep,
+    SynthNestingTooDeep, UncheckedOutput,
 };
 pub use externals::{Externals, Install, Stamp};
 pub use order::{DocPosition, PlacedTwice};
-pub use runner::{DiagnosticsView, Run, RunError, RunOptions, RunOutcome, Step};
+pub use runner::{DiagnosticsView, REWRITES_KIND, Run, RunError, RunOptions, RunOutcome, Step};

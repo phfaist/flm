@@ -445,13 +445,6 @@ mod tests {
         for text in ["a", "", "  ", "a <", "< a", "a < < b", "a > b", "a, b", "a b < c", "a < b c"] {
             let error = FeatureChain::parse(text, "here").expect_err(text);
             assert_eq!(error, ChainError::NotAChain { text: text.to_string() });
-            assert_eq!(
-                error.to_string(),
-                format!(
-                    "the chain `{text}` must have the form `NAME < NAME < … < NAME`, with two \
-                     or more feature names"
-                )
-            );
         }
     }
 
@@ -459,10 +452,6 @@ mod tests {
     fn a_name_written_twice_is_refused() {
         let error = FeatureChain::parse("a < b < a", "here").expect_err("a name twice");
         assert_eq!(error, ChainError::RepeatedName { text: "a < b < a".into(), name: "a".into() });
-        assert_eq!(
-            error.to_string(),
-            "each feature must appear only once in the chain `a < b < a`, but `a` appears more than once"
-        );
     }
 
     #[test]
@@ -523,12 +512,6 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
-        assert_eq!(
-            error.to_string(),
-            "the feature order must not contain a cycle, but the chains `a < b` (package base), \
-             `b < c` (package phfpack), and `c < x < a` (front matter of doc.flm, line 4) order \
-             the features in the cycle `a < b < c < a`"
-        );
     }
 
     #[test]

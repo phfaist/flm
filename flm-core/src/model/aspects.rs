@@ -284,27 +284,27 @@ pub fn block_role_of(node: &NodeRef<'_, Flm>) -> BlockRole {
 /// is only whitespace, and each makes the blank test of the first item below:
 ///
 /// - the lowering helpers' blank test
-///   ([`is_blank`](crate::stdcore::backends::lowering::is_blank)), through
+///   ([`is_blank`](crate::stdlib::backends::lowering::is_blank)), through
 ///   which the helper that trims a paragraph a rule writes over content it
 ///   cuts out itself
-///   ([`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed):
+///   ([`stage_trimmed`](crate::stdlib::backends::lowering::stage_trimmed):
 ///   a quotation's passage, attribution and lines, a `\celldata` entry)
 ///   removes the node at that paragraph's edges, and the quotation's and the
 ///   `\celldata` reader's tests find a section or an entry holding only such
 ///   nodes empty;
 /// - the readers of a list's body and of a float's body
-///   ([`list_items`](crate::stdcore::features::lists::list_items),
-///   [`float_body`](crate::stdcore::features::floats::float_body)), and the
+///   ([`list_items`](crate::stdlib::features::lists::list_items),
+///   [`float_body`](crate::stdlib::features::floats::float_body)), and the
 ///   recomposed LaTeX of a list and of a quotation, which leaves the node out
 ///   where it writes the layout itself;
 /// - an xnote's test for empty content
-///   ([`Empty`](crate::stdcore::features::xnotes::Empty): `\footnote{~}` is
+///   ([`Empty`](crate::stdlib::features::xnotes::Empty): `\footnote{~}` is
 ///   reported empty) and the reader of an xnote's labels argument
-///   ([`labels_of`](crate::stdcore::features::xnotes::labels_of));
+///   ([`labels_of`](crate::stdlib::features::xnotes::labels_of));
 /// - the readers of a list's, an item's and a caption's bracket
-///   ([`list_options`](crate::stdcore::features::lists::list_options),
-///   [`item_options`](crate::stdcore::features::lists::item_options),
-///   [`read_caption`](crate::stdcore::features::floats::read_caption)): a
+///   ([`list_options`](crate::stdlib::features::lists::list_options),
+///   [`item_options`](crate::stdlib::features::lists::item_options),
+///   [`read_caption`](crate::stdlib::features::floats::read_caption)): a
 ///   bracket holding only whitespace is as if it were not written;
 /// - the trimming of a key-value entry's value
 ///   ([`key_value_pieces`](crate::lang::copy::key_value_pieces): `tag=~x~`
@@ -314,7 +314,7 @@ pub fn block_role_of(node: &NodeRef<'_, Flm>) -> BlockRole {
 ///   ([`userdefs`](crate::lang::rewrites::userdefs));
 /// - the test for a star of a theorem's title that is not one run of
 ///   characters
-///   ([`title_reading`](crate::stdcore::features::theorems::title_reading)),
+///   ([`title_reading`](crate::stdlib::features::theorems::title_reading)),
 ///   and its copy in the title's reader: `[~*\emph{x}]` begins with a star,
 ///   as `[ *\emph{x}]` does.
 ///
@@ -540,7 +540,7 @@ pub enum CopiedAs {
 /// element, with a lowering rule on every backend, and puts in the payload
 /// what that rule needs to know about the node it replaces. For example, the
 /// stand-in of an xnote (a note set apart from the running text, such as a
-/// footnote; see [`xnotes`](crate::stdcore::features::xnotes)) identifies the
+/// footnote; see [`xnotes`](crate::stdlib::features::xnotes)) identifies the
 /// xnote, and its lowering rules write the xnote's mark.
 #[derive(Clone)]
 pub struct StandIn {
@@ -654,7 +654,7 @@ impl Label {
     /// (the space, the tab, the carriage return and the line feed: [the
     /// whitespace of FLM text](crate::lang::text#whitespace)) is made one space
     /// and the whitespace at both ends is removed, as in a citation key
-    /// ([`spelling_identity`](crate::stdcore::backends::pres::spelling_identity));
+    /// ([`spelling_identity`](crate::stdlib::backends::pres::spelling_identity));
     /// every other character counts as written, quotes, dashes and the no-break
     /// space U+00A0 included. A label written with a doubled space, or broken
     /// over two lines, is therefore the label written with one space.
@@ -702,7 +702,7 @@ impl fmt::Display for Label {
 ///
 /// The element declares the policy for each point; the refs feature computes
 /// the identifier from it in its anchors stage, in document order, and records
-/// it in the table [`ANCHORS`](crate::stdcore::features::refs::ANCHORS), so that the same document always
+/// it in the table [`ANCHORS`](crate::stdlib::features::refs::ANCHORS), so that the same document always
 /// gives the same identifiers. A point whose identifier would be one an earlier
 /// point already has is reported and gets no anchor, except under
 /// [`AnchorPolicy::Slug`], where the later point gets a number appended
@@ -742,7 +742,7 @@ pub enum AnchorPolicy {
     /// [`AnchorPolicy::Auto`]. The numbers are written in decimal regardless of
     /// how the counter style shows them, so that the identifier does not change
     /// when the counter style does;
-    /// [`value_anchor`](crate::stdcore::features::refs::value_anchor) writes
+    /// [`value_anchor`](crate::stdlib::features::refs::value_anchor) writes
     /// them.
     ///
     /// **A point that the document did not number** (because a counter it
@@ -777,7 +777,7 @@ pub enum AnchorPolicy {
     /// unique; the letters keep it from reading as a number of the document.
     /// Written as `eq--8`, the identifier would suggest equation (8), which it
     /// is not as soon as an unnumbered equation comes before it.
-    /// [`auto_anchor`](crate::stdcore::features::refs::auto_anchor) computes
+    /// [`auto_anchor`](crate::stdlib::features::refs::auto_anchor) computes
     /// the identifier and documents how the letters are derived.
     Auto {
         /// The text written before the double hyphen.
@@ -791,12 +791,12 @@ pub enum AnchorPolicy {
 /// template of its own.
 ///
 /// A counter is a dotted name under which things are counted in document
-/// order ([`CounterDecl`](crate::stdcore::features::numbering::CounterDecl)),
+/// order ([`CounterDecl`](crate::stdlib::features::numbering::CounterDecl)),
 /// and a counter style says how a counter value is shown
-/// ([`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl)). A
+/// ([`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl)). A
 /// point that is to carry a number gives a number source in
 /// [`RefPoint::number`], and the numbering feature
-/// ([`numbering`](crate::stdcore::features::numbering)) numbers every point
+/// ([`numbering`](crate::stdlib::features::numbering)) numbers every point
 /// that gives one; no setting of the numbering feature turns numbering off for
 /// a point. A point that is not to
 /// carry a number gives none: a line of an `equation*` environment, a heading
@@ -867,7 +867,7 @@ pub struct NumberSource {
     /// declared.
     ///
     /// The text is a number template
-    /// ([`NumberTemplate`](crate::stdcore::features::numbering::NumberTemplate)):
+    /// ([`NumberTemplate`](crate::stdlib::features::numbering::NumberTemplate)):
     /// every `#{name}` is the number in the format `name` (`#{arabic}`,
     /// `#{alph}`, `#{roman}`, …), every other character is written as given,
     /// and markup may surround the number: `(#{alph})`, `#{Roman}.`. The text
@@ -899,7 +899,7 @@ pub struct NumberSource {
 /// The labels of a document are checked against this declaration when they
 /// are collected: a written label whose type the point does not accept
 /// defines nothing (no reference resolves to it), and the label check
-/// ([`CHECK_LABELS`](crate::stdcore::features::refs::CHECK_LABELS)) reports it
+/// ([`CHECK_LABELS`](crate::stdlib::features::refs::CHECK_LABELS)) reports it
 /// as `flm.refs.label-type-not-accepted`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AcceptedRefTypes {
@@ -959,7 +959,7 @@ impl AcceptedRefTypes {
 /// whose labels are all of this kind is as unlabeled as one with no `\label`
 /// at all. The construct that read the text records it on the point it
 /// declares ([`RefPoint::malformed`]), and the refs feature
-/// ([`crate::stdcore::features::refs`]) reports it once, as
+/// ([`crate::stdlib::features::refs`]) reports it once, as
 /// `flm.refs.bad-label`, at the span of the field it was written in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MalformedLabel {
@@ -984,7 +984,7 @@ pub struct MalformedLabel {
 ///
 /// An element declares the reference points of each occurrence through the
 /// [`Referenceable`] aspect, and the `refpoints` feature records them for every
-/// tree ([`REFPOINTS`](crate::stdcore::features::refpoints::REFPOINTS)). A node
+/// tree ([`REFPOINTS`](crate::stdlib::features::refpoints::REFPOINTS)). A node
 /// carries zero or more points: a display-math environment has one point per
 /// equation line, a heading has one, and an element that nothing can point at
 /// does not declare the aspect. A point is identified by a [`PointId`]. See
@@ -1070,7 +1070,7 @@ pub struct PointId {
 /// the places in it that a reference can point at.
 ///
 /// The `refpoints` feature reads this aspect on every node whose element
-/// declares it, and the refs feature ([`crate::stdcore::features::refs`])
+/// declares it, and the refs feature ([`crate::stdlib::features::refs`])
 /// collects the labels written for each point and computes the anchors. Any
 /// element may declare the aspect, so a construct that a third-party feature
 /// declares is referred to exactly like a standard heading.
@@ -1100,7 +1100,7 @@ pub trait Referenceable: Send + Sync {
 /// The lowering rule that shows a reference reads them; the standard rule
 /// translates them into the terms of the counter style when it writes a
 /// target's number
-/// ([`lower_reference`](crate::stdcore::features::refs::lower_reference)).
+/// ([`lower_reference`](crate::stdlib::features::refs::lower_reference)).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefDisplayOptions {
     /// The name of the prefix form asked for at this site, or `None` to leave
@@ -1122,7 +1122,7 @@ impl Default for RefDisplayOptions {
 ///
 /// An element declares the reference sites of each occurrence through the
 /// [`Referencing`] aspect, and the refs feature
-/// ([`crate::stdcore::features::refs`]) resolves them. A node carries zero or
+/// ([`crate::stdlib::features::refs`]) resolves them. A node carries zero or
 /// more sites. See [reference points, labels and
 /// anchors](crate::guide::concepts_overview#reference-points-labels-and-anchors).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1146,7 +1146,7 @@ pub struct RefSite {
 /// the places in it that point at a reference point. The reference points
 /// themselves are declared by [`Referenceable`].
 ///
-/// The refs feature ([`crate::stdcore::features::refs`]) resolves the sites of
+/// The refs feature ([`crate::stdlib::features::refs`]) resolves the sites of
 /// every element that declares this aspect, so any construct can refer, not
 /// only the reference command: a proof referring to its theorem, an equation
 /// reference (`\eqref`), a link to a defined term. None of them has to look up labels or anchors, or
@@ -1164,7 +1164,7 @@ pub trait Referencing: Send + Sync {
 ///
 /// Every method takes the node, because whether a heading is listed in the
 /// table of contents is a fact about the occurrence: the standard headings
-/// feature ([`headings`](crate::stdcore::features::headings)) reads it from the
+/// feature ([`headings`](crate::stdlib::features::headings)) reads it from the
 /// key `toc=false` written at the call, so two headings of the same kind may
 /// differ. So is what an entry shows: the feature reads the alternative title
 /// from the key `alt=` written at the call.
@@ -1189,8 +1189,8 @@ pub trait Sectioning: Send + Sync {
     /// ([`ContentRef::Synthesized`]), and the heading's title argument
     /// otherwise. A table of contents asks every heading through this method
     /// alone, so a heading kind of an extension decides what its entries show;
-    /// the standard package's table of contents is the
-    /// [`toc`](crate::stdcore::features::toc) feature.
+    /// the standard table of contents is the
+    /// [`toc`](crate::stdlib::features::toc) feature.
     fn toc_title(&self, node: &NodeRef<'_, Flm>) -> Option<ContentRef> {
         let _ = node;
         None

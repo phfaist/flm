@@ -1,7 +1,8 @@
 //! The exports of the generated prelude: every API module imported from a
 //! test package, its exports listed and compared with the inventory golden
-//! (each export is an item of the module's Rust source, or a submodule of
-//! the surface exported as a namespace) and with the exports listed below,
+//! (each export is an item of the module's Rust source, a submodule of the
+//! surface exported as a namespace, or the class of a sequence of a list)
+//! and with the exports listed below,
 //! module by module.
 
 #![cfg(feature = "quickjs")]
@@ -14,11 +15,16 @@ use serde_json::Value;
 /// The inventory golden, the surface as the generator read it.
 const INVENTORY: &str = include_str!("goldens/api_surface/inventory.json");
 
+/// The classes of the sequences a binding makes of a list of the extension
+/// API, which no Rust item stands for, by module: the sequences of a list of
+/// nodes and of a list of staged nodes.
+const SEQUENCES: &[(&str, &str)] = &[("techy/node", "Nodes"), ("lang/rewrites/userdefs", "StagedNodes")];
+
 /// The exports of each module (`flm:` left out), listed by hand.
 const EXPECTED: &[(&str, &[&str])] = &[
     ("core/artifact", &["media_type_of", "Artifact", "ArtifactId"]),
     ("core/data/store", &["StageOut", "TablePiece"]),
-    ("core/data/table", &["ExtTableRead"]),
+    ("core/data/table", &["ExtTableRead", "Rows"]),
     (
         "core/lowering",
         &[
@@ -30,14 +36,15 @@ const EXPECTED: &[(&str, &[&str])] = &[
         "core/registry",
         &["FeatureBuilder", "CallableKind", "DefContent", "StyleDef", "ScriptDef", "StandardTable", "BackendDef", "LibraryStage", "OutputDef"],
     ),
-    ("core/run", &["StageCx", "RewriteCx"]),
+    ("core/run", &["StageCx", "Walk", "Trees", "RewriteCx"]),
     ("core/services", &["Arity"]),
     // `ReadError` is a type alone: `flm.d.ts` declares it, and the module exports nothing.
     ("core/settings", &[]),
     ("core/stage", &["StageDecl", "Needs", "Effect", "Scope", "Severity", "TreesTable", "RewriteDecl"]),
-    ("host", &["HostService", "FilesScope", "Files"]),
-    // The submodules `mint`, `structural` and `text`, as namespaces.
-    ("lang", &["BuiltLang", "FlmDiagnostics", "mint", "structural", "text"]),
+    ("host", &["HostService", "Files", "path"]),
+    // The submodules `copy`, `mint`, `structural` and `text`, as namespaces.
+    ("lang", &["BuiltLang", "FlmDiagnostics", "copy", "mint", "structural", "text"]),
+    ("lang/copy", &[]),
     (
         "lang/mint",
         &["ArgLayout", "BodyLayout", "Mode", "CallableKind", "FallbackKind", "ArgDef", "arg_def_from_code", "BodyDef", "SyntaxDef", "ElementDef", "FallbackDef", "ScopedPackageDef"],
@@ -54,6 +61,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "TemplateSpec",
             // The values of the extra placeholders a hook computes.
             "ExtraValues",
+            // The sequence of a list of staged nodes.
+            "StagedNodes",
         ],
     ),
     (
@@ -66,12 +75,15 @@ const EXPECTED: &[(&str, &[&str])] = &[
         ],
     ),
     ("lang/text", &["chars_text", "read_chars"]),
+    ("math_passthrough", &["math_rule_named", "environment_rule_named", "DefaultMark", "LoweringRule", "latex"]),
+    ("math_passthrough/latex", &["math_rule_named", "environment_rule_named", "LoweringRule"]),
     ("model/aspects", &["InlineSpacing", "Placement", "BlockRole", "RefPoint", "NumberSource", "AnchorPolicy", "ContentRef", "AcceptedRefTypes"]),
     ("model/element", &["Aspect", "ElementSpec"]),
-    ("stdcore/backends/html", &["TAG"]),
-    ("stdcore/backends/lowering", &["LoweredTrees", "LoweringStage", "lowered_table_name"]),
+    ("progress", &["Unit", "ProgressScope", "Pending", "Task", "Counted"]),
+    ("stdlib/backends/html", &["TAG"]),
+    ("stdlib/backends/lowering", &["LoweredTrees", "LoweringStage", "lowered_table_name", "is_blank", "stage_trimmed"]),
     (
-        "stdcore/backends/latex",
+        "stdlib/backends/latex",
         &[
             "ALL", "ARG_SLOT", "BEGIN_SLOT", "DEFINITION", "END_SLOT", "ENVIRONMENT", "LatexArgShape", "MACRO", "RAW", "RECOMPOSED_BACKEND",
             // The payloads' classes and the two slots' declarations.
@@ -80,42 +92,45 @@ const EXPECTED: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "stdcore/backends/latex/packages",
+        "stdlib/backends/latex/packages",
         &[
             "ADJUSTBOX", "AMSMATH", "AMSTHM", "CAPTION", "ENUMITEM", "FVEXTRA", "GRAPHICX", "HYPERREF", "ID_PREFIX", "NEWUNICODECHAR", "PHFCC",
             "PHFTHM", "SLOT", "TABULARRAY", "TEXTCASE", "XCOLOR", "ZREF_CLEVER", "package_id", "LatexPackageDef",
         ],
     ),
     (
-        "stdcore/backends/latex/preamble",
+        "stdlib/backends/latex/preamble",
         &[
             "HEADING", "HYPERREF", "ID_PREFIX", "IF_BLANK", "LABELS", "LABEL_DISPLAY_TEXT", "MATH_ENVIRONMENT", "REFS", "SLOT", "TAB_WIDTH",
             "USER_ARGS", "VERBATIM", "ZREF_CLEVER_TYPE", "piece_id", "LatexPreambleDef",
         ],
     ),
     (
-        "stdcore/backends/pres",
+        "stdlib/backends/pres",
         &[
             "PAR", "BLOCK", "BLOCK_HEADING", "RUNIN_HEADING", "SPAN", "LIST", "CELLS", "LINES", "LINE", "VERBATIM", "MATH_PASSTHROUGH", "MATH_TEXT",
             "LINK", "IMAGE", "UNSUPPORTED", "DROPPED", "UNKNOWN", "DECO_RUNIN", "DECO_FINAL", "DECO_MARGIN", "DECO_MARK", "SUBTREE", "ALL",
             "BODY_SLOT", "LABEL_SLOT", "ITEM_SLOT", "CELL_SLOT",
         ],
     ),
-    ("stdcore/features/citations", &["PROVIDERS_SLOT", "CitationEntry", "ProviderCx"]),
-    ("stdcore/features/compose", &["TEMPLATES_SLOT", "ENGINES_SLOT", "TemplateCx"]),
+    ("stdlib/features/citations", &["PROVIDERS_SLOT", "CitationEntry", "ProviderCx"]),
+    ("stdlib/features/compose", &["TEMPLATES_SLOT", "ENGINES_SLOT", "TemplateCx"]),
     (
-        "stdcore/features/math",
+        "stdlib/features/math",
         &[
             "MATH", "ENVIRONMENT", "ENVIRONMENTS", "CONTENT", "RENDERED", "KIND", "COUNTER", "ANCHORS", "COUNTERS", "LINES_PACKAGE",
-            "LINEBREAK_COMMAND", "TAG_COMMAND", "NONUMBER_COMMAND", "TEXT", "TEXT_COMMANDS", "ENSUREMATH", "equation_lines", "formula_display",
+            "LINEBREAK_COMMAND", "TAG_COMMAND", "NONUMBER_COMMAND", "TEXT", "TEXT_COMMANDS", "ENSUREMATH", "FORMULA_ROLE",
+            "formula_attributes", "equation_lines", "formula_display",
             "environment_numbered", "line_frames", "number_text", "stage_tag_content", "environment_opening", "line_closing",
             "environment_closing", "group_opening", "group_closing",
             // The line writer of the recomposed LaTeX and the newline rule.
             "stage_lines", "normalize_line_newlines",
+            // The writer of a formula's TeX with holes.
+            "group_tex", "line_tex",
         ],
     ),
     (
-        "stdcore/features/numbering",
+        "stdlib/features/numbering",
         &[
             "COUNTERS", "COUNTERS_SLOT", "STYLES_SLOT", "WITHIN_JOINERS_SLOT", "NUMBER_WRITERS_SLOT", "PARENT_SETS_SLOT", "Counters",
             // The declarations' classes.
@@ -124,17 +139,17 @@ const EXPECTED: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "stdcore/features/refs",
+        "stdlib/features/refs",
         &[
             "Anchors", "ANCHORS", "SAFE_LABELS", "LABELS", "REF_RESOLUTIONS", "FIELDS_ARG", "LABEL_FIELD", "TARGET_ARG", "LABEL_PACKAGE",
             "TARGET_ARG_ROLE", "DEFINED_LABEL_ARG_ROLE", "label_fields_arg",
             "label_uses", "point_labels", "stage_label", "stage_label_group",
         ],
     ),
-    ("stdcore/features/userdefs", &["element_name_under", "expand_in_tree_rule_for", "write_math_run", "LoweringRule"]),
+    ("stdlib/features/userdefs", &["element_name_under", "expand_in_tree_rule_for", "write_math_run", "LoweringRule"]),
     ("techy/error", &["Severity"]),
     ("techy/extract", &["parse_keyval_drop_annotations", "KeyVals", "KeyValEntry"]),
-    ("techy/node", &["Node", "NodeKindName", "Tree"]),
+    ("techy/node", &["Node", "Descendants", "Tree", "NodeKindName", "Nodes"]),
     ("techy/transform", &["Staged", "Restage", "Restager", "RestagedArgument", "RestagedSlot"]),
 ];
 
@@ -172,9 +187,10 @@ fn every_api_module_exports_the_names_of_its_rust_items_and_of_the_stubs_before(
         let items: Vec<&str> = module["items"].as_array().expect("items").iter().filter_map(|item| item["name"].as_str()).collect();
         for name in &listed[path] {
             let namespace = modules.contains(&format!("{path}/{name}"));
+            let sequence = SEQUENCES.contains(&(path, name.as_str()));
             assert!(
-                items.contains(&name.as_str()) || namespace,
-                "the export `{name}` of `flm:{path}` must be an item of the inventory's module or one of its submodules"
+                items.contains(&name.as_str()) || namespace || sequence,
+                "the export `{name}` of `flm:{path}` must be an item of the inventory's module, one of its submodules or a sequence's class"
             );
         }
     }

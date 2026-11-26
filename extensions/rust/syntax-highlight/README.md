@@ -23,7 +23,9 @@ Language names and file extensions are resolved by
 [Syntect's `find_syntax_by_token`](https://docs.rs/syntect/latest/syntect/parsing/struct.SyntaxSet.html#method.find_syntax_by_token).
 The bundled syntax set defines the supported languages; this extension adds no
 aliases or custom grammars. Unknown or absent language tags remain plain code.
-`verbtext` and identifiers (`verba`) remain plain as well.
+Only code (`\verbcode`, `{verbatimcode}`) is highlighted: `\verbtext`,
+`{verbatimtext}` and identifiers (`\verba`) are written exactly as the backend
+writes them without the extension.
 
 The default theme is `InspiredGitHub`. Select another bundled Syntect theme with
 `-O 'syntax-highlight.theme=Solarized (light)'`. The template still controls the

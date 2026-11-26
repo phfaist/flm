@@ -1,5 +1,5 @@
 //! The HTML backend through a plan of the `html` workflow
-//! (`flm_core::stdcore::backends::html`): the stages and rewrites the workflow
+//! (`flm_core::stdlib::backends::html`): the stages and rewrites the workflow
 //! schedules, the page it writes as a one-artifact set, a heading and two
 //! referencing callables giving the identifier and the two links, a fragment
 //! parsed with the inline layout, the three execution settings agreeing byte
@@ -22,24 +22,24 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::names::Name;
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html::{
+use flm_core::stdlib::backends::html::{
     HtmlPieces,
     self, DOCUMENT, DefinitionOverride, HtmlFragment, HtmlFragments, HtmlRenderOptions,
     HtmlSegment, ResolvedDefinitions, page,
 };
-use flm_core::stdcore::backends::text::{self, TEXT_DOCUMENT};
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::StdcoreConfig;
+use flm_core::stdlib::backends::text::{self, TEXT_DOCUMENT};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::StdlibConfig;
 use techy::error::Severity;
 
 use common::html::{
     assert_golden, fragment, fragments, page as rendered_page, run_one_fragment_under,
 };
-use common::stdcore::{plan, registry, run_workflow};
+use common::stdlib::{plan, registry, run_workflow};
 
 /// The registry of the standard package under its default configuration.
 fn std_registry() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 /// Runs `texts` under the `html` workflow.
@@ -97,7 +97,7 @@ const EXPECTED_STAGES: [&str; 27] = [
     "flm.citations.retrieve",
     "flm.citations.check",
     "flm.citations.build-bibliography",
-    "flm.meta.build",
+    "flm.metadata.build",
     "flm.html.pieces",
     "flm.html.emit-pieces",
     "flm.html.lower",
@@ -223,7 +223,7 @@ fn a_document_holding_mathematics_is_a_page_whose_formulas_are_latex() {
     // A formula reaches the page as the LaTeX the author wrote, inside the
     // element the formula renderer is pointed at: inline mathematics in a
     // `<span>`, a mathematics environment in a `<div>` naming it.
-    assert!(page.contains("class=\"flm-pres-math--passthrough\" data-flm-display=\"inline\""), "{page}");
+    assert!(page.contains("class=\"flm-pres-math--passthrough flm-math-formula\" data-flm-display=\"inline\""), "{page}");
     assert!(page.contains("data-flm-env=\"align\""), "{page}");
     assert!(page.contains("\\begin{align}"), "{page}");
     // The text inside a formula is content, not notation: the
@@ -241,7 +241,7 @@ fn a_document_holding_mathematics_is_a_page_whose_formulas_are_latex() {
 fn a_tree_holding_mathematics_asks_the_page_for_the_formula_renderer() {
     // A requirement is a name the emit stage records per tree; the piece that
     // turns it into a script in the page is the next one.
-    use flm_core::stdcore::backends::html::conventions::SCRIPT_MATHJAX;
+    use flm_core::stdlib::backends::html::conventions::SCRIPT_MATHJAX;
 
     let run = render(&[MATHEMATICS]);
     let required: Vec<String> = fragments(&run)

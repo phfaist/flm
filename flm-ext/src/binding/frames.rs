@@ -90,8 +90,11 @@
 //!    `safe`, whose account is given there),
 //!    and, in an extension's crate, the attribute `#[unsafe(no_mangle)]` on
 //!    the four exports the guest client's macro `extension!` writes
-//!    (`guest/mod.rs`), each a call of a safe function of `guest/abi.rs`; the
-//!    adapter, the API and the runtime hold none.
+//!    (`guest/mod.rs`), each a call of a safe function of `guest/abi.rs`,
+//!    and the attribute `#[unsafe(link_section = "flmextensions")]` on the
+//!    static of plain bytes the macro `collection::record!` writes
+//!    (`collection.rs`, whose account is given there); the adapter, the API
+//!    and the runtime hold none.
 //!
 //! [`Binding::enter`]: super::Binding::enter
 //! [`Binding::id`]: super::Binding::id

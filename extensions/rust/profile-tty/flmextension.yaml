@@ -1,0 +1,14 @@
+# The manifest of the extension `profile-tty` in its WebAssembly form: the module that
+# `extensions/rust/build-wasm.sh` builds, beside this file. The `flm` program also carries
+# the extension compiled in; it then reads this file with the engine `native` in place of
+# `wasm`, and without the module.
+#
+# The printed text crosses the module's boundary once as text, with its position marks
+# and its style marks, and the painted text crosses back once. The engine's own limits are 64 MiB of memory and
+# 1 000 000 000 units of fuel per handler call.
+extension:
+  description: Text for a terminal, the text output with escape sequences for bold, italic, underline, colors and hyperlinks
+  engine: wasm
+  wasm:
+    module: profile_tty.wasm
+    limits: { memory_mib: 256, fuel: 20000000000 }

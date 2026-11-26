@@ -45,14 +45,14 @@ use std::sync::Arc;
 
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::{element_of, element_value};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::features::textstyles::{TEXT_STYLE, TextStyle, TextStyleElement};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::features::textstyles::{TEXT_STYLE, TextStyle, TextStyleElement};
+use flm_core::stdlib::{self, StdlibConfig};
 
 // A registry says which elements exist; it carries the language to parse with.
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 let registry = builder.build(&RegistryInputs::new())?;
 
 let source = Arc::new(
@@ -162,7 +162,7 @@ is, are declared in [`crate::model::aspects`]:
   ([`lang::rewrites::blocks`](crate::lang::rewrites::blocks)), removes such a node
   where it removes whitespace. A paragraph that a lowering rule writes itself,
   over content it cuts out of a longer run, is trimmed by
-  [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed), which
+  [`stage_trimmed`](crate::stdlib::backends::lowering::stage_trimmed), which
   removes the same whitespace at its edges as the pass does, whitespace nodes
   included, and the standard features' tests for blank content count such a node
   as whitespace (a footnote holding only `~` is empty), except the tests of text
@@ -369,17 +369,21 @@ are the trees its walk reaches, and nothing of the file is written or reported.
 
 A document's **metadata** — its title, its authors, its date, and any other key its
 author writes there — is not part of its trees: it is one of the option values bound
-on the document, [`DocMeta`](crate::stdcore::features::meta::DocMeta), which the
-standard feature `meta` declares. The title, each author and the date are FLM text,
-parsed as inline content when the document is processed, each as a source of its own
-named after the file it was written in, so that a problem in it is reported at its
-place there. Each becomes a [piece](crate::core::piece::Piece), a document-level
-synthesized value that a backend places before the content: `flm.meta.title`,
-`flm.meta.author` (one node per author, each kept apart, which the `meta` feature's
-lowering rule for the authors joins) and
-`flm.meta.date`. A document with no metadata places none of them. The library keeps
-every other key of the metadata as data and does not show it. See [the document's
-metadata](crate::guide::embedding#the-documents-metadata) for setting it.
+on the document, [`DocMeta`](crate::stdlib::features::metadata::DocMeta), which the
+standard feature `metadata` declares. The title, the date and each author's name,
+affiliations and notes are FLM text, parsed as inline content when the document is
+processed, each as a source of its own named after the file it was written in, so that
+a problem in it is reported at its place there; an author's email address is a plain
+text. The title, the authors and the date each become a
+[piece](crate::core::piece::Piece), a document-level synthesized value that a backend
+places before the content: `flm.metadata.title`, `flm.metadata.author` and
+`flm.metadata.date`. The authors piece holds one node per author, and an author's node
+holds its name, each affiliation, its email address and each note, each a node of its
+own; each affiliation's node carries the affiliation's number among the document's
+distinct affiliations. A document with no metadata places none of the pieces. The
+library keeps every other key of the metadata and of an author as data and does not
+show it. See [the document's metadata](crate::guide::embedding#the-documents-metadata)
+for setting it.
 
 ## Sources and spans
 
@@ -587,15 +591,15 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::aspects::Label;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::core::plan::{Overrides, Plan};
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-use flm_core::stdcore::backends::text::TEXT_DOCUMENT;
-use flm_core::stdcore::features::refs::LABELS;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::text::TEXT_DOCUMENT;
+use flm_core::stdlib::features::refs::LABELS;
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 let registry = builder.build(&RegistryInputs::new())?;
 

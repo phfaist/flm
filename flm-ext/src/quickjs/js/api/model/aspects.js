@@ -3,7 +3,7 @@
 //
 // Mirrors `flm_core::model::aspects`: the block role an element plays, and the aspects an
 // extension's handler answers (`Referenceable`, `Sectioning`) with the data they answer.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // The label types a reference point accepts: any, or these.
 export const AcceptedRefTypes = Object.freeze({

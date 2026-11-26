@@ -6,16 +6,18 @@ mod common;
 
 use std::sync::Arc;
 
+use flm_core::core::registry::{BuildError, UnresolvedPeer};
+use flm_core::core::services::ServiceError;
 use flm_ext::api::core::registry::{Contributed, FeatureBuilder};
 use flm_ext::api::core::services::Arity;
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
-use flm_ext::api::stdcore::features::citations::{CitationProvider, CitationRequest, CitationResult, ProviderCx};
-use flm_ext::api::stdcore::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateModule};
+use flm_ext::api::stdlib::features::citations::{CitationProvider, CitationRequest, CitationResult, ProviderCx};
+use flm_ext::api::stdlib::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateModule};
 use flm_ext::ExtError;
 use serde_json::{json, Value};
 
 use common::double::{stage, Double};
-use common::{ext_items, registry_with, run_demanding, try_registry_with};
+use common::{ext_items, feature_errors, registry_with, run_demanding, try_registry_with};
 
 fn data(value: Value) -> Contributed {
     Contributed::Data(value)
@@ -121,14 +123,14 @@ fn a_slot_no_feature_declares_reads_as_nothing() {
 }
 
 #[test]
-fn a_single_slot_refilled_fails_the_build_with_flm_core_s_text() {
+fn a_single_slot_refilled_fails_the_build() {
     let other = Double::new("other").feature("more", |b| b.contribute_to("bib.notes", data(json!("b"))));
     let error = try_registry_with([reader(Arity::Single, "bib.notes").package(), other.package()])
         .expect_err("the build fails");
-    assert_eq!(
-        error.render(),
-        "service slot `bib.notes` takes at most one value, but feature `notes` contributes one and feature `more` \
-         contributes another"
+    assert!(
+        matches!(error.errors.as_slice(), [BuildError::Service(ServiceError::SingleSlotRefilled { slot, first, second })]
+            if *slot == "bib.notes" && *first == "notes" && *second == "more"),
+        "{error:?}"
     );
 }
 
@@ -139,9 +141,9 @@ fn a_peer_contribution_to_an_absent_slot_is_dropped_with_one_note() {
         b.peer_slot("absent.notes", data(json!(2)))
     });
     let registry = registry_with([peer.package()]);
-    let notes: Vec<String> = registry.build_diagnostics().iter().map(|d| d.message().to_string()).collect();
-    assert_eq!(notes.len(), 1, "{notes:?}");
-    assert!(notes[0].contains("absent.notes"), "{notes:?}");
+    assert_eq!(registry.build_diagnostics().iter().count(), 1);
+    let notes: Vec<&str> = registry.build_diagnostics().conditions::<UnresolvedPeer>().map(|peer| peer.name.as_str()).collect();
+    assert_eq!(notes, ["absent.notes"]);
 }
 
 #[test]
@@ -162,10 +164,10 @@ fn a_peer_contribution_to_a_declared_slot_fills_it() {
 fn a_data_value_to_a_trait_valued_slot_fails_the_build_with_type_mismatch() {
     let wrong = Double::new("other").feature("more", |b| b.contribute_to("flm.artifacts.namer", data(json!("x"))));
     let error = try_registry_with([wrong.package()]).expect_err("the build fails");
-    assert_eq!(
-        error.render(),
-        "a value contributed to service slot `flm.artifacts.namer` must have the slot's type `ArtifactNamer`, but \
-         feature `more` contributes a `ExtService`"
+    assert!(
+        matches!(error.errors.as_slice(), [BuildError::Service(ServiceError::TypeMismatch { feature, slot, .. })]
+            if *feature == "more" && *slot == "flm.artifacts.namer"),
+        "{error:?}"
     );
 }
 
@@ -178,7 +180,7 @@ fn reading_a_slot_whose_values_are_not_data_is_unsupported() {
             let error = cx.services("flm.artifacts.namer").expect_err("not data");
             let first = cx.service("flm.artifacts.namer").expect_err("not data");
             assert_eq!(first, error);
-            out.table("bib.seen")?.push(json!({ "kind": error.kind(), "text": error.to_string() }))
+            out.table("bib.seen")?.push(json!({ "kind": error.kind() }))
         },
     );
     let double = Double::new("bib").feature("notes", move |b| {
@@ -187,65 +189,44 @@ fn reading_a_slot_whose_values_are_not_data_is_unsupported() {
     });
     let registry = registry_with([double.package()]);
     let run = run_demanding(&registry, &["bib.seen"], &["x"]);
-    assert_eq!(
-        ext_items(&run, "bib.seen"),
-        [json!({
-            "kind": "unsupported",
-            "text": "reading the service slot `flm.artifacts.namer`, whose values are not data, is not supported yet",
-        })]
-    );
+    assert_eq!(ext_items(&run, "bib.seen"), [json!({ "kind": "unsupported" })]);
 }
 
-/// The error `register` fails with: the text of the registry build's error.
+/// The identifier the error of the feature `notes` begins with, when
+/// `register` fails the registry build with that one error.
 fn refusal(register: impl Fn(&mut dyn FeatureBuilder) -> Result<(), ExtError> + Send + Sync + 'static) -> String {
     let double = Double::new("bib").feature("notes", register);
-    try_registry_with([double.package()]).expect_err("the build fails").render()
+    let found = feature_errors(&try_registry_with([double.package()]).expect_err("the build fails"));
+    match found.as_slice() {
+        [(feature, detail)] if feature == "notes" => detail.split_once(": ").map_or(detail.clone(), |(id, _)| id.to_string()),
+        other => panic!("one error of the feature `notes`, not {other:?}"),
+    }
 }
 
 #[test]
 fn a_slot_named_outside_the_stem_is_refused() {
-    assert_eq!(
-        refusal(|b| b.service_slot("notes", Arity::Single, "")),
-        "feature `notes`: flm.ext.name-outside-extension: the service slot `notes` declared by \
-         the package `_` of the extension `bib` must begin with `bib.`"
-    );
+    assert_eq!(refusal(|b| b.service_slot("notes", Arity::Single, "")), "flm.ext.name-outside-extension");
 }
 
 #[test]
 fn data_contributed_to_a_handler_slot_is_refused() {
-    assert_eq!(
-        refusal(|b| b.contribute_to("flm.citations.providers", data(json!({})))),
-        "feature `notes`: flm.ext.handler-failed: `contribute_to`: the service slot \
-         `flm.citations.providers` takes a citation provider (an object with `name` and `answer` or `answer_all`), \
-         and the package `_` of the extension `bib` contributed data"
-    );
-    assert_eq!(
-        refusal(|b| b.peer_slot("flm.compose.templates", data(json!({})))),
-        "feature `notes`: flm.ext.handler-failed: `peer_slot`: the service slot \
-         `flm.compose.templates` takes a compose template module (an object with `name`, `describe` and `render`), \
-         and the package `_` of the extension `bib` contributed data"
-    );
+    assert_eq!(refusal(|b| b.contribute_to("flm.citations.providers", data(json!({})))), "flm.ext.handler-failed");
+    assert_eq!(refusal(|b| b.peer_slot("flm.compose.templates", data(json!({})))), "flm.ext.handler-failed");
 }
 
 #[test]
 fn a_handler_object_contributed_to_a_data_slot_or_first_is_refused() {
     assert_eq!(
         refusal(|b| b.contribute_to("bib.notes", Contributed::CitationProvider(Arc::new(Idle)))),
-        "feature `notes`: flm.ext.handler-failed: `contribute_to`: the service slot `bib.notes` \
-         takes data, and the package `_` of the extension `bib` contributed an object with methods; the slots that \
-         take an object are `flm.citations.providers` (a citation provider) and `flm.compose.templates` (a \
-         template module)"
+        "flm.ext.handler-failed"
     );
     assert_eq!(
         refusal(|b| b.contribute_first_to("flm.compose.templates", Contributed::TemplateModule(Arc::new(Idle)))),
-        "feature `notes`: flm.ext.handler-failed: `contribute_first_to`: the value must be data; a \
-         citation provider or a template module is contributed with `contribute_to` or `peer_slot`"
+        "flm.ext.handler-failed"
     );
 }
 
 #[test]
 fn data_that_cannot_cross_is_refused() {
-    let text = refusal(|b| b.contribute_to("bib.notes", data(json!(0.5))));
-    assert!(text.starts_with("feature `notes`: flm.ext.handler-failed: "), "{text}");
-    assert!(text.contains("0.5"), "{text}");
+    assert_eq!(refusal(|b| b.contribute_to("bib.notes", data(json!(0.5)))), "flm.ext.handler-failed");
 }

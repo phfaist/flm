@@ -7,7 +7,7 @@
 mod common;
 
 use common::{identifiers, registry, run, text_of};
-use flm_core::stdcore::backends::text;
+use flm_core::stdlib::backends::text;
 
 /// The text output of one formula, which must report nothing.
 fn formula(source: &str) -> String {

@@ -36,7 +36,7 @@
 //!   (`registry`, `document`, `render`, `either`).
 //! - **Order.** A list keeps the order of the registry or of the declarations it comes
 //!   from. The maps of the settings in effect (by feature, by key and by entry; cargo
-//!   feature `flm-main`) are written in the order of their keys' names. What a view takes
+//!   feature `flm-host`) are written in the order of their keys' names. What a view takes
 //!   from a JSON Schema (a key's schema, the definitions that schemas refer to) and a value
 //!   given as data (a default, a value in effect) are written as they are held, the keys
 //!   of each object in the order in which they were inserted.
@@ -68,7 +68,7 @@ pub const JSON_SCHEMA_VERSION: &str = "https://json-schema.org/draft/2020-12/sch
 /// `CommandView`, …), together with the types the views refer to. A key that the JSON form
 /// may leave out (see the [module documentation](self)) is not required by the schema.
 ///
-/// Under the cargo feature `flm-main` the schema includes the views' host fields, and its
+/// Under the cargo feature `flm-host` the schema includes the views' host fields, and its
 /// root also accepts the host's own views: what the host adds to an environment
 /// (`host::HostInfo`) and the keys of a front matter (`host::FrontMatterView`).
 ///
@@ -96,7 +96,7 @@ pub fn schema() -> Value {
         generator.subschema_for::<Page>(),
         generator.subschema_for::<Output>(),
     ];
-    #[cfg(feature = "flm-main")]
+    #[cfg(feature = "flm-host")]
     {
         roots.push(generator.subschema_for::<crate::host::HostInfo>());
         roots.push(generator.subschema_for::<crate::host::FrontMatterView>());
@@ -104,7 +104,7 @@ pub fn schema() -> Value {
     let mut root = Map::new();
     root.insert("$schema".into(), Value::from(JSON_SCHEMA_VERSION));
     root.insert("title".into(), Value::from("The description of an FLM environment"));
-    let views = if cfg!(feature = "flm-main") {
+    let views = if cfg!(feature = "flm-host") {
         "a package, a feature, the commands of a feature, a command, a scoped package, a feature's settings, \
          the parsing configuration, a workflow, a namespace, a hit of a lookup, an entity of a namespace, a \
          page of documentation, the output that holds several pages, what the host adds to an environment, or \

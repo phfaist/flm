@@ -1,4 +1,4 @@
-//! The HTML backend's artifact table (`flm_core::stdcore::backends::html::ARTIFACTS`):
+//! The HTML backend's artifact table (`flm_core::stdlib::backends::html::ARTIFACTS`):
 //! a stage of the plan writes files the page links to into
 //! `flm.output.html.artifacts`, and the final stage adds each of them to the
 //! page's set after the page; with no writer the set holds the page alone.
@@ -9,12 +9,12 @@ use std::sync::Arc;
 
 use flm_core::core::artifact::{Artifact, ArtifactId, ArtifactSet};
 use flm_core::core::plan::{Plan, PlanRequest};
-use flm_core::core::registry::{CapabilityDef, FlmFeature};
+use flm_core::core::registry::{CapabilityDef, FlmFeature, PackageEntry};
 use flm_core::core::run::RunOptions;
 use flm_core::core::stage::{Effect, Needs, Scope, StageDecl};
-use flm_core::stdcore::backends::html::{self, ARTIFACTS, DOCUMENT};
-use flm_core::stdcore::features::graphics;
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::backends::html::{self, ARTIFACTS, DOCUMENT};
+use flm_core::stdlib::features::graphics;
+use flm_core::stdlib::{StdlibConfig, add_features};
 
 use common::pipeline::{doc, feature, registry, run, stage};
 
@@ -47,7 +47,7 @@ fn files_feature() -> Arc<dyn FlmFeature> {
 /// table's writer in the standard package, then the test feature standing in
 /// for it.
 fn features() -> Vec<Arc<dyn FlmFeature>> {
-    let mut features: Vec<Arc<dyn FlmFeature>> = package(StdcoreConfig::new())
+    let mut features: Vec<Arc<dyn FlmFeature>> = add_features(PackageEntry::new("std"), StdlibConfig::new())
         .features
         .into_iter()
         .filter(|feature| feature.info().name.as_str() != graphics::FEATURE)

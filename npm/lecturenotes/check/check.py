@@ -1,17 +1,31 @@
 # The browser smoke check of the lecture-notes page: renders the sample document
-# (`flm-cli/tests/documents/lecturenotes/notes.flm`) and the short document
-# `plain.flm` beside this file with the extension (`extensions/data/lecturenotes/`,
+# (`flm/tests/documents/lecturenotes/notes.flm`) and the short documents
+# `plain.flm` and `levels.flm` beside this file with the extension (`extensions/data/lecturenotes/`,
 # the bundle `dist/` of its compose template as it stands), serves them from a local HTTP
 # server, opens them in Google Chrome with no window, and asserts through the
 # page's own DOM:
 #
-#   - the sidebar's entries carry their levels, and the chapters are marked;
+#   - the sidebar's entries and the content's headings carry their levels, and are set
+#     by the groups of the levels: in the sample (the top heading level 0, the
+#     navigation heading level 1), and in `levels.flm`, a document with the levels 0 to
+#     3 (the top heading level 0, the navigation heading level 2), where the entries
+#     below a unit's entry fold;
+#   - in `levels.flm`, the setting `css`, written with the selector of the group `top`,
+#     reaches the page in a `<style>` element after the template's stylesheet and sets
+#     the headings and the entries of that group in capitals, and only those;
 #   - the current entry of the sidebar follows a scroll;
 #   - the sidebar button hides the sidebar and shows it again;
 #   - hovering a term, a theorem, an equation and the `[3–5]` mark opens the
 #     popup with the expected content; a long press does the same on a touch
 #     screen;
-#   - a document with no footnotes and no references shows no back-matter rule.
+#   - a document with no footnotes and no references shows no back-matter rule;
+#   - with each of the other math setups (MathJax writing MathML, MathJax in its
+#     lazy mode, math-passthrough, math-techxt; the sample rendered again as
+#     `notes-NAME.html`), hovering an equation reference shows the paragraph of
+#     the formula, with its formulas;
+#   - in MathJax's lazy mode, which typesets a formula only when it scrolls into
+#     view, an equation line has its anchor before its formula is typeset, a
+#     popup typesets the formulas it shows, and a link to the line leads to it.
 #
 # It also writes two pictures of the top of the sample page, at 1280 and at 600
 # pixels wide (`top.png`, `top-600.png` in the output folder).
@@ -53,18 +67,33 @@ def check(name, condition, detail=''):
         failures.append(name)
 
 
+# The other math setups the sample is rendered with: a name, and the options of `flm render`.
+MATH_SETUPS = [
+    ('mathml', ['-O', 'math-mathjax.mode=mathml']),
+    ('lazy', ['-O', 'math-mathjax.lazy=true']),
+    ('passthrough', ['--math', 'passthrough']),
+    ('techxt', ['--math', 'techxt']),
+]
+
+# A formula in the page, whichever processor wrote it: the mark of its outermost element.
+FORMULA = '.flm-math-formula'
+
+
 def render(flm, out):
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
     for name in ['notes.flm', 'cycle.svg']:
-        shutil.copy(ROOT / 'flm-cli/tests/documents/lecturenotes' / name, out / name)
-    shutil.copy(HERE / 'plain.flm', out / 'plain.flm')
-    for document in ['notes', 'plain']:
+        shutil.copy(ROOT / 'flm/tests/documents/lecturenotes' / name, out / name)
+    for name in ['plain.flm', 'levels.flm']:
+        shutil.copy(HERE / name, out / name)
+    runs = [('notes', [], 'notes'), ('plain', [], 'plain'), ('levels', [], 'levels')]
+    runs += [('notes', options, f'notes-{name}') for name, options in MATH_SETUPS]
+    for document, options, output in runs:
         subprocess.run(
-            [flm, 'render', '--extensions-dir', str(ROOT / 'extensions/data'), '-o', f'{document}.html',
+            [flm, 'render', '--extensions-dir', str(ROOT / 'extensions/data'), *options, '-o', f'{output}.html',
              f'{document}.flm'],
-            cwd=out, check=True, env={**os.environ, 'HOME': str(out)})
+            cwd=out, check=True, env={**os.environ, 'HOME': str(out)}, stderr=subprocess.DEVNULL)
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -101,6 +130,17 @@ def hover_preview(page, href):
     link = page.locator(f'#flm-content a[href="{href}"]').first
     link.scroll_into_view_if_needed()
     page.wait_for_timeout(100)
+    # Wait until the link stays in place: formulas typeset after the scroll
+    # (MathJax's lazy mode typesets those that come into view) move the text
+    # around it, and a link that moves away from the pointer shows no popup.
+    place = None
+    for _ in range(20):
+        now = link.bounding_box()
+        if now == place:
+            break
+        place = now
+        page.wait_for_timeout(150)
+    link.scroll_into_view_if_needed()
     link.hover()
     page.wait_for_timeout(450)
     return page.evaluate(POPUP)
@@ -114,14 +154,9 @@ def check_sample(browser, base):
     page.wait_for_timeout(500)
     page.screenshot(path=str(OUT / 'top.png'))
 
-    # The sidebar's entries and their levels.
-    levels = page.evaluate("""() => [...document.querySelectorAll('.ln-sidebar li')].map(
-        (li) => [li.getAttribute('data-ln-level'), li.classList.contains('ln-chapter')])""")
-    check('the sidebar has entries', len(levels) > 5, f'{len(levels)} entries')
-    check('every sidebar entry carries its level', all(level is not None for level, _ in levels))
-    check('the levels 0, 1 and 2 are present', {'0', '1', '2'} <= {level for level, _ in levels},
-          str(sorted({level for level, _ in levels})))
-    check('the chapters are the entries of level 1', all((level == '1') == chapter for level, chapter in levels))
+    # The sidebar's entries and the content's headings, set by the groups of their levels.
+    # The sample's top heading level is 0 (its parts) and its navigation heading level 1.
+    check_groups(page, 'the sample', navigation=1, levels={'0', '1', '2'})
     family = page.evaluate("() => getComputedStyle(document.body).fontFamily")
     check('the text is set in the font family of the settings', family.startswith('Georgia'), family)
     bar_links = page.evaluate("() => [...document.querySelectorAll('.ln-topbar .ln-topbar-links a.ln-topbar-link')].map((a) => a.textContent)")
@@ -139,8 +174,8 @@ def check_sample(browser, base):
     check('the current entry is the section scrolled to', first == '#sec-encoding', str(first))
     second = current_after_scroll('sec-distance')
     check('the current entry follows a second scroll', second == '#sec-distance', str(second))
-    chapter = page.evaluate("() => document.querySelector('.ln-current-chapter').textContent.trim()")
-    check('the bar shows the chapter being read', len(chapter) > 0, chapter)
+    unit = page.evaluate("() => document.querySelector('.ln-current-unit').textContent.trim()")
+    check('the bar shows the unit being read', len(unit) > 0, unit)
     page.evaluate("() => window.scrollTo(0, 0)")
     page.wait_for_timeout(300)
 
@@ -202,6 +237,90 @@ def check_sample(browser, base):
     context.close()
 
 
+# The sidebar's entries: the level of each one's heading, the level it carries, and the
+# weight and the color of its link; and the headings of the content, with their levels and
+# whether they are set as a band. The table is all open while it is read.
+GROUPS = r"""
+() => {
+  document.documentElement.classList.add('ln-toc-all');
+  const entries = [...document.querySelectorAll('.ln-sidebar li')].map((li) => {
+    const link = li.querySelector(':scope > a');
+    const heading = document.getElementById(decodeURIComponent(link.getAttribute('href').slice(1)));
+    const style = getComputedStyle(link);
+    return {level: heading.getAttribute('data-flm-level'), entry_level: li.getAttribute('data-flm-level'),
+            weight: style.fontWeight, color: style.color, space: getComputedStyle(li).marginTop,
+            current: link.getAttribute('aria-current') === 'true'};
+  });
+  document.documentElement.classList.remove('ln-toc-all');
+  const headings = [...document.querySelectorAll('#flm-content .flm-pres-block--heading')].map((h) => ({
+    level: h.getAttribute('data-flm-level'),
+    band: getComputedStyle(h).borderLeftStyle !== 'none',
+    weight: getComputedStyle(h).getPropertyValue('--flm-heading-weight').trim()}));
+  return {entries, headings};
+}
+"""
+
+
+def check_groups(page, document, navigation, levels):
+    """The looks of the groups `major` (a level of at most `navigation`) and `minor` (a
+    greater level), for the headings and the entries of a page whose levels are `levels`."""
+    found = page.evaluate(GROUPS)
+    entries, headings = found['entries'], found['headings']
+    major = lambda e: int(e['level']) <= navigation
+    check(f'{document}: the sidebar has entries at the levels {", ".join(sorted(levels))}',
+          {e['level'] for e in entries} == levels, f'{len(entries)} entries')
+    check(f"{document}: each entry carries its heading's level", all(e['entry_level'] == e['level'] for e in entries))
+    others = [e for e in entries if not e['current']]
+    looks_major = {(e['weight'], e['color'], e['space']) for e in others if major(e)}
+    looks_minor = {(e['weight'], e['color'], e['space']) for e in others if not major(e)}
+    check(f'{document}: the entries at the navigation level and above are in bold, in one color, with a space above',
+          len(looks_major) == 1 and next(iter(looks_major))[0] == '600' and next(iter(looks_major))[2] != '0px',
+          str(looks_major))
+    check(f'{document}: the entries below the navigation level are not in bold, in one other color',
+          len(looks_minor) == 1 and next(iter(looks_minor))[0] == '400'
+          and {l[1] for l in looks_minor} != {l[1] for l in looks_major}, str(looks_minor))
+    check(f'{document}: the headings at the navigation level and above are bands, and the others are not',
+          {h['level'] for h in headings} == levels and all(h['band'] == major(h) for h in headings),
+          str(sorted({(h['level'], h['band']) for h in headings})))
+    weights = {h['weight'] for h in headings if not major(h)}
+    check(f'{document}: the headings below the navigation level have the weight of their group',
+          weights == {'bold'}, str(weights))
+
+
+def check_levels(browser, base):
+    context = browser.new_context(viewport={'width': 1280, 'height': 900})
+    page = context.new_page()
+    page.goto(base + 'levels.html')
+    page.wait_for_load_state('load')
+    page.wait_for_timeout(300)
+    check_groups(page, 'four levels', navigation=2, levels={'0', '1', '2', '3'})
+    # Folded, at the top of the page: the entries below a unit's entry (level 2) are
+    # hidden, the entries at the levels 0 to 2 shown.
+    page.evaluate("() => document.documentElement.classList.remove('ln-toc-all')")
+    page.evaluate("() => window.scrollTo(0, 0)")
+    page.wait_for_timeout(300)
+    shown = page.evaluate("""() => [...document.querySelectorAll('.ln-sidebar li')].map((li) => [
+        li.getAttribute('data-flm-level'), li.getClientRects().length > 0])""")
+    check('four levels: folded, the entries below the units are hidden and the others shown',
+          all(visible == (level != '3') for level, visible in shown), str(shown))
+    # The setting `css`: one `<style>` element right after the link to the template's
+    # stylesheet, whose rule of the group `top` sets the level 0 in capitals.
+    after = page.evaluate("""() => {
+        const link = document.querySelector('head link[rel="stylesheet"][href$="-style.css"]');
+        const next = link && link.nextElementSibling;
+        return next ? [next.tagName, next.textContent.includes('[data-flm-level="0"]')] : null; }""")
+    check("four levels: the setting `css` is a `<style>` element after the template's stylesheet",
+          after == ['STYLE', True], str(after))
+    capitals = page.evaluate("""() => [
+        ...[...document.querySelectorAll('#flm-content .flm-pres-block--heading')].map((h) => [
+            h.getAttribute('data-flm-level'), getComputedStyle(h).textTransform]),
+        ...[...document.querySelectorAll('.ln-sidebar li')].map((li) => [
+            li.getAttribute('data-flm-level'), getComputedStyle(li.querySelector(':scope > a')).textTransform])]""")
+    check('four levels: the setting `css` sets the headings and the entries of the group top in capitals, and only those',
+          all((transform == 'uppercase') == (level == '0') for level, transform in capitals), str(capitals))
+    context.close()
+
+
 def check_plain(browser, base):
     context = browser.new_context(viewport={'width': 1280, 'height': 900})
     page = context.new_page()
@@ -211,6 +330,56 @@ def check_plain(browser, base):
     rule = page.evaluate("""() => { const b = document.querySelector('.ln-backmatter');
         const s = getComputedStyle(b); return [s.display, s.borderTopWidth, b.getBoundingClientRect().height]; }""")
     check('a document with no footnotes and no references shows no back-matter rule', rule[0] == 'none', str(rule))
+    context.close()
+
+
+def check_math(browser, base):
+    for name, _ in MATH_SETUPS:
+        context = browser.new_context(viewport={'width': 1280, 'height': 900})
+        page = context.new_page()
+        page.goto(base + f'notes-{name}.html')
+        page.wait_for_load_state('load')
+        page.wait_for_timeout(500)
+        equation = hover_preview(page, '#eq-tp')
+        parts = equation and equation['parts']
+        check(f'{name}: hovering an equation reference shows the paragraph the formula stands in',
+              parts is not None and parts[:1] == ['p.flm-pres-par'] and 'The channel' in equation['text'],
+              str(parts))
+        count = page.evaluate("(s) => document.querySelectorAll('div.ln-preview .ln-preview-content ' + s).length", FORMULA)
+        check(f'{name}: the popup holds the formulas of the paragraph', count >= 2, f'{count} × {FORMULA}')
+        context.close()
+
+
+def check_lazy(browser, base):
+    context = browser.new_context(viewport={'width': 1280, 'height': 900})
+    page = context.new_page()
+    page.goto(base + 'notes-lazy.html')
+    page.wait_for_load_state('load')
+    page.wait_for_timeout(1500)
+    waiting = page.evaluate("""() => {
+      const anchor = document.getElementById('eq-kl');
+      return anchor === null ? null : anchor.closest('.flm-math-formula').querySelector('mjx-lazy') !== null;
+    }""")
+    check('lazy: an equation line has its anchor before its formula is typeset', waiting is True, str(waiting))
+    # The first reference of the page, near its top, made a link to that line.
+    page.evaluate("""() => document.querySelector('#flm-content a.flm-pres-link[data-flm-kind="ref"]')
+      .setAttribute('href', '#eq-kl')""")
+    hover_preview(page, '#eq-kl')
+    page.wait_for_timeout(1500)
+    counts = page.evaluate("""() => {
+      const content = document.querySelector('div.ln-preview .ln-preview-content');
+      return content && [content.querySelectorAll('mjx-container').length, content.querySelectorAll('mjx-lazy').length];
+    }""")
+    check('lazy: the popup typesets the formulas the page has not typeset yet',
+          counts is not None and counts[0] >= 1 and counts[1] == 0, f'{counts} (typeset, waiting)')
+    page.locator('#flm-content a[href="#eq-kl"]').first.click()
+    page.wait_for_timeout(1000)
+    where = page.evaluate("""() => {
+      const anchor = document.getElementById('eq-kl');
+      const top = anchor === null ? null : anchor.getBoundingClientRect().top;
+      return [location.hash, top !== null && top >= 0 && top < window.innerHeight];
+    }""")
+    check('lazy: following a link to the line shows its formula', where == ['#eq-kl', True], str(where))
     context.close()
 
 
@@ -227,6 +396,9 @@ if __name__ == '__main__':
             browser = playwright.chromium.launch(executable_path=CHROME, args=['--headless=new'])
             check_sample(browser, base)
             check_plain(browser, base)
+            check_levels(browser, base)
+            check_math(browser, base)
+            check_lazy(browser, base)
             browser.close()
     finally:
         server.shutdown()

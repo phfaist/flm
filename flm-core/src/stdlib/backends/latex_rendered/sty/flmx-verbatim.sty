@@ -1,0 +1,75 @@
+% flm.latex.def.flmx.verbatim -- verbatim text.
+%
+% Verbatim text is written as ordinary LaTeX text in which every character
+% stands for itself: the special characters escaped (\{, \}, \%, \&, \#, \_,
+% \$, \textbackslash{}, \textasciitilde{}, \textasciicircum{}), every space a
+% control space (\ ), a tab four of them. No verbatim catcodes are used, so
+% verbatim text may stand anywhere: in a list item, a footnote, a table
+% cell, a template's argument. The elements:
+%   \flmxVerbatim[kind, lang]{<text>}
+%       inline verbatim text; default: the text in the font of its kind.
+%   \begin{flmxVerbatimBlock}[kind, lang]
+%   \flmxVerbLine{<line>}
+%   ...
+%   \end{flmxVerbatimBlock}
+%       a block, one \flmxVerbLine per line (an empty line is
+%       \flmxVerbLine{}); default: a paragraph group in the font of its kind
+%       with \parindent and \parskip zero, ragged right, each line
+%       \par\noindent\strut<line>, between the hooks \flmxVerbatimBlockBegin
+%       and \flmxVerbatimBlockEnd (empty by default; redefine them for a
+%       frame or a background).
+% Their keys:
+%   kind   text (characters), code (computer code) or a (an identifier,
+%          such as a keyword or a name);
+%   lang   the language the text is written in, where one was given.
+%
+% Fonts. Each kind of verbatim text has its own font switch, registered with
+%   \flmxDefineVerbatimFont{<kind>}{<font switch>}
+% (a later registration wins). This chunk registers \ttfamily for the kind
+% code and \itshape for the kind a. A kind with no registered font, text
+% included, keeps the font of the surrounding text. Both defaults apply the
+% font registered for the element's kind.
+%
+% A template distinguishes the kinds, or a language, by registering a look
+% per kind, which then sets its own font:
+%   \flmxDefineVerbatim{<kind>}{<code over #1, the text>}
+%   \flmxDefineVerbatimBlock{<kind>}{<begin code>}{<end code>}
+% It replaces the defaults with \flmxDefineVerbatimDefault{<code over #1>}
+% and \flmxDefineVerbatimBlockDefault{<begin>}{<end>}, and the line with
+% \renewcommand\flmxVerbLine[1]{...}.
+
+\ExplSyntaxOn
+
+% The font switch of each kind, run by both defaults; a kind with none
+% registered keeps the font of the surrounding text.
+\NewDocumentCommand \flmxDefineVerbatimFont { m +m }
+  { \cs_set_protected:cpn { __flmx_verbatimfont_reg_#1 } {#2} }
+\cs_new_protected:Npn \__flmx_verbatim_font:
+  { \cs_if_exist_use:c { __flmx_verbatimfont_reg_ \flmxKey { kind } } }
+\flmxDefineVerbatimFont { code } { \ttfamily }
+\flmxDefineVerbatimFont { a } { \itshape }
+
+\NewDocumentCommand \flmxVerbatimBlockBegin { } { }
+\NewDocumentCommand \flmxVerbatimBlockEnd { } { }
+
+\NewDocumentCommand \flmxVerbatim { O { } +m }
+  { \__flmx_command:nnnn { verbatim } { kind } {#1} {#2} }
+\flmxDefineVerbatimDefault { { \__flmx_verbatim_font: #1 } }
+
+\NewDocumentEnvironment { flmxVerbatimBlock } { O { } }
+  { \__flmx_env_begin:nnn { verbatimblock } { kind } {#1} }
+  { \__flmx_env_end:n { verbatimblock } }
+\flmxDefineVerbatimBlockDefault
+  {
+    \par
+    \flmxVerbatimBlockBegin
+    \__flmx_verbatim_font:
+    \setlength \parindent { 0pt }
+    \setlength \parskip { 0pt }
+    \raggedright
+  }
+  { \par \flmxVerbatimBlockEnd }
+
+\NewDocumentCommand \flmxVerbLine { m } { \par \noindent \strut #1 }
+
+\ExplSyntaxOff

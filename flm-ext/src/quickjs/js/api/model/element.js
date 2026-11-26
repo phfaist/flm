@@ -2,7 +2,7 @@
 // `flm-ext/src/api/model/element.rs`; do not edit.
 //
 // Mirrors `flm_core::model::element`: an element's specification.
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 import { aspect_for } from "flm:_runtime";
 
 // Mirrors `ElementSpec`: an element's name, documentation, aspects and data.

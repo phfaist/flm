@@ -7,7 +7,7 @@ use flm_core::model::options::Bind;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use super::{Environment, is_false, summary_of};
+use super::{Environment, summary_of};
 
 impl Environment {
     /// The settings of the feature `feature`, from the declaration that its package's
@@ -16,14 +16,14 @@ impl Environment {
     /// declared. `None` when no factory of the environment lists the feature or when the
     /// feature takes no settings.
     ///
-    /// Under the cargo feature `flm-main`, for an environment made from a prepared
+    /// Under the cargo feature `flm-host`, for an environment made from a prepared
     /// document, each key also holds its value in effect with where it was written, and
     /// the view says where the feature was switched off.
     pub fn settings(&self, feature: &str) -> Option<SettingsView> {
-        let decl = self.factories.iter().find_map(|factory| factory.settings(feature))?;
+        let decl = self.factories.iter().find_map(|factory| factory.settings(feature)).filter(|decl| decl.takes_settings())?;
         let schema = decl.json_schema();
         let properties = schema.get("properties").and_then(Value::as_object);
-        #[cfg(feature = "flm-main")]
+        #[cfg(feature = "flm-host")]
         let in_effect = self.host.as_ref().and_then(|host| host.settings.get(feature));
         let keys = decl
             .keys()
@@ -34,9 +34,12 @@ impl Environment {
                     summary: description.as_deref().map(summary_of).map(str::to_string),
                     description,
                     default: fragment.get("default").cloned(),
-                    merge_entries: decl.mark_at(&key.name).is_some_and(|mark| mark.merge_entries),
+                    marks: decl
+                        .mark_at(&key.name)
+                        .map(|marked| marked.marks.iter().map(|mark| mark.name().to_string()).collect())
+                        .unwrap_or_default(),
                     bind: key.bind,
-                    #[cfg(feature = "flm-main")]
+                    #[cfg(feature = "flm-host")]
                     in_effect: in_effect.and_then(|feature| feature.keys.get(&key.name)).cloned(),
                     name: key.name,
                     schema: fragment,
@@ -48,7 +51,7 @@ impl Environment {
             description: schema.get("description").and_then(Value::as_str).map(str::to_string),
             keys,
             definitions: schema.get("$defs").and_then(Value::as_object).cloned().unwrap_or_default(),
-            #[cfg(feature = "flm-main")]
+            #[cfg(feature = "flm-host")]
             switched_off: in_effect.and_then(|feature| feature.switched_off.clone()),
         })
     }
@@ -97,10 +100,10 @@ pub struct SettingsView {
     /// to one as `#/$defs/NAME`.
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub definitions: Map<String, Value>,
-    /// Where the feature was switched off, when a settings source wrote `false` for it;
-    /// present only for an environment made from a prepared document (cargo feature
-    /// `flm-main`).
-    #[cfg(feature = "flm-main")]
+    /// Where the feature was switched off, when a settings source wrote `enabled: false`
+    /// (or its shorthand `false`) for it; present only for an environment made from a
+    /// prepared document (cargo feature `flm-host`).
+    #[cfg(feature = "flm-host")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub switched_off: Option<crate::host::OriginView>,
 }
@@ -113,10 +116,12 @@ pub struct SettingKeyView {
     /// Its binding: where a value for it may be set (`registry`, `document`, `render`,
     /// `either`).
     pub bind: Bind,
-    /// Whether two sources of settings combine the key's value entry by entry, instead of
-    /// the higher-ranked source replacing it whole.
-    #[serde(skip_serializing_if = "is_false")]
-    pub merge_entries: bool,
+    /// The names of the marks on the key
+    /// ([`Mark`](flm_core::core::settings::Mark)): how sources of settings combine its value
+    /// (`merge-object-key-values`, `remove-key-when-value-is-false`,
+    /// `set-to-default-with-null`), and what its value means (`path`, `markup`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub marks: Vec<String>,
     /// Its default value, as data, when the schema states one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<Value>,
@@ -131,8 +136,8 @@ pub struct SettingKeyView {
     pub schema: Value,
     /// Its value in effect, with where it was written, when a settings source wrote it;
     /// present only for an environment made from a prepared document (cargo feature
-    /// `flm-main`). A key that no source wrote has the feature's default.
-    #[cfg(feature = "flm-main")]
+    /// `flm-host`). A key that no source wrote has the feature's default.
+    #[cfg(feature = "flm-host")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub in_effect: Option<crate::host::InEffectView>,
 }

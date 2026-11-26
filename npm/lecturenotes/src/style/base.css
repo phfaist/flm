@@ -8,19 +8,23 @@
    that its rules override the library's layered rules. */
 
 :where(:root) {
-  /* The colors: the text, a muted text for numbers, proofs and captions, the
-     links, the rose background and the warm rules of the bands. */
+  /* The colors: the text, a muted text for numbers and proofs, the links,
+     the rose background and the warm rules of the bands, the light shade of
+     the bar and the sidebar, and the deeper shade of the sidebar's entry
+     under the pointer or being read. */
   --ln-text: #27191a;
   --ln-muted: #8C7068;
   --ln-accent: #2B7A6F;
   --ln-accent-hover: #1F5C54;
   --ln-accent-bg: #FAF0EE;
+  --ln-panel-bg: #FBF6F4;
+  --ln-entry-bg: #F3E4E0;
   --ln-border: #D4B5AD;
   --ln-band-color: #C4877A;
   --ln-bg: #fff;
   --ln-selection: rgba(43, 122, 111, 0.18);
-  /* The thin rule of the bar, the sidebar, the buttons, the title block,
-     the notes after the content and the proofs. */
+  /* The thin rule of the buttons, the title block, the notes after the
+     content and the proofs. */
   --ln-rule: 1px solid var(--ln-border);
   --ln-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
 
@@ -50,14 +54,19 @@
   --ln-bar-gap: 1rem;
   --ln-bar-padding: 0 1rem;
   --ln-bar-title-weight: 600;
-  --ln-chapter-lead: "\203A";
-  --ln-chapter-lead-gap: 0.6em;
+  --ln-unit-lead: "\203A";
+  --ln-unit-lead-gap: 0.6em;
   --ln-button-size: 1.9em;
+  --ln-button-icon-size: 1.15em;
   --ln-button-radius: 4px;
   --ln-button-gap: 0.25rem;
+  --ln-button-group-gap: 0.75rem;
   --ln-disabled-opacity: 0.35;
 
-  /* The sidebar, its label and the triangle toggle. */
+  /* The sidebar, its label and the unfold toggle.  The toggle's two icons are
+     images, drawn in the color of the toggle's text: two chevrons pointing
+     apart while the sections are folded, pointing together while everything
+     is open. */
   --ln-sidebar-size: 0.9rem;
   --ln-sidebar-line-height: 1.4;
   --ln-sidebar-padding: 1rem 1rem 2rem 1.25rem;
@@ -65,24 +74,21 @@
   --ln-label-weight: 600;
   --ln-label-spacing: 0.08em;
   --ln-label-space-below: 0.75em;
-  --ln-toggle-width: 1.6rem;
-  --ln-toggle-height: 1.3rem;
-  --ln-toggle-radius: 3px;
-  --ln-toggle-icon-size: 0.95rem;
-  --ln-folded-icon: "\25B8";
-  --ln-open-icon: "\25BE";
+  --ln-toggle-width: 1.9rem;
+  --ln-toggle-height: 1.9rem;
+  --ln-toggle-radius: 4px;
+  --ln-toggle-icon-size: 1rem;
+  --ln-folded-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 5.5l3.5-2.5 3.5 2.5M4.5 10.5l3.5 2.5 3.5-2.5'/%3E%3C/svg%3E");
+  --ln-open-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4.5 2.5l3.5 2.5 3.5-2.5M4.5 13.5l3.5-2.5 3.5 2.5'/%3E%3C/svg%3E");
 
   /* The entries of the table of contents in the sidebar. */
   --ln-entry-padding: 0.15em 0.4em 0.15em 0.5em;
   --ln-entry-radius: 3px;
   --ln-entry-number-gap: 0.3em;
   --ln-current-weight: 600;
-  --ln-part-entry-space: 1.1em;
-  --ln-part-entry-size: 0.78rem;
-  --ln-part-entry-spacing: 0.06em;
-  --ln-chapter-entry-space: 0.35em;
-  --ln-chapter-entry-weight: 600;
-  --ln-current-chapter-entry-weight: 700;
+  --ln-major-entry-space: 0.35em;
+  --ln-major-entry-weight: 600;
+  --ln-current-major-entry-weight: 700;
 
   /* The motions. */
   --ln-fast: 0.15s ease;
@@ -102,32 +108,27 @@
   --ln-backmatter-size: 0.95rem;
   --ln-backmatter-heading-size: 1.1rem;
 
-  /* The headings of the content, by level: a part (level 0) and a chapter
-     (level 1) as bands, a section (level 2), a subsection (level 3). */
+  /* The headings of the content.  The values --ln-major-heading-* (a heading
+     at the navigation level or above it, set as a band) and
+     --ln-minor-heading-* (a heading below it) are read by the rules that the
+     lecture-notes compose template writes after this stylesheet, as are the
+     values --ln-major-entry-* of the entries. */
   --ln-heading-number-gap: 0.15em;
   --ln-band-rule: 5px solid var(--ln-band-color);
-  --ln-part-size: 1.6rem;
-  --ln-part-weight: bold;
-  --ln-part-spacing: 0.03em;
-  --ln-part-padding: 1em 0.75em;
-  --ln-part-space-above: 5em;
-  --ln-part-space-below: 1em;
-  --ln-chapter-weight: normal;
-  --ln-chapter-line-height: 1.35;
-  --ln-chapter-padding: 1.1em 1em;
-  --ln-chapter-space-above: 4.5em;
-  --ln-chapter-space-below: 1.75em;
-  --ln-section-weight: bold;
-  --ln-section-space-above: 1.5em;
-  --ln-section-space-below: 0.8em;
-  --ln-subsection-weight: normal;
-  --ln-subsection-style: italic;
-  --ln-subsection-space-above: 1.2em;
-  --ln-subsection-space-below: 0.6em;
-  --ln-anchor-gap: 0.4em;
-  --ln-anchor-size: 0.85em;
+  --ln-major-heading-weight: normal;
+  --ln-major-heading-line-height: 1.35;
+  --ln-major-heading-padding: 1.1em 1em;
+  --ln-major-heading-space-above: 4.5em;
+  --ln-major-heading-space-below: 1.75em;
+  --ln-minor-heading-weight: bold;
+  --ln-minor-heading-space-above: 1.5em;
+  --ln-minor-heading-space-below: 0.8em;
+  --ln-anchor-gap: 0.7em;
+  --ln-anchor-padding: 0 0.2em;
+  --ln-anchor-size: 0.9em;
 
-  /* The text's elements: defined terms, theorems, proofs, floats, quotations. */
+  /* The text's elements: defined terms, theorems, proofs, floats (the margin
+     on each side of a caption is a share of the column's width), quotations. */
   --ln-term-decoration: underline dotted 1pt;
   --ln-defterm-weight: 600;
   --ln-theorem-style: italic;
@@ -135,11 +136,12 @@
   --ln-proof-padding: 1em;
   --ln-float-padding: 1rem 0;
   --ln-caption-align: left;
-  --ln-caption-number-weight: 600;
+  --ln-caption-margin: 5%;
   --ln-quote-style: italic;
 
   /* The previews: the popup's widths, its spaces, its look, and its layer
      above the bar and the drawer. */
+  --ln-preview-min-width: min(24rem, 90vw);
   --ln-preview-max-width: min(32rem, 90vw);
   --ln-preview-max-height: 20rem;
   --ln-preview-padding: 0.75em 1em;
@@ -169,14 +171,18 @@
   --flm-margin-note-gap: 1.25rem;
   --flm-margin-note-color: var(--ln-muted);
   --flm-toc-indent: 1em;
+  --flm-toc-space-below: 0;
+  --flm-metadata-title-space-below: 0;
+  --flm-metadata-line-height: var(--ln-line-height);
   --flm-floats-spacing: 1.5rem;
-  --flm-floats-caption-size: 0.92rem;
+  --flm-floats-caption-size: 1em;
+  --flm-xnotes-list-size: 1em;
   --flm-math-display-space-above: var(--ln-math-space);
   --flm-math-display-space-below: var(--ln-math-space);
 }
 
 /* The page's text.  The bar is sticky: the browser keeps the point it scrolls
-   to (a link's target, a chapter) below it. */
+   to (a link's target, a heading) below it. */
 html {
   scroll-padding-top: calc(var(--ln-bar-height) + var(--ln-scroll-gap));
 }

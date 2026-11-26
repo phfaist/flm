@@ -1,5 +1,5 @@
 //! The whole pipeline through the `html` workflow, over a registry built from
-//! `flm_core::stdcore::package` alone: the page of the document exercising
+//! the standard features (`flm_core::stdlib::add_features`) alone: the page of the document exercising
 //! every standard feature and of the session-06 document as goldens, the
 //! former's lowered projection, its per-tree output table and its definitions
 //! table as goldens, one document served by three backends — `text` and `html`
@@ -40,13 +40,13 @@ use flm_core::model::addr::TreeId;
 use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
 use flm_core::model::names::{BackendName, Name};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::html::{
+use flm_core::stdlib::backends::html::{
     self, DEFINITIONS_TABLE, DefinitionOverride, HtmlRenderOptions, OUTPUT_TABLE,
 };
-use flm_core::stdcore::backends::latex_recomposed;
-use flm_core::stdcore::backends::lowering::lowered_table;
-use flm_core::stdcore::backends::text::{TEXT_DOCUMENT, TextRenderOptions};
-use flm_core::stdcore::features::refs::{RefsRenderOptions, UnresolvedRefs};
+use flm_core::stdlib::backends::latex_recomposed;
+use flm_core::stdlib::backends::lowering::lowered_table;
+use flm_core::stdlib::backends::text::{TEXT_DOCUMENT, TextRenderOptions};
+use flm_core::stdlib::features::refs::{RefsRenderOptions, UnresolvedRefs};
 use techy::serialize::SerialValue;
 
 use common::html::{assert_golden_at, fragments, page as rendered_page};
@@ -56,7 +56,7 @@ use common::pipeline;
 use common::spine::{
     FEATURES_DOCUMENT, SESSION06_DOCUMENT, golden_path, registry, tables_projection,
 };
-use common::stdcore::{identifiers, plan, projection, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, assert_only_unchecked_output, identifiers, plan, projection, run_workflow};
 use common::wiring::count_element;
 
 // --- the render request these goldens are written under -----------------------------------
@@ -153,7 +153,7 @@ fn the_workflow_plans_the_structured_tree_the_anchors_and_the_backends_four_stag
             "flm.citations.retrieve",
             "flm.citations.check",
             "flm.citations.build-bibliography",
-            "flm.meta.build",
+            "flm.metadata.build",
             "flm.html.pieces",
             "flm.html.emit-pieces",
             "flm.html.lower",
@@ -211,7 +211,7 @@ fn the_features_document_is_written_as_the_golden_shows() {
     assert!(page.contains("It is version 1.0."), "{page}");
     // The document's one deliberately dangling reference is reported, and
     // changes no byte of the page.
-    assert_eq!(identifiers(&run), ["flm.refs.unresolved"]);
+    assert_eq!(identifiers(&run), [UNCHECKED_OUTPUT, "flm.refs.unresolved"]);
     assert_golden_at(golden_path("features.page.html"), &page);
 }
 
@@ -224,7 +224,7 @@ fn the_session_06_document_is_written_as_the_golden_shows() {
     assert!(page.contains("this emphasized bit"), "{page}");
     // The one non-ASCII character is written through as UTF-8.
     assert!(page.contains('\u{25a1}'), "{page}");
-    assert_eq!(identifiers(&run), Vec::<String>::new());
+    assert_only_unchecked_output(&run);
     assert_golden_at(golden_path("session06.page.html"), &page);
 }
 

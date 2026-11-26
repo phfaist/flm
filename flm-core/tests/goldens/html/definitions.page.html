@@ -11,7 +11,7 @@
    the text).  Apart from the :root rule that declares the custom
    properties, every selector begins with a class of the HTML contract, the
    set of classes and attributes that this backend promises to write (the
-   table CONVENTIONS of the Rust module flm_core::stdcore::backends::html).
+   table CONVENTIONS of the Rust module flm_core::stdlib::backends::html).
    The values a page can adjust are the custom properties declared on :root
    below.  All rules are in the cascade layer flm, so any rule of the page
    outside that layer overrides them.
@@ -246,7 +246,7 @@
   </head>
   <body>
     <main class="flm-content" id="flm-content">
-      <p class="flm-pres-par">A formula <span class="flm-pres-math--passthrough" data-flm-display="inline">\(x^2\)</span>.</p>
+      <p class="flm-pres-par">A formula <span class="flm-pres-math--passthrough flm-math-formula" data-flm-display="inline">\(x^2\)</span>.</p>
 <p class="flm-pres-par">More.</p>
     </main>
   </body>

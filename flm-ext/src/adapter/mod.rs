@@ -60,6 +60,7 @@ pub mod lower;
 pub mod names;
 pub mod node;
 pub mod payloads;
+pub(crate) mod progress;
 pub mod rewrite;
 pub mod services;
 pub(crate) mod settings;
@@ -110,7 +111,11 @@ pub use generated::constants;
 /// by two features, and each problem of a feature's settings declaration: a
 /// declaration that is not one or contradicts itself, an option name that
 /// does not begin with one of the extension's namespaces and a dot
-/// ([`names::namespaces`]).
+/// ([`names::namespaces`]). A [`LoadError::Load`], naming the extension, when
+/// the settings of the package's templates cannot be declared
+/// ([`compose::declare_settings`](flm_core::stdlib::features::compose::declare_settings):
+/// two templates of one output and one name, a template's schema whose marks
+/// are faulty).
 pub fn package_factory(
     extension: &ExtensionIdentity,
     report: &PackageReport,
@@ -128,6 +133,8 @@ pub fn package_factory(
         }
     };
     let name = extension.factory_name(&report.name);
+    let template_settings = templates::settings_decl(&name, &report.templates)
+        .map_err(|error| vec![settings::entry_refused(&extension.stem, &error, None)])?;
     let uses: Vec<String> = report.uses.iter().map(|entry| entry.catalog_name(&extension.identity)).collect();
     let extension = extension.clone();
     let report = report.clone();
@@ -162,6 +169,7 @@ pub fn package_factory(
                 entry_name.clone(),
                 description.clone(),
                 report.templates.clone(),
+                template_settings.clone(),
                 Arc::clone(&digest),
             );
             entry = entry.feature(Arc::new(templates));

@@ -1,5 +1,5 @@
-//! How the `graphics` feature publishes images (`flm_core::stdcore::features::graphics`):
-//! the resolver, the strategies `reference`, `copy` and `data-uri`, the
+//! How the `graphics` feature publishes images (`flm_core::stdlib::features::graphics`):
+//! the resolver, the strategies `reference`, `copy`, `data-uri` and `content`, the
 //! conversion rules and the choice of a converter, and the artifacts an
 //! output then holds — with a resolver, converters and a naming service of
 //! the tests' own, which hold their files in memory.
@@ -18,23 +18,25 @@ use flm_core::core::artifact::{
 };
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{
-    CapabilityDef, FeatureChain, FlmFeature, FlmRegistry, RegistryBuilder, RegistryInputs,
+    CapabilityDef, FeatureChain, FlmFeature, FlmRegistry, PackageEntry, RegistryBuilder, RegistryInputs,
+    UnresolvedPeer,
 };
 use flm_core::core::run::{Externals, Run, RunOptions};
 use flm_core::core::stage::{Effect, Needs, Scope, StageDecl};
 use flm_core::model::options::OptionValues;
-use flm_core::stdcore::backends::lowering::NAMER_SLOT;
-use flm_core::stdcore::backends::{html, latex_recomposed, text};
-use flm_core::stdcore::features::graphics::{
+use flm_core::progress::{Kind, Observer, RowState, Scope as ProgressScope, Sheet};
+use flm_core::stdlib::backends::lowering::NAMER_SLOT;
+use flm_core::stdlib::backends::{html, latex_recomposed, text};
+use flm_core::stdlib::features::graphics::{
     self, CONVERTERS_SLOT, ConversionOptions, ConversionRequest, ConversionRule,
-    GraphicsConvertError, GraphicsConverter, GraphicsConfig, GraphicsRenderOptions,
-    GraphicsResolveError, GraphicsResolveRequest, GraphicsResolver, INFO, ImageFile, ImageFormat,
-    RESOLVER_SLOT, Strategy, published_table,
+    CONVERT_KIND, GraphicsContent, GraphicsConvertError, GraphicsConverter, GraphicsConfig,
+    GraphicsRenderOptions, IMAGES_KIND, GraphicsResolveError, GraphicsResolveRequest, GraphicsResolver, INFO,
+    ImageFile, ImageFormat, RESOLVER_SLOT, Strategy, content_table, published_table,
 };
-use flm_core::stdcore::{StdcoreConfig, package};
+use flm_core::stdlib::{StdlibConfig, add_features};
 use techy::error::Severity;
 
-use common::stdcore::{plan, reports};
+use common::stdlib::{UNCHECKED_OUTPUT, plan, projection, reports};
 
 // ---------------------------------------------------------------------------------------------
 // the tests' services
@@ -105,7 +107,7 @@ impl GraphicsConverter for Prefixing {
         self.pairs.contains(&(from, to))
     }
 
-    fn convert(&self, request: &ConversionRequest<'_>) -> Result<Vec<u8>, GraphicsConvertError> {
+    fn convert(&self, request: &ConversionRequest<'_>, _progress: &ProgressScope) -> Result<Vec<u8>, GraphicsConvertError> {
         self.used.lock().expect("a lock").push(self.name.to_string());
         let mut out = format!("{}:", self.name).into_bytes();
         out.extend_from_slice(request.content);
@@ -125,7 +127,7 @@ impl GraphicsConverter for Failing {
         true
     }
 
-    fn convert(&self, _request: &ConversionRequest<'_>) -> Result<Vec<u8>, GraphicsConvertError> {
+    fn convert(&self, _request: &ConversionRequest<'_>, _progress: &ProgressScope) -> Result<Vec<u8>, GraphicsConvertError> {
         Err(GraphicsConvertError::new("the tests' converter always fails"))
     }
 }
@@ -161,7 +163,10 @@ fn registry_with(
     namer: bool,
 ) -> Arc<FlmRegistry> {
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().graphics(GraphicsConfig::new().global(true))));
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().graphics(GraphicsConfig::new().global(true)),
+    ));
     builder.use_package(flm_core::math_passthrough::package());
     if let Some(resolver) = resolver {
         builder.contribute_to(RESOLVER_SLOT, resolver);
@@ -235,6 +240,15 @@ fn unknown_sizes(count: usize) -> Vec<(String, Severity)> {
     vec![(String::from("flm.graphics.unknown-size"), Severity::Warning); count]
 }
 
+/// What a run on the `html` or `latex-recomposed` backend reports for
+/// `count` images that no inspector measures: the Warning of the unchecked
+/// formulas of `math-passthrough`, then [`unknown_sizes`].
+fn unchecked_then_unknown_sizes(count: usize) -> Vec<(String, Severity)> {
+    let mut reports = vec![(String::from(UNCHECKED_OUTPUT), Severity::Warning)];
+    reports.extend(unknown_sizes(count));
+    reports
+}
+
 /// Two files of different formats.
 fn two_files() -> MemoryFiles {
     MemoryFiles::default()
@@ -293,7 +307,7 @@ fn a_file_shown_twice_in_one_tree_or_two_is_one_copy() {
         &RunOptions::new(),
     );
     // No inspector measures the three images.
-    assert_eq!(reports(&run), unknown_sizes(3), "{}", run.diagnostics().render_all());
+    assert_eq!(reports(&run), unchecked_then_unknown_sizes(3), "{}", run.diagnostics().render_all());
     let set = output(&run, html::DOCUMENT);
     assert_eq!(copies(&set).len(), 1);
     assert!(set.violations().is_empty());
@@ -401,7 +415,10 @@ fn two_converting_features(files: Arc<MemoryFiles>, used: &Arc<Mutex<Vec<String>
         })
     };
     let mut builder = RegistryBuilder::new();
-    builder.use_package(package(StdcoreConfig::new().graphics(GraphicsConfig::new().global(true))));
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().graphics(GraphicsConfig::new().global(true)),
+    ));
     builder.use_package(flm_core::math_passthrough::package());
     builder.feature(contributing("t.two", &["two-a", "two-b"]));
     builder.feature(contributing("t.one", &["one"]));
@@ -480,7 +497,7 @@ fn a_path_naming_a_scheme_is_published_as_written_under_every_strategy() {
             &RunOptions::sequential(),
         );
         // A web address is never measured.
-        assert_eq!(reports(&run), unknown_sizes(1), "{strategy:?}");
+        assert_eq!(reports(&run), unchecked_then_unknown_sizes(1), "{strategy:?}");
         let set = output(&run, html::DOCUMENT);
         assert_eq!(sources(&entry_text(&set)), [path], "{strategy:?}");
         assert_eq!(set.len(), 1);
@@ -511,7 +528,7 @@ fn colliding_feature() -> Arc<dyn FlmFeature> {
 /// Two different artifacts under one identity are reported.
 #[test]
 fn two_different_artifacts_under_one_identity_are_reported() {
-    let mut features: Vec<Arc<dyn FlmFeature>> = package(StdcoreConfig::new())
+    let mut features: Vec<Arc<dyn FlmFeature>> = add_features(PackageEntry::new("std"), StdlibConfig::new())
         .features
         .into_iter()
         .filter(|feature| feature.info().name.as_str() != graphics::FEATURE)
@@ -538,7 +555,7 @@ fn with_no_resolver_the_path_as_written_is_published() {
     let registry = registry(None, Vec::new());
     let document = ["\\includegraphics{figures/plot.png}"];
     let run = render(&registry, html::WORKFLOW, &document, &Overrides::none(), &RunOptions::sequential());
-    assert_eq!(reports(&run), unknown_sizes(1));
+    assert_eq!(reports(&run), unchecked_then_unknown_sizes(1));
     let set = output(&run, html::DOCUMENT);
     assert_eq!((set.len(), sources(&entry_text(&set))), (1, vec![String::from("figures/plot.png")]));
     let run = render(&registry, html::WORKFLOW, &document, &options(html::OUTPUT, Strategy::Copy, Vec::new()), &RunOptions::sequential());
@@ -632,15 +649,15 @@ fn under_copy_the_recomposed_latex_names_each_copy_beside_its_style_file() {
 /// named in the Note, and the other outputs render as they do beside it.
 #[test]
 fn without_the_html_backend_its_publish_stage_is_set_aside_and_the_other_outputs_unchanged() {
-    let config = || StdcoreConfig::new().graphics(GraphicsConfig::new().global(true));
-    let without: Vec<Arc<dyn FlmFeature>> = package(config())
+    let config = || StdlibConfig::new().graphics(GraphicsConfig::new().global(true));
+    let without: Vec<Arc<dyn FlmFeature>> = add_features(PackageEntry::new("std"), config())
         .features
         .into_iter()
         .filter(|feature| feature.info().name.as_str() != html::FEATURE_NAME)
         .chain([flm_core::math_passthrough::feature()])
         .collect();
     let without = common::pipeline::registry(without);
-    let mut with = package(config()).features;
+    let mut with = add_features(PackageEntry::new("std"), config()).features;
     with.push(flm_core::math_passthrough::feature());
     let with = common::pipeline::registry(with);
     assert!(!without.build_diagnostics().has_errors());
@@ -665,16 +682,15 @@ fn without_the_html_backend_its_publish_stage_is_set_aside_and_the_other_outputs
         publish(&without),
         ["flm.graphics.publish.text", "flm.graphics.publish.latex-recomposed", "flm.graphics.publish.latex-rendered"]
     );
-    let notes: Vec<String> = without
+    let peers: Vec<(&str, &str, &[String])> = without
         .build_diagnostics()
-        .iter()
-        .filter(|d| d.identifier() == "flm.registry.unresolved-peer")
-        .map(|d| d.message())
+        .conditions::<UnresolvedPeer>()
+        .map(|peer| (peer.kind.as_str(), peer.name.as_str(), peer.stages.as_slice()))
         .collect();
     assert!(
-        notes.iter().any(|note| note.contains("refers to the table `flm.output.html.artifacts`")
-            && note.ends_with("the stages writing it are set aside: [flm.graphics.publish.html]")),
-        "{notes:?}"
+        peers.iter().any(|peer| *peer
+            == ("table", "flm.output.html.artifacts", &[String::from("flm.graphics.publish.html")][..])),
+        "{peers:?}"
     );
     let document = ["\\section{Top}\n\nA \\includegraphics{figures/plot.png} figure."];
     for (workflow, table) in [
@@ -686,10 +702,195 @@ fn without_the_html_backend_its_publish_stage_is_set_aside_and_the_other_outputs
             (entry_text(&output(&run, table)), reports(&run))
         };
         let (text, found) = render_on(&without);
-        assert_eq!(found, unknown_sizes(1), "{workflow}");
+        let expected = if workflow == text::WORKFLOW { unknown_sizes(1) } else { unchecked_then_unknown_sizes(1) };
+        assert_eq!(found, expected, "{workflow}");
         assert!(text.contains("figures/plot.png"), "{workflow}: {text}");
         assert_eq!((text, found), render_on(&with), "{workflow}");
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// the strategy `content`
+// ---------------------------------------------------------------------------------------------
+
+/// The rows of the content table of `backend`, as (address, media type, content).
+fn contents(run: &Run, backend: &str) -> Vec<(String, String, Vec<u8>)> {
+    run.table(&content_table(backend))
+        .expect("declared")
+        .expect("written")
+        .iter()
+        .map(|(_, image)| (image.src.clone(), image.media_type.clone(), image.content.clone()))
+        .collect()
+}
+
+/// Under `content`, each image is published by the file's own address, and
+/// its content, unconverted where no rule applies, is a row of the output's
+/// content table; the output holds no copy. The projection gives bytes that
+/// are not text in base64, and text as it is.
+#[test]
+fn under_content_the_address_is_the_files_and_the_row_holds_its_content() {
+    let files = MemoryFiles::default()
+        .with("figures/plot.png", "image/png", b"\x89PNG-plot")
+        .with("photo.jpg", "image/jpeg", b"JPEG-photo");
+    let registry = registry(Some(Arc::new(files)), Vec::new());
+    let document = ["A \\includegraphics{figures/plot.png} and \\includegraphics{photo.jpg}."];
+    let run = render(&registry, text::WORKFLOW, &document, &options(text::BACKEND, Strategy::Content, Vec::new()), &RunOptions::sequential());
+    assert_eq!(errors(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(
+        contents(&run, text::BACKEND),
+        [
+            (String::from("figures/plot.png"), String::from("image/png"), b"\x89PNG-plot".to_vec()),
+            (String::from("photo.jpg"), String::from("image/jpeg"), b"JPEG-photo".to_vec()),
+        ]
+    );
+    let published: Vec<String> = run
+        .table(&published_table(text::BACKEND))
+        .expect("declared")
+        .expect("written")
+        .iter()
+        .map(|(_, image)| image.src.clone())
+        .collect();
+    assert_eq!(published, ["figures/plot.png", "photo.jpg"]);
+    assert_eq!(output(&run, text::TEXT_DOCUMENT).len(), 1);
+
+    let projected = flm_core::dump::json::to_json(&projection(&run, content_table(text::BACKEND)))
+        .expect("the projection writes");
+    let projected: serde_json::Value = serde_json::from_str(&projected).expect("JSON");
+    let rows = &projected["flm.graphics.content.text"];
+    let encoded = base64::engine::general_purpose::STANDARD.encode(b"\x89PNG-plot");
+    assert_eq!(rows[0]["src"], "figures/plot.png");
+    assert_eq!(rows[0]["media_type"], "image/png");
+    assert_eq!(rows[0]["content"], serde_json::json!({ "base64": encoded }));
+    assert_eq!(rows[1]["content"], serde_json::json!({ "text": "JPEG-photo" }));
+    assert!(rows[0].get("node").is_some(), "{rows}");
+
+    // On the page as well: the file's address, and no copy beside the page.
+    let run = render(&registry, html::WORKFLOW, &document, &options(html::OUTPUT, Strategy::Content, Vec::new()), &RunOptions::sequential());
+    assert_eq!(errors(&run), Vec::<String>::new());
+    let set = output(&run, html::DOCUMENT);
+    assert_eq!(sources(&entry_text(&set)), ["figures/plot.png", "photo.jpg"]);
+    assert_eq!(set.len(), 1);
+    assert_eq!(contents(&run, html::BACKEND).len(), 2);
+}
+
+/// Under `content`, a conversion rule applies as under `copy`: the row holds
+/// the converted content and the target's media type, and the address stays
+/// the file's.
+#[test]
+fn under_content_a_rule_converts_the_content_and_the_address_stays_the_files() {
+    let files = MemoryFiles::default().with("drawing.svg", "image/svg+xml", b"<svg/>");
+    let used = Arc::new(Mutex::new(Vec::new()));
+    let converter = Arc::new(Prefixing {
+        name: "raster",
+        pairs: vec![(ImageFormat::Svg, ImageFormat::Png)],
+        used: Arc::clone(&used),
+    }) as Arc<dyn GraphicsConverter>;
+    let registry = registry(Some(Arc::new(files)), vec![converter]);
+    let rules = vec![ConversionRule::new([ImageFormat::Svg, ImageFormat::Pdf], ImageFormat::Png)];
+    let run = render(
+        &registry,
+        text::WORKFLOW,
+        &["\\includegraphics{drawing.svg}"],
+        &options(text::BACKEND, Strategy::Content, rules),
+        &RunOptions::sequential(),
+    );
+    assert_eq!(errors(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(
+        contents(&run, text::BACKEND),
+        [(String::from("drawing.svg"), String::from("image/png"), b"raster:<svg/>".to_vec())]
+    );
+    assert_eq!(*used.lock().expect("a lock"), ["raster"]);
+}
+
+/// Under `content` with no resolver, the Error is reported, the image is
+/// published by the path as written, and no row is written; a path naming a
+/// scheme is published as written, with no row either, and never read.
+#[test]
+fn under_content_without_a_resolver_the_image_is_published_by_reference_with_no_row() {
+    let without = registry(None, Vec::new());
+    let run = render(
+        &without,
+        text::WORKFLOW,
+        &["A \\includegraphics{figures/plot.png} figure."],
+        &options(text::BACKEND, Strategy::Content, Vec::new()),
+        &RunOptions::sequential(),
+    );
+    assert_eq!(errors(&run), ["flm.graphics.needs-resolver"]);
+    flm_core::dump::diag::expect(run.diagnostics().iter(), "flm.graphics.needs-resolver")
+        .data(serde_json::json!({ "output": "text", "path": "figures/plot.png", "strategy": "content" }))
+        .once();
+    assert_eq!(contents(&run, text::BACKEND), []);
+    assert!(entry_text(&output(&run, text::TEXT_DOCUMENT)).contains("figures/plot.png"));
+
+    let files = Arc::new(MemoryFiles::default());
+    let registry = registry(Some(Arc::clone(&files)), Vec::new());
+    let run = render(
+        &registry,
+        text::WORKFLOW,
+        &["\\includegraphics{https://example.org/a.png}"],
+        &options(text::BACKEND, Strategy::Content, Vec::new()),
+        &RunOptions::sequential(),
+    );
+    assert_eq!(errors(&run), Vec::<String>::new());
+    assert_eq!(contents(&run, text::BACKEND), []);
+    assert_eq!(files.asked.load(Ordering::SeqCst), 0);
+}
+
+/// Under the other strategies, the content table is written and empty.
+#[test]
+fn under_the_other_strategies_the_content_table_is_empty() {
+    let registry = registry(Some(Arc::new(two_files())), Vec::new());
+    let document = ["\\includegraphics{figures/plot.png}"];
+    for strategy in [Strategy::Reference, Strategy::Copy, Strategy::DataUri] {
+        let run = render(&registry, html::WORKFLOW, &document, &options(html::OUTPUT, strategy, Vec::new()), &RunOptions::sequential());
+        assert_eq!(contents(&run, html::BACKEND), [], "{strategy:?}");
+    }
+}
+
+/// The log of the stage `t.values`: the rows of the text output's content
+/// table that the stage found in a synthesized value it caught up.
+const VALUE_ROWS: flm_core::core::data::table::TableName<common::pipeline::Log> = common::pipeline::LOG;
+
+/// Under `content`, a synthesized value holding an image is given its row,
+/// as a tree of the document is: a stage catching such a value up reads the
+/// row in the value's own store.
+#[test]
+fn under_content_a_synthesized_value_is_given_its_rows() {
+    let values = common::pipeline::feature("t", |b| {
+        b.capability(CapabilityDef::new("t.values"))?;
+        b.table(VALUE_ROWS, "the rows the stage found in the value")?;
+        b.stage(common::pipeline::stage(
+            StageDecl::new("t.values", Effect::Compute, Scope::Document).provides("t.values").writes(VALUE_ROWS),
+            Needs::new().reads(content_table(text::BACKEND)),
+            |cx, out| {
+                let value = common::pipeline::tree(cx.registry(), "\\includegraphics{figures/plot.png}");
+                let caught = cx.resolve_value(&value).expect("caught up");
+                let id = cx.registry().table_id("flm.graphics.content.text").expect("declared");
+                let rows = caught.scratch.get_as::<GraphicsContent>(id).expect("written in the value's store");
+                let log = &mut out.table(VALUE_ROWS).expect("declared").0;
+                for (addr, image) in rows.iter() {
+                    let content = String::from_utf8_lossy(&image.content);
+                    log.push(format!("{} {} {} {content}", addr.tree.is_value(), image.src, image.media_type));
+                }
+            },
+        ))
+    });
+    let mut builder = RegistryBuilder::new();
+    builder.use_package(add_features(
+        PackageEntry::new("std"),
+        StdlibConfig::new().graphics(GraphicsConfig::new().global(true)),
+    ));
+    builder.use_package(flm_core::math_passthrough::package());
+    builder.feature(values);
+    builder.contribute_to(RESOLVER_SLOT, Arc::new(two_files()) as Arc<dyn GraphicsResolver>);
+    let registry = builder.build(&RegistryInputs::new()).unwrap_or_else(|error| panic!("{}", error.render()));
+    let mut request = flm_core::core::plan::PlanRequest::new().demand("t.values");
+    request.render_options = options(text::BACKEND, Strategy::Content, Vec::new()).render_options;
+    let plan = common::pipeline::plan_for(&registry, &request);
+    let run = common::pipeline::run(&common::pipeline::doc(&registry, &["No image."]), &plan, &RunOptions::sequential());
+    assert_eq!(errors(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    let log = run.table(VALUE_ROWS).expect("declared").expect("written");
+    assert_eq!(log.0, ["true figures/plot.png image/png PNG-plot"]);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -781,7 +982,7 @@ fn second_entry_feature() -> Arc<dyn FlmFeature> {
 /// output's final stage merges it into the set.
 #[test]
 fn a_second_entry_beside_the_page_is_reported() {
-    let mut features: Vec<Arc<dyn FlmFeature>> = package(StdcoreConfig::new())
+    let mut features: Vec<Arc<dyn FlmFeature>> = add_features(PackageEntry::new("std"), StdlibConfig::new())
         .features
         .into_iter()
         .filter(|feature| feature.info().name.as_str() != graphics::FEATURE)
@@ -814,4 +1015,52 @@ fn the_naming_scope_lists_the_demanded_outputs_with_their_extensions() {
     // A plan's demands give its outputs.
     let plan = plan(&registry, text::WORKFLOW, &Overrides::none());
     assert_eq!(NamingScope::of(&registry, plan.demands()).outputs, [scoped("text", "txt")]);
+}
+
+#[test]
+fn the_publish_stage_reports_a_row_for_its_trees_conversions_and_one_for_each() {
+    let files = MemoryFiles::default()
+        .with("a.svg", "image/svg+xml", b"<svg/>")
+        .with("b.png", "image/png", b"png")
+        .with("c.svg", "image/svg+xml", b"<svg/>");
+    let used = Arc::new(Mutex::new(Vec::new()));
+    let converter = Arc::new(Prefixing {
+        name: "raster",
+        pairs: vec![(ImageFormat::Svg, ImageFormat::Png)],
+        used: Arc::clone(&used),
+    }) as Arc<dyn GraphicsConverter>;
+    let registry = registry(Some(Arc::new(files)), vec![converter]);
+    let rules = vec![ConversionRule::new([ImageFormat::Svg], ImageFormat::Png)];
+    let doc = common::pipeline::doc(
+        &registry,
+        &["\\includegraphics{a.svg} \\includegraphics{b.png} \\includegraphics{c.svg}"],
+    );
+    let plan = plan(&registry, text::WORKFLOW, &options(text::BACKEND, Strategy::Content, rules));
+    let (sheet, root) = Sheet::start(&Kind::new("test.build"), None, Observer::default(), None);
+    let mut run = Run::new(doc, plan, Externals::none()).expect("a run").with_progress(root.scope());
+    run.execute(&RunOptions::sequential()).expect("the run");
+    root.finish();
+    assert_eq!(errors(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+
+    let snapshot = sheet.snapshot();
+    let publish = snapshot.rows.iter().find(|row| row.kind == "flm.graphics.publish.text").expect("the stage's row");
+    let images: Vec<_> = snapshot.rows.iter().filter(|row| row.kind == IMAGES_KIND.name()).collect();
+    assert_eq!(images.len(), 1);
+    assert_eq!(images[0].parent, Some(publish.id));
+    assert_eq!(images[0].state, RowState::Finished);
+    assert_eq!(images[0].count.map(|count| (count.total, count.done)), Some((2, 2)));
+    let conversions: Vec<_> = snapshot
+        .rows
+        .iter()
+        .filter(|row| row.kind == CONVERT_KIND.name())
+        .map(|row| (row.parent, row.label.as_ref().map(|label| label.to_string()), row.state))
+        .collect();
+    let under = Some(images[0].id);
+    assert_eq!(
+        conversions,
+        [
+            (under, Some(String::from("a.svg")), RowState::Finished),
+            (under, Some(String::from("c.svg")), RowState::Finished),
+        ]
+    );
 }

@@ -1,0 +1,17 @@
+name: including
+output: html
+engine: minijinja
+main: including.html
+accepts: all
+settings:
+  type: object
+  properties:
+    color: {type: string, default: teal, description: The color of the custom property of the stylesheet.}
+    title: {type: string, default: A <b>bold</b> title, description: The title of the header.}
+artifacts:
+  style:
+    file: style.css
+    template: true
+  script:
+    file: script.js
+    template: true

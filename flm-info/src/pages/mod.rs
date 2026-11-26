@@ -6,12 +6,16 @@
 //! `features/headings/macros/section`), a title, a summary, a *body* (the [view](crate::env)
 //! the page shows, a [`Node`]) and the list of the pages directly below it (its
 //! *children*). [`Tree::page`] gives the page of a path, [`Tree::lookup`] the pages of the
-//! entities and commands of a given name, and [`Tree::walk`] every page in tree order.
+//! entities and commands of a given name, [`Tree::walk`] every page in tree order, and
+//! [`Tree::index`] every page with the names it is looked up by.
 //! [`Page::to_json`] writes a page as JSON (the [rules of the JSON form](crate::describe)
 //! apply), and [`Output`] is the document that holds several pages behind a header.
 //! [`source`] writes a page as an FLM document, which the documentation markup of the
 //! extension `flmdoc` renders; this module does not render pages and does not depend on
-//! that extension.
+//! that extension. The page's documentation structure is the structure of that document:
+//! each documentation text is in a construct that says what it is, each fact composed from
+//! structure is a key–value of the construct of the thing it describes and `flmdoc` writes
+//! its words, and each list is a list construct ([`source`] lists them).
 //!
 //! # The documentation texts a page embeds
 //!
@@ -21,7 +25,7 @@
 //! declares it, with its package, or, for a text written as data (the documentation text of
 //! a workflow given as data, that of a user definition that no other entry of the settings
 //! shares), where it was written, as the settings cascade gives it (cargo feature
-//! `flm-main`). The list comes from the walk that writes the source, so it holds exactly the
+//! `flm-host`). The list comes from the walk that writes the source, so it holds exactly the
 //! texts the source embeds. A program that renders the pages parses each text with the
 //! registry that renders them; a text that does not parse (one an extension wrote, for
 //! example) goes into [`SourceOptions::plain_texts`], and the page then writes it as plain
@@ -31,16 +35,16 @@
 //!
 //! | path | the page |
 //! |---|---|
-//! | `/` | the environment at a glance: the profile and the math processor in view (cargo feature `flm-main`), the packages, the features, the workflows |
-//! | `packages/`, `packages/<name>` | the packages; one package, with where it comes from (cargo feature `flm-main`) |
-//! | `features/`, `features/<name>` | the features; one feature, with its documentation, its element types and the commands written for each, its scoped packages, its settings keys and what else it declares |
+//! | `/` | the environment at a glance: the profile and the math processor in view (cargo feature `flm-host`), the packages, the features, the workflows |
+//! | `packages/`, `packages/<name>` | the packages; one package, with where it comes from (cargo feature `flm-host`) |
+//! | `features/`, `features/<name>` | the features; one feature, with its documentation, its element types, its scoped packages, its settings keys and what else it declares |
 //! | `features/<name>/macros`, `…/environments`, `…/specials` | the commands of one kind that the feature declares |
-//! | `features/<name>/macros/<macro>`, `…/environments/<environment>`, `…/specials/<trigger>` | one command: every declaration of the name by the feature, with its signature, its arguments, its tack-on fields, its element |
+//! | `features/<name>/macros/<macro>`, `…/environments/<environment>`, `…/specials/<trigger>` | one command: every declaration of the name by the feature, with its signature, its arguments (an environment's body among them), its tack-on fields, its element type |
 //! | `features/<name>/scopedpackages`, `…/scopedpackages/<package>` | the scoped packages of the feature; one scoped package, with where it is available |
 //! | `…/scopedpackages/<package>/macros`, `…/macros/<macro>` (and `environments`, `specials`) | the commands of a scoped package, as for a feature |
-//! | `settings/`, `settings/<feature>`, `settings/parsing`, `settings/front-matter` | the settings keys of a feature; the parsing settings; the keys of a front matter (cargo feature `flm-main`) |
+//! | `settings/`, `settings/<feature>`, `settings/parsing`, `settings/front-matter` | the settings keys of a feature; the parsing settings; the keys of a front matter (cargo feature `flm-host`) |
 //! | `workflows/`, `workflows/<name>` | the workflows; one workflow, with the plan in view when it was built from this workflow |
-//! | `namespaces/`, `namespaces/<namespace>`, `namespaces/<namespace>/<name>` | the families of names the registry holds; every name of one family; one entity |
+//! | `namespaces/`, `namespaces/<namespace>`, `namespaces/<namespace>/<name>` | the families of names the registry holds; every name of one family; one entity (an element type with its own documentation text, if any, and its values with the commands written for each) |
 //! | `program/`, `program/paths`, `program/extensions` | the program's commands and environment variables; the folders it reads; the packages and extensions a document may use (only with a [`ProgramInfo`]) |
 //!
 //! A macro's segment is its name without the backslash; a special character sequence's
@@ -59,6 +63,15 @@
 //! without its final slash (`features` for `features/`). A name that is no page's path is
 //! looked up with [`Tree::lookup`].
 //!
+//! A page's *path line* ([`Page::path_line`]) lists the levels above it and the page itself,
+//! from its section down, each a page of the tree with the part it adds to the path: the
+//! fixed word of an index page or of a fixed page (`features`, `macros`, `parsing`), the
+//! whole name of a feature, package, scoped package, workflow, namespace or entity, and a
+//! command's name as its page's title writes it (`\ref`, with the backslash). The line of
+//! `features/refs/macros/ref` is `features`, `refs`, `macros`, `\ref`; a name that holds a
+//! slash is one segment (`packages/doc/x.yaml#_` gives `packages`, `doc/x.yaml#_`). The
+//! line of `/` is empty.
+//!
 //! The paths `settings/parsing` and `settings/front-matter` are those of the parsing
 //! settings and of the front matter's keys, whatever the features are called: the settings
 //! page of a feature named `parsing` or `front-matter` has no path of its own, and the
@@ -69,17 +82,21 @@
 //! ```
 //! use std::sync::Arc;
 //! use flm_core::core::plan::{Overrides, Plan};
-//! use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-//! use flm_core::stdcore::{self, StdcoreConfig};
+//! use flm_core::core::registry::{PackageEntry, PackageFactory, RegistryBuilder, RegistryInputs};
+//! use flm_core::core::settings::PackageSettings;
+//! use flm_core::stdlib::{self, StdlibConfig};
 //! use flm_info::Environment;
 //! use flm_info::pages::{SourceOptions, Tree, source};
 //!
 //! let mut builder = RegistryBuilder::new();
-//! builder.use_package(stdcore::package(StdcoreConfig::new()));
+//! builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 //! builder.use_package(flm_core::math_passthrough::package());
 //! let registry = builder.build(&RegistryInputs::new())?;
 //! let plan = Plan::for_workflow(&registry, "text", &Overrides::none())?;
-//! let factories = vec![stdcore::factory()?, flm_core::math_passthrough::factory()?];
+//! let std = PackageFactory::new("std", |settings: &PackageSettings| {
+//!     Ok(stdlib::add_features_from_settings(PackageEntry::new("std"), settings))
+//! })?;
+//! let factories = vec![std, flm_core::math_passthrough::factory()?];
 //! let env = Environment::new(registry, Some(Arc::new(plan)), factories);
 //!
 //! let tree = Tree::new(&env, None);
@@ -113,7 +130,7 @@ use crate::env::{
     ScopedPackageView, SettingsView, WorkflowView, is_empty, is_false,
 };
 pub use source::{SourceOptions, source};
-#[cfg(feature = "flm-main")]
+#[cfg(feature = "flm-host")]
 pub use texts::TextHolder;
 pub use texts::{EmbeddedText, TextSource, texts};
 
@@ -177,6 +194,42 @@ impl Tree {
     pub fn walk(&self) -> Walk {
         Walk { tree: self.clone(), pending: vec![String::from(paths::ROOT)] }
     }
+
+    /// The index of the tree: every page, in tree order ([`Tree::walk`]), with its path, its
+    /// kind, its title, its summary and the names it is looked up by ([`IndexEntry::names`]).
+    /// Every page is made to compute it.
+    pub fn index(&self) -> Vec<IndexEntry> {
+        let mut names = build::names(self);
+        self.walk()
+            .map(|page| IndexEntry {
+                names: names.remove(&page.path).unwrap_or_default(),
+                path: page.path,
+                kind: page.kind,
+                title: page.title,
+                summary: page.summary,
+            })
+            .collect()
+    }
+}
+
+/// One page of the index of a tree ([`Tree::index`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct IndexEntry {
+    /// The page's path.
+    pub path: String,
+    /// What the page shows.
+    pub kind: PageKind,
+    /// The page's title, as plain text.
+    pub title: String,
+    /// The page's summary, in FLM with the backtick ([`Page::summary`]).
+    pub summary: String,
+    /// The names by which [`Tree::lookup`] finds the page, each once: a macro's name with
+    /// and without the backslash (`\section`, `section`), an environment's name, a special
+    /// character sequence's trigger, each settings key of a feature's settings page as the
+    /// feature's name, a dot and the key (`html.title`), and the name of the
+    /// feature, package, workflow, scoped package or other entity that the page describes.
+    /// Empty for a page that no name finds, such as an index page.
+    pub names: Vec<String>,
 }
 
 /// The iterator over every page of a tree, in tree order, that [`Tree::walk`] returns.
@@ -242,6 +295,12 @@ impl std::fmt::Debug for Page {
 }
 
 impl Page {
+    /// The page's path line (see the [module documentation](self#the-paths)): one segment
+    /// per level, from the page's section down to the page itself; empty for `/`.
+    pub fn path_line(&self) -> Vec<Segment> {
+        paths::parse(&self.path).map(|location| paths::line(&location)).unwrap_or_default()
+    }
+
     /// The page as JSON: an object with the keys `path`, `kind`, `title`, `summary` (absent
     /// when empty), `body` (absent for an index page) and `children`. Without `recursive`,
     /// each child is an object with its `path`, `title` and `summary`; with `recursive`,
@@ -274,6 +333,15 @@ enum Child {
     Entry(Entry),
     /// The child in full.
     Page(Box<Page>),
+}
+
+/// One level of a page's path line ([`Page::path_line`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Segment {
+    /// The part that the level adds to the path above it, as the line shows it.
+    pub text: String,
+    /// The path of the page at that level.
+    pub path: String,
 }
 
 /// A reference to a page, as a list of children holds it.
@@ -323,7 +391,7 @@ pub enum PageKind {
     Settings,
     /// `settings/parsing`: the parsing settings; body [`Node::Parsing`].
     ParsingSettings,
-    /// `settings/front-matter`: the keys of a front matter (cargo feature `flm-main`); body
+    /// `settings/front-matter`: the keys of a front matter (cargo feature `flm-host`); body
     /// `Node::FrontMatter`.
     FrontMatter,
     /// `workflows/`: the workflows; an index page.
@@ -371,8 +439,8 @@ pub enum Node {
     Settings(SettingsView),
     /// The body of `settings/parsing`.
     Parsing(ParsingView),
-    /// The body of `settings/front-matter` (cargo feature `flm-main`).
-    #[cfg(feature = "flm-main")]
+    /// The body of `settings/front-matter` (cargo feature `flm-host`).
+    #[cfg(feature = "flm-host")]
     FrontMatter(crate::host::FrontMatterView),
     /// The body of a workflow's page.
     Workflow(WorkflowView),
@@ -403,13 +471,13 @@ pub struct RootView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workflow: Option<String>,
     /// The profile in view; present for an environment made from a prepared document
-    /// (cargo feature `flm-main`).
-    #[cfg(feature = "flm-main")]
+    /// (cargo feature `flm-host`).
+    #[cfg(feature = "flm-host")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<crate::host::ProfileView>,
     /// The math processor in use; present for an environment made from a prepared document
-    /// when a package processes the document's mathematics (cargo feature `flm-main`).
-    #[cfg(feature = "flm-main")]
+    /// when a package processes the document's mathematics (cargo feature `flm-host`).
+    #[cfg(feature = "flm-host")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub math: Option<crate::host::MathProcessorView>,
     /// The packages, as [`Environment::packages`] lists them.
@@ -535,7 +603,8 @@ pub struct ProgramPaths {
 /// One folder a program reads.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, schemars::JsonSchema)]
 pub struct ProgramFolder {
-    /// The folder, as the program resolves it.
+    /// The folder, as the program resolves it, written as the host writes paths: `/`
+    /// between names, on every system.
     pub path: String,
     /// Where the folder comes from, as plain text (an option, an environment variable, the
     /// document's folder, …).

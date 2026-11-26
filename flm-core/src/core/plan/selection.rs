@@ -104,7 +104,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::core::lowering::DefaultMark;
-use crate::model::names::{CapName, ElementName, RuleName, StageName, WorkflowName};
+use crate::model::names::{CapName, ElementName, FeatureName, RuleName, StageName, WorkflowName};
 use crate::core::plan::build::{PlanError, PlanWarning};
 use crate::core::registry::frozen::{BackendEntry, CapId, FlmRegistry, RuleIdx, StageIdx};
 use crate::core::data::table::TableId;
@@ -151,10 +151,11 @@ impl SelectedRules {
 /// Chooses one rule per element for `backend`, under the rule preferences
 /// `prefer` (most preferred first), as the module documentation describes.
 ///
-/// Returns the choice and one [`PlanWarning`] per preference that cannot be
-/// honored: a preferred rule that is set aside, and a preferred rule that is
-/// not a candidate on this backend. `workflow` is the workflow the plan request
-/// was made from, which the error and the warnings name.
+/// Returns the choice and its warnings: one [`PlanWarning`] per preference that
+/// cannot be honored (a preferred rule that is set aside, and a preferred rule
+/// that is not a candidate on this backend), then the unchecked outputs of the
+/// chosen rules ([`unchecked_outputs`]). `workflow` is the workflow the plan
+/// request was made from, which the error and the warnings carry.
 ///
 /// # Errors
 ///
@@ -167,7 +168,7 @@ pub(crate) fn select_rules(
     workflow: &Option<WorkflowName>,
 ) -> Result<(SelectedRules, Vec<PlanWarning>), PlanError> {
     let mut selected = SelectedRules::default();
-    let warnings = unhonored_rule_preferences(registry, backend, prefer, workflow);
+    let mut warnings = unhonored_rule_preferences(registry, backend, prefer, workflow);
     let mut elements: BTreeSet<ElementName> =
         registry.rules().iter().map(|entry| entry.rule.element.clone()).collect();
     elements.extend(backend.native.iter().cloned());
@@ -219,7 +220,44 @@ pub(crate) fn select_rules(
         };
         selected.by_element.insert(element, chosen);
     }
+    warnings.extend(unchecked_outputs(registry, backend, &selected, workflow));
     Ok((selected, warnings))
+}
+
+/// One [`PlanWarning::UncheckedOutput`] per feature whose chosen rules on this
+/// backend declare it in
+/// [`LoweringDecl::unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output),
+/// in feature name order.
+///
+/// The rules of one feature on one backend describe the same output, so the
+/// warning takes what is written and what reads it from the first declaring
+/// rule in rule-name order.
+fn unchecked_outputs(
+    registry: &FlmRegistry,
+    backend: &BackendEntry,
+    selected: &SelectedRules,
+    workflow: &Option<WorkflowName>,
+) -> Vec<PlanWarning> {
+    let mut rules: Vec<RuleIdx> = selected.rules().collect();
+    rules.sort_by(|a, b| registry.rule(*a).rule.name.cmp(&registry.rule(*b).rule.name));
+    rules.dedup();
+    let mut by_feature: BTreeMap<FeatureName, PlanWarning> = BTreeMap::new();
+    for idx in rules {
+        let entry = registry.rule(idx);
+        let Some(declared) =
+            entry.rule.decl.unchecked_output.iter().find(|decl| decl.backend == backend.name)
+        else {
+            continue;
+        };
+        by_feature.entry(entry.owner.clone()).or_insert_with(|| PlanWarning::UncheckedOutput {
+            backend: backend.name.clone(),
+            feature: entry.owner.clone(),
+            written: declared.written.clone(),
+            reader: declared.reader.clone(),
+            workflow: workflow.clone(),
+        });
+    }
+    by_feature.into_values().collect()
 }
 
 /// One [`PlanWarning`] per preference in `prefer` that this backend cannot

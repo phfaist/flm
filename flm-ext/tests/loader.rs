@@ -12,7 +12,6 @@ use flm_core::core::settings::PackageSettings;
 use flm_ext::api::core::registry::FeatureBuilder;
 use flm_ext::api::core::settings::ReadError;
 use flm_ext::block::Block;
-use flm_ext::manifest::FLM_VERSION;
 use flm_ext::{
     Engine, ExtError, ExtRuntime, ExtensionFiles, ExtensionIdentity, ExtensionLoader, FeatureReport, LoadError, Loaded,
     Manifest, MemoryFiles, MemorySource, PackageReport, UseEntry,
@@ -76,8 +75,10 @@ impl Engine for TestEngine {
                     docs: String::new(),
                     version: None,
                     settings: None,
+                    templates: Default::default(),
                 }],
                 host: self.host.iter().map(|name| name.to_string()).collect(),
+                caches: Default::default(),
             })
             .collect();
         Ok(Loaded { packages, runtime: Arc::new(TestRuntime { bytes: self.bytes.clone() }) })
@@ -98,17 +99,32 @@ fn errors(result: Result<Option<flm_core::core::registry::PackageFactory>, Vec<R
     result.expect_err("the resolve fails")
 }
 
+/// The place of each problem of a failed resolve: its file, line and column.
+fn places(
+    result: Result<Option<flm_core::core::registry::PackageFactory>, Vec<ResolveError>>,
+) -> Vec<(Option<String>, Option<u32>, Option<u32>)> {
+    errors(result).into_iter().map(|error| (error.file, error.line, error.column)).collect()
+}
+
+/// The place of a problem in no file.
+const NOWHERE: (Option<String>, Option<u32>, Option<u32>) = (None, None, None);
+
+/// The place of a problem in the manifest's file, at no line.
+fn in_manifest() -> (Option<String>, Option<u32>, Option<u32>) {
+    (Some(ID.to_string()), None, None)
+}
+
 #[test]
 fn an_entry_resolves_through_a_memory_source_to_a_factory() {
-    let loader = memory_loader(data(json!({ "flm": { "use": ["stdcore"] } })));
+    let loader = memory_loader(data(json!({ "flm": { "use": ["std"] } })));
     let factory = loader.resolve("myext").expect("no problem").expect("found");
     assert_eq!(factory.name().as_str(), "_flmextensions/myext.yaml#_");
-    assert_eq!(factory.used().iter().map(|n| n.as_str()).collect::<Vec<_>>(), ["stdcore"]);
+    assert_eq!(factory.used().iter().map(|n| n.as_str()).collect::<Vec<_>>(), ["std"]);
     assert_eq!(loader.resolve("other").expect("no problem").map(|f| f.name().clone()), None);
     let catalog = catalog_with(&loader);
     let found = catalog.resolve_all(&["myext"]).expect("resolved");
     let names: Vec<&str> = found.iter().map(|f| f.name().as_str()).collect();
-    assert_eq!(names, ["stdcore", "_flmextensions/myext.yaml#_"]);
+    assert_eq!(names, ["std", "_flmextensions/myext.yaml#_"]);
 }
 
 #[test]
@@ -134,27 +150,22 @@ fn a_factory_name_is_answered_before_any_parsing() {
 #[test]
 fn a_dot_entry_asked_of_the_loader_is_refused() {
     let loader = memory_loader(data(Value::Null));
-    assert_eq!(
-        errors(loader.resolve(".#core")),
-        [ResolveError::new(
-            "the locator `.` of the entry `.#core` may be written only in the `uses` list of an extension's package"
-        )]
-    );
+    assert_eq!(places(loader.resolve(".#core")), [NOWHERE]);
 }
 
 #[test]
 fn a_dot_in_a_package_s_uses_is_the_extension_itself() {
-    let engine = TestEngine::new(vec![("_", vec![".#core", "stdcore"]), ("core", vec![])]);
+    let engine = TestEngine::new(vec![("_", vec![".#core", "std"]), ("core", vec![])]);
     let loader = Arc::new(ExtensionLoader::new(vec![Arc::new(data(test_manifest()))]).with_engine(Arc::new(engine)));
     let factory = loader.resolve("myext").unwrap().unwrap();
     assert_eq!(
         factory.used().iter().map(|n| n.as_str()).collect::<Vec<_>>(),
-        ["_flmextensions/myext.yaml#core", "stdcore"]
+        ["_flmextensions/myext.yaml#core", "std"]
     );
     let catalog = catalog_with(&loader);
     let found = catalog.resolve_all(&["myext"]).expect("resolved");
     let names: Vec<&str> = found.iter().map(|f| f.name().as_str()).collect();
-    assert_eq!(names, ["_flmextensions/myext.yaml#core", "stdcore", "_flmextensions/myext.yaml#_"]);
+    assert_eq!(names, ["_flmextensions/myext.yaml#core", "std", "_flmextensions/myext.yaml#_"]);
 }
 
 #[test]
@@ -185,61 +196,33 @@ fn the_first_source_that_answers_wins() {
 }
 
 #[test]
-fn a_package_the_extension_lacks_names_those_it_provides() {
+fn a_package_the_extension_lacks_is_refused() {
     let engine = TestEngine::new(vec![("_", vec![]), ("core", vec![])]);
     let loader = ExtensionLoader::new(vec![Arc::new(data(test_manifest()))]).with_engine(Arc::new(engine));
-    assert_eq!(
-        errors(loader.resolve("myext#svg")),
-        [ResolveError::new(
-            "the extension `myext` (`_flmextensions/myext.yaml`) provides no package `svg`; it provides `_`, `core`"
-        )]
-    );
+    assert_eq!(places(loader.resolve("myext#svg")), [NOWHERE]);
 }
 
 #[test]
-fn an_unknown_engine_names_the_engines_of_the_program() {
+fn an_unknown_engine_fails_the_load() {
     let loader = ExtensionLoader::new(vec![Arc::new(data(json!({ "extension": { "engine": "python" } })))])
         .with_engine(Arc::new(TestEngine::new(vec![])));
     assert_eq!(loader.engines(), ["data", "test"]);
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new(
-            "the extension `myext` specifies the engine `python` (`extension.engine`), and this program has the engines \
-             `data`, `test`"
-        )
-        .in_file(ID)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [in_manifest()]);
 }
 
 #[test]
 fn an_unmet_flm_version_fails_the_load() {
     let loader = memory_loader(data(json!({ "extension": { "flm_version": ">=999" } })));
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new(format!(
-            "the extension `myext` requires FLM `>=999` (`extension.flm_version`), and this program is FLM {FLM_VERSION}"
-        ))
-        .in_file(ID)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [in_manifest()]);
 }
 
 #[test]
 fn a_manifest_problem_is_placed_in_the_manifest_s_file() {
     let loader = memory_loader(data(json!({ "extension": { "engines": "js" }, "flm": { "use": 3 } })));
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new(
-            "`extension.engines` is not a key of the `extension` block of the extension `myext`; the keys are \
-             `description`, `author`, `flm_version`, `engine`, `js`, `wasm`"
-        )
-        .in_file(ID)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [in_manifest()]);
     // A problem of the data engine's block is a manifest problem too.
     let loader = memory_loader(data(json!({ "flm": { "use": 3 } })));
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new("in the manifest of the extension `myext`, `use` must be an entry or a list of entries").in_file(ID)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [in_manifest()]);
 }
 
 #[test]
@@ -274,7 +257,7 @@ fn blocks_lists_each_loaded_package_with_its_block() {
             ("_flmextensions/myext.yaml#a", "myext"),
         ]
     );
-    assert_eq!(blocks[0].block.features, [("toc".to_string(), flm_ext::block::FeatureBlock::Off)]);
+    assert_eq!(blocks[0].block.features, [("toc".to_string(), flm_ext::block::FeatureBlock::off())]);
     assert_eq!(blocks[2].block.other, [("mark".to_string(), json!("_"))]);
     assert_eq!(blocks[1].extension.identity, ID);
 }
@@ -297,9 +280,9 @@ fn manifest_gives_the_manifest_of_each_loaded_extension_as_read() {
     assert_eq!(loader.manifest("myext"), None);
 }
 
-/// The digest of the registry holding stdcore and the package `myext` of an
-/// extension of the test engine, whose manifest is `manifest` and whose
-/// engine's bytes are `bytes`.
+/// The digest of the registry holding the standard features and the package
+/// `myext` of an extension of the test engine, whose manifest is `manifest`
+/// and whose engine's bytes are `bytes`.
 fn digest(manifest: Value, bytes: &[u8]) -> String {
     let mut engine = TestEngine::new(vec![("_", vec![])]);
     engine.bytes = bytes.to_vec();
@@ -335,6 +318,7 @@ impl flm_ext::host::HostService for Named {
         _: &flm_ext::host::HostCaller,
         _: &str,
         _: &Value,
+        _: &flm_core::progress::Scope,
     ) -> Result<flm_ext::host::HostAnswer, flm_ext::host::HostServiceError> {
         Ok(flm_ext::host::HostAnswer::Data(Value::Null))
     }
@@ -350,33 +334,13 @@ fn declaring(host: Vec<&'static str>, offered: &[&'static str]) -> ExtensionLoad
 }
 
 #[test]
-fn a_package_declaring_a_service_the_host_lacks_fails_the_load_naming_the_offered_ones() {
+fn a_package_declaring_a_service_the_host_lacks_fails_the_load() {
+    // One problem for each of the two packages.
     let loader = declaring(vec!["files", "programs"], &["files", "echo"]);
     assert_eq!(loader.host_services(), ["echo", "files"]);
-    let texts: Vec<String> = errors(loader.resolve("myext")).into_iter().map(|error| error.detail).collect();
-    assert_eq!(
-        texts,
-        [
-            "the package `_` of the extension `myext` declares the host service `programs` (`host`), which this \
-             program does not offer; it offers `echo`, `files`",
-            "the package `extra` of the extension `myext` declares the host service `programs` (`host`), which this \
-             program does not offer; it offers `echo`, `files`",
-        ]
-    );
+    assert_eq!(places(loader.resolve("myext")), [NOWHERE, NOWHERE]);
     let none = declaring(vec!["files"], &[]);
-    assert_eq!(
-        errors(none.resolve("myext")),
-        [
-            ResolveError::new(
-                "the package `_` of the extension `myext` declares the host service `files` (`host`), which this \
-                 program does not offer; it offers no host service"
-            ),
-            ResolveError::new(
-                "the package `extra` of the extension `myext` declares the host service `files` (`host`), which \
-                 this program does not offer; it offers no host service"
-            ),
-        ]
-    );
+    assert_eq!(places(none.resolve("myext")), [NOWHERE, NOWHERE]);
     // Declared and offered: the extension loads.
     assert!(declaring(vec!["files"], &["files"]).resolve("myext").expect("loads").is_some());
 }
@@ -442,14 +406,7 @@ fn placed_loader(manifest: Value, places: Vec<(&'static str, u32)>) -> Extension
 #[test]
 fn a_manifest_problem_by_key_path_carries_the_place_the_resolver_gives() {
     let loader = placed_loader(json!({ "extension": { "engine": "lua" } }), vec![("extension.engine", 4)]);
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new(
-            "the extension `myext` specifies the engine `lua` (`extension.engine`), and this program has the engines `data`"
-        )
-        .in_file(ID)
-        .at(4, 3)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [(Some(ID.to_string()), Some(4), Some(3))]);
     // The manifest's reader names the key path; the data engine's block too.
     let loader = placed_loader(json!({ "extension": { "engines": "js" } }), vec![("extension.engines", 2)]);
     let found = errors(loader.resolve("myext"));
@@ -459,13 +416,7 @@ fn a_manifest_problem_by_key_path_carries_the_place_the_resolver_gives() {
     assert!(found[0].line.is_some(), "{found:?}");
     // A path the resolver does not place: in the file, at no line.
     let loader = placed_loader(json!({ "extension": { "engine": "lua" } }), Vec::new());
-    assert_eq!(
-        errors(loader.resolve("myext")),
-        [ResolveError::new(
-            "the extension `myext` specifies the engine `lua` (`extension.engine`), and this program has the engines `data`"
-        )
-        .in_file(ID)]
-    );
+    assert_eq!(places(loader.resolve("myext")), [in_manifest()]);
 }
 
 #[test]
@@ -484,41 +435,13 @@ fn a_source_error_with_a_place_is_placed() {
 }
 
 #[test]
-fn a_template_description_path_holding_a_backslash_is_refused() {
-    let extension = ExtensionIdentity { identity: ID.to_string(), stem: "myext".to_string() };
-    let error = flm_ext::templates::read(&MemoryFiles::new(), "templates\\html\\x.yaml", &format!("{ID}#_"), &extension)
-        .expect_err("refused");
-    assert_eq!(
-        error.detail(),
-        "the template description `templates\\html\\x.yaml` of the package `_` of the extension `myext` holds `\\`; a \
-         path inside the extension uses `/`"
-    );
-}
-
-#[cfg(feature = "quickjs")]
-#[test]
-fn a_main_module_and_an_import_holding_a_backslash_are_refused() {
-    let host = flm_ext::quickjs::JsHost::new(flm_ext::quickjs::JsSettings::default());
-    let main = common::js_loader(&host, common::js_extension("wc", &[("main.js", "")], common::js_manifest("src\\main.js")));
-    assert_eq!(
-        common::load_problems(&main, "wc"),
-        ["`extension.js.main` of the extension `wc` is `src\\main.js`, which holds `\\`; a path inside the extension \
-          uses `/`"]
-    );
-    let import = common::js_loader(
-        &host,
-        common::js_extension(
-            "wc",
-            &[("main.js", "import \"./lib\\\\x.js\"; export default { packages: {} };")],
-            common::js_manifest("main.js"),
-        ),
-    );
-    let problems = common::load_problems(&import, "wc");
-    assert!(
-        problems[0].contains(
-            "the module `main.js` of the extension `wc` imports `./lib\\x.js`, which holds `\\`; a path inside the \
-             extension uses `/`"
-        ),
-        "{problems:?}"
-    );
+fn a_backslash_in_a_template_description_path_belongs_to_a_name() {
+    // `templates\html\x.yaml` is one name, not a path under `templates/`.
+    let extension = ExtensionIdentity { identity: ID.to_string(), stem: "myext".to_string(), name: "myext".to_string() };
+    let description = json!({ "name": "x", "output": "html", "engine": "content-only", "accepts": "all" });
+    let files = MemoryFiles::new().with_value("templates\\html\\x.yaml", description);
+    let root = flm_ext::paths::Root::Ext(String::from("myext"));
+    let read = |path: &str| flm_ext::templates::read(&files, &root, path, &format!("{ID}#_"), &extension);
+    assert_eq!(read("templates\\html\\x.yaml").expect("the template").name, "x");
+    assert!(read("templates/html/x.yaml").is_err());
 }

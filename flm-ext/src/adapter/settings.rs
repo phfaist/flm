@@ -7,9 +7,12 @@
 //! [`ExtRuntime::read_settings`], whenever the settings of a document that
 //! uses the feature's package are read), each option type
 //! ([`options_data`](SettingsDecl::options_data), its name under the stem
-//! rule), each key merged entry by entry
-//! ([`merge_entries_data`](SettingsDecl::merge_entries_data)), and the
-//! markup and path marks.
+//! rule), and the settings of each template module that the feature
+//! contributes (its `templates`), as the entry `template_config.OUTPUT.NAME` of
+//! the feature `compose`
+//! ([`declare_template_settings`]). Each part's marks are read from the nodes
+//! of its schema (`x-flm-marks`), with the default entries of an object
+//! combined key by key as the `default` of its node.
 //!
 //! The declaration is built when the package's factory is made
 //! ([`package_factory`](crate::adapter::package_factory)), so that a
@@ -19,6 +22,7 @@ use std::sync::Arc;
 
 use flm_core::core::settings::{ReadError, SettingsDecl, SettingsError};
 use flm_core::model::options::Bind;
+use flm_core::stdlib::features::compose::declare_template_settings;
 use serde_json::Value;
 
 use crate::adapter::names;
@@ -27,32 +31,36 @@ use crate::runtime::ExtRuntime;
 
 /// The settings declaration of the feature `feature` of the package
 /// `package` (its name within the extension) of `extension`, run by
-/// `runtime`, or `None` when the feature declares no settings.
+/// `runtime`, or `None` when the feature declares no settings and no template
+/// module.
 ///
 /// In the order the report gives them: the configuration (`settings.config`,
 /// read by the feature's configuration reader when `settings.read` is set),
-/// each option type (`settings.options.NAME`, in the order written), each key
-/// merged entry by entry (`settings.merge_entries.KEY`), each markup mark,
-/// each path mark.
+/// each option type (`settings.options.NAME`, in the order written), then the
+/// settings of each template module (`templates.NAME.settings`, by the
+/// module's name), each with the marks written on the nodes of its schema.
 ///
 /// # Errors
 ///
 /// A [`LoadError::Load`] for every problem found, each naming the extension,
 /// the feature and the key path under `settings`: a declaration that is not
 /// one or contradicts itself (a schema without `properties`, a key declared
-/// twice, a merge mark on a path below a key, a reader without a
-/// configuration), an option whose part cannot be read or whose default
-/// entries are not a map, and an option name that does not begin with one of
-/// the extension's namespaces and a dot ([`names::namespaces`]).
+/// twice, a key named `enabled`, which is reserved, a mark that names no mark
+/// or lies where no setting reaches, an object combined key by key whose
+/// `default` is not a map, a reader without a configuration, a setting of a
+/// template module that states a `default`), an option whose
+/// part cannot be read, and an option name that does not begin with one of the
+/// extension's namespaces and a dot ([`names::namespaces`]).
 pub(crate) fn settings_decl(
     extension: &ExtensionIdentity,
     package: &str,
     feature: &FeatureReport,
     runtime: &Arc<dyn ExtRuntime>,
 ) -> Result<Option<SettingsDecl>, Vec<LoadError>> {
-    let Some(report) = &feature.settings else {
+    if feature.settings.is_none() && feature.templates.is_empty() {
         return Ok(None);
-    };
+    }
+    let report = feature.settings.clone().unwrap_or_default();
     let stem = &extension.stem;
     let name = &feature.name;
     let mut errors = Vec::new();
@@ -112,24 +120,31 @@ pub(crate) fn settings_decl(
         let result = decl.clone().options_data(option.as_str(), bind(part.bind), part.schema, part.docs);
         apply(&mut decl, result, stem, &path, &mut errors);
     }
-    for (key, entries) in &report.merge_entries {
-        let path = format!("settings.merge_entries.{key}");
-        let Value::Object(entries) = entries else {
+    for (module, declared) in &feature.templates {
+        let path = format!("templates.{module}.settings");
+        if let Some(setting) = defaulted_setting(&declared.settings) {
             errors.push(LoadError::Load {
-                detail: format!("in the extension `{stem}`, the default entries of `{name}.{key}` (`{path}`) must be a map"),
+                detail: format!(
+                    "in the extension ‘{stem}’, the setting ‘{setting}’ of the template module ‘{module}’ of the \
+                     feature ‘{name}’ of the package ‘{package}’ may not have a ‘default’ \
+                     (‘{path}.properties.{setting}’): return it from ‘describe’ as ‘config.{setting}’"
+                ),
             });
             continue;
-        };
-        let result = decl.clone().merge_entries_data(key.as_str(), entries.clone());
-        apply(&mut decl, result, stem, &path, &mut errors);
-    }
-    for path in &report.markup {
-        decl = decl.markup(path.as_str());
-    }
-    for path in &report.path {
-        decl = decl.path(path.as_str());
+        }
+        match declare_template_settings(decl.clone(), &declared.output, module, declared.settings.clone()) {
+            Ok(next) => decl = next,
+            Err(error) => errors.push(entry_refused(stem, &error, Some(&path))),
+        }
     }
     if errors.is_empty() { Ok(Some(decl)) } else { Err(errors) }
+}
+
+/// The first setting of a template module's schema `schema` that states a
+/// `default`: the defaults of a module are what its `describe` answers.
+fn defaulted_setting(schema: &Value) -> Option<&str> {
+    let properties = schema.get("properties")?.as_object()?;
+    properties.iter().find(|(_, setting)| setting.get("default").is_some()).map(|(key, _)| key.as_str())
 }
 
 /// The reading of the configuration of the feature `feature` of the package
@@ -173,6 +188,19 @@ fn apply(
         Ok(next) => *decl = next,
         Err(error) => errors.push(invalid(stem, &error, path)),
     }
+}
+
+/// An entry declaration that [`SettingsDecl::entry_data`] (through the
+/// declarations of compose templates) refuses, as a load failure: the
+/// refusal's text, then the extension `stem` and, when the entry is written in
+/// the manifest, its key path `path` (`templates.NAME.settings`), in
+/// parentheses.
+pub(crate) fn entry_refused(stem: &str, error: &SettingsError, path: Option<&str>) -> LoadError {
+    let detail = match path {
+        Some(path) => format!("{} (extension ‘{stem}’, ‘{path}’)", error.detail),
+        None => format!("{} (extension ‘{stem}’)", error.detail),
+    };
+    LoadError::Load { detail }
 }
 
 /// A declaration the data constructors refuse, as a load failure: the

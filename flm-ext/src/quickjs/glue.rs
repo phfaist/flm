@@ -14,7 +14,7 @@
 //! | `__flm.lend_aspect(kind, element, methods)` | two strings and a JSON list → envelope | [`Native::LendAspect`] |
 //! | `__flm.lend_late_init(index)` | a number → envelope | [`Native::LendLateInit`] |
 //! | `__flm.lend_finalizer(index)` | a number → envelope | [`Native::LendFinalizer`] |
-//! | `__flm.console(level, text)` | two strings → nothing | the host's console sink |
+//! | `__flm.console(level, text)` | two strings → nothing | the host's log sink, at the level of the `console` method named |
 //!
 //! Each native but `console` parses its JSON texts ([`parse`]), builds the
 //! request ([`Native`]) and answers the shared body's envelope ([`answer`]) as
@@ -24,9 +24,9 @@
 //! refused before the request is answered. Every native answers a string (or
 //! nothing) and never throws into the engine: the prelude turns an `err`
 //! envelope into a thrown `FlmError`. The closures capture only `'static`
-//! data (the extension's identity, the host's console sink); what a call
-//! needs of the running handler, the shared body reads from the thread's
-//! frames ([`frames`](crate::binding::frames)).
+//! data (the extension's identity, where the host's console output goes);
+//! what a call needs of the running handler, the shared body reads from the
+//! thread's frames ([`frames`](crate::binding::frames)).
 
 use std::sync::Arc;
 
@@ -35,18 +35,19 @@ use rquickjs::{Ctx, Function, Object};
 use super::host::JsHost;
 use crate::binding::natives::{answer, envelope, for_method, parse, Native};
 use crate::engine::ExtensionIdentity;
-use crate::host::{ConsoleLevel, ConsoleSink};
+use crate::host::{console_level, Console};
 use crate::runtime::ExtError;
 
 /// What the closures of the natives share: the extension's identity (the
-/// messages name its stem), the load's number, and the host's console sink.
+/// messages name its stem), the load's number, and where the host's console
+/// output goes.
 struct Natives {
     /// The extension.
     extension: ExtensionIdentity,
     /// The load's number ([`Binding::id`](crate::binding::Binding::id)).
     load: u64,
-    /// The console sink.
-    console: ConsoleSink,
+    /// Where console output goes.
+    console: Console,
 }
 
 impl Natives {
@@ -70,14 +71,14 @@ impl Natives {
 /// rquickjs's own, when the engine cannot allocate the objects.
 pub(crate) fn install(ctx: &Ctx<'_>, host: &JsHost, extension: &ExtensionIdentity, load: u64) -> rquickjs::Result<()> {
     let flm = Object::new(ctx.clone())?;
-    let sink = Arc::clone(host.console());
+    let (console, stem) = (host.console().clone(), extension.stem.clone());
     flm.set(
         "console",
         Function::new(ctx.clone(), move |level: String, text: String| {
-            sink(ConsoleLevel::from_name(&level), &text);
+            console.write(&stem, console_level(&level), &text);
         })?,
     )?;
-    let natives = Arc::new(Natives { extension: extension.clone(), load, console: Arc::clone(host.console()) });
+    let natives = Arc::new(Natives { extension: extension.clone(), load, console: host.console().clone() });
     flm.set("call", {
         let natives = Arc::clone(&natives);
         Function::new(ctx.clone(), move |handle: String, method: String, args: String| {

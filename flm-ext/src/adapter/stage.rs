@@ -27,7 +27,7 @@ use flm_core::lang::{Flm, FlmDiagnostic, FlmOrigin, FlmSource, FlmSpan};
 use flm_core::model::addr::{NodeAddr, TreeId};
 use flm_core::model::names::CapName;
 use flm_core::model::options::OptionRef;
-use flm_core::stdcore::backends::lowering::{LoweredTree, LoweredTrees as CoreLoweredTrees, NAMER_SLOT};
+use flm_core::stdlib::backends::lowering::{LoweredAddr, LoweredTree, LoweredTrees as CoreLoweredTrees, NAMER_SLOT};
 use flm_core::techy::core::node::NodeTree;
 use flm_core::techy::serialize::SerialValue;
 use flm_core::techy::source::SourceSpan;
@@ -41,13 +41,15 @@ use crate::adapter::table::ExtTable;
 use crate::adapter::values::{artifact_set_to_value, check_data, diagnostic_to_core};
 use crate::api::core::data::store::{StageOut, TablePiece};
 use crate::adapter::tables::{AnchorsFacade, CountersFacade, Seen};
-use crate::api::core::data::table::{ExtTableRead, TableValue};
-use flm_core::stdcore::features::numbering::Counters as CoreCounters;
-use flm_core::stdcore::features::refs::Anchors as CoreAnchors;
-use crate::api::core::run::{StageCx, WalkEntry};
+use crate::api::core::data::table::{ExtTableRead, Rows, TableValue};
+use flm_core::stdlib::features::numbering::Counters as CoreCounters;
+use flm_core::stdlib::features::refs::Anchors as CoreAnchors;
+use crate::api::core::run::{StageCx, Trees, Walk, WalkEntry};
 use crate::api::host::HostHandle;
+use crate::adapter::progress::ScopeFacade;
+use crate::api::progress::ProgressScope;
 use crate::api::core::stage::{Needs, Scope, Stage, StageDecl, TreesTable};
-use crate::api::stdcore::backends::lowering::LoweredTrees;
+use crate::api::stdlib::backends::lowering::LoweredTrees;
 use crate::api::techy::error::Diagnostic;
 use crate::api::techy::node::{Node, Tree};
 use crate::runtime::ExtError;
@@ -287,21 +289,19 @@ impl StageCx for StageCxFacade<'_, '_> {
         self.cx.my_tree().map(|tree| tree_of(&tree))
     }
 
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
-        self.cx.trees().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
+    fn trees(&self) -> Trees {
+        Trees::new(self.cx.trees().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect())
     }
 
-    fn walk(&self) -> Vec<WalkEntry<'_>> {
+    fn walk(&self) -> Walk<'_> {
         let cx = self.cx;
-        cx.walk()
-            .filter_map(|(addr, node)| {
-                // The walk answers nodes of frozen trees alone, so the tree is
-                // there; a node of none would be left out rather than read.
-                let tree = cx.frozen_tree(addr.tree)?;
-                let node: Box<dyn Node<'_> + '_> = Box::new(NodeFacade::shared(Arc::clone(tree), node.id()));
-                Some(WalkEntry { addr, node })
-            })
-            .collect()
+        Walk::new(cx.walk().filter_map(move |(addr, node)| {
+            // The walk answers nodes of frozen trees alone, so the tree is
+            // there; a node of none would be left out rather than read.
+            let tree = cx.frozen_tree(addr.tree)?;
+            let node: Box<dyn Node<'_> + '_> = Box::new(NodeFacade::shared(Arc::clone(tree), node.id()));
+            Some(WalkEntry { addr, node })
+        }))
     }
 
     fn addr_of(&self, node: &dyn Node<'_>) -> Option<NodeAddr> {
@@ -370,7 +370,11 @@ impl StageCx for StageCxFacade<'_, '_> {
     }
 
     fn host(&self, name: &str) -> Result<HostHandle, ExtError> {
-        self.services.handle(name)
+        self.services.handle(name, self.cx.progress())
+    }
+
+    fn progress(&self) -> Box<dyn ProgressScope> {
+        ScopeFacade::boxed(self.cx.progress().clone())
     }
 }
 
@@ -421,8 +425,8 @@ pub(crate) fn projection_value(projection: &SerialValue) -> Result<Value, ExtErr
 impl Sealed for &ExtTable {}
 
 impl ExtTableRead for &ExtTable {
-    fn items(&self) -> Vec<Value> {
-        ExtTable::items(self).to_vec()
+    fn items(&self) -> Rows {
+        ExtTableRead::items(*self)
     }
 
     fn items_at(&self, addr: &NodeAddr) -> Vec<Value> {
@@ -447,8 +451,8 @@ impl<'x> TreesTableFacade<'x> {
 impl Sealed for TreesTableFacade<'_> {}
 
 impl TreesTable for TreesTableFacade<'_> {
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
-        self.table.trees.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect()
+    fn trees(&self) -> Trees {
+        Trees::new(self.table.trees.iter().map(|(id, tree)| (id.to_string(), tree_of(tree))).collect())
     }
 
     fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
@@ -481,8 +485,8 @@ impl LoweredTreesFacade {
 impl Sealed for LoweredTreesFacade {}
 
 impl LoweredTrees for LoweredTreesFacade {
-    fn trees(&self) -> Vec<(String, Box<dyn Tree>)> {
-        self.trees.iter().map(|(id, lowered)| (id.to_string(), tree_of(&lowered.tree))).collect()
+    fn trees(&self) -> Trees {
+        Trees::new(self.trees.iter().map(|(id, lowered)| (id.to_string(), tree_of(&lowered.tree))).collect())
     }
 
     fn tree(&self, id: &str) -> Option<Box<dyn Tree>> {
@@ -495,6 +499,20 @@ impl LoweredTrees for LoweredTreesFacade {
 
     fn rounds(&self, id: &str) -> Option<u32> {
         self.get(id).map(|lowered| lowered.rounds)
+    }
+
+    fn node_at<'s>(&self, addr: &str) -> Option<Box<dyn Node<'s> + 's>> {
+        let (tree, index) = addr.rsplit_once('/')?;
+        let index: u32 = index.parse().ok()?;
+        let at = LoweredAddr::at(tree_id_of(tree)?, index);
+        // Only the display text itself names the node (not `tree#0/+5`, `tree#0/05`).
+        if at.to_string() != addr {
+            return None;
+        }
+        let lowered = self.get(tree)?;
+        // As `LoweredAddr::resolve` finds it, in the façade's copy of the entries.
+        let node = lowered.tree.iter_storage_order().nth(index as usize)?;
+        Some(Box::new(NodeFacade::shared(Arc::clone(&lowered.tree), node.id())))
     }
 }
 

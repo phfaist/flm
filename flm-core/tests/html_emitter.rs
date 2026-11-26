@@ -1,4 +1,4 @@
-//! The HTML emitter (`flm_core::stdcore::backends::html`) over hand-built
+//! The HTML emitter (`flm_core::stdlib::backends::html`) over hand-built
 //! presentation trees: one golden per area of the presentation vocabulary
 //! under `tests/goldens/html/`, the contract tests that keep the conventions
 //! table, the emitter and the printed table in step, the source-range option,
@@ -20,14 +20,14 @@ use flm_core::dump::diag::expect;
 use flm_core::lang::{Flm, PresPayload};
 use flm_core::model::addr::TreeId;
 use flm_core::model::names::Name;
-use flm_core::stdcore::backends::html::conventions::{
+use flm_core::stdlib::backends::html::conventions::{
     CONVENTIONS, SCRIPT_MATHJAX, STYLE_ATTRIBUTE, Written, row,
 };
-use flm_core::stdcore::backends::html::{
-    DEPTH_LIMIT, EmittedTree, HtmlRenderOptions, HtmlSegment, HtmlTagPayload, Markup,
+use flm_core::stdlib::backends::html::{
+    AddressRefused, DEPTH_LIMIT, EmittedTree, HtmlRenderOptions, HtmlSegment, HtmlTagPayload, Markup,
     TAG, markdown_table,
 };
-use flm_core::stdcore::backends::pres::{
+use flm_core::stdlib::backends::pres::{
     self, HeadingPayload, BlockPayload, CellsPayload, DecoMarkPayload, DecorationPayload, DocRole,
     DroppedPayload, ImageDisplay, ImagePayload, Length, LineAlign, LinePayload, LinesPayload,
     LinkPayload, ListPayload, MathDisplay,
@@ -39,7 +39,7 @@ use flm_core::stdcore::backends::pres::{
 use common::html::{assert_golden, emit, emit_with, html};
 use common::lowering::PresSite;
 use common::pipeline;
-use common::stdcore as std_package;
+use common::stdlib as std_package;
 
 /// A registry holding the presentation vocabulary and the HTML backend, to
 /// stage presentation nodes against: the `lowering` feature for the
@@ -47,15 +47,15 @@ use common::stdcore as std_package;
 /// `check` for the collection the workflow demands, and the three features the
 /// shared lowering rules require of a registry (`blocks`, `userdefs`, `math`).
 fn vocabulary() -> Arc<FlmRegistry> {
-    use flm_core::stdcore::features::blocks::Blocks;
-    use flm_core::stdcore::features::math;
-    use flm_core::stdcore::features::userdefs::{Userdefs, UserdefsConfig};
+    use flm_core::stdlib::features::blocks::Blocks;
+    use flm_core::stdlib::features::math;
+    use flm_core::stdlib::features::userdefs::{Userdefs, UserdefsConfig};
 
     pipeline::registry(vec![
-        flm_core::stdcore::backends::lowering::feature(),
-        flm_core::stdcore::backends::pieces::feature(),
-        flm_core::stdcore::backends::html::feature(),
-        flm_core::stdcore::check_feature(),
+        flm_core::stdlib::backends::lowering::feature(),
+        flm_core::stdlib::backends::pieces::feature(),
+        flm_core::stdlib::backends::html::feature(),
+        flm_core::stdlib::check_feature(),
         Arc::new(Blocks::default()),
         Arc::new(Userdefs::new(UserdefsConfig::new())),
         math::feature(),
@@ -251,7 +251,7 @@ fn a_paragraph_is_a_div_exactly_where_a_p_cannot_hold_its_content() {
         ),
         (
             pres::MATH_PASSTHROUGH,
-            Arc::new(MathPassthroughPayload { display: MathDisplay::Inline, env: None }),
+            Arc::new(MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None }),
         ),
         (TAG, Arc::new(HtmlTagPayload::new("div"))),
         (TAG, Arc::new(HtmlTagPayload::new("SECTION").block())),
@@ -556,7 +556,9 @@ fn a_link_carries_its_kind_and_an_address_the_policy_refuses_is_left_out() {
     let tree = site.finish(vec![paragraph]);
     let emitted = emit(tree);
     expect(emitted.diags.iter(), "flm.html.refused-address").severity(Severity::Error).once();
-    assert!(emitted.diags.render_all().contains("javascript"), "{}", emitted.diags.render_all());
+    let schemes: Vec<&str> =
+        emitted.diags.conditions::<AddressRefused>().map(|refused| refused.scheme.as_str()).collect();
+    assert_eq!(schemes, ["javascript"], "{}", emitted.diags.render_all());
     let out = html(&emitted);
     // The content stays: presentation may be dropped, content never is.
     assert!(out.contains("do not run this"), "{out}");
@@ -793,12 +795,43 @@ fn a_list_takes_its_tag_from_its_kind_and_writes_a_rich_label_of_its_own() {
                 kinds: kinds.iter().map(|kind| name(kind)).collect(),
                 anchor: None,
                 entry_anchors: vec![Some(anchor)],
+                entry_levels: Vec::new(),
             },
             entries,
         ));
     }
     let tree = site.finish(lists);
     assert_golden("emit-lists.html", &written(tree));
+}
+
+#[test]
+fn a_list_with_levels_writes_each_level_on_its_entry_and_nothing_on_an_entry_without_one() {
+    // The second entry has no level, and the fourth stands past the end of the
+    // levels: neither carries the attribute.
+    let mut site = site();
+    let mut entries = Vec::new();
+    for item in ["First.", "Second.", "Third.", "Fourth."] {
+        entries.push((Vec::new(), vec![par(&mut site, item)]));
+    }
+    let list = site.list(
+        ListPayload {
+            kinds: vec![name(pres::LIST_UNNUMBERED)],
+            entry_anchors: vec![Some(String::from("first")), Some(String::from("second"))],
+            entry_levels: vec![Some(1), None, Some(2)],
+            ..ListPayload::default()
+        },
+        entries,
+    );
+    let out = written(site.finish(vec![list]));
+    let tags: Vec<&str> = out
+        .match_indices("<li")
+        .map(|(at, _)| &out[at..at + out[at..].find('>').expect("a closed tag") + 1])
+        .collect();
+    assert_eq!(
+        tags,
+        ["<li id=\"first\" data-flm-level=\"1\">", "<li id=\"second\">", "<li data-flm-level=\"2\">", "<li>"],
+        "{out}"
+    );
 }
 
 #[test]
@@ -921,7 +954,7 @@ fn formula(
     let text = site.text(source);
     site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display, env: env.map(String::from) },
+        MathPassthroughPayload { display, env: env.map(String::from), role: None },
         vec![text],
     )
 }
@@ -987,7 +1020,7 @@ fn content_inside_a_formula_is_written_as_html_inside_the_formula() {
     let tail = site.text(" + y");
     let inline = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![lead, content, tail],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![inline]);
@@ -998,7 +1031,7 @@ fn content_inside_a_formula_is_written_as_html_inside_the_formula() {
     let second_line = site.text("c &= d");
     let environment = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")) },
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")), role: None },
         vec![first_anchor, first_line, second_anchor, second_line],
     );
     let tree = site.finish(vec![paragraph, environment]);
@@ -1021,7 +1054,7 @@ fn content_at_a_tags_place_is_written_between_dollar_signs() {
     let close = site.text("}");
     let environment = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("equation")) },
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("equation")), role: None },
         vec![line, tag, close],
     );
     let tree = site.finish(vec![environment]);
@@ -1064,7 +1097,7 @@ fn text_inside_the_html_of_a_formula_breaks_the_delimiter_that_would_end_it() {
     let content = math_text(&mut site, Some("text"), None, vec![word]);
     let inline = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![content],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![inline]);
@@ -1074,7 +1107,7 @@ fn text_inside_the_html_of_a_formula_breaks_the_delimiter_that_would_end_it() {
     let line = site.text("a &= b");
     let environment = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")) },
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")), role: None },
         vec![line, content],
     );
     let tree = site.finish(vec![paragraph, environment]);
@@ -1101,7 +1134,7 @@ fn a_formula_inside_a_text_command_splits_the_content_it_stands_in() {
     let before = site.text("y = ");
     let outer = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![before, content],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![outer]);
@@ -1132,7 +1165,7 @@ fn an_attribute_inside_the_html_of_a_formula_that_would_end_it_is_left_out() {
     let content = math_text(&mut site, Some("text"), Some("eq:\\)7"), vec![word]);
     let inline = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![content],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![inline]);
@@ -1162,7 +1195,7 @@ fn a_construct_nodes_attribute_inside_a_formula_passes_the_same_check() {
     let content = math_text(&mut site, Some("text"), None, vec![tag]);
     let inline = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![content],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![inline]);
@@ -1199,7 +1232,7 @@ fn a_formula_standing_deeper_than_the_contents_own_nodes_closes_and_opens_again(
     let lead = site.text("y = ");
     let outer = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Inline, env: None },
+        MathPassthroughPayload { display: MathDisplay::Inline, env: None, role: None },
         vec![lead, content],
     );
     let paragraph = site.pres(pres::PAR, ParPayload::default(), vec![outer]);
@@ -1241,7 +1274,7 @@ fn a_formula_two_levels_deeper_closes_and_opens_every_element_around_it() {
     let line = site.text("u &= v \\\\\n");
     let outer = site.pres(
         pres::MATH_PASSTHROUGH,
-        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")) },
+        MathPassthroughPayload { display: MathDisplay::Display, env: Some(String::from("align")), role: None },
         vec![line, content],
     );
     let tree = site.finish(vec![outer]);
@@ -1420,12 +1453,12 @@ fn parsed_on_a_named_source(document: &str, origin: &str) -> Arc<NodeTree<Flm>> 
     use flm_core::lang::{FlmOrigin, ParseOptions, parse_fragment};
     use flm_core::model::doc::{Doc, DocContent, FragmentLayout};
     use flm_core::model::names::BackendName;
-    use flm_core::stdcore::StdcoreConfig;
-    use flm_core::stdcore::backends::html;
-    use flm_core::stdcore::backends::lowering::lowered_table;
+    use flm_core::stdlib::StdlibConfig;
+    use flm_core::stdlib::backends::html;
+    use flm_core::stdlib::backends::lowering::lowered_table;
     use techy::source::Source;
 
-    let registry = std_package::registry(StdcoreConfig::new());
+    let registry = std_package::registry(StdlibConfig::new());
     let source = Arc::new(Source::new(document).with_origin(FlmOrigin::new(origin)));
     let fragment =
         parse_fragment(registry.lang(), source, FragmentLayout::Blocks, &ParseOptions::default())
@@ -1491,7 +1524,7 @@ fn an_inline_element_written_for_a_node_carries_its_position_too() {
         "<a class=\"flm-pres-link\"",
         "<em class=\"flm-pres-span\"",
         "<code class=\"flm-pres-verbatim\"",
-        "<span class=\"flm-pres-math--passthrough\"",
+        "<span class=\"flm-pres-math--passthrough flm-math-formula\"",
         "<span class=\"flm-pres-math--text\"",
     ] {
         let at = on.find(opening).unwrap_or_else(|| panic!("{opening} stands in: {on}"));
@@ -1900,6 +1933,7 @@ fn populated_payloads() -> Vec<(&'static str, Arc<dyn PresPayload>)> {
                 kinds: vec![name("itemize")],
                 anchor: anchor(),
                 entry_anchors: vec![Some(String::from("item-a"))],
+                entry_levels: vec![Some(1)],
             }),
         ),
         (pres::LINES, Arc::new(LinesPayload)),
@@ -1924,6 +1958,7 @@ fn populated_payloads() -> Vec<(&'static str, Arc<dyn PresPayload>)> {
             Arc::new(MathPassthroughPayload {
                 display: MathDisplay::Display,
                 env: Some(String::from("align")),
+                role: Some(name("flm.math.formula")),
             }),
         ),
         (
@@ -2148,7 +2183,7 @@ fn every_style_definition_a_row_names_is_registered() {
     // be one the standard package's `html` feature actually registers, or the
     // requirement would resolve to nothing and the element would reach a page
     // with no rules for it.
-    let registry = std_package::registry(flm_core::stdcore::StdcoreConfig::new());
+    let registry = std_package::registry(flm_core::stdlib::StdlibConfig::new());
     let registered: Vec<&str> =
         registry.styles().iter().map(|(_, style)| style.id.as_str()).collect();
     for convention in CONVENTIONS {

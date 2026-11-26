@@ -19,7 +19,7 @@ Everything the library can do comes from features: a feature
 ([`FlmFeature`](crate::core::registry::FlmFeature)) is a Rust value that contributes a
 related bundle of things to a registry (elements, stages, tables, lowering rules,
 backends, services, settings) through the feature builder. The standard features in
-[`crate::stdcore`] register through the same interface as a feature of yours and use no
+[`crate::stdlib`] register through the same interface as a feature of yours and use no
 method that your feature cannot call, so their source is a worked example of every
 extension point (see [The standard features as worked
 examples](#the-standard-features-as-worked-examples)).
@@ -27,7 +27,7 @@ examples](#the-standard-features-as-worked-examples)).
 ## A minimal feature, end to end
 
 One element (`\shout{…}`), one lowering rule (a bold span), registered beside the
-standard package and rendered through the `text` workflow. Every extension follows this
+standard features and rendered through the `text` workflow. Every extension follows this
 shape: an element value, its syntax, and a rule.
 
 ```rust
@@ -40,11 +40,11 @@ use flm_core::core::lowering::{
 };
 use flm_core::model::names::ElementName;
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder, RegistryInputs,
 };
 use flm_core::lang::Flm;
 use flm_core::lang::mint::{ArgDef, ElementDef, SyntaxDef};
-use flm_core::stdcore::backends::pres::{self, SpanPayload, SpanStyle};
+use flm_core::stdlib::backends::pres::{self, SpanPayload, SpanStyle};
 use flm_core::techy::core::node::NodeRef;
 
 const SHOUT: &str = "shout.shout";
@@ -79,7 +79,7 @@ impl FlmFeature for Shout {
         // What a `\shout` node means; its block role says it is inline content.
         let element = Arc::new(
             ElementSpec::new(SHOUT)
-                .docs("`\\shout{text}`: loud inline content.")
+                .docs("Loud inline content.")
                 .with::<dyn BlockRoleAspect>(Arc::new(FixedBlockRole(BlockRole::DEFAULT))),
         );
 
@@ -105,7 +105,7 @@ impl FlmFeature for Shout {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(flm_core::stdcore::package(flm_core::stdcore::StdcoreConfig::new()));
+builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), flm_core::stdlib::StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 builder.feature(Arc::new(Shout));
 let registry = builder.build(&RegistryInputs::new())?;
@@ -114,7 +114,7 @@ let registry = builder.build(&RegistryInputs::new())?;
 # use flm_core::core::plan::{Overrides, Plan};
 # use flm_core::core::run::{Externals, Run, RunOptions};
 # use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
-# use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT};
+# use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT};
 let source =
     Arc::new(FlmSource::new("Please \\shout{listen} now.").with_origin(FlmOrigin::none()));
 let fragment =
@@ -139,14 +139,18 @@ says how the construct is written; the **lowering rule**
 [`FeatureBuilder::feature`](crate::core::registry::FeatureBuilder::feature), which
 returns the name the feature was registered under.
 
-**A Rust extension, end to end.** The extension `phfpack` (crate `extensions/rust/phfpack/`;
-the default package `_`, so `use: [phfpack]`; the feature `phfqit`) is written against
-`flm_ext::guest` alone: `flm-ext` with `default-features = false, features = ["guest"]`,
-plus `serde`, `serde_json` and `schemars` for its settings. The paths below are under
+**A Rust extension, end to end.** The extension `phfpack` (folder
+`extensions/rust/phfpack/`, its code the module `flm_extensions::phfpack` of the crate
+`flm-extensions` under the cargo feature `phfpack`; the default package `_`, so
+`use: [phfpack]`; the feature `phfqit`) is written against `flm_ext::guest` alone:
+`flm-ext` with `default-features = false, features = ["guest"]`, plus `serde`,
+`serde_json` and `schemars` for its settings. The paths below are under
 `flm_ext::guest`, whose modules mirror flm-core's under the same paths.
 
-- *Package*: `extension!(define)`; `define` calls `ext.package("_",
-  Package::new().uses(["stdcore"]).flm(json!({ "feature_order": ["math-mathjax < phfqit"]
+- *Package*: `pub static FLM_EXTENSION: CompiledExtension = CompiledExtension::new(define,
+  "phfpack", env!("CARGO_PKG_VERSION"))`, its row of the crate's table of code;
+  `define` calls `ext.package("_",
+  Package::new().flm(json!({ "feature_order": ["math-mathjax < phfqit"]
   })).feature(feature::FEATURE, Feature::new().title(…).docs(…).settings(feature::settings()).read(settings::read).register(feature::register)))`,
   `feature::FEATURE` being `"phfqit"`.
 - *Macros as data*: rows of tables (name, arguments, argument number offset, template,
@@ -182,7 +186,7 @@ plus `serde`, `serde_json` and `schemars` for its settings. The paths below are 
 - *Register* `(b, settings)`: per macro, `m.definition.expand(ExpandPolicy::Always)`,
   `element_name_under(PREFIX, &definition)?` (`PREFIX` = `"phfpack.phfqit"`),
   `b.lowering_rule(expand_in_tree_rule_for(&element, &definition)?)?` (requires
-  [`ALWAYS_EXPANDED`](crate::stdcore::features::userdefs::ALWAYS_EXPANDED): the
+  [`ALWAYS_EXPANDED`](crate::stdlib::features::userdefs::ALWAYS_EXPANDED): the
   `userdefs` feature is necessary), `let value = UserDefinition::new(definition)?;
   b.element(value.element_def_with(&owner, &element, hook)?)?` with `owner =
   b.feature()?` and `hook: Arc<dyn Expand>` (`MacroHook`: the size slots and the named
@@ -206,12 +210,13 @@ plus `serde`, `serde_json` and `schemars` for its settings. The paths below are 
   ([`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues));
   `values.over(&DefinitionBindings::new(node, &variant)?)?`; `xp.instantiate(cx, node,
   &template, &bindings)`.
-- *Settings as data*: `Feature::settings` of the value `{config: {schema, docs},
-  merge_entries: {KEY: default entries}, markup: [paths]}`, the schema by
-  `schemars::schema_for!` over the crate's own types, registered as
+- *Settings as data*: `Feature::settings` of the value `{config: {schema, docs}}`, the
+  schema by `schemars::schema_for!` over the crate's own types, with the marks written on
+  its nodes (`x-flm-marks`: `merge-object-key-values` and
+  `remove-key-when-value-is-false` on the four keys, whose `default` gives the default
+  entries; `markup` on the templates and named values), registered as
   [`SettingsDecl::config_data_read`](crate::core::settings::SettingsDecl::config_data_read),
-  [`merge_entries_data`](crate::core::settings::SettingsDecl::merge_entries_data) and
-  [`markup`](crate::core::settings::SettingsDecl::markup); `Feature::read(settings::read)`,
+  which reads the marks from the nodes; `Feature::read(settings::read)`,
   the configuration reader, reads the configuration value key by key (each declaration
   with serde), and answers it unchanged or a `ReadError` (the path of the value at fault
   below the feature's name, `macro_definitions.abs.args`, and the condition it violates),
@@ -227,10 +232,13 @@ plus `serde`, `serde_json` and `schemars` for its settings. The paths below are 
 - *Digest*: `b.digest_input(&digest)`, `digest` being `data.digest_bytes()`, the
   settings as binary data (counts as little-endian 64-bit numbers, map keys sorted);
   bytes pass as they are.
-- *Two forms*: compiled in (a row of `NATIVE_EXTENSIONS` in `flm-extensions`, the
-  program's cargo feature `bundled-extensions`; the tests load it with `ExtensionLoader`,
-  `NativeEngine` and a `MemorySource` answering `phfpack` with `engine: native`), and the
-  module that `extensions/rust/build-wasm.sh phfpack` writes to
+- *Two forms*: compiled in (its rows in `flm_extensions::EXTENSIONS` and
+  `flm_extensions::COMPILED_EXTENSIONS`, which the build script writes; the `flm`
+  program's cargo feature `bundled-extensions` gives both tables to `flm-host`; the tests
+  load it with `ExtensionLoader`, `NativeEngine::new([NamedExtension { stem, compiled }])`
+  and a `MemorySource` answering `phfpack` with `engine: native`), and the module of
+  `flm-extensions` built with the feature `phfpack` alone, which
+  `extensions/rust/build-wasm.sh phfpack` writes, with the extension's files, to
   `target/wasm-extensions/phfpack/`.
 
 The public guide describes it under [A Rust extension, end to
@@ -249,26 +257,28 @@ end](crate::guide::extending#a-rust-extension-end-to-end); the crate root
 | stages | [`crate::core::stage`] |
 | what a stage reads and writes at run time | [`StageCx`](crate::core::run::StageCx), [`StageOut`](crate::core::data::store::StageOut) |
 | lowering rules | [`crate::core::lowering`] |
-| presentation vocabulary | [`crate::stdcore::backends::pres`] |
-| the shared lowering stage and its driver | [`crate::stdcore::backends::lowering`] |
-| the LaTeX family: construct elements, escaping, the typed sink, package requests, definition pieces, the style file, the names of recomposed user definitions | [`crate::stdcore::backends::latex`] |
-| the HTML backend: escaping, already-formed markup, the typed sink, the naming functions and the conventions table of the HTML contract, the address policy, the tag construct element, the emitter, the stages and the page | [`crate::stdcore::backends::html`] |
+| presentation vocabulary | [`crate::stdlib::backends::pres`] |
+| the shared lowering stage and its driver | [`crate::stdlib::backends::lowering`] |
+| the LaTeX family: construct elements, escaping, the typed sink, package requests, definition pieces, the style file, the names of recomposed user definitions | [`crate::stdlib::backends::latex`] |
+| the HTML backend: escaping, already-formed markup, the typed sink, the naming functions and the conventions table of the HTML contract, the address policy, the tag construct element, the emitter, the stages and the page | [`crate::stdlib::backends::html`] |
 | option types, settings, services | [`crate::model::options`], [`crate::core::settings`], [`crate::core::services`] |
 | names | [`crate::model::names`] |
-| the standard package | [`crate::stdcore`], [`crate::stdcore::features`], [`crate::stdcore::backends`] |
+| the standard features | [`crate::stdlib`], [`crate::stdlib::features`], [`crate::stdlib::backends`] |
 | a feature written in JavaScript: the package and feature objects, settings from data, imports, the stem rule | [Extensions](crate::guide::extending#extensions); the module page of `flm_ext::quickjs` (sandbox, limits, how each item appears in JavaScript; "Editor support": the TypeScript declarations `flm-ext/flm.d.ts` and the `jsconfig.json` an editor checks a script with) |
-| a feature in JavaScript that lowers: `new LoweringRule(name, element, decl, body, mark)`, the lowerer `lw` (`lower_arg_named`, `lower_nodes`, `get_at`, `pres_tree`), presentation trees as data, `StyleDef`/`ScriptDef` with `DefContent.Table`, `definition_text_table`, `peer_backend`/`peer_table`/`peer_element`, `table_refining`, `flm:stdcore/features/math`, the manifest's `extension.js.limits` (`memory_mib`, `stack_mib`, `time_s`) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the module page of `flm_ext::quickjs`; `flm-ext/flm.d.ts` (every `flm:` module's declarations: the lowerer's methods, the presentation names, the `math` library, with each item's first sentence); the extension `extensions/js/math-mathjax/` as the worked example |
-| host services for a feature in JavaScript: the package object's `host` list, `cx.host(name)` on a stage's, a citation provider's and a template module's context, the service `files` (`read_text(scope, path)`, the scopes `extension` and `document`), the `flm` program's service `programs` (`find`, `run`), the refusal at load of an undeclared or unoffered service, the trust rule; for a host, `ExtensionLoader::with_host_service` and the trait `flm_ext::host::HostService` | [Host services](crate::guide::extending#host-services); [Host services for extensions](crate::guide::embedding#host-services-for-extensions); the module pages of `flm_ext::host`, `flm_main::host_files` and `flm_main::host_programs`; the module page of `flm_ext::quickjs` ("Host services") |
+| reading nodes, trees and table rows from an extension, and passing content back: traversals (`walk`, `descendants`, `trees`) with `elements(names)` and `kinds(kinds)`, the sequences `Nodes`, `StagedNodes`, `Rows`, joined lists, `[...nodes]` and `to_vec()` | [Traversals and sequences in an extension](#traversals-and-sequences-in-an-extension); [Traversals and sequences](crate::guide::extending#traversals-and-sequences); the module pages of `flm_ext::quickjs` and `flm_ext::guest` (mapping rule 9) |
+| a feature in JavaScript that lowers: `new LoweringRule(name, element, decl, body, mark)`, the lowerer `lw` (`lower_arg_named`, `lower_nodes`, `get_at`, `pres_tree`), presentation trees as data, `StyleDef`/`ScriptDef` with `DefContent.Table`, `definition_text_table`, `peer_backend`/`peer_table`/`peer_element`, `table_refining`, `flm:stdlib/features/math`, the manifest's `extension.js.limits` (`memory_mib`, `stack_mib`, `time_s`) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the module page of `flm_ext::quickjs`; `flm-ext/flm.d.ts` (every `flm:` module's declarations: the lowerer's methods, the presentation names, the `math` library, with each item's first sentence); the extension `extensions/js/math-mathjax/` as the worked example |
+| host services for a feature in JavaScript: the package object's `host` list, `cx.host(name)` on a stage's, a citation provider's and a template module's context, the service `files` (`read_text(path)`, a qualified path: `self:` the extension's folder, `ext+NAME:` an extension the document uses, `std:`, `doc:`, `cwd:`; a bare path and `https:` refused; `path(import.meta, "./x")` of `flm:host` gives `self:` and the module's folder joined with `x`), the service `download` (`call("get", { url })` → `{ content: {text}\|{base64}, media_type, warning? }`, `https` only, kept seven days in `flm.host.download.files`, offered when the host gives a downloader; `flm_ext::host::download`), the `flm` program's services `cache` (`get`, `put`, `remove`) and `programs` (`find`, `run`, with its argument `cache`), the package object's `caches` (the declared caches, `flm_ext::host::CacheDeclaration`, Rust guest `Package::caches`), the refusal at load of an undeclared or unoffered service, the trust rule (an extension may run any program through `programs`, and a build may contact any server that the document or its packages name); for a host, `ExtensionLoader::with_host_service` and the trait `flm_ext::host::HostService` | [Host services](crate::guide::extending#host-services); [Host services for extensions](crate::guide::embedding#host-services-for-extensions); [Caches of an extension](crate::guide::extending#caches-of-an-extension); the module pages of `flm_ext::host`, `flm_ext::paths`, `flm_host::host_files`, `flm_host::host_download`, `flm_host::host_cache` and `flm_host::host_programs`; the module page of `flm_ext::quickjs` ("Host services") |
 | a citation provider written in JavaScript: the object (`name`, `answer_all` or `answer`) contributed to `PROVIDERS_SLOT` (`flm.citations.providers`), the request and answer shapes, `cx.build_entry`, `cx.parse_entry`, what a failure gives; service slots of a script's own (`service_slot`, `contribute_to`, `peer_slot`, `cx.service`, `cx.services`) | [A citation provider from a script](crate::guide::extending#a-citation-provider-from-a-script); [Services and service slots](crate::guide::extending#services-and-service-slots) ("In JavaScript"); the module page of `flm_ext::quickjs` ("A citation provider"); the extension `flm-ext/tests/js/bibfile/` as the worked example |
-| a compose template written as a JavaScript module: the object (`name`, `describe(settings)`, `files(data, cx)`, `render(data, cx)`) contributed to `TEMPLATES_SLOT` (`flm.compose.templates`), the shapes of the description, of the shipped files and of `data`; the composer's hook `TemplateEngine::artifacts` through which an engine chooses a template's files when it is applied | [A compose template written as a module](crate::guide::extending#a-compose-template-written-as-a-module); [`TemplateEngine::artifacts`](crate::stdcore::features::compose::TemplateEngine::artifacts); the module page of `flm_ext::quickjs` ("A compose template written as a module"); the extension `flm-ext/tests/js/tinytpl/` as the worked example |
-| a feature in JavaScript with numbered and referenceable constructs: handler aspects `Aspect.Referenceable({ points })` and `Aspect.Sectioning({ level, in_toc?, toc_title? })` (in `ElementSpec.with` or `b.attach`; a failing handler is silent: no point, level 0, not listed), `flm:model/aspects` (`RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef`, `AcceptedRefTypes`), `flm:stdcore/features/refs` (label helpers, `lw.get(ANCHORS)` → `{ anchors }`), `flm:stdcore/features/numbering` (`lw.get(COUNTERS)` → `{ counters }`: `record`, `format`), the standard data-valued slots through `contribute_to`/`contribute_first_to`/`peer_slot` (counters, styles, parent sets, `latex.preamble.SLOT`, `latex.packages.SLOT`: the data read as the slot's type, its own name under the extension's stem), `flm:stdcore/backends/latex` (payload classes, `lw.pres_slots`, `lw.require(piece_id)`), `scoped_package`, `collection_member` (case: `wordcount.counted` in `flm.validated`), `late_init`/`finalizer` objects, templates: `compile_template_with(new TemplateSpec({…}), lang, new TemplateLanguage(lang))`, `instantiate(node, template, new ValueBindings().with(name, tree))`, durable objects (`{"@durable": …}`, valid for the registry's life, stale under another, deduplicated by specification) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the JavaScript twin in [Number a construct of your own](crate::guide::extending#number-a-construct-of-your-own); the module page of `flm_ext::quickjs` (mapping rules 4 and 7, the forms of `lw.get`, the rehearsal, Failures); the test extensions `flm-ext/tests/js/exercises/` and `flm-ext/tests/js/myhead/` |
+| a compose template written as a JavaScript module: the object (`name`, `describe(settings)` → `{ accepts, requires?, config }`, `config` the default of every declared setting and no other key, `files(data, cx)` → `{ name, extension, media_type, text }` or `{ name, file, media_type? }` with `file` a qualified path (an `https` file through the service `download`), `render(data, cx)`) contributed to `TEMPLATES_SLOT` (`flm.compose.templates`); its declaration under the key `templates` of the feature object, `{ NAME: { output, settings } }`, `settings` a JSON Schema of an object with marks and no `default` (declared as the entry `template_config.OUTPUT.NAME` of `compose`, `compose::declare_template_settings`; an undeclared key is left out with a warning); `path(import.meta, "./head.html")` for a file beside the module; the shapes of `data`; the composer's hook `TemplateEngine::artifacts` through which an engine chooses a template's files when it is applied | [A compose template written as a module](crate::guide::extending#a-compose-template-written-as-a-module); [`TemplateEngine::artifacts`](crate::stdlib::features::compose::TemplateEngine::artifacts); the module page of `flm_ext::quickjs` ("A compose template written as a module"); the extension `flm-ext/tests/js/tinytpl/` as the worked example |
+| a feature in JavaScript with numbered and referenceable constructs: handler aspects `Aspect.Referenceable({ points })` and `Aspect.Sectioning({ level, in_toc?, toc_title? })` (in `ElementSpec.with` or `b.attach`; a failing handler is silent: no point, level 0, not listed), `flm:model/aspects` (`RefPoint`, `NumberSource`, `AnchorPolicy`, `ContentRef`, `AcceptedRefTypes`), `flm:stdlib/features/refs` (label helpers, `lw.get(ANCHORS)` → `{ anchors }`), `flm:stdlib/features/numbering` (`lw.get(COUNTERS)` → `{ counters }`: `record`, `format`), the standard data-valued slots through `contribute_to`/`contribute_first_to`/`peer_slot` (counters, styles, parent sets, `latex.preamble.SLOT`, `latex.packages.SLOT`: the data read as the slot's type, its own name under the extension's stem), `flm:stdlib/backends/latex` (payload classes, `lw.pres_slots`, `lw.require(piece_id)`), `scoped_package`, `collection_member` (case: `wordcount.counted` in `flm.validated`), `late_init`/`finalizer` objects, templates: `compile_template_with(new TemplateSpec({…}), lang, new TemplateLanguage(lang))`, `instantiate(node, template, new ValueBindings().with(name, tree))`, durable objects (`{"@durable": …}`, valid for the registry's life, stale under another, deduplicated by specification) | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); the JavaScript twin in [Number a construct of your own](crate::guide::extending#number-a-construct-of-your-own); the module page of `flm_ext::quickjs` (mapping rules 4 and 7, the forms of `lw.get`, the rehearsal, Failures); the test extensions `flm-ext/tests/js/exercises/` and `flm-ext/tests/js/myhead/` |
 | a feature that processes mathematics: what to declare (a fallback or `[Mode::Math]` elements), the check providing `flm.math.content` and added to `flm.validated`, the rules of `flm.math` and `flm.math.environment` built with the `math` library | [A feature that processes mathematics](crate::guide::extending#a-feature-that-processes-mathematics); [`crate::math_passthrough`] (Rust); `extensions/js/math-mathjax/` (JavaScript) |
 | a feature in JavaScript that adds an output format or rewrites trees: `BackendDef`, `OutputDef`, `LoweringStage`, `lowered_table_name`, `StandardTable` with `table_named`, `Artifact`/`ArtifactId`, the lowered trees read by a stage (`.lowered`), `node.payload()` and the slots by index, `flm:lang/structural`, `presentation_element` with a data payload, `rewrite_stage` with `RewriteDecl`, `Restage` and the restager `rs` | [What a feature in JavaScript adds to the output](crate::guide::extending#what-a-feature-in-javascript-adds-to-the-output); [Adding an output format](crate::guide::extending#adding-an-output-format); the module page of `flm_ext::quickjs` ("A backend of your own", "A rewrite stage"); the test extensions `flm-ext/tests/js/typst/` and `flm-ext/tests/js/smartdash/` |
 | a Rust extension compiled to WebAssembly: the manifest (`engine: wasm`, `extension.wasm.module`, `extension.wasm.limits` with `memory_mib` and `fuel`), the guest client `flm_ext::guest` (cargo feature `guest`: the API's modules under `flm_ext::guest::…`, façades as structs forwarding to the host and answering `Result<_, ExtError>`, the handler traits taken as `Arc<dyn Trait>`, plain data re-exported), the macro `flm_ext::guest::extension!(f)` and the builders `Extension`, `Package`, `Feature`, the crate (`cdylib`, `flm-ext` with `default-features = false, features = ["guest"]`, `panic = "abort"`), the build (`cargo build --target wasm32-unknown-unknown --release`), the move from a crate written against `flm_ext::api`, what a module reaches (the host's imports and its declared host services), the limits (fuel per handler call, memory per instance) | [An extension in WebAssembly](crate::guide::extending#an-extension-in-webassembly); [A Rust extension compiled to WebAssembly](crate::guide::extending#a-rust-extension-compiled-to-webassembly); the module pages of `flm_ext::guest` (the mapping rules, the rehearsal, the places where the move is not mechanical) and `flm_ext::wasm` (the interface between the host and the module, the limits, the failures); the test crate `flm-ext/tests/wasm/wordcount/` as the worked example |
-| a Rust extension compiled into a program: the same crate as its WebAssembly form (`flm-ext` with the feature `guest` alone; the default library type for the program, `cargo rustc --crate-type cdylib` for the module), the static `FLM_EXTENSION` the macro writes on every target, the engine `native` (cargo feature `native`: `NativeEngine::new([NativeExtension { stem, manifest, compiled: &crate::FLM_EXTENSION }])` added with `ExtensionLoader::with_engine`; the program's source answers the stem with `engine: native`; a stem the engine does not hold is refused, listing those it holds), what differs (no sandbox, no limits and no bound on a value's depth, every JSON value passed as it is, in a call's arguments and answer and in a template module's data (the engines `js` and `wasm` refuse a number that is not whole or a reserved map key in them; on every engine the API itself refuses one where it keeps the value as data: a table item, a data payload, a diagnostic's data, a service slot's data), every call a direct, typed call in the same process with no JSON value written or read (the requests, the lending of handler objects and FLM's calls of the handlers alike; only a feature's settings, given to `register` and to a template module's `describe`, and the package declarations stay JSON values), a panic fails the handler and replaces the thread's instance, a panic in an object's `Drop` reported by the panic hook alone, a call from a thread the extension started answers `ExtError::Unsupported`, the digest from the crate's name and version, not its code), and how the form is chosen (by `flm-ext`'s feature `native`, not by the target: a program built for any target, `wasm32` included, carries extensions compiled in; an extension's `.wasm` module is built in a cargo run where no crate turns on `native`, such as `cargo rustc -p NAME`, or it lacks its exports and the engine `wasm` refuses it, saying which export it lacks) | [A Rust extension compiled into a program](crate::guide::extending#a-rust-extension-compiled-into-a-program); the module pages of `flm_ext::native` (a compiled example, the instances, dropping an instance, the limits and failures) and `flm_ext::guest`; the tests `flm-ext/tests/native_case1.rs` and `flm-ext/tests/native_handlers.rs` as the worked examples; the shipped extension `phfpack`, in both forms ([A Rust extension, end to end](crate::guide::extending#a-rust-extension-end-to-end)) |
+| a Rust extension compiled into a program: the same crate as its WebAssembly form (`flm-ext` with the feature `guest` alone; the default library type for the program, `cargo rustc --crate-type cdylib` for the module), the static `FLM_EXTENSION` the macro writes on every target, the engine `native` (cargo feature `native`: `NativeEngine::new([NamedExtension { stem, compiled: &crate::FLM_EXTENSION }])`, a table of code, added with `ExtensionLoader::with_engine`; the program's source answers the stem with its manifest, `engine: native`, and its files; a stem the engine does not hold is refused, listing those it holds; a program on `flm-host` gives `flm_host::bundled::Bundled` in its request, and `flm-host` makes the source and the engine), what differs (no sandbox, no limits and no bound on a value's depth, every JSON value passed as it is, in a call's arguments and answer and in a template module's data (the engines `js` and `wasm` refuse a number that is not whole or a reserved map key in them; on every engine the API itself refuses one where it keeps the value as data: a table item, a data payload, a diagnostic's data, a service slot's data), every call a direct, typed call in the same process with no JSON value written or read (the requests, the lending of handler objects and FLM's calls of the handlers alike; only a feature's settings, given to `register` and to a template module's `describe`, and the package declarations stay JSON values), a panic fails the handler and replaces the thread's instance, a panic in an object's `Drop` reported by the panic hook alone, a call from a thread the extension started answers `ExtError::Unsupported`, the digest from the extension's name and version, those its `CompiledExtension` holds, not its code), and how the form is chosen (by `flm-ext`'s feature `native`, not by the target: a program built for any target, `wasm32` included, carries extensions compiled in; an extension's `.wasm` module is built in a cargo run where no crate turns on `native`, such as `cargo rustc -p NAME`, or it lacks its exports and the engine `wasm` refuses it, saying which export it lacks) | [A Rust extension compiled into a program](crate::guide::extending#a-rust-extension-compiled-into-a-program); the module pages of `flm_ext::native` (a compiled example, the instances, dropping an instance, the limits and failures) and `flm_ext::guest`; the tests `flm-ext/tests/native_case1.rs` and `flm-ext/tests/native_handlers.rs` as the worked examples; the shipped extension `phfpack`, in both forms ([A Rust extension, end to end](crate::guide::extending#a-rust-extension-end-to-end)) |
+| several Rust extensions in one crate, and collections: one module per extension, each declaring `pub static FLM_EXTENSION: CompiledExtension = CompiledExtension::new(define, NAME, env!("CARGO_PKG_VERSION"))`; the table of code `pub static COMPILED_EXTENSIONS: &[NamedExtension]` (`stem`, `compiled`) at the root, and `flm_ext::guest::extensions!(COMPILED_EXTENSIONS)` once (`extension!(f)` is the same over one row whose stem is the crate's name); the module's entry `define(stem, module)` picks the row by stem (one row: any stem; several and no match: an error listing the stems); every entry is `{"entry", "extension": STEM, "args"}`, so one instance runs several extensions, each with its own state; two WebAssembly outputs: the module of one extension in its folder (code alone; manifest and files beside it), and a *collection*, one module holding the code and, in its custom section `flmextensions` (`flm_ext::collection`, macro `record!`), every file of several extensions (`data`, `js` and Rust), named `*.flmextensions.wasm`, never found by name (a module found by name that holds the section is refused) but loaded by a program with `flm_ext::wasm::Collection::read(label, bytes)` and offered through `flm_host::session::Request::collections` (identity `LABEL:FOLDER/STEM`; one instance per thread and host for the whole collection; its memory limit the sum over the rows with code; fuel per extension); the manifest, the files and the code of an extension always come from the same source (its folder, a collection, or the tables built into the program), and files from two sources are never combined | [A crate that holds several Rust extensions](crate::guide::extending#a-crate-that-holds-several-rust-extensions); [The extensions a program offers](crate::guide::embedding#the-extensions-a-program-offers); the crate `flm-extensions` (`extensions/`: one cargo feature per extension, `all`, `collection`; its build script writes `EXTENSIONS`, `COMPILED_EXTENSIONS` and the records) and `extensions/rust/build-wasm.sh` (`[--out DIR] [NAME …]`, `--collection FILE NAME …`); the module pages of `flm_ext::wasm` (section Collections) and `flm_ext::collection`; the test guests `flm-ext/tests/wasm/pair/` and `flm-ext/tests/wasm/collection/` |
 | where the `flm` program looks for extensions | [Where extensions are looked for](crate::guide::command_line#where-extensions-are-looked-for) |
 | settings declared from data, the settings cascade | [`SettingsDecl::config_data`](crate::core::settings::SettingsDecl::config_data), [`SettingsDecl::options_data`](crate::core::settings::SettingsDecl::options_data), [`crate::core::settings::cascade`] |
-| end-to-end tests of wiring | `flm-core/tests/wiring_*.rs`, `flm-core/tests/stdcore_*.rs`, `flm-core/tests/pipeline_*.rs` |
+| end-to-end tests of wiring | `flm-core/tests/wiring_*.rs`, `flm-core/tests/stdlib_*.rs`, `flm-core/tests/pipeline_*.rs` |
 
 ## The feature interface
 
@@ -328,6 +338,7 @@ definition's part).
 | call | declares | from JavaScript |
 |---|---|---|
 | [`element`](crate::core::registry::FeatureBuilder::element)([`ElementDef`](crate::lang::mint::ElementDef)) | an element value, the names it is written under and their syntax | yes |
+| [`element_type_text`](crate::core::registry::FeatureBuilder::element_type_text)(element type name, docs) | the documentation text of an element type this feature declares: what its nodes mean, whatever their element value | yes |
 | [`attach::<dyn A>`](crate::core::registry::FeatureBuilder::attach)(element type name, `Arc<A>`) | an aspect on every element value of that element type name, other features' and the structural elements included | — |
 | [`fallback`](crate::core::registry::FeatureBuilder::fallback)([`FallbackDef`](crate::lang::mint::FallbackDef)) | what a command name means in a parsing mode where no declaration defines it | yes |
 | [`scoped_package`](crate::core::registry::FeatureBuilder::scoped_package)([`ScopedPackageDef`](crate::lang::mint::ScopedPackageDef)) | a scoped package: element declarations available only inside the bodies and arguments that refer to the package (`BodyDef::scoped`, `ArgDef::scoped`) | — |
@@ -392,7 +403,7 @@ definition's part).
 - The name of a presentation element and a **role** (a dotted name on a presentation
   payload that says what a container is) are a public interface for stylesheets: the
   HTML backend derives a CSS class from each, every hyphen doubled and every dot turned
-  into a hyphen ([`class_of_role`](crate::stdcore::backends::html::class_of_role):
+  into a hyphen ([`class_of_role`](crate::stdlib::backends::html::class_of_role):
   `flm.heading.number` → `flm-heading-number`). Choose such a name once and keep it.
 
 ## The registry build
@@ -560,7 +571,7 @@ shorthands settings may write in its place; table in
 | [`Embellishments`](crate::lang::mint::ArgStdKind::Embellishments) | `embellishments`; `markers`: one character each, at least one | marker–expression pairs in any order, each marker at most once (`\name_{a}^{b}`); absent when no marker follows; techy's `split_embellishments` reads the pairs back by marker | `e{<chars>}` |
 | [`KeyVals`](crate::lang::mint::ArgStdKind::KeyVals) | `key-vals` | an optional `[key=value,…]` group, parsed as `Optional`; the element reads the pairs itself | none |
 | [`CharsGroup`](crate::lang::mint::ArgStdKind::CharsGroup) | `chars-group` | a `{…}` group read as plain characters (`\label{sec:intro}`); comments and nested groups are recognized, and a template's placeholder stays one | none |
-| [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | `verbatim`; `delimiters`, absent for the closer matched to the opener | raw text between delimiters (`\verbcode|…|`); nothing is recognized but a template's placeholder | `v`, `v<c1><c2>` |
+| [`Verbatim`](crate::lang::mint::ArgStdKind::Verbatim) | `verbatim`; `delimiters`, absent for the closer matched to the opener | raw text between delimiters (`\verbcode\|…\|`); nothing is recognized but a template's placeholder | `v`, `v<c1><c2>` |
 | [`TackOn`](crate::lang::mint::ArgStdKind::TackOn) | `tack-on`; `fields`: `[{name, args, repeatable, docs}]`, distinct names, `args` an argument list (none by default), `repeatable` `false` and `docs` empty by default | the fields ([`TackOnField`](crate::lang::mint::TackOnField)) absorbed at the argument's position in a call, after the arguments declared before it, as `\section{…}` absorbs `\label{…}` | none |
 | [`Terminated`](crate::lang::mint::ArgStdKind::Terminated) `{ terminator, repeat_char, opener, head, raw }` | `terminated`; `terminator`; `repeat_char` (absent: none), `opener` and `head` (empty by default), `raw` (`false` by default) | everything up to a terminator, matched before any other markup: prefix = run of `repeat_char` (any length) + `opener`; terminator = `head` + the same run + `terminator`; content parsed (`raw: false`) or raw text in a verbatim-class group (`raw: true`); nothing trimmed; techy's `TerminatedArgumentParser`; `MissingArgumentTerminator`, `ExpectedArgumentOpener` | `u<term>` (content), `U<term>` (raw), `f<c><term>` (content after a run of `<c>`), `F<c><term>` (raw); the code span is a specials `` ` `` with one argument ``` F`` ```; no code sets `opener` or `head` |
 
@@ -611,7 +622,7 @@ the arguments that have a role: `registry.declarations().role_uses(name)`
 The eight standard roles: `flm.refs.target`, `flm.refs.defined-label`,
 `flm.citations.key`, `flm.defterm.defined-term`, `flm.defterm.target`,
 `flm.graphics.path`, `flm.input.path`, `flm.href.address` (constants such as
-[`refs::TARGET_ARG_ROLE`](crate::stdcore::features::refs::TARGET_ARG_ROLE)).
+[`refs::TARGET_ARG_ROLE`](crate::stdlib::features::refs::TARGET_ARG_ROLE)).
 
 **Documentation texts** (`.docs(…)` on every declaration; settings descriptions from the
 settings type's rustdoc via the JSON Schema, after `settings::plain_text`): FLM read with
@@ -660,7 +671,7 @@ declarations refer to the package by name, for instance `\item` inside a list's 
 declaration of the same name there; two packages declaring one name never clash, and the
 inner one wins where one is added inside the other. A package may add as little as one
 special character (`&` inside the `cells` feature's data argument,
-[`cells::DATA_PACKAGE`](crate::stdcore::features::cells::DATA_PACKAGE)). Refusals:
+[`cells::DATA_PACKAGE`](crate::stdlib::features::cells::DATA_PACKAGE)). Refusals:
 an unknown package not peer-declared (`MintError::UnknownScopedPackage`), packages that
 refer to each other in a circle (`MintError::ScopedPackageCycle`).
 
@@ -771,7 +782,7 @@ of how it reads the body). The layout, mode, scoped packages and opaque wrapper 
 `BodyDef`; minting applies the mode and the packages around the parser, which finds them
 in `cx.state`, and places what the parser read under the opaque wrapper when the
 declaration asks for one. Meeting the end of the input inside the body is an ordinary
-outcome. The `math` feature's line check is a full example ([`lines::LinesBehavior`](crate::stdcore::features::math::lines::LinesBehavior)).
+outcome. The `math` feature's line check is a full example ([`lines::LinesBehavior`](crate::stdlib::features::math::lines::LinesBehavior)).
 
 ```rust
 use flm_core::lang::{Flm, FlmGroupType};
@@ -865,8 +876,8 @@ field builds its element with [`field_element`](crate::lang::mint::field_element
 absorbs as data rather than as content: the construct that declared the field reads it by
 its name, and nothing across the document is keyed on a field's name. A field node that
 reaches a backend is the Error `flm.lowering.field-not-read`
-([`FieldNotRead`](crate::stdcore::backends::lowering::FieldNotRead), reported by
-[`FieldRule`](crate::stdcore::backends::lowering::FieldRule)): the construct that
+([`FieldNotRead`](crate::stdlib::backends::lowering::FieldNotRead), reported by
+[`FieldRule`](crate::stdlib::backends::lowering::FieldRule)): the construct that
 absorbed it did not read it.
 
 ## Aspects
@@ -905,14 +916,14 @@ an occurrence that is not part of the text around it),
 content shown a second time), [`Whitespace`](crate::model::aspects::Whitespace) (each
 occurrence is whitespace to the layout of paragraphs, as `~` and `\ ` are: removed where
 the block-structure pass removes whitespace, and at the edges of a paragraph a rule writes
-itself, which [`stage_trimmed`](crate::stdcore::backends::lowering::stage_trimmed) trims as
+itself, which [`stage_trimmed`](crate::stdlib::backends::lowering::stage_trimmed) trims as
 the pass does; whitespace to the standard features' tests for blank content, except those
 of text read as typed or with its markup (a citation key, a term: `\term{~}` is not empty);
 kept elsewhere as a node of its own; a marker, attached as
 [`IsWhitespace`](crate::model::aspects::IsWhitespace)). Read when a document is rendered, declared with the
-presentation vocabulary: [`Decoration`](crate::stdcore::backends::pres::Decoration),
-[`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent),
-[`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque). Declared beside
+presentation vocabulary: [`Decoration`](crate::stdlib::backends::pres::Decoration),
+[`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent),
+[`ContentInOpaque`](crate::stdlib::backends::pres::ContentInOpaque). Declared beside
 the rewrite pass that reads them, each called through an interface of its own (as a
 lowering rule works through its [`Lowerer`](crate::core::lowering::Lowerer)):
 [`Expand`](crate::lang::rewrites::userdefs::Expand) (through an
@@ -934,7 +945,7 @@ the element already carries is
 never a silent replacement. A block role that depends on the position (the `cells`
 feature's `\cell` is a block directly in a `cells` body, inline elsewhere) is decided by
 one predicate that the rule's reader also follows
-([`cells::stands_in_body`](crate::stdcore::features::cells::stands_in_body)).
+([`cells::stands_in_body`](crate::stdlib::features::cells::stands_in_body)).
 
 **Templates with values a feature computes.** Declare the macros as
 [`Definition`](crate::lang::rewrites::userdefs::Definition)s with extra placeholders
@@ -944,14 +955,14 @@ one predicate that the rule's reader also follows
 in a late-initialization hook; register each element with an `Expand` of your own through
 [`UserDefinition::element_def_with`](crate::lang::rewrites::userdefs::UserDefinition::element_def_with)`(owner,
 name, hook)`, its type name given by
-[`element_name_under`](crate::stdcore::features::userdefs::element_name_under)`(prefix,
+[`element_name_under`](crate::stdlib::features::userdefs::element_name_under)`(prefix,
 &definition)` and lowered by the rule
-[`expand_in_tree_rule_for`](crate::stdcore::features::userdefs::expand_in_tree_rule_for)`(name,
+[`expand_in_tree_rule_for`](crate::stdlib::features::userdefs::expand_in_tree_rule_for)`(name,
 &definition)`. In the hook, take the templates of
 [`variant_for_use`](crate::lang::rewrites::userdefs::UserDefinition::variant_for_use)`(&site)`
 (its `Err` is the condition to report at the use site) and instantiate them with bindings
 that give the extra names' content and pass every other reference to
-[`DefinitionBindings::new(site, variant)`](crate::lang::rewrites::userdefs::DefinitionBindings):
+[`DefinitionBindings::new(site, &variant)`](crate::lang::rewrites::userdefs::DefinitionBindings):
 [`ExtraValues`](crate::lang::rewrites::userdefs::ExtraValues) keyed by name and
 substitution text (`placeholders()` and `substitution_text(node)` of `variant.template()`
 and of each template of
@@ -978,7 +989,7 @@ A reference point is one place in a document that can be referred to, numbered, 
 an anchor (a heading, an equation line, a theorem, a footnote); an element declares its
 reference points per occurrence through the `Referenceable` aspect, and the `refpoints`
 feature records them per tree ([`RefPoint`](crate::model::aspects::RefPoint)). The
-[`refpoints`](crate::stdcore::features::refpoints) feature asks each node once per run
+[`refpoints`](crate::stdlib::features::refpoints) feature asks each node once per run
 and writes the points to `flm.refpoints`, which the `refs` and `numbering` features read
 and require; a tree the aspect builds is therefore built once per run, and a tree that is
 the same for many points (a configured bullet) is better built once, when the registry is
@@ -1010,32 +1021,32 @@ another type defines nothing, and the label check reports
 `flm.refs.label-type-not-accepted`. Labels the element computes itself come first and
 are counted in [`computed`](crate::model::aspects::RefPoint::computed) (`0` when every
 label is written); the acceptance does not apply to them. Headings accept
-[`headings::LABEL_TYPES`](crate::stdcore::features::headings::LABEL_TYPES) (`sec`,
+[`headings::LABEL_TYPES`](crate::stdlib::features::headings::LABEL_TYPES) (`sec`,
 `topic`), equation lines
-[`math::LABEL_TYPES`](crate::stdcore::features::math::LABEL_TYPES) (`eq`).
+[`math::LABEL_TYPES`](crate::stdlib::features::math::LABEL_TYPES) (`eq`).
 
 **A labeled construct**, in three steps: declare
-[`label_fields_arg`](crate::stdcore::features::refs::label_fields_arg) as the element's
+[`label_fields_arg`](crate::stdlib::features::refs::label_fields_arg) as the element's
 last argument; read the fields with
-[`label_uses`](crate::stdcore::features::refs::label_uses) and split them with
-[`point_labels`](crate::stdcore::features::refs::point_labels) (the labels, and the
+[`label_uses`](crate::stdlib::features::refs::label_uses) and split them with
+[`point_labels`](crate::stdlib::features::refs::point_labels) (the labels, and the
 texts that are not `type:label`, which the `refs` feature reports); put both on the
 point. A rule of your own on the recomposed LaTeX writes the labels with
-[`stage_label`](crate::stdcore::features::refs::stage_label) and
-[`stage_label_group`](crate::stdcore::features::refs::stage_label_group) and declares
+[`stage_label`](crate::stdlib::features::refs::stage_label) and
+[`stage_label_group`](crate::stdlib::features::refs::stage_label_group) and declares
 what they read and produce (their documentation lists it; among others the safe labels
-table [`SAFE_LABELS`](crate::stdcore::features::refs::SAFE_LABELS)).
+table [`SAFE_LABELS`](crate::stdlib::features::refs::SAFE_LABELS)).
 
 **An element that refers to a point** through the `refs` feature (the
-[`defterm`](crate::stdcore::features::defterm) feature's `\term` is the model):
+[`defterm`](crate::stdlib::features::defterm) feature's `\term` is the model):
 implement [`Referencing`](crate::model::aspects::Referencing), returning one
 [`RefSite`](crate::model::aspects::RefSite) per target, a label the target's point
 carries; make a peer declaration of the resolutions table
-([`peer_table::<RefResolutions>`](crate::stdcore::features::refs::RefResolutions),
+([`peer_table::<RefResolutions>`](crate::stdlib::features::refs::RefResolutions),
 `flm.refs.resolutions`) and read it optionally in the rule
 (`LoweringDecl::reads_opt(REF_RESOLUTIONS)`), looking the site up by
-[`SiteId { addr: lw.addr(), index }`](crate::stdcore::features::refs::SiteId):
-[`Resolution::Resolved`](crate::stdcore::features::refs::Resolution) carries the `href`,
+[`SiteId { addr: lw.addr(), index }`](crate::stdlib::features::refs::SiteId):
+[`Resolution::Resolved`](crate::stdlib::features::refs::Resolution) carries the `href`,
 and an absent table means no `refs` feature (write the content alone). The `refs` stages
 resolve and report (`flm.refs.unresolved`); never look a label up yourself.
 
@@ -1070,7 +1081,7 @@ The two kinds of stage:
 | output | a [`TreesTable`](crate::core::stage::TreesTable) under the published capability | table pieces through [`StageOut`](crate::core::data::store::StageOut) |
 | failure | [`RewriteError`](crate::core::stage::RewriteError): that tree is absent from every later table | none: a problem with the document is a diagnostic |
 
-The standard package has four rewrite stages: the two expansions of user definitions
+The standard features provide four rewrite stages: the two expansions of user definitions
 (`flm.userdefs.expand-always` for the definitions expanded always and
 `flm.userdefs.expand` for the ones expanded per plan, both of the `userdefs` feature), the
 insertion of included files (`input`), and the layout in paragraphs and blocks
@@ -1120,7 +1131,7 @@ insertion of included files (`input`), and the layout in paragraphs and blocks
   value when the run is constructed ([`Externals`](crate::core::run::Externals);
   [`external_table`](crate::core::registry::FeatureBuilder::external_table)). The `refs`
   feature declares one for the labels of the other documents of a corpus
-  ([`EXTERNAL_INDEX`](crate::stdcore::features::refs::EXTERNAL_INDEX)).
+  ([`EXTERNAL_INDEX`](crate::stdlib::features::refs::EXTERNAL_INDEX)).
 
 ```rust
 use flm_core::core::stage::{Effect, Needs, Scope, StageDecl};
@@ -1147,7 +1158,7 @@ assert!(decl.provides.is_empty());
 assert_eq!(needs.requires.len(), 1);
 ```
 
-The [`index`](crate::stdcore::features::index) feature is one table and one `Compute`
+The [`index`](crate::stdlib::features::index) feature is one table and one `Compute`
 stage of `PerTree` scope, and nothing else: the smallest example to read.
 
 **Recipe: a rewrite stage in JavaScript.** `b.rewrite_stage(stage)` with `stage` an object
@@ -1166,7 +1177,8 @@ b.rewrite_stage({
     if (node.is_chars() && node.chars().includes("--"))
       return Restage.Emit([rs.stage_chars(node.chars().replace(/---/g, "—").replace(/--/g, "–"), node)]);
     if (node.element_name() === "smartdash.quote") {                           // a call rebuilt from parts
-      const content = (node.argument_content_nodes_named("text") ?? []).flatMap(child => rs.restage_subtree(child));
+      const content = [];
+      for (const child of node.argument_content_nodes_named("text") ?? []) content.push(rs.restage_subtree(child));
       const argument = rs.restage_argument_with_content(node, 0, content);
       return Restage.Emit([rs.stage_chars("“", node), rs.restage_invocation(node, [argument], []), rs.stage_chars("”", node)]);
     }
@@ -1189,7 +1201,7 @@ b.rewrite_stage({
   only when its table is demanded: declare a workflow demanding it in the package's `flm`
   block (`{ workflows: { smartdash: { extends: "text", demands: ["smartdash.dashed"] } } }`).
   A scripted `needs()` cannot test whether a capability is registered; order by names that
-  exist in every registry holding `stdcore`.
+  exist in every registry holding the standard features.
 - Failures: an exception or a bad answer from `restage` is the Error
   `flm.ext.handler-failed` at the node, and the node is kept (as `Descend`); an operation
   refused for its arguments (an index out of range, an unknown argument name) throws an
@@ -1198,7 +1210,56 @@ b.rewrite_stage({
   inside a removed node, content nested too deeply) abandons that tree's rewrite with
   `flm.ext.rewrite-failed` (or `flm.blocks.nesting-too-deep`) at its root, and the tree is
   absent from the output.
+- `restage_subtree` and `restage_children` return a `StagedNodes` sequence (next
+  section); `Restage.Emit`, `restage_argument_with_content` and
+  `restage_slot_with_content` take a `StagedNodes` or an array of staged nodes and
+  `StagedNodes`, so the recipe pushes each child's sequence into `content` as it is.
 - Worked example: `flm-ext/tests/js/smartdash/main.js`.
+
+## Traversals and sequences in an extension
+
+An extension (JavaScript, WebAssembly, or Rust through the guest client) never receives a
+list whose length grows with the document. Each such collection is one handle; the
+binding fetches its items from the host a bounded group at a time. Every item the engine
+holds costs engine memory (64 MiB by default, `extension.js.limits` /
+`extension.wasm.limits`), and every call into the host costs time.
+
+| what | returns | use |
+|---|---|---|
+| `cx.walk()` (`{ node, addr }`), `node.descendants()` (nodes, document order, the node excluded), `cx.trees()` and the `trees()` of a trees table or of `.lowered` (`[id, tree]`) | a *traversal* (`Walk`, `Descendants`, `Trees`) | iterate once with `for … of` (Rust: `Iterator`, items `Result<_, ExtError>`); no length, no index; calling the method again starts over |
+| `.elements(names)` / `.kinds(kinds)` on `walk()` and `descendants()` | the traversal restricted, on the host, to nodes whose `element_name()` is in `names` / whose `kind()` is in `kinds` (`NodeKindName.Chars`, …) | always restrict a stage that looks for a few elements or for characters: a non-matching node costs no call and no memory; descendants of any node are still visited; both restrictions combine (AND); an unknown name matches nothing |
+| a list of nodes: `children()`, `body()`, `argument_nodes(i)`, `argument_content_nodes(i)` and the `_named` forms, `slot_content_nodes(i)`, a math line's `content`, `Tag.content`, `NumberSource.instances` | `Nodes`, a *sequence* | `len()`, `is_empty()` (no call), `get(i)` (`null` past the end), repeatable `for … of`, spread, destructuring; `null` where the Rust method returns `None` (`body()` of a node without a body) |
+| staged nodes: `lw.lower_children`/`lower_body`/`lower_arg`/`lower_arg_named`/`lower_nodes`/`default`/`splice`, `rs.restage_subtree`/`restage_children`, `xp.instantiate`/`recover`, the `math` library's parts (`group_opening`, `stage_lines`, `write_math_run`, …), `stage_trimmed`, `stage_label_group`, `pres_tree` | `StagedNodes`, a sequence | as `Nodes` |
+| the rows of an extension's own table: `cx.get(name).ext.items()` | `Rows`, a sequence of data rows | as `Nodes`; a row is copied when read |
+
+Passing content on: wherever the interface takes several nodes (`chars_text`,
+`read_chars`, `lw.lower_nodes`, `write_math_run`, `line_tex`, …) pass a `Nodes`, or a
+*joined list*: an array of nodes and `Nodes`, joined in order. Wherever it takes several
+staged nodes (`lw.pres` children, `lw.pres_slots` slots, `Lowering.Emit`, `Expansion.Emit`,
+`Restage.Emit`, `restage_*_with_content`, `stage_label_group`) pass a `StagedNodes` or an
+array of staged nodes and `StagedNodes`; `{ build }` in a `pres_tree` takes one staged node,
+a `StagedNodes` or such an array. A sequence passed back crosses as one handle whatever its
+length, and its items never become engine objects:
+
+```js
+return Lowering.Emit([lw.text(cx, "["), lw.lower_nodes(cx, node.body()), lw.text(cx, "]")]);
+```
+
+`[...nodes]` (JavaScript) and `to_vec()?` (Rust) create one engine object per item: use them
+only on a short list the handler needs whole (one argument's content), never on a body or a
+traversal. A sequence has no array methods (`.map`, `.filter`, `.length`); use `len()`,
+`get(i)` and `for … of`.
+
+In the guest client (Rust): `Nodes` and `StagedNodes` are built empty (`Default`) or from a
+`Vec`, extended with `push(item)` and `push_all(&other)` without a crossing, and passed as
+`&Nodes` / `StagedNodes`; a host sequence inside one crosses back as its handle.
+`elements` takes any list of strings, `kinds` a `&[NodeKindName]`; both answer
+`Result<…>`. A Rust extension compiled into a program has no memory limit; the same code
+serves both forms.
+
+Module pages: `flm_ext::quickjs` (mapping rule 9, the limits), `flm_ext::guest` (mapping
+rule 9), `flm_ext::adapter::dispatch` (the value shapes); the guide's [Traversals and
+sequences](crate::guide::extending#traversals-and-sequences).
 
 ## Capabilities, collections, ordering edges and workflows
 
@@ -1222,9 +1283,9 @@ them: [AI guide: pipeline](crate::guide::ai_guide_pipeline).
   one is [`PlanError::CollectionRequired`](crate::core::plan::PlanError::CollectionRequired).
   A member added to a collection no feature declares is dropped without a diagnostic, so
   a feature that ships a check stays registrable alone.
-  [`VALIDATED`](crate::stdcore::VALIDATED) (`flm.validated`) is the standard one: the
-  [`CHECK_WORKFLOW`](crate::stdcore::CHECK_WORKFLOW) demands it alone, and every
-  rendering workflow of the standard package demands it beside its output, so a check
+  [`VALIDATED`](crate::stdlib::VALIDATED) (`flm.validated`) is the standard one: the
+  [`CHECK_WORKFLOW`](crate::stdlib::CHECK_WORKFLOW) demands it alone, and every
+  rendering workflow of the standard features demands it beside its output, so a check
   you add to it runs in every standard workflow.
 - **Ordering edges** say only "runs after (or before) the stage that provides this
   capability". An edge never causes a stage to be scheduled, and has no effect when the
@@ -1294,7 +1355,7 @@ with `.docs(…)`.
   build](#the-registry-build)), except that a table read with `reads_opt` leaves the rule
   running with the table absent. Never import the backend's feature to make such a rule
   build. Example:
-  [`headings::latex::register`](crate::stdcore::features::headings::latex::register).
+  [`headings::latex::register`](crate::stdlib::features::headings::latex::register).
 - [`Lower::lower`](crate::core::lowering::Lower::lower)`(&self, node: NodeRef<'_, Flm>,
   cx: &mut `[`LowerCx`](crate::core::lowering::LowerCx)`<'_>, lw: &mut dyn Lowerer)`
   returns [`Lowering::Default`](crate::core::lowering::Lowering::Default) (copy the node,
@@ -1321,7 +1382,7 @@ with `.docs(…)`.
     content slot of a node of another tree, a document node a value points at, as that
     tree's own content; the argument or content slot is a [node
     region](crate::core::lowering::NodeRegion); **the caller must lower each node region
-    once**, and the lowering driver ([`crate::stdcore::backends::lowering`], the code
+    once**, and the lowering driver ([`crate::stdlib::backends::lowering`], the code
     that applies the selected rules) does not check it);
   - reading: `get` (a table the rule declared), `option` (an option type it declared),
     [`producer_of`](crate::core::lowering::Lowerer::producer_of),
@@ -1361,118 +1422,132 @@ with `.docs(…)`.
   [`selection_requires`](crate::core::lowering::LoweringDecl::selection_requires) lists
   the requirements the rule has whenever it is selected (style or script definitions, LaTeX
   package requests, definition pieces).
+  [`unchecked_output`](crate::core::lowering::LoweringDecl::unchecked_output)`(backend,
+  written, reader)` declares output that nothing checks before `reader` reads it on
+  `backend`: a plan that selects the rule there keeps one
+  [`PlanWarning::UncheckedOutput`](crate::core::plan::PlanWarning::UncheckedOutput) per
+  backend and feature, reported at the start of every run as `flm.run.unchecked-output`
+  ("Unchecked output for *reader*: feature ‘…’ writes *written* as is (backend ‘…’)").
+  The rules of `math-passthrough` declare it on `html`, `latex-rendered` and
+  `latex-recomposed`, and keep it under another feature's names
+  ([`math_rule_named`](crate::math_passthrough::math_rule_named) and the other
+  constructors), the warning then naming that feature.
 - Lowering runs **rounds** until no node the backend does not write natively is left,
-  bounded by [`rank`](crate::stdcore::backends::lowering::rank), computed when the plan
+  bounded by [`rank`](crate::stdlib::backends::lowering::rank), computed when the plan
   is built; exhausting the bound is `flm.lowering.rounds-exceeded`
-  ([`RoundsExceeded`](crate::stdcore::backends::lowering::RoundsExceeded)) and means a
+  ([`RoundsExceeded`](crate::stdlib::backends::lowering::RoundsExceeded)) and means a
   rule's `produces` is wrong.
 - **A failure never panics and never stops the run**
-  ([`lowering::error`](crate::stdcore::backends::lowering::error)). Recovered at one
+  ([`lowering::error`](crate::stdlib::backends::lowering::error)). Recovered at one
   node, which lowers to a childless `flm.pres.unsupported` node with one Error:
-  [`UnsupportedElement`](crate::stdcore::backends::lowering::UnsupportedElement),
-  [`RuleFailed`](crate::stdcore::backends::lowering::RuleFailed) (the rule returned a
+  [`UnsupportedElement`](crate::stdlib::backends::lowering::UnsupportedElement),
+  [`RuleFailed`](crate::stdlib::backends::lowering::RuleFailed) (the rule returned a
   [`LowerError`](crate::core::lowering::LowerError)),
-  [`RegionNotFound`](crate::stdcore::backends::lowering::RegionNotFound),
-  [`NoRule`](crate::stdcore::backends::lowering::NoRule). The whole tree fails, with no
-  entry in [`LoweredTrees`](crate::stdcore::backends::lowering::LoweredTrees) and one Error
-  at the root: [`RoundsExceeded`](crate::stdcore::backends::lowering::RoundsExceeded),
-  [`LoweringFailed`](crate::stdcore::backends::lowering::LoweringFailed),
-  [`NestingTooDeep`](crate::stdcore::backends::lowering::NestingTooDeep). A rule that
+  [`RegionNotFound`](crate::stdlib::backends::lowering::RegionNotFound),
+  [`NoRule`](crate::stdlib::backends::lowering::NoRule). The whole tree fails, with no
+  entry in [`LoweredTrees`](crate::stdlib::backends::lowering::LoweredTrees) and one Error
+  at the root: [`RoundsExceeded`](crate::stdlib::backends::lowering::RoundsExceeded),
+  [`LoweringFailed`](crate::stdlib::backends::lowering::LoweringFailed),
+  [`NestingTooDeep`](crate::stdlib::backends::lowering::NestingTooDeep). A rule that
   leaves out part of the content it lowers may stage a `flm.pres.dropped` node, the
-  dropped mark ([`DroppedPayload`](crate::stdcore::backends::pres::DroppedPayload)),
+  dropped mark ([`DroppedPayload`](crate::stdlib::backends::pres::DroppedPayload)),
   where that content was.
 
 ### The presentation vocabulary
 
 The presentation elements the standard backends write, `flm.pres.<name>`, all in
-[`crate::stdcore::backends::pres`] ([`ALL`](crate::stdcore::backends::pres::ALL) lists
-them): [`PAR`](crate::stdcore::backends::pres::PAR),
-[`BLOCK`](crate::stdcore::backends::pres::BLOCK),
-[`BLOCK_HEADING`](crate::stdcore::backends::pres::BLOCK_HEADING),
-[`RUNIN_HEADING`](crate::stdcore::backends::pres::RUNIN_HEADING),
-[`SPAN`](crate::stdcore::backends::pres::SPAN),
-[`LIST`](crate::stdcore::backends::pres::LIST),
-[`CELLS`](crate::stdcore::backends::pres::CELLS),
-[`LINES`](crate::stdcore::backends::pres::LINES) /
-[`LINE`](crate::stdcore::backends::pres::LINE),
-[`VERBATIM`](crate::stdcore::backends::pres::VERBATIM),
-[`MATH_PASSTHROUGH`](crate::stdcore::backends::pres::MATH_PASSTHROUGH),
-[`MATH_TEXT`](crate::stdcore::backends::pres::MATH_TEXT),
-[`LINK`](crate::stdcore::backends::pres::LINK),
-[`IMAGE`](crate::stdcore::backends::pres::IMAGE),
-[`UNSUPPORTED`](crate::stdcore::backends::pres::UNSUPPORTED),
-[`DROPPED`](crate::stdcore::backends::pres::DROPPED),
-[`UNKNOWN`](crate::stdcore::backends::pres::UNKNOWN),
-[`DECO_RUNIN`](crate::stdcore::backends::pres::DECO_RUNIN) /
-[`DECO_FINAL`](crate::stdcore::backends::pres::DECO_FINAL) /
-[`DECO_MARGIN`](crate::stdcore::backends::pres::DECO_MARGIN),
-[`DECO_MARK`](crate::stdcore::backends::pres::DECO_MARK),
-[`SUBTREE`](crate::stdcore::backends::pres::SUBTREE).
+[`crate::stdlib::backends::pres`] ([`ALL`](crate::stdlib::backends::pres::ALL) lists
+them): [`PAR`](crate::stdlib::backends::pres::PAR),
+[`BLOCK`](crate::stdlib::backends::pres::BLOCK),
+[`BLOCK_HEADING`](crate::stdlib::backends::pres::BLOCK_HEADING),
+[`RUNIN_HEADING`](crate::stdlib::backends::pres::RUNIN_HEADING),
+[`SPAN`](crate::stdlib::backends::pres::SPAN),
+[`LIST`](crate::stdlib::backends::pres::LIST),
+[`CELLS`](crate::stdlib::backends::pres::CELLS),
+[`LINES`](crate::stdlib::backends::pres::LINES) /
+[`LINE`](crate::stdlib::backends::pres::LINE),
+[`VERBATIM`](crate::stdlib::backends::pres::VERBATIM),
+[`MATH_PASSTHROUGH`](crate::stdlib::backends::pres::MATH_PASSTHROUGH),
+[`MATH_TEXT`](crate::stdlib::backends::pres::MATH_TEXT),
+[`LINK`](crate::stdlib::backends::pres::LINK),
+[`IMAGE`](crate::stdlib::backends::pres::IMAGE),
+[`UNSUPPORTED`](crate::stdlib::backends::pres::UNSUPPORTED),
+[`DROPPED`](crate::stdlib::backends::pres::DROPPED),
+[`UNKNOWN`](crate::stdlib::backends::pres::UNKNOWN),
+[`DECO_RUNIN`](crate::stdlib::backends::pres::DECO_RUNIN) /
+[`DECO_FINAL`](crate::stdlib::backends::pres::DECO_FINAL) /
+[`DECO_MARGIN`](crate::stdlib::backends::pres::DECO_MARGIN),
+[`DECO_MARK`](crate::stdlib::backends::pres::DECO_MARK),
+[`SUBTREE`](crate::stdlib::backends::pres::SUBTREE).
 
 - Each node carries exactly one typed **payload**, of the type its element declares
-  ([`crate::stdcore::backends::pres::payload`]):
-  [`SpanPayload`](crate::stdcore::backends::pres::SpanPayload) with
-  [`SpanStyle`](crate::stdcore::backends::pres::SpanStyle);
-  [`LinkPayload`](crate::stdcore::backends::pres::LinkPayload) (`href` is `#anchor`
+  ([`crate::stdlib::backends::pres::payload`]):
+  [`SpanPayload`](crate::stdlib::backends::pres::SpanPayload) with
+  [`SpanStyle`](crate::stdlib::backends::pres::SpanStyle);
+  [`LinkPayload`](crate::stdlib::backends::pres::LinkPayload) (`href` is `#anchor`
   inside the document, an address otherwise; `label`, the link's accessible name;
-  [`shows_target`](crate::stdcore::backends::pres::LinkPayload::shows_target));
-  [`LinePayload`](crate::stdcore::backends::pres::LinePayload) with its two
-  indentations as [`Length`](crate::stdcore::backends::pres::Length)s (an exact amount
+  [`shows_target`](crate::stdlib::backends::pres::LinkPayload::shows_target));
+  [`LinePayload`](crate::stdlib::backends::pres::LinePayload) with its two
+  indentations as [`Length`](crate::stdlib::backends::pres::Length)s (an exact amount
   and a closed unit, `1tab`, `1.5em`; never a bare number) and
-  [`LineAlign`](crate::stdcore::backends::pres::LineAlign);
-  [`CellsPayload`](crate::stdcore::backends::pres::CellsPayload) (a whole grid: `rows`,
-  `cols`, one [`CellSpec`](crate::stdcore::backends::pres::CellSpec) per entry in
+  [`LineAlign`](crate::stdlib::backends::pres::LineAlign);
+  [`CellsPayload`](crate::stdlib::backends::pres::CellsPayload) (a whole grid: `rows`,
+  `cols`, one [`CellSpec`](crate::stdlib::backends::pres::CellSpec) per entry in
   row-major order, entry *i*'s content in the node's content slot *i*, named `cell`;
-  [`grid()`](crate::stdcore::backends::pres::CellsPayload::grid) gives each position as
-  a [`GridPosition`](crate::stdcore::backends::pres::GridPosition), and
-  [`cells_of`](crate::stdcore::backends::pres::cells_of) reads the payload with the
-  slots); [`DroppedPayload`](crate::stdcore::backends::pres::DroppedPayload)
+  [`grid()`](crate::stdlib::backends::pres::CellsPayload::grid) gives each position as
+  a [`GridPosition`](crate::stdlib::backends::pres::GridPosition), and
+  [`cells_of`](crate::stdlib::backends::pres::cells_of) reads the payload with the
+  slots); [`ListPayload`](crate::stdlib::backends::pres::ListPayload) (`kinds`,
+  `anchor`, and per entry in order `entry_anchors` and `entry_levels`: HTML writes an
+  entry's anchor as the `id` and its level as `data-flm-level` of its `<li>` or `<dt>`;
+  only the table of contents gives levels, each entry its heading's);
+  [`DroppedPayload`](crate::stdlib::backends::pres::DroppedPayload)
   (`condition`, `detail`; the text backend prints `[dropped: <detail>]`); and the
   others of the module. No property bag, no handler per backend on a node.
 - A role is a feature-owned dotted name on a presentation payload that says what a
   container is (a theorem's heading, a quotation's attribution), and kinds are
   feature-owned names that classify it further, so that a stylesheet or a host's lowering
-  rule can select on them ([`pres::payload`](crate::stdcore::backends::pres::payload);
+  rule can select on them ([`pres::payload`](crate::stdlib::backends::pres::payload);
   [decorations, roles and
   kinds](crate::guide::concepts_overview#decorations-roles-and-kinds)). The payload's
   anchor field is a plain `String`, the anchor already computed by the `refs` feature
-  ([`ANCHORS`](crate::stdcore::features::refs::ANCHORS)). **An emitter that cannot
+  ([`ANCHORS`](crate::stdlib::features::refs::ANCHORS)). **An emitter that cannot
   express a payload field ignores it**: presentation may be lost, content never.
-- A document role ([`DocRole`](crate::stdcore::backends::pres::DocRole): `Endnotes`,
+- A document role ([`DocRole`](crate::stdlib::backends::pres::DocRole): `Endnotes`,
   `Footnote`, `NoteRef`, `BackLink`, `Bibliography`, `BiblioRef`) is one of a small fixed
   set of structural roles, held in the field `doc_role` of `BlockPayload`, `SpanPayload`
   and `LinkPayload`. The HTML backend writes it as `role="doc-…"`, and `LinkPayload::label`
   as `aria-label`; the text backend ignores both.
 - The text backend writes a `Superscript` or `Subscript` span's text through the Unicode
-  forms of [`superscript`](mod@crate::stdcore::backends::text::superscript) (`¹⁰`, `ᵃ`),
+  forms of [`superscript`](mod@crate::stdlib::backends::text::superscript) (`¹⁰`, `ᵃ`),
   a character with no such form unchanged; it drops every other span style.
 - Emitters and rules read a presentation tree with
-  [`crate::stdcore::backends::pres::read`]:
-  [`is_presentation`](crate::stdcore::backends::pres::is_presentation),
-  [`payload_of`](crate::stdcore::backends::pres::payload_of),
-  [`body_of`](crate::stdcore::backends::pres::body_of),
-  [`list_entries`](crate::stdcore::backends::pres::list_entries),
-  [`plain_text`](crate::stdcore::backends::pres::plain_text),
-  [`recompose_source`](crate::stdcore::backends::pres::recompose_source),
-  [`attached_slots`](crate::stdcore::backends::pres::attached_slots),
-  [`decoration_at`](crate::stdcore::backends::pres::decoration_at).
+  [`crate::stdlib::backends::pres::read`]:
+  [`is_presentation`](crate::stdlib::backends::pres::is_presentation),
+  [`payload_of`](crate::stdlib::backends::pres::payload_of),
+  [`body_of`](crate::stdlib::backends::pres::body_of),
+  [`list_entries`](crate::stdlib::backends::pres::list_entries),
+  [`plain_text`](crate::stdlib::backends::pres::plain_text),
+  [`recompose_source`](crate::stdlib::backends::pres::recompose_source),
+  [`attached_slots`](crate::stdlib::backends::pres::attached_slots),
+  [`decoration_at`](crate::stdlib::backends::pres::decoration_at).
 - **Decorations.** A decoration is a node whose element carries the `Decoration` aspect
   (a run-in heading, a margin note, a closing mark): when a rule stages the presentation
   node that contains it, the lowering driver moves it out of the content run into an
   attached slot of that node and leaves a `flm.pres.deco-mark` node where it was
-  ([`Decoration`](crate::stdcore::backends::pres::Decoration)). The mark's
-  [`DecoMarkPayload`](crate::stdcore::backends::pres::DecoMarkPayload) gives the slot
+  ([`Decoration`](crate::stdlib::backends::pres::Decoration)). The mark's
+  [`DecoMarkPayload`](crate::stdlib::backends::pres::DecoMarkPayload) gives the slot
   index. A rule stages a decoration as an ordinary child; the driver decides by the
   aspect, not by the three standard names. Four standard features stage decorations:
   `headings` (a run-in heading), `defterm`, `theorems` and `annotations`. A backend that
   writes any element carrying the aspect natively must write `flm.pres.deco-mark`
   natively too (a native-set implication, below).
-- **Opaque content.** [`OpaqueContent`](crate::stdcore::backends::pres::OpaqueContent)
+- **Opaque content.** [`OpaqueContent`](crate::stdlib::backends::pres::OpaqueContent)
   marks an element whose content is source text: the driver copies the subtree
-  unchanged. [`ContentInOpaque`](crate::stdcore::backends::pres::ContentInOpaque) marks
+  unchanged. [`ContentInOpaque`](crate::stdlib::backends::pres::ContentInOpaque) marks
   the exception, an element that holds content even inside such a subtree, which the
   driver lowers in the ordinary rounds: `flm.pres.math-text` (payload
-  [`MathTextPayload`](crate::stdcore::backends::pres::MathTextPayload)) is the one
+  [`MathTextPayload`](crate::stdlib::backends::pres::MathTextPayload)) is the one
   element of the vocabulary that carries it, among the direct children of a
   `flm.pres.math-passthrough` body. An emitter that prints opaque content as source writes
   such a node's content itself ([opaque
@@ -1488,74 +1563,74 @@ an output format (an HTML tag; a LaTeX macro call, environment, raw text or defi
 so that format-specific output is structured data in the lowered tree rather than a
 string ([backends, lowering and
 outputs](crate::guide::concepts_overview#backends-lowering-and-outputs)). The LaTeX
-family's four ([`crate::stdcore::backends::latex::construct`]) are registered by the
+family's four ([`crate::stdlib::backends::latex::construct`]) are registered by the
 `latex` feature, written natively by every LaTeX backend, and not in
-[`ALL`](crate::stdcore::backends::pres::ALL); a rule that must write LaTeX that no shared
+[`ALL`](crate::stdlib::backends::pres::ALL); a rule that must write LaTeX that no shared
 element expresses stages one of them, never a string.
 
 | element | payload | content slots |
 |---|---|---|
-| [`MACRO`](crate::stdcore::backends::latex::construct::MACRO) `flm.pres.latex.macro` | [`LatexMacroPayload`](crate::stdcore::backends::latex::LatexMacroPayload) `{name, args, packed}`: one [`LatexArgShape`](crate::stdcore::backends::latex::LatexArgShape) per argument written (`Star`, `Optional`, `Mandatory`, `EscVerb`: verbatim content in the `\EscVerb` encoding); `packed` hands every argument over in one brace group, one pair of braces around each | one [`ARG_SLOT`](crate::stdcore::backends::latex::construct::ARG_SLOT) per argument with content, in order |
-| [`ENVIRONMENT`](crate::stdcore::backends::latex::construct::ENVIRONMENT) `flm.pres.latex.environment` | [`LatexEnvironmentPayload`](crate::stdcore::backends::latex::LatexEnvironmentPayload) `{name, args, verbatim, packed, body_argument}`: `verbatim` writes the body byte for byte on lines of its own; `body_argument` for an environment declared to take its body as an argument (`+b`) | the argument slots, then `body` |
-| [`RAW`](crate::stdcore::backends::latex::construct::RAW) `flm.pres.latex.raw` | [`LatexRawPayload`](crate::stdcore::backends::latex::LatexRawPayload) `{text}`, written byte for byte: a blank line, a parameter, a rebuilt equation line, a literal's spelling; never document text | none |
-| [`DEFINITION`](crate::stdcore::backends::latex::construct::DEFINITION) `flm.pres.latex.definition` | [`LatexDefinitionPayload`](crate::stdcore::backends::latex::LatexDefinitionPayload) `{kind, name, source_name, args, packed, robust, body_argument, feature}`: a macro or environment definition, or a feature's declaration ([`LatexDefinitionKind`](crate::stdcore::backends::latex::LatexDefinitionKind): `Macro`, `Environment`, `Declaration`), written into the style file and never where the node occurs in the tree, once per name. `name` is the name written ([`recomposed_name`](crate::stdcore::backends::latex::names::recomposed_name) for a user definition), `source_name` the name the document declared; `args` the number of arguments the definition takes, all mandatory, `packed` handing them over in one group (how a definition of more than nine is written, its body reading argument *n* with `\flmArg`); `robust` written through the document command interface (the render option `robust_names`); `body_argument` an environment taking its body as a `+b` argument; `feature` the feature that writes the definition from its configuration (then always guarded) | `body` for a macro or a declaration; `begin` and `end` for an environment |
+| [`MACRO`](crate::stdlib::backends::latex::construct::MACRO) `flm.pres.latex.macro` | [`LatexMacroPayload`](crate::stdlib::backends::latex::LatexMacroPayload) `{name, args, packed}`: one [`LatexArgShape`](crate::stdlib::backends::latex::LatexArgShape) per argument written (`Star`, `Optional`, `Mandatory`, `EscVerb`: verbatim content in the `\EscVerb` encoding); `packed` hands every argument over in one brace group, one pair of braces around each | one [`ARG_SLOT`](crate::stdlib::backends::latex::construct::ARG_SLOT) per argument with content, in order |
+| [`ENVIRONMENT`](crate::stdlib::backends::latex::construct::ENVIRONMENT) `flm.pres.latex.environment` | [`LatexEnvironmentPayload`](crate::stdlib::backends::latex::LatexEnvironmentPayload) `{name, args, verbatim, packed, body_argument}`: `verbatim` writes the body byte for byte on lines of its own; `body_argument` for an environment declared to take its body as an argument (`+b`) | the argument slots, then `body` |
+| [`RAW`](crate::stdlib::backends::latex::construct::RAW) `flm.pres.latex.raw` | [`LatexRawPayload`](crate::stdlib::backends::latex::LatexRawPayload) `{text}`, written byte for byte: a blank line, a parameter, a rebuilt equation line, a literal's spelling; never document text | none |
+| [`DEFINITION`](crate::stdlib::backends::latex::construct::DEFINITION) `flm.pres.latex.definition` | [`LatexDefinitionPayload`](crate::stdlib::backends::latex::LatexDefinitionPayload) `{kind, name, source_name, args, packed, robust, body_argument, feature}`: a macro or environment definition, or a feature's declaration ([`LatexDefinitionKind`](crate::stdlib::backends::latex::LatexDefinitionKind): `Macro`, `Environment`, `Declaration`), written into the style file and never where the node occurs in the tree, once per name. `name` is the name written ([`recomposed_name`](crate::stdlib::backends::latex::names::recomposed_name) for a user definition), `source_name` the name the document declared; `args` the number of arguments the definition takes, all mandatory, `packed` handing them over in one group (how a definition of more than nine is written, its body reading argument *n* with `\flmArg`); `robust` written through the document command interface (the render option `robust_names`); `body_argument` an environment taking its body as a `+b` argument; `feature` the feature that writes the definition from its configuration (then always guarded) | `body` for a macro or a declaration; `begin` and `end` for an environment |
 
 **Requirements beside them.** A rule requires (records a requirement for) a LaTeX
-package as `flm.latex.pkg.<name>` ([`packages`](crate::stdcore::backends::latex::packages),
-constants such as [`AMSMATH`](crate::stdcore::backends::latex::packages::AMSMATH)) and a
+package as `flm.latex.pkg.<name>` ([`packages`](crate::stdlib::backends::latex::packages),
+constants such as [`AMSMATH`](crate::stdlib::backends::latex::packages::AMSMATH)) and a
 definition piece as `flm.latex.def.<name>`
-([`preamble`](crate::stdcore::backends::latex::preamble), such as
-[`VERBATIM`](crate::stdcore::backends::latex::preamble::VERBATIM)), through
+([`preamble`](crate::stdlib::backends::latex::preamble), such as
+[`VERBATIM`](crate::stdlib::backends::latex::preamble::VERBATIM)), through
 [`LoweringDecl::selection_requires`](crate::core::lowering::LoweringDecl::selection_requires)
 or [`Lowerer::require`](crate::core::lowering::Lowerer::require). To contribute your own,
 see [LaTeX package requests and definition
 pieces](#latex-package-requests-and-definition-pieces).
 
 **The typed sink.** An emitter writes through
-[`LatexSink`](crate::stdcore::backends::latex::LatexSink):
-[`text`](crate::stdcore::backends::latex::LatexSink::text) escapes document text under an
-[`EscapeConfig`](crate::stdcore::backends::latex::EscapeConfig) with a
-[`UnicodeMode`](crate::stdcore::backends::latex::UnicodeMode);
-[`raw`](crate::stdcore::backends::latex::LatexSink::raw) takes a
-[`LatexRaw`](crate::stdcore::backends::latex::LatexRaw), which only a raw payload or the
+[`LatexSink`](crate::stdlib::backends::latex::LatexSink):
+[`text`](crate::stdlib::backends::latex::LatexSink::text) escapes document text under an
+[`EscapeConfig`](crate::stdlib::backends::latex::EscapeConfig) with a
+[`UnicodeMode`](crate::stdlib::backends::latex::UnicodeMode);
+[`raw`](crate::stdlib::backends::latex::LatexSink::raw) takes a
+[`LatexRaw`](crate::stdlib::backends::latex::LatexRaw), which only a raw payload or the
 document's own source can produce, and refuses a text a rule assembled that holds a `%`
 starting a comment
-([`RawCommentRefused`](crate::stdcore::backends::latex::RawCommentRefused);
-[`comment_percent`](crate::stdcore::backends::latex::comment_percent));
-[`comment`](crate::stdcore::backends::latex::LatexSink::comment) is the only way a LaTeX
+([`RawCommentRefused`](crate::stdlib::backends::latex::RawCommentRefused);
+[`comment_percent`](crate::stdlib::backends::latex::comment_percent));
+[`comment`](crate::stdlib::backends::latex::LatexSink::comment) is the only way a LaTeX
 comment reaches the output, and writes the newline that ends it (the caller writes the
 source's following whitespace minus that newline);
-[`escverb`](crate::stdcore::backends::latex::LatexSink::escverb) encodes for
-`\EscVerb`; [`verbatim_block`](crate::stdcore::backends::latex::LatexSink::verbatim_block)
+[`escverb`](crate::stdlib::backends::latex::LatexSink::escverb) encodes for
+`\EscVerb`; [`verbatim_block`](crate::stdlib::backends::latex::LatexSink::verbatim_block)
 writes a verbatim environment's content, where `%` is an ordinary character.
 
 **The style file.** A document-scope regions stage assembles the style file from the
-resolved requirements, the sink's [`Declared`](crate::stdcore::backends::latex::Declared)
-record, the [`RecomposedDefinition`](crate::stdcore::backends::latex::RecomposedDefinition)s
+resolved requirements, the sink's [`Declared`](crate::stdlib::backends::latex::Declared)
+record, the [`RecomposedDefinition`](crate::stdlib::backends::latex::RecomposedDefinition)s
 the emitter recorded, and the three texts of LaTeX the document's author gives for before
 the packages, after them and the end of the file
-([`ExtraPreamble`](crate::stdcore::backends::latex::style::ExtraPreamble); the order of
-the file is in [`style`](crate::stdcore::backends::latex::style)). Every request for one
+([`ExtraPreamble`](crate::stdlib::backends::latex::style::ExtraPreamble); the order of
+the file is in [`style`](crate::stdlib::backends::latex::style)). Every request for one
 package is merged into one `\RequirePackage` line per engine, its options the union in
 the order first found, under a comment line listing every identifier behind it. The
 `latex-recomposed` backend calls
-[`style_body`](crate::stdcore::backends::latex::style::style_body), then
-[`content_hash`](crate::stdcore::backends::latex::style::content_hash) to name the file
+[`style_body`](crate::stdlib::backends::latex::style::style_body), then
+[`content_hash`](crate::stdlib::backends::latex::style::content_hash) to name the file
 after its content, then
-[`with_header`](crate::stdcore::backends::latex::style::with_header);
-[`assemble_style`](crate::stdcore::backends::latex::assemble_style) does both steps for a
+[`with_header`](crate::stdlib::backends::latex::style::with_header);
+[`assemble_style`](crate::stdlib::backends::latex::assemble_style) does both steps for a
 name already chosen.
 
 ### The HTML construct element
 
-[`TAG`](crate::stdcore::backends::html::construct::TAG) (`flm.pres.html.tag`;
-[`crate::stdcore::backends::html::construct`]) is registered by the `html` feature,
+[`TAG`](crate::stdlib::backends::html::construct::TAG) (`flm.pres.html.tag`;
+[`crate::stdlib::backends::html::construct`]) is registered by the `html` feature,
 written natively by the HTML backend, and not in
-[`ALL`](crate::stdcore::backends::pres::ALL): one HTML tag, for a rule that must put in
+[`ALL`](crate::stdlib::backends::pres::ALL): one HTML tag, for a rule that must put in
 the page something no shared element carries. Its payload,
-[`HtmlTagPayload`](crate::stdcore::backends::html::HtmlTagPayload) `{tag, attributes,
+[`HtmlTagPayload`](crate::stdlib::backends::html::HtmlTagPayload) `{tag, attributes,
 body, block}`, holds the tag name, the attributes as name–value pairs in the order
-written, the content ([`TagBody`](crate::stdcore::backends::html::TagBody): `Children`,
+written, the content ([`TagBody`](crate::stdlib::backends::html::TagBody): `Children`,
 the node's one `body` slot, or `Markup`, already-formed HTML, and no children), and whether the tag is block-level, which decides the line breaks around it.
 Constructor: `HtmlTagPayload::new(tag).attributes([…]).markup(…)`.
 
@@ -1564,50 +1639,52 @@ derives from the presentation vocabulary; [the HTML
 contract](crate::guide::rendering#the-html-contract)) and outside the policy that checks
 the addresses a link or an image may carry: its rule writes its own classes, attributes
 and addresses and is responsible for them. A `Markup` body is created with
-[`Markup::trusted`](crate::stdcore::backends::html::Markup::trusted), whose documentation
+[`Markup::trusted`](crate::stdlib::backends::html::Markup::trusted), whose documentation
 states what the caller guarantees: the bytes are safe to place in a page, and anything
 from an input the author does not control is sanitized first. Bytes reach a page
 unescaped in two ways only: that constructor, and
-[`HtmlSink::raw_text_element`](crate::stdcore::backends::html::HtmlSink::raw_text_element)
+[`HtmlSink::raw_text_element`](crate::stdlib::backends::html::HtmlSink::raw_text_element)
 (the content of a `<style>` or a `<script>`).
 
 **The writing layer.** An emitter writes through
-[`HtmlSink`](crate::stdcore::backends::html::HtmlSink):
-[`text`](crate::stdcore::backends::html::HtmlSink::text) escapes document text;
-[`open_block`](crate::stdcore::backends::html::HtmlSink::open_block) and
-[`open_inline`](crate::stdcore::backends::html::HtmlSink::open_inline) return a
-[`TagBuilder`](crate::stdcore::backends::html::TagBuilder) whose
-[`attr`](crate::stdcore::backends::html::TagBuilder::attr) escapes and quotes every
-value and [`attr_json`](crate::stdcore::backends::html::TagBuilder::attr_json) does the
+[`HtmlSink`](crate::stdlib::backends::html::HtmlSink):
+[`text`](crate::stdlib::backends::html::HtmlSink::text) escapes document text;
+[`open_block`](crate::stdlib::backends::html::HtmlSink::open_block) and
+[`open_inline`](crate::stdlib::backends::html::HtmlSink::open_inline) return a
+[`TagBuilder`](crate::stdlib::backends::html::TagBuilder) whose
+[`attr`](crate::stdlib::backends::html::TagBuilder::attr) escapes and quotes every
+value and [`attr_json`](crate::stdlib::backends::html::TagBuilder::attr_json) does the
 same in single quotation marks for a value that is JSON;
-[`close`](crate::stdcore::backends::html::HtmlSink::close) closes the innermost element;
-[`raw_text_element`](crate::stdcore::backends::html::HtmlSink::raw_text_element) writes
+[`close`](crate::stdlib::backends::html::HtmlSink::close) closes the innermost element;
+[`raw_text_element`](crate::stdlib::backends::html::HtmlSink::raw_text_element) writes
 a `<style>` or a `<script>` (those two tags only) and refuses content holding that
 element's closing tag. Every entry point that takes a tag or attribute name requires the
 caller to have checked it. The contract's names come from
-[`class_of_element`](crate::stdcore::backends::html::class_of_element),
-[`class_of_role`](crate::stdcore::backends::html::class_of_role),
-[`data_attribute`](crate::stdcore::backends::html::data_attribute) and
-[`style_property`](crate::stdcore::backends::html::style_property) (a payload's length
+[`class_of_element`](crate::stdlib::backends::html::class_of_element),
+[`class_of_role`](crate::stdlib::backends::html::class_of_role),
+[`data_attribute`](crate::stdlib::backends::html::data_attribute) and
+[`style_property`](crate::stdlib::backends::html::style_property) (a payload's length
 field as a custom property in `style`, valued by
-[`css_length`](crate::stdcore::backends::html::conventions::css_length), or a ratio of
+[`css_length`](crate::stdlib::backends::html::conventions::css_length), or a ratio of
 two length fields,
-[`Written::Ratio`](crate::stdcore::backends::html::conventions::Written::Ratio); nothing
+[`Written::Ratio`](crate::stdlib::backends::html::conventions::Written::Ratio); nothing
 else enters `style`); a block's tag comes from its role through
-[`BLOCK_TAGS`](crate::stdcore::backends::html::conventions::BLOCK_TAGS) (a feature never
+[`BLOCK_TAGS`](crate::stdlib::backends::html::conventions::BLOCK_TAGS) (a feature never
 chooses a tag); a name taken from a payload is checked with
-[`is_valid_tag_name`](crate::stdcore::backends::html::is_valid_tag_name) and
-[`is_valid_attribute_name`](crate::stdcore::backends::html::is_valid_attribute_name), an
-address with [`check_address`](crate::stdcore::backends::html::check_address)
-([`AddressUse`](crate::stdcore::backends::html::AddressUse)).
+[`is_valid_tag_name`](crate::stdlib::backends::html::is_valid_tag_name) and
+[`is_valid_attribute_name`](crate::stdlib::backends::html::is_valid_attribute_name), an
+address with [`check_address`](crate::stdlib::backends::html::check_address)
+([`AddressUse`](crate::stdlib::backends::html::AddressUse)) under the value of the
+render option [`HtmlAllowedUrlSchemes`](crate::stdlib::backends::html::HtmlAllowedUrlSchemes) that the
+rule declares a read of.
 
 ### Recipe: stage an HTML tag from a lowering rule
 
 A rule for the `html` backend alone, staging a tag whose content is markup this feature
 vouches for. The feature registers neither the backend nor the element, so it makes peer
-declarations of both: a registry that holds the HTML backend (the standard package does)
-takes the rule like any other, and one that does not still builds, with the rule set
-aside.
+declarations of both: a registry that holds the HTML backend (one built with the standard
+features does) takes the rule like any other, and one that does not still builds, with
+the rule set aside.
 
 The element here, `flm.math`, already has a rule marked as the default on this backend
 (`math-passthrough`'s [`MATH_RULE`](crate::math_passthrough::MATH_RULE), marked for every backend), and one
@@ -1626,14 +1703,14 @@ use flm_core::core::lowering::{
 };
 use flm_core::core::plan::{Plan, PlanRequest};
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, LoweringSelection, RegistryBuilder,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, LoweringSelection, PackageEntry, RegistryBuilder,
     RegistryInputs,
 };
 use flm_core::lang::Flm;
 use flm_core::lang::structural::MATH;
 use flm_core::model::names::ElementName;
-use flm_core::stdcore::backends::html::{self, HtmlTagPayload, Markup};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html::{self, HtmlTagPayload, Markup};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_core::techy::core::node::NodeRef;
 
 const RULE: &str = "picture.math.lower.html";
@@ -1683,7 +1760,7 @@ impl FlmFeature for Picture {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 builder.feature(Arc::new(Picture));
 let registry = builder.build(&RegistryInputs::new())?;
@@ -1695,7 +1772,7 @@ assert!(
         .iter()
         .any(|entry| entry.name.as_str() == html::TAG && entry.resolved)
 );
-// The standard package holds the `html` backend, so the rule takes part like
+// The standard features include the `html` backend, so the rule takes part like
 // any other: it is not set aside. In a registry built without that backend the
 // same rule would be set aside instead, with nothing about the rule to change.
 assert!(!registry.set_aside_rules().any(|entry| entry.rule.name.as_str() == RULE));
@@ -1723,10 +1800,10 @@ writes natively, a lowering stage, an emit stage and a final stage
   [`backend`](crate::core::registry::FeatureBuilder::backend), which registers the three
   stages as this feature's own, in that order.
 - **Do not write the lowering stage**: create
-  [`LoweringStage`](crate::stdcore::backends::lowering::LoweringStage) for the backend's
+  [`LoweringStage`](crate::stdlib::backends::lowering::LoweringStage) for the backend's
   name and declare the table it writes with
   [`table_named`](crate::core::registry::FeatureBuilder::table_named) under
-  [`lowered_table_name`](crate::stdcore::backends::lowering::lowered_table_name)
+  [`lowered_table_name`](crate::stdlib::backends::lowering::lowered_table_name)
   (`flm.lowered.<backend>`). Write the emitter (an emitter is a backend's emit stage: it
   walks the lowered trees and writes the output's bytes into a table, from which the
   backend's final stage makes the artifact set) and the final stage.
@@ -1734,7 +1811,7 @@ writes natively, a lowering stage, an emit stage and a final stage
   [`NativeImplication`](crate::core::registry::NativeImplication) of the registry, else
   [`BuildError::NativeSetIncomplete`](crate::core::registry::BuildError::NativeSetIncomplete)
   `{ backend, because, must_claim }`. The `lowering` feature declares two
-  ([`native_implications`](crate::stdcore::backends::lowering::native_implications)),
+  ([`native_implications`](crate::stdlib::backends::lowering::native_implications)),
   because the driver stages these elements with no rule declaring them:
   `NativeImplication::always(UNSUPPORTED)` (every backend writes
   `flm.pres.unsupported`) and `NativeImplication::aspect::<dyn Decoration>(DECO_MARK)` (a
@@ -1771,7 +1848,7 @@ writes natively, a lowering stage, an emit stage and a final stage
   stage](crate::guide::concepts_overview#output-regions-and-the-final-stage)). It then
   contributes a [`RegionsOutput`](crate::core::region::RegionsOutput) to the service slot
   `flm.output.regions`
-  ([`REGIONS_SLOT`](crate::stdcore::backends::lowering::REGIONS_SLOT)), so that a host's
+  ([`REGIONS_SLOT`](crate::stdlib::backends::lowering::REGIONS_SLOT)), so that a host's
   own assembler can serve the output. The final stage adds the files written beside the
   entry with [`ArtifactSet::insert_entry_with`](crate::core::artifact::ArtifactSet::insert_entry_with).
 - A backend registers its own rules only (the `latex-recomposed` backend registers two,
@@ -1779,7 +1856,7 @@ writes natively, a lowering stage, an emit stage and a final stage
   new format ships the rule itself, with peer declarations of the backend and of the
   format's presentation elements; the backend depends on no content feature.
 - Worked example, in one `register`:
-  [`TextBackend`](crate::stdcore::backends::text::TextBackend).
+  [`TextBackend`](crate::stdlib::backends::text::TextBackend).
 
 **Recipe: a backend and an output in JavaScript** (worked example:
 `flm-ext/tests/js/typst/`, `main.js` and `emit.js`):
@@ -1792,7 +1869,8 @@ writes natively, a lowering stage, an emit stage and a final stage
    of your own for the emitted text (`b.table`); `b.table_named(DOC, StandardTable.ArtifactSet, docs)`.
 3. Emit stage, a stage object: `Effect.Compute`, `Scope.Document`, `needs().reads(lowered)`;
    `cx.get(lowered).lowered` answers `trees()`, `tree(id)` (a tree or `null`; its
-   `root()` is its root node), `requires(id)`, `rounds(id)`; walk `cx.trees()` in document
+   `root()` is its root node), `requires(id)`, `rounds(id)`, `node_at(addr)` (the node at a
+   position mark's address of the text output, `tree#0/5`, or `null`); walk `cx.trees()` in document
    order and read each node's `element_name()`, `payload()` (data or `null`), `body()`,
    `children()`, `is_chars()`, `chars()`, `span_content()`, `slot_count()`, `slot_name(i)`,
    `slot_content_nodes(i)`; push one text. Escape everything the format reserves.
@@ -1807,13 +1885,13 @@ writes natively, a lowering stage, an emit stage and a final stage
    namer); a push ignores `path`. An output made from such a set:
    `new OutputDef(…).made_from(name)`.
 5. `b.backend(new BackendDef(B, native, new LoweringStage(B), emitStage, finalStage).docs(text))`.
-   `native`: `ALL` (`flm:stdcore/backends/pres`), the structural names your emitter handles
+   `native`: `ALL` (`flm:stdlib/backends/pres`), the structural names your emitter handles
    (`TEXT`, `GROUP`, `OPAQUE_WRAPPER`, `COMMENT`, `CONTAINER`, `PARBREAK` from
    `flm:lang/structural`), your
    own presentation elements.
 6. Coverage: every element the documents can hold must reach the native set through the
-   selected rules, else `PlanError::Incomplete`. The standard package registers its rule
-   for `flm.graphics.image` only for its own backends: add a rule of your own
+   selected rules, else `PlanError::Incomplete`. The standard features register their rule
+   for `flm.graphics.image` only for their own backends: add a rule of your own
    (`DefaultMark.OnBackends([B])`), for example one staging `flm.pres.unsupported`.
 7. `b.output(new OutputDef(name, capability, table, media_type, extension).docs(text))`;
    `media_type_of(extension)` answers the library's media type for a known extension
@@ -1849,15 +1927,15 @@ definitions](crate::guide::concepts_overview#style-and-script-definitions)).
   list of parts ([`DefContent`](crate::core::registry::DefContent)): `Inline` text, a
   `File` the host reads, or a `Url` the output loads, written in that order.
 - On the HTML backend, the stage `flm.html.resolve-definitions`
-  ([`ResolveDefinitionsStage`](crate::stdcore::backends::html::ResolveDefinitionsStage))
+  ([`ResolveDefinitionsStage`](crate::stdlib::backends::html::ResolveDefinitionsStage))
   collects the requirements of every tree and of every document-level piece
   ([`Piece`](crate::core::piece::Piece)), adds the host's
-  ([`required_definitions`](crate::stdcore::backends::html::HtmlRenderOptions::required_definitions))
+  ([`required_definitions`](crate::stdlib::backends::html::HtmlRenderOptions::required_definitions))
   and the page's own stylesheet, resolves each identifier, applies the render option
-  [`definitions`](crate::stdcore::backends::html::HtmlRenderOptions::definitions) (what
+  [`definitions`](crate::stdlib::backends::html::HtmlRenderOptions::definitions) (what
   the host delivers instead of the declared content, or `ProvidedByHost`), and writes
   `flm.html.definitions`
-  ([`DEFINITIONS_TABLE`](crate::stdcore::backends::html::DEFINITIONS_TABLE)): every
+  ([`DEFINITIONS_TABLE`](crate::stdlib::backends::html::DEFINITIONS_TABLE)): every
   required definition once, the stylesheets first and then the scripts, each in
   registration order, with its kind, its owner and its delivery. The page writes the
   stylesheets in the head and the scripts at the end of the body.
@@ -1887,15 +1965,15 @@ use flm_core::core::lowering::{
     DefaultMark, Lower, LowerCx, LowerError, Lowerer, Lowering, LoweringDecl, LoweringRule,
 };
 use flm_core::core::registry::{
-    BuildError, DefContent, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder,
+    BuildError, DefContent, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder,
     RegistryInputs, StyleDef,
 };
 use flm_core::lang::Flm;
 use flm_core::lang::structural::MATH;
 use flm_core::model::names::{ElementName, Name};
-use flm_core::stdcore::backends::html;
-use flm_core::stdcore::backends::pres::{self, SpanPayload};
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::backends::html;
+use flm_core::stdlib::backends::pres::{self, SpanPayload};
+use flm_core::stdlib::{self, StdlibConfig};
 use flm_core::techy::core::node::NodeRef;
 
 /// The stylesheet's identifier: the feature's own name, then what it is for.
@@ -1960,7 +2038,7 @@ impl FlmFeature for MathFrame {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.feature(Arc::new(MathFrame));
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -2041,14 +2119,29 @@ feature that takes settings implements
   panicking items](crate::guide::panics)). The registry build declares these option types
   before `register` runs: `register` does not declare them again, and a package factory
   learns the declaration from the feature;
-- [`merge_entries(key, default_entries)`](crate::core::settings::SettingsDecl::merge_entries)
-  marks a collection of named things (one of the feature's own keys, never a field below
-  one) read from a map with [`named::deserialize`](crate::core::settings::named::deserialize);
+- the marks ([`Mark`](crate::core::settings::Mark): `merge-object-key-values`,
+  `remove-key-when-value-is-false`, `set-to-default-with-null`, `path`, `markup`) belong
+  to the schema's nodes: `json_schema` writes each node's marks under `x-flm-marks`
+  ([`MARKS_KEYWORD`](crate::core::settings::MARKS_KEYWORD)), and a part declared from data
+  (`config_data`, `options_data`, a feature in JavaScript's `settings`) writes them there
+  itself, the default entries of a map combined key by key being its node's `default`
+  (`additionalProperties` and `items` add the segment `*`, a `$ref` into `$defs` is
+  followed). In Rust, the five mark calls take a path at any depth (form in
+  [`KeyMark`](crate::core::settings::KeyMark)) and panic when it reaches no node of the
+  declaration's schema;
+- [`merge_entries(path, default_entries)`](crate::core::settings::SettingsDecl::merge_entries)
+  marks an object combined key by key, such as a collection of named things read from a
+  map with [`named::deserialize`](crate::core::settings::named::deserialize);
   `default_entries` is a `fn() -> Result<Value, String>` writing the default entries as
   data (usually `|| named::to_data(&Config::default().kinds, "name")`, with
-  [`named::to_data`](crate::core::settings::named::to_data)); it panics for a key holding
-  `.` or `*`, and when `default_entries` fails or returns something other than a map. A host that combines
+  [`named::to_data`](crate::core::settings::named::to_data)); it also panics when
+  `default_entries` fails or returns something other than a map. A host that combines
   several settings sources then combines the entries one at a time;
+- [`remove_false(path)`](crate::core::settings::SettingsDecl::remove_false) marks an
+  object in which a key whose value is `false` is removed (a collection of named things
+  carries it beside `merge_entries`), and
+  [`default_on_null(path)`](crate::core::settings::SettingsDecl::default_on_null) a
+  setting that `null` gives its default;
 - [`markup(path)`](crate::core::settings::SettingsDecl::markup) marks FLM text, and
   [`path(path)`](crate::core::settings::SettingsDecl::path) a path to a file.
 
@@ -2099,31 +2192,31 @@ contributions once ([`crate::core::services`]).
   service: install it in an external table, so a run's result cannot depend on when a
   stage read it.
 
-The service slots of the standard package:
+The service slots of the standard features:
 
 | slot | owner | value type | arity | for |
 |---|---|---|---|---|
-| `flm.numbering.counters` ([`COUNTERS_SLOT`](crate::stdcore::features::numbering::COUNTERS_SLOT)) | `numbering` | [`CounterDecl`](crate::stdcore::features::numbering::CounterDecl) | many | the counters a feature numbers by |
-| `flm.numbering.styles` ([`STYLES_SLOT`](crate::stdcore::features::numbering::STYLES_SLOT)) | `numbering` | [`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl) | many | counter styles |
-| `flm.numbering.within-joiners` ([`WITHIN_JOINERS_SLOT`](crate::stdcore::features::numbering::WITHIN_JOINERS_SLOT)) | `numbering` | [`WithinJoinerDecl`](crate::stdcore::features::numbering::WithinJoinerDecl) | many | code writing the ancestors' numbers before a counter's own |
-| `flm.numbering.number-writers` ([`NUMBER_WRITERS_SLOT`](crate::stdcore::features::numbering::NUMBER_WRITERS_SLOT)) | `numbering` | [`NumberWriterDecl`](crate::stdcore::features::numbering::NumberWriterDecl) | many | code writing a counter style's numbers |
-| `flm.numbering.parent-sets` ([`PARENT_SETS_SLOT`](crate::stdcore::features::numbering::PARENT_SETS_SLOT)) | `numbering` | [`ParentSetDecl`](crate::stdcore::features::numbering::ParentSetDecl) | many | named lists of counters a counter may be numbered within (the headings feature contributes `flm.headings.levels`) |
-| `flm.xnotes.kinds` ([`KINDS_SLOT`](crate::stdcore::features::xnotes::KINDS_SLOT)) | `xnotes` | [`XnoteKind`](crate::stdcore::features::xnotes::XnoteKind) | many | xnote kinds; contribute with [`contribute_kind`](crate::stdcore::features::xnotes::contribute_kind) |
-| `flm.floats.types` ([`TYPES_SLOT`](crate::stdcore::features::floats::TYPES_SLOT)) | `floats` | [`FloatType`](crate::stdcore::features::floats::FloatType) | many | float types; contribute with [`contribute_type`](crate::stdcore::features::floats::contribute_type) |
-| `flm.floats.content` ([`CONTENT_SLOT`](crate::stdcore::features::floats::CONTENT_SLOT)) | `floats` | `dyn` [`FloatContentHandler`](crate::stdcore::features::floats::FloatContentHandler) | many | content handlers a float type refers to |
-| `flm.cells.styles` ([`STYLES_SLOT`](crate::stdcore::features::cells::STYLES_SLOT)) | `cells` | [`CellStyle`](crate::stdcore::features::cells::CellStyle) | many | cell styles ([a cell style of your own](crate::guide::extending#a-cell-style-of-your-own)) |
-| `flm.citations.providers` ([`PROVIDERS_SLOT`](crate::stdcore::features::citations::PROVIDERS_SLOT)) | `citations` | `dyn` [`CitationProvider`](crate::stdcore::features::citations::CitationProvider) | many | the citation entries of cited works, asked in order; never required |
-| `flm.graphics.resolver` ([`RESOLVER_SLOT`](crate::stdcore::features::graphics::RESOLVER_SLOT)) | `graphics` | `dyn` [`GraphicsResolver`](crate::stdcore::features::graphics::GraphicsResolver) | single | finds and reads an image file |
-| `flm.graphics.inspector` ([`INSPECTOR_SLOT`](crate::stdcore::features::graphics::INSPECTOR_SLOT)) | `graphics` | `dyn` [`GraphicsInspector`](crate::stdcore::features::graphics::GraphicsInspector) | single | an image's kind and size |
-| `flm.graphics.converters` ([`CONVERTERS_SLOT`](crate::stdcore::features::graphics::CONVERTERS_SLOT)) | `graphics` | `dyn` [`GraphicsConverter`](crate::stdcore::features::graphics::GraphicsConverter) | many | image format conversions, asked in order |
-| `flm.pieces` ([`pieces::SLOT`](crate::stdcore::backends::pieces::SLOT)) | `pieces` | [`PieceDecl`](crate::core::piece::PieceDecl) | many | the pieces features offer ([Contribute a piece](#contribute-a-piece)) |
-| `flm.latex.packages` ([`packages::SLOT`](crate::stdcore::backends::latex::packages::SLOT)) | `latex` | [`LatexPackageDef`](crate::stdcore::backends::latex::LatexPackageDef) | many | package requests |
-| `flm.latex.preamble` ([`preamble::SLOT`](crate::stdcore::backends::latex::preamble::SLOT)) | `latex` | [`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef) | many | definition pieces |
-| `flm.artifacts.namer` ([`NAMER_SLOT`](crate::stdcore::backends::lowering::NAMER_SLOT)) | `lowering` | `dyn` [`ArtifactNamer`](crate::core::artifact::ArtifactNamer) | single | the host's naming of each artifact's path |
-| `flm.output.regions` ([`REGIONS_SLOT`](crate::stdcore::backends::lowering::REGIONS_SLOT)) | `lowering` | [`RegionsOutput`](crate::core::region::RegionsOutput) | many | the outputs made of output regions |
+| `flm.numbering.counters` ([`COUNTERS_SLOT`](crate::stdlib::features::numbering::COUNTERS_SLOT)) | `numbering` | [`CounterDecl`](crate::stdlib::features::numbering::CounterDecl) | many | the counters a feature numbers by |
+| `flm.numbering.styles` ([`STYLES_SLOT`](crate::stdlib::features::numbering::STYLES_SLOT)) | `numbering` | [`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl) | many | counter styles |
+| `flm.numbering.within-joiners` ([`WITHIN_JOINERS_SLOT`](crate::stdlib::features::numbering::WITHIN_JOINERS_SLOT)) | `numbering` | [`WithinJoinerDecl`](crate::stdlib::features::numbering::WithinJoinerDecl) | many | code writing the ancestors' numbers before a counter's own |
+| `flm.numbering.number-writers` ([`NUMBER_WRITERS_SLOT`](crate::stdlib::features::numbering::NUMBER_WRITERS_SLOT)) | `numbering` | [`NumberWriterDecl`](crate::stdlib::features::numbering::NumberWriterDecl) | many | code writing a counter style's numbers |
+| `flm.numbering.parent-sets` ([`PARENT_SETS_SLOT`](crate::stdlib::features::numbering::PARENT_SETS_SLOT)) | `numbering` | [`ParentSetDecl`](crate::stdlib::features::numbering::ParentSetDecl) | many | named lists of counters a counter may be numbered within (the headings feature contributes `flm.headings.levels`) |
+| `flm.xnotes.kinds` ([`KINDS_SLOT`](crate::stdlib::features::xnotes::KINDS_SLOT)) | `xnotes` | [`XnoteKind`](crate::stdlib::features::xnotes::XnoteKind) | many | xnote kinds; contribute with [`contribute_kind`](crate::stdlib::features::xnotes::contribute_kind) |
+| `flm.floats.types` ([`TYPES_SLOT`](crate::stdlib::features::floats::TYPES_SLOT)) | `floats` | [`FloatType`](crate::stdlib::features::floats::FloatType) | many | float types; contribute with [`contribute_type`](crate::stdlib::features::floats::contribute_type) |
+| `flm.floats.content` ([`CONTENT_SLOT`](crate::stdlib::features::floats::CONTENT_SLOT)) | `floats` | `dyn` [`FloatContentHandler`](crate::stdlib::features::floats::FloatContentHandler) | many | content handlers a float type refers to |
+| `flm.cells.styles` ([`STYLES_SLOT`](crate::stdlib::features::cells::STYLES_SLOT)) | `cells` | [`CellStyle`](crate::stdlib::features::cells::CellStyle) | many | cell styles ([a cell style of your own](crate::guide::extending#a-cell-style-of-your-own)) |
+| `flm.citations.providers` ([`PROVIDERS_SLOT`](crate::stdlib::features::citations::PROVIDERS_SLOT)) | `citations` | `dyn` [`CitationProvider`](crate::stdlib::features::citations::CitationProvider) | many | the citation entries of cited works, asked in order; never required |
+| `flm.graphics.resolver` ([`RESOLVER_SLOT`](crate::stdlib::features::graphics::RESOLVER_SLOT)) | `graphics` | `dyn` [`GraphicsResolver`](crate::stdlib::features::graphics::GraphicsResolver) | single | finds and reads an image file |
+| `flm.graphics.inspector` ([`INSPECTOR_SLOT`](crate::stdlib::features::graphics::INSPECTOR_SLOT)) | `graphics` | `dyn` [`GraphicsInspector`](crate::stdlib::features::graphics::GraphicsInspector) | single | an image's kind and size |
+| `flm.graphics.converters` ([`CONVERTERS_SLOT`](crate::stdlib::features::graphics::CONVERTERS_SLOT)) | `graphics` | `dyn` [`GraphicsConverter`](crate::stdlib::features::graphics::GraphicsConverter) | many | image format conversions, asked in order |
+| `flm.pieces` ([`pieces::SLOT`](crate::stdlib::backends::pieces::SLOT)) | `pieces` | [`PieceDecl`](crate::core::piece::PieceDecl) | many | the pieces features offer ([Contribute a piece](#contribute-a-piece)) |
+| `flm.latex.packages` ([`packages::SLOT`](crate::stdlib::backends::latex::packages::SLOT)) | `latex` | [`LatexPackageDef`](crate::stdlib::backends::latex::LatexPackageDef) | many | package requests |
+| `flm.latex.preamble` ([`preamble::SLOT`](crate::stdlib::backends::latex::preamble::SLOT)) | `latex` | [`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef) | many | definition pieces |
+| `flm.artifacts.namer` ([`NAMER_SLOT`](crate::stdlib::backends::lowering::NAMER_SLOT)) | `lowering` | `dyn` [`ArtifactNamer`](crate::core::artifact::ArtifactNamer) | single | the host's naming of each artifact's path |
+| `flm.output.regions` ([`REGIONS_SLOT`](crate::stdlib::backends::lowering::REGIONS_SLOT)) | `lowering` | [`RegionsOutput`](crate::core::region::RegionsOutput) | many | the outputs made of output regions |
 
-A feature contributing to a slot of the standard package from outside it uses
-`peer_slot`, so that it still registers where the owning feature is absent.
+A feature of your own that contributes to one of these slots uses `peer_slot`, so that it
+still registers where the owning feature is absent.
 
 ## LaTeX package requests and definition pieces
 
@@ -2131,22 +2224,22 @@ A package request is a LaTeX package that a lowering rule or an emitter requires
 identifier (`flm.latex.pkg.<name>`), resolved through the service slot
 `flm.latex.packages` to a package definition and merged with every other request for that
 package into one `\RequirePackage` line per package and engine
-([`packages`](crate::stdcore::backends::latex::packages)). A definition piece is a unit
+([`packages`](crate::stdlib::backends::latex::packages)). A definition piece is a unit
 of LaTeX definitions that a feature registers under an identifier `flm.latex.def.<name>`,
 together with the identifiers it needs in turn; a lowering rule requires it by
 identifier, and the style file holds the text of every piece the document requires, in
-registration order ([`LatexPreambleDef`](crate::stdcore::backends::latex::LatexPreambleDef)).
+registration order ([`LatexPreambleDef`](crate::stdlib::backends::latex::LatexPreambleDef)).
 A feature whose LaTeX rules need either contributes a
-[`LatexPackageDef`](crate::stdcore::backends::latex::LatexPackageDef) to
-[`packages::SLOT`](crate::stdcore::backends::latex::packages::SLOT) and a
-`LatexPreambleDef` to [`preamble::SLOT`](crate::stdcore::backends::latex::preamble::SLOT)
+[`LatexPackageDef`](crate::stdlib::backends::latex::LatexPackageDef) to
+[`packages::SLOT`](crate::stdlib::backends::latex::packages::SLOT) and a
+`LatexPreambleDef` to [`preamble::SLOT`](crate::stdlib::backends::latex::preamble::SLOT)
 (both owned by the `latex` feature), then requires their identifiers from its rules. A
 definition piece's `requires` lists packages and other definition pieces alike, told apart
 by their prefix;
 the recomposed LaTeX resolves the closure.
 
 A definition piece follows the rules of
-[`preamble`](crate::stdcore::backends::latex::preamble) ("How a piece is written"): written for a LaTeX system of 2022 or later; no test of the
+[`preamble`](crate::stdlib::backends::latex::preamble) ("How a piece is written"): written for a LaTeX system of 2022 or later; no test of the
 installation (no `\ifdefined` around a command, no test of the engine; what it needs, it
 requires as a package); one guarded form per kind of definition
 (`\ProvideDocumentCommand` for a macro offered to a user, `\ProvideDocumentEnvironment`
@@ -2163,12 +2256,12 @@ hooks](crate::guide::concepts_overview#latex-package-requests-definition-pieces-
 use std::sync::Arc;
 
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder, RegistryInputs,
 };
-use flm_core::stdcore::backends::latex::{
+use flm_core::stdlib::backends::latex::{
     LatexPackageDef, LatexPreambleDef, packages, preamble,
 };
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 
 struct Boxes;
 
@@ -2202,7 +2295,7 @@ impl FlmFeature for Boxes {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new()));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()));
 builder.feature(Arc::new(Boxes));
 let registry = builder.build(&RegistryInputs::new())?;
 
@@ -2225,13 +2318,111 @@ through the render option `extra_packages`) is merged into the single `\RequireP
 line the file writes for that package under each LaTeX engine, its options the union of
 theirs in the order first found, under a comment line listing every identifier behind it.
 A request applies to every engine unless
-[`.engines(…)`](method@crate::stdcore::backends::latex::LatexPackageDef::engines)
+[`.engines(…)`](method@crate::stdlib::backends::latex::LatexPackageDef::engines)
 narrows it; where a package's lines differ by engine, the file writes them inside a test
 of the engine (`\iftutex … \else … \fi`, or a three-way test, with the package `iftex`
 requested first). So `requirepackage_line()` above shows what this request asks for, not
 what the file will hold. Two requests that give one option key two different values
 cannot be merged: `flm.latex-recomposed.package-options-conflict`, and no line is written
 for that package under the engines where they conflict.
+
+## Progress and cancellation in stages and services
+
+Guide: [reporting progress from a stage or a
+service](crate::guide::extending#reporting-progress-from-a-stage-or-a-service). The
+build's progress sheet ([`crate::progress`]) is written by the work, read by the host.
+
+- **Where the scope comes from**: a stage, [`StageCx::progress`](crate::core::run::StageCx::progress)
+  (its row, owned by the run, shared by the per-tree calls); a citation provider,
+  [`ProviderCx::progress`](crate::stdlib::features::citations::ProviderCx::progress) (the
+  retrieve stage's row); a converter, the `progress: &Scope` argument of
+  [`GraphicsConverter::convert`](crate::stdlib::features::graphics::GraphicsConverter::convert)
+  (the row `flm.graphics.convert` declared for that conversion: declare nothing more
+  unless the conversion has parts); an `flm-ext` host service, the last argument of
+  `HostService::call`. A build reporting nowhere gives `Scope::none()`: call the methods
+  anyway, never test "enabled".
+- **Rows**: `scope.child(&KIND, label)` → `Pending`; `.start()` → `Task`,
+  `.start_counted(Unit::Items, total)` → `Counted` (`advance(n)`, capped at the total);
+  `finish()` ends as `Finished`; a dropped `Task`/`Counted` → `Failed`; a dropped `Pending`
+  → `NotRun`. Only the declarer ends a row; a stage never ends its own stage row.
+- **Rules**: a row per heavy item (a program run, a conversion, a fetch), an increment per
+  light one (one of many small files); a total counts the slow units only (not cache
+  hits) and never changes; declare possible work in advance and drop the `Pending` if
+  unneeded (a late row moves the estimate back); per-tree stage: one row per call for its
+  tree's items, labeled with the tree's source where the stage can tell it; document
+  stage: one row for its items.
+- **Kinds**: `const K: Kind = Kind::titled("acme.pages", "Rendering pages")` in your
+  namespace; the name keys the host's table of expected durations (renaming loses it).
+  Title: capital, "-ing" verb, no article, no period; an untitled row is skipped by
+  displays.
+- **Cancellation**: check `scope.cancelled()` once per unit (tree, image, formula, key),
+  not in inner loops; on `true` return at once: the step's output is discarded, so it
+  need not be meaningful, and report no diagnostic. Effects outside the store are not
+  undone: check where what you leave is whole.
+- **Log lines**: `scope.log(LogLevel::Info, text)` after `scope.log_enabled(level)` when
+  the text is costly; text for a person, never a document problem. The `flm` program
+  prints `Info` under `-v` only.
+- **Extensions**: module `flm:progress` (JavaScript; `flm_ext::guest::progress` for Rust
+  to WebAssembly, `flm_ext::api::progress` for compiled-in Rust): `cx.progress()` →
+  `ProgressScope { child(kind, title, label), cancelled() }`, then `start()`,
+  `start_counted(Unit.Items, n)`, `advance(n)`, `scope()`, `finish()`. Handles live for
+  the call (unfinished → `Failed`, unstarted → `NotRun`); no depth limit, no `log`:
+  `console.error`/`warn` → `Error`/`Warn`, `console.log`/`info`/`debug` → `Info`, source =
+  the extension's name. On cancellation the engine stops a JavaScript handler, a
+  WebAssembly module at its next host call; compiled-in Rust checks `cancelled()`. The
+  `programs` service runs a program under a row `flm.programs.run` and stops it on
+  cancellation (the call fails). Example: `extensions/js/math-mathjax/render.js`
+  (`math-mathjax.formulas`, "Rendering formulas", advanced per formula).
+
+## Caches of an extension
+
+Guide: [Caches of an extension](crate::guide::extending#caches-of-an-extension). Types:
+`flm_ext::host::CacheDeclaration` (and `CacheKind`, `CacheEngine`, `CacheSort`,
+`CacheExpiry`, `CachePercent`, `CacheTime`, `CacheScope`); host side
+`flm_host::cache::ExtensionCache`, `flm_host::host_cache`, `flm_host::host_programs`.
+
+- **Declaration.** Package object key `caches` (Rust guest: `Package::caches([(name,
+  CacheDeclaration)])`): a map from a name (segments of `[a-z0-9_-]` joined by `.`) to
+  `{ version (≥ 1), values: { engine: jsonl|files|sqlite (default sqlite), blobs (default
+  false) } | folder: {}, unused_s (stable; seconds or "unlimited") | lifetime_s (volatile,
+  values only) with optional expiry { stale_percent (80), jitter_percent (15), grace_s
+  (14 days, or "unlimited") }, cost_ms (≥ 1), scope: shared|document }`. Exactly one of
+  `values`/`folder` and of `unused_s`/`lifetime_s`; `null` counts as absent; unknown keys
+  and wrong shapes fail the load (message names extension, package, cache). Read with
+  the package report (`PackageReport::caches`), given to every service call
+  (`HostCaller::caches`), not in the digest. `HostService::check_package` (default:
+  accept) runs at load for each declared service; `flm-host`'s `cache` and `programs`
+  refuse a declaration cachette refuses (whole name too long, `jsonl` with blobs).
+- **Naming and instances (flm-host).** Cache name `flm.ext.STEM.NAME` (stem lowercased,
+  `@` dropped, `/` → `.`); instance key `{"extension": IDENTITY}` plus `"document"` for
+  scope `document` (without a document text: no cache). A `sqlite` cache falls back to
+  `jsonl`/`files` on a manager without SQLite.
+- **Service `cache`** (`flm-host` always offers it): `get { cache, key, blobs? }` →
+  `null` | `{ record, blobs, freshness, refresh }`; `put { cache, key, record, blobs?,
+  cost_ms?, lifetime_s? }` → `null`; `remove { cache, key }` → `null`. `cache` must name a
+  declared values cache. Key: any JSON, stored under SHA-256 of its JSON with object
+  members sorted by name. Blobs: map name → `{ text }` | `{ base64 }` (standard alphabet,
+  padding); `get` answers `{ text }` for UTF-8 bytes, else `{ base64 }` — read either as
+  bytes. `freshness`: `fresh`/`stale`/`expired` for volatile values, `null` for stable;
+  `refresh`: whether to produce and store again. Never refused for age: a handler that
+  cannot produce a value again uses the kept one and warns when it is `expired`. Only a
+  wrong argument shape is refused; cache failures make `get` answer `null` and `put`
+  store nothing. One session per build: a value stored earlier in a build is read later
+  in it.
+- **`programs.run`'s argument `cache`**: map relative path → `{ name, cost_ms? }`, `name`
+  a declared folder cache; the service links the cache folder there (symlink on Unix,
+  junction on Windows), `files`/`collect` may lie under it, the links and the temporary
+  folder are removed after the run without touching the cache folder; an unavailable
+  folder (no folder caches, another build holds it, link refused or leading to no
+  folder) is an empty folder.
+  Two paths of `cache` may not coincide or nest. No absolute cache path reaches the
+  extension.
+- **Rule.** A cache saves work and never changes the result: the key holds everything the
+  value depends on; an empty cache must give the same output.
+- **Examples.** `math-mathjax` (`typeset.mathml`, values, `sqlite`, 90 days, shared;
+  key `[MathJax.VERSION, packages, preamble, export_commands, display, TeX]`);
+  `profile-pdf-latex` (`latexmk.aux`, folder, 30 days, per document, at `_aux` with
+  `latexmk -auxdir=_aux`).
 
 ## Build hooks
 
@@ -2253,7 +2444,12 @@ for that package under the engines where they conflict.
   [`LateInitError`](crate::core::registry::LateInitError) means the hook could not do its
   own work, and fails the build. It is also the place for a fact about the whole
   configuration (whether another definition has the same name), worked out once and
-  recorded on the element values it initializes.
+  recorded on the element values it initializes. A value built against the language (a
+  compiled template, a parsed tree) that an element's data or aspect reads goes in a
+  [`LangOwned`](crate::lang::LangOwned) cell (`cell.set(lang, value)`, `cell.get()`): the
+  language owns it. An element that owned it (`OnceLock<Arc<…>>` in its data) would form
+  a reference cycle that keeps the language allocated after the registry is dropped. A
+  rule or a stage may own such a value directly.
 
 ## Packages and registration order
 
@@ -2270,7 +2466,7 @@ use flm_core::core::registry::{
     BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder,
     RegistryInputs,
 };
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::stdlib::{self, StdlibConfig};
 
 # struct Shout;
 # impl FlmFeature for Shout {
@@ -2278,7 +2474,7 @@ use flm_core::stdcore::{self, StdcoreConfig};
 #     fn register(&self, _b: &mut FeatureBuilder<'_>) -> Result<(), BuildError> { Ok(()) }
 # }
 let mine = PackageEntry::new("mine")
-    .uses(stdcore::package(StdcoreConfig::new()))
+    .uses(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new()))
     .feature(Arc::new(Shout));
 
 let mut builder = RegistryBuilder::new();
@@ -2286,7 +2482,7 @@ builder.use_package(mine);
 let registry = builder.build(&RegistryInputs::new())?;
 
 assert!(registry.has_feature("shout"));
-assert!(registry.has_feature("headings")); // came in with `stdcore`
+assert!(registry.has_feature("headings")); // came in with `std`
 # Ok::<(), flm_core::core::registry::RegistryBuildError>(())
 ```
 
@@ -2327,14 +2523,17 @@ registration order, each after the packages it uses, each once). flm-core ships 
 resolver and reads no file; the crate `flm-ext` provides the loader of *extensions*
 (`flm_ext::ExtensionLoader`): sets of files found by name, written as data (settings,
 workflows, compose templates) or in JavaScript (features with behavior), each providing
-one or more packages; see [Extensions](crate::guide::extending#extensions). A factory
-holds the package's name, the names of the packages it uses, and the function that builds
-the entry from the final settings
-([`PackageSettings`](crate::core::settings::PackageSettings)), leaving out a feature the
-settings switch off; it learns each feature's settings declaration by building the
-package once from empty settings
+one or more packages; see [Extensions](crate::guide::extending#extensions). A package of
+an extension lists, among the packages it uses, the packages of other extensions it builds
+on; it need not list the standard features, which a host loads into every document by
+default (the `flm` program, through its package `std`). A factory holds the package's
+name, the names of the packages it uses, and the function that builds the entry from the
+final settings ([`PackageSettings`](crate::core::settings::PackageSettings)), leaving out
+a feature the settings switch off; it learns each feature's settings declaration by
+building the package once from empty settings
 ([`PackageFactory::new`](crate::core::registry::PackageFactory::new)).
-[`stdcore::factory`](crate::stdcore::factory) is the standard package's.
+A package that holds the standard features builds them in its build function with
+[`stdlib::add_features_from_settings`](crate::stdlib::add_features_from_settings).
 
 ## Contribute a piece
 
@@ -2352,21 +2551,21 @@ A feature offers one with three declarations:
 3. a [`PieceDecl`](crate::core::piece::PieceDecl)`::new(name, place, docs)` (its
    `table`, its [`PiecePlace`](crate::core::piece::PiecePlace), and
    [`default_on`](crate::core::piece::PieceDecl::default_on)) contributed with
-   `peer_slot` to [`flm.pieces`](crate::stdcore::backends::pieces::SLOT), so that the
+   `peer_slot` to [`flm.pieces`](crate::stdlib::backends::pieces::SLOT), so that the
    feature registers without the `pieces` feature.
 
 Nothing else: each backend that places pieces has a
-[`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage) (`flm.<backend>.pieces`)
+[`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage) (`flm.<backend>.pieces`)
 that lowers the selected pieces with the rules the plan selected, so a piece is written
 on every backend by the rules of the elements it holds. The render option
-[`PiecesRenderOptions`](crate::stdcore::backends::pieces::PiecesRenderOptions) selects the
+[`PiecesRenderOptions`](crate::stdlib::backends::pieces::PiecesRenderOptions) selects the
 pieces: every piece declared on by default that `exclude` does not list, plus every piece
 `include` lists; the builder stage of a piece left out is not scheduled. Its field
 `backends` limits, per backend, the selected pieces that backend places: a backend with an
 entry places only the selected pieces the entry lists. A backend without an entry places
 every selected piece, except a backend whose pieces stage places only the pieces listed
 for it
-([`PiecesStage::placing_only_named`](crate::stdcore::backends::pieces::PiecesStage::placing_only_named)):
+([`PiecesStage::placing_only_named`](crate::stdlib::backends::pieces::PiecesStage::placing_only_named)):
 the recomposed LaTeX is such a backend, and without an entry it places no piece.
 
 **Point at the document's content; never copy it.** A synthesized value states no fact
@@ -2380,13 +2579,13 @@ content a synthesized node of an element of your own whose payload is a content 
 the payload of a synthesized node that shows, where the node is placed, content written
 elsewhere in the tree without copying it, the address of the node the content belongs to
 and the region of that node that holds it
-([`ContentPointer`](crate::stdcore::backends::lowering::ContentPointer)). That node's
+([`ContentPointer`](crate::stdlib::backends::lowering::ContentPointer)). That node's
 rule calls
-[`lower_content_pointer`](crate::stdcore::backends::lowering::lower_content_pointer)
+[`lower_content_pointer`](crate::stdlib::backends::lowering::lower_content_pointer)
 with a check of your feature's
-([`PointerCheck`](crate::stdcore::backends::lowering::PointerCheck): whether the node is
+([`PointerCheck`](crate::stdlib::backends::lowering::PointerCheck): whether the node is
 one whose region your element may show; report your own condition where it is not) and
-[`lower_region_content`](crate::stdcore::backends::lowering::lower_region_content) as the
+[`lower_region_content`](crate::stdlib::backends::lowering::lower_region_content) as the
 shape. The content is lowered as the document's own, through
 [`Lowerer::lower_region`](crate::core::lowering::Lowerer::lower_region): its points keep
 their numbers and anchors. **Lower a region once**: the element whose content is shown
@@ -2412,13 +2611,13 @@ use flm_core::core::data::store::StageOut;
 use flm_core::core::piece::{Piece, PieceDecl, PiecePlace};
 use flm_core::core::plan::PlanCx;
 use flm_core::core::registry::{
-    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, RegistryBuilder, RegistryInputs,
+    BuildError, FeatureBuilder, FeatureInfo, FlmFeature, PackageEntry, RegistryBuilder, RegistryInputs,
 };
 use flm_core::core::run::StageCx;
 use flm_core::core::stage::{Effect, Needs, Scope, Stage, StageDecl};
 use flm_core::lang::{FlmOrigin, FlmSource, ParseOptions, parse_fragment};
 use flm_core::model::doc::FragmentLayout;
-use flm_core::stdcore::backends::pieces;
+use flm_core::stdlib::backends::pieces;
 
 /// The piece: a closing line saying how many parts the document has.
 fn closing() -> PieceDecl {
@@ -2471,7 +2670,7 @@ impl FlmFeature for Closing {
 }
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(flm_core::stdcore::package(flm_core::stdcore::StdcoreConfig::new()));
+builder.use_package(flm_core::stdlib::add_features(PackageEntry::new("std"), flm_core::stdlib::StdlibConfig::new()));
 builder.use_package(flm_core::math_passthrough::package());
 builder.feature(Arc::new(Closing));
 let registry = builder.build(&RegistryInputs::new())?;
@@ -2479,7 +2678,7 @@ let registry = builder.build(&RegistryInputs::new())?;
 # use flm_core::model::doc::{Doc, DocContent};
 # use flm_core::core::plan::{Overrides, Plan};
 # use flm_core::core::run::{Externals, Run, RunOptions};
-# use flm_core::stdcore::backends::text::{self, TEXT_OUTPUT};
+# use flm_core::stdlib::backends::text::{self, TEXT_OUTPUT};
 let mut content = DocContent::new();
 for text in ["One.", "Two."] {
     let source = Arc::new(FlmSource::new(text).with_origin(FlmOrigin::none()));
@@ -2499,14 +2698,14 @@ assert_eq!(run.table(TEXT_OUTPUT)?.expect("written").text, "One.\n\nTwo.\n\n2 pa
 
 ## Number a construct of your own
 
-The [`numbering`](crate::stdcore::features::numbering) feature numbers every reference
+The [`numbering`](crate::stdlib::features::numbering) feature numbers every reference
 point that states a number source; it declares no command and no rule, so the feature
 that owns the construct declares the counter, states the number source and shows the
 number. A counter is a dotted name under which things are counted in document order,
 declared by a feature together with the counter it is numbered within
-([`CounterDecl`](crate::stdcore::features::numbering::CounterDecl)); a counter style says
+([`CounterDecl`](crate::stdlib::features::numbering::CounterDecl)); a counter style says
 how a counter value is shown
-([`CounterStyleDecl`](crate::stdcore::features::numbering::CounterStyleDecl); [counters
+([`CounterStyleDecl`](crate::stdlib::features::numbering::CounterStyleDecl); [counters
 and counter styles](crate::guide::concepts_overview#counters-and-counter-styles)). The
 compiled example (a `\step{…}` command numbered `(11)`, `(12)` from a document option) is
 the public recipe [Number a construct of your
@@ -2515,10 +2714,10 @@ own](crate::guide::extending#number-a-construct-of-your-own); the four steps:
 1. **Declare a counter style and a counter**, under your own prefix, with `peer_slot`:
    `b.peer_slot::<CounterStyleDecl>(STYLES_SLOT, …)` and
    `b.peer_slot::<CounterDecl>(COUNTERS_SLOT, Arc::new(CounterDecl::new(counter, style)))`
-   ([`STYLES_SLOT`](crate::stdcore::features::numbering::STYLES_SLOT),
-   [`COUNTERS_SLOT`](crate::stdcore::features::numbering::COUNTERS_SLOT)). A counter
+   ([`STYLES_SLOT`](crate::stdlib::features::numbering::STYLES_SLOT),
+   [`COUNTERS_SLOT`](crate::stdlib::features::numbering::COUNTERS_SLOT)). A counter
    numbered within another takes
-   [`CounterDecl::within`](crate::stdcore::features::numbering::CounterDecl::within)
+   [`CounterDecl::within`](crate::stdlib::features::numbering::CounterDecl::within)
    (below). Without the `numbering` feature both are dropped with a Note per slot.
 2. **State a number source** on the point your `Referenceable` returns:
    `number: Some(NumberSource { counter, instances: Vec::new(), style, advance: vec![0],
@@ -2529,11 +2728,11 @@ own](crate::guide::extending#number-a-construct-of-your-own); the four steps:
 3. **Show the number in the rule**: declare the counter table a peer table
    (`b.peer_table::<Counters>(COUNTERS.name(), …)`) read optionally
    (`LoweringDecl::reads_opt(COUNTERS)`); in the rule,
-   [`Counters::format`](crate::stdcore::features::numbering::Counters::format)`(PointId {
+   [`Counters::format`](crate::stdlib::features::numbering::Counters::format)`(PointId {
    addr: lw.addr(), index }, &FormatOptions::new())` returns the point's number as
-   [`NumberSegment`](crate::stdcore::features::numbering::NumberSegment)s
+   [`NumberSegment`](crate::stdlib::features::numbering::NumberSegment)s
    (`Some(Ok(segments))`), `None` for a point the document did not number, and
-   `Some(Err(`[`FormatError`](crate::stdcore::features::numbering::FormatError)`))` only
+   `Some(Err(`[`FormatError`](crate::stdlib::features::numbering::FormatError)`))` only
    for a fault in the program; stage each segment's content with
    [`Lowerer::splice`](crate::core::lowering::Lowerer::splice) (take the segments out of
    the table first: splicing needs the `Lowerer` mutably). Where the `numbering` feature
@@ -2541,20 +2740,20 @@ own](crate::guide::extending#number-a-construct-of-your-own); the four steps:
    scheduled; where it is not, the rule finds no table and shows the construct without a
    number.
 4. **Hold the `refpoints` feature** in the registry: the numbering stage reads the points
-   from [`flm.refpoints`](crate::stdcore::features::refpoints::REFPOINTS). The standard
+   from [`flm.refpoints`](crate::stdlib::features::refpoints::REFPOINTS). The standard
    package holds it; a registry assembled from single features must list it, or every
    plan that schedules the numbering stage fails.
 
 A `\ref` to the point then shows the number with nothing more from your feature. A
 document changes the numbering through its numbering options
-([`NumberingOptions`](crate::stdcore::features::numbering::NumberingOptions), bound on
+([`NumberingOptions`](crate::stdlib::features::numbering::NumberingOptions), bound on
 the document and on a render request): which counter a counter is numbered within, and
 the value it has before its first advance.
 
 **Forms the declarations offer**, each described in the [numbering
 guide](crate::guide::numbering):
 
-- [`Within`](crate::stdcore::features::numbering::Within) ([numbering within another
+- [`Within`](crate::stdlib::features::numbering::Within) ([numbering within another
   counter](crate::guide::numbering#numbering-within-another-counter)):
   `Within::parent("flm.headings.section")` (`1.2`), `.joined_by(text)` (another text
   than the full stop), `.template(text)` (a within template, FLM in which
@@ -2566,18 +2765,18 @@ guide](crate::guide::numbering):
   takes no number and is `flm.numbering.parent-uninitialized`), and
   `.joiner_named(name)`.
 - A **within-joiner** of your own, for a form none of these writes: implement
-  [`WithinJoiner`](crate::stdcore::features::numbering::WithinJoiner), contribute a
-  [`WithinJoinerDecl`](crate::stdcore::features::numbering::WithinJoinerDecl) to
+  [`WithinJoiner`](crate::stdlib::features::numbering::WithinJoiner), contribute a
+  [`WithinJoinerDecl`](crate::stdlib::features::numbering::WithinJoinerDecl) to
   `flm.numbering.within-joiners`, and select it with `Within::joiner_named(name)`; an
   unknown name in a document's options is `flm.numbering.unknown-within-joiner`.
 - A **number writer** of your own, for what a counter style's data cannot describe (a
   number that states the section it is in, one range across two parents): implement
-  [`NumberWriter`](crate::stdcore::features::numbering::NumberWriter), contribute a
-  [`NumberWriterDecl`](crate::stdcore::features::numbering::NumberWriterDecl) to
+  [`NumberWriter`](crate::stdlib::features::numbering::NumberWriter), contribute a
+  [`NumberWriterDecl`](crate::stdlib::features::numbering::NumberWriterDecl) to
   `flm.numbering.number-writers`, and select it on the style with
-  [`CounterStyleDecl::with_number_writer`](crate::stdcore::features::numbering::CounterStyleDecl::with_number_writer)
+  [`CounterStyleDecl::with_number_writer`](crate::stdlib::features::numbering::CounterStyleDecl::with_number_writer)
   ([the number writer](crate::guide::numbering#the-number-writer)).
-- A **parent set** ([`ParentSetDecl`](crate::stdcore::features::numbering::ParentSetDecl),
+- A **parent set** ([`ParentSetDecl`](crate::stdlib::features::numbering::ParentSetDecl),
   `flm.numbering.parent-sets`): a named list of counters a counter may be numbered
   within, as the headings feature contributes `flm.headings.levels`.
 - **Scoped instances** ([scoped instances](crate::guide::numbering#scoped-instances)):
@@ -2586,11 +2785,11 @@ guide](crate::guide::numbering):
   [`NumberSource::instances`](crate::model::aspects::NumberSource::instances), the node
   ids of the enclosing nodes that each hold a run of its counter, outermost first (found
   by walking up from the node), and the numbering stage keeps one count per instance;
-  [`CounterDecl::nesting`](crate::stdcore::features::numbering::CounterDecl::nesting)
+  [`CounterDecl::nesting`](crate::stdlib::features::numbering::CounterDecl::nesting)
   says what a nested number writes of the enclosing instance's value. Instances that do
   not enclose one another are `flm.numbering.instance-not-enclosing`.
   `flm-core/tests/numbering_feature.rs` holds a worked list of this kind
-  (`ListFeature`); the [`lists`](crate::stdcore::features::lists) feature is the one in
+  (`ListFeature`); the [`lists`](crate::stdlib::features::lists) feature is the one in
   the library.
 - The other ways a rule writes a number: [showing a number from a lowering
   rule](crate::guide::numbering#showing-a-number-from-a-lowering-rule).
@@ -2599,7 +2798,7 @@ guide](crate::guide::numbering):
 
 Heading kinds and heading commands are configuration of the `headings` feature, so
 declaring one needs no feature of your own. A heading kind
-([`HeadingDecl`](crate::stdcore::features::headings::HeadingDecl)) is a declared heading
+([`HeadingDecl`](crate::stdlib::features::headings::HeadingDecl)) is a declared heading
 (section, subsection, …): `HeadingDecl::new(name, level)` with the defaults of the
 standard kinds, then one builder per field: `counter` (`flm.headings.<name>` by default;
 `no_counter()` for none), `style` (`flm.headings.style.<name>`), `within`,
@@ -2609,16 +2808,16 @@ own number alone, `#[Roman]{number}` it in another number format; `#{number}. ` 
 default), `skip_toc`, `run_in`, and the reference point's `ref_kind`, `label_types`,
 `anchor_prefix`. The level is any number counted from zero; the shipped kinds have levels
 1 to 5, and level 0 is free for a kind above the sections. A heading command
-([`HeadingCommand`](crate::stdcore::features::headings::HeadingCommand)) is a macro that
+([`HeadingCommand`](crate::stdlib::features::headings::HeadingCommand)) is a macro that
 writes a heading of one kind, with default key-values (`numbered`, `toc`) read before the
 occurrence's star and bracket. The occurrence's bracket also takes `alt={…}`, the
 alternative title its entry in the table of contents shows; `alt` is not a command
 default.
-[`HeadingsConfig::headings`](crate::stdcore::features::headings::HeadingsConfig::headings)
+[`HeadingsConfig::headings`](crate::stdlib::features::headings::HeadingsConfig::headings)
 replaces the kinds and gives each a command of its own name; `.command(…)` adds one;
 `.commands(…)` replaces them. Which kinds are numbered is the numbering depth
-([`HeadingNumbering`](crate::stdcore::features::headings::HeadingNumbering): nothing, by
-default). [`HeadingsConfig::validate`](crate::stdcore::features::headings::HeadingsConfig::validate)
+([`HeadingNumbering`](crate::stdlib::features::headings::HeadingNumbering): nothing, by
+default). [`HeadingsConfig::validate`](crate::stdlib::features::headings::HeadingsConfig::validate)
 refuses, and the registry build with it: two kinds or two commands of one name, a kind no
 command writes, a command for an undeclared kind, two kinds sharing a counter or a
 counter style, a kind with a counter and no counter style, a command default whose key is not
@@ -2626,10 +2825,10 @@ counter style, a kind with a counter and no counter style, a command default who
 another placeholder or gives `number` a key it does not take also fails the build.
 
 ```rust
-use flm_core::core::registry::{RegistryBuilder, RegistryInputs};
-use flm_core::stdcore::features::headings::{HEADING, HeadingCommand, HeadingDecl, HeadingsConfig};
-use flm_core::stdcore::features::numbering::Within;
-use flm_core::stdcore::{self, StdcoreConfig};
+use flm_core::core::registry::{PackageEntry, RegistryBuilder, RegistryInputs};
+use flm_core::stdlib::features::headings::{HEADING, HeadingCommand, HeadingDecl, HeadingsConfig};
+use flm_core::stdlib::features::numbering::Within;
+use flm_core::stdlib::{self, StdlibConfig};
 
 let mut kinds = HeadingsConfig::new().headings;
 // A chapter above the sections, at level 0, and the sections' counter
@@ -2643,29 +2842,31 @@ let headings = HeadingsConfig::new()
     .command(HeadingCommand::new("quietsection", "section").default_value("toc", "false"));
 
 let mut builder = RegistryBuilder::new();
-builder.use_package(stdcore::package(StdcoreConfig::new().headings(headings)));
+builder.use_package(stdlib::add_features(PackageEntry::new("std"), StdlibConfig::new().headings(headings)));
 let registry = builder.build(&RegistryInputs::new())?;
 assert_eq!(registry.elements_named(HEADING).len(), 6);
 # Ok::<(), flm_core::core::registry::RegistryBuildError>(())
 ```
 
 The LaTeX command a kind is recomposed as is a render option,
-[`HeadingsLatexOptions`](crate::stdcore::features::headings::latex::HeadingsLatexOptions)
+[`HeadingsLatexOptions`](crate::stdlib::features::headings::latex::HeadingsLatexOptions)
 (the kind's name by default; a kind whose name is not a sectioning command, such as
 `appendix`, must be mapped to one). On HTML, the tag is
-[`HtmlRenderOptions::heading_tags`](crate::stdcore::backends::html::HtmlRenderOptions::heading_tags)
+[`HtmlRenderOptions::heading_tags`](crate::stdlib::backends::html::HtmlRenderOptions::heading_tags)
 (render option; `<h1>` to `<h6>` by level otherwise, counted from
-[`HtmlRenderOptions::root_heading_level`](crate::stdcore::backends::html::HtmlRenderOptions::root_heading_level),
+[`HtmlRenderOptions::root_heading_level`](crate::stdlib::backends::html::HtmlRenderOptions::root_heading_level),
 1 by default). The chapter of the example needs a root of 0 to be `<h1>`; under the
 default it is the Error `flm.pres.heading-above-root` and is written `<h1>`. Every block
 heading carries `data-flm-heading` (the kind), `data-flm-level` and `data-flm-toc`
 regardless of its tag; a run-in heading carries them on the `<span>` inside its run-in
-decoration.
+decoration. Each entry of the table of contents carries its heading's level as
+`data-flm-level` on its `<li>`, so `[data-flm-level="N"]` selects the headings of level N
+and their entries alike.
 
-Every kind is listed in the table of contents of the [`toc`](crate::stdcore::features::toc)
+Every kind is listed in the table of contents of the [`toc`](crate::stdlib::features::toc)
 feature (the table `flm.toc.entries`, the piece `flm.toc`) at its level, unless the kind is
 `skip_toc`, the occurrence says `toc=false`, or the level is deeper than
-[`TocOptions::depth`](crate::stdcore::features::toc::TocOptions::depth) (3). The feature
+[`TocOptions::depth`](crate::stdlib::features::toc::TocOptions::depth) (3). The feature
 reads every element carrying [`Sectioning`](crate::model::aspects::Sectioning), so a
 heading element of an extension's own is listed when it implements that aspect: `level`,
 `in_toc` (default `true`) and
@@ -2739,16 +2940,16 @@ The recipe:
    `CutItem::Inline` or `CutItem::Block` by what it holds, in
    [`Cutting::Emit`](crate::lang::rewrites::blocks::Cutting).
 6. **Read the record back** in the element's rules with
-   [`payload_of::<Record>(&node)`](crate::stdcore::backends::pres::read::payload_of):
+   [`payload_of::<Record>(&node)`](crate::stdlib::backends::pres::read::payload_of):
    `None` on a node that was never cut. A copy into a synthesized value
    ([`crate::lang::copy`]) keeps it.
 
 A failure of the aspect itself is
 [`StructureError::cut`](crate::lang::rewrites::blocks::StructureError::cut) and ends block
 structuring with no tree; a problem in the document goes through `diagnose`. The
-[`annotations`](crate::stdcore::features::annotations) feature's element is a complete
+[`annotations`](crate::stdlib::features::annotations) feature's element is a complete
 user: one argument cut, cut parts around inline stretches and blocks, the record
-[`AnnotationPiece`](crate::stdcore::features::annotations::AnnotationPiece) read by its
+[`AnnotationPiece`](crate::stdlib::features::annotations::AnnotationPiece) read by its
 rules to show the initials on the first cut part only.
 
 ```rust
@@ -2765,7 +2966,7 @@ use flm_core::lang::{
 use flm_core::model::aspects::{BlockRole, BlockRoleAspect};
 use flm_core::model::doc::FragmentLayout;
 use flm_core::model::element::ElementSpec;
-use flm_core::stdcore::backends::pres::read::payload_of;
+use flm_core::stdlib::backends::pres::read::payload_of;
 use flm_core::techy::core::node::{BuildId, NodeRef};
 use flm_core::techy::serialize::SerialValue;
 
@@ -2878,62 +3079,62 @@ need.
 
 | feature | read it for |
 |---|---|
-| [`textstyles`](crate::stdcore::features::textstyles) | the smallest complete feature: one element type with four values, a general rule and a rule on the recomposed LaTeX under a peer declaration of the backend, style names of its own mapped onto the presentation vocabulary |
-| [`literals`](crate::stdcore::features::literals) | a family of commands declared from one list, a macro and a special character sequence in one element type, a rule that emits a text node and a rule that emits nothing |
-| [`blocks`](crate::stdcore::features::blocks) | a rewrite stage, a capability with two refinements, an ordering edge declared only when the registry holds the capability it refers to, a configuration |
-| [`index`](crate::stdcore::features::index) | one table and one `Compute`/`PerTree` stage, nothing else |
-| [`refpoints`](crate::stdcore::features::refpoints) | one table and one `Compute`/`PerTree` stage that asks an aspect once per node, whose table two other features require rather than declare as a peer table |
-| [`numbering`](crate::stdcore::features::numbering) | five service slots other features contribute to as peer contributions (counters, counter styles, within-joiners, number writers, parent sets), a finalizer that checks the declarations against one another, a late-initialization hook that compiles every declared text, an option type bound on the document and on a render request ([`Bind::Either`](crate::model::options::Bind::Either)), one `Compute`/`Document` stage, and a table that carries the compiled data so that a consumer writes a number from the table alone |
-| [`math`](crate::stdcore::features::math) | declarations restricted to mathematics mode, a scoped package (the commands of an equation line), a body parser of its own that checks a body as it is parsed ([`lines::LinesBehavior`](crate::stdcore::features::math::lines::LinesBehavior)), an argument parser of its own (the spacing of `\\`), a reader of a body's structure for other features and backends ([`lines`](crate::stdcore::features::math::lines)), a capability declared for another feature to provide (`flm.math.content`), and a library of plain functions that processing features' rules call ([`frame`](crate::stdcore::features::math::frame), [`math::latex`](crate::stdcore::features::math::latex)); one rule on a formula, the rule of last resort of the display-math environments ([`unprocessed`](crate::stdcore::features::math::unprocessed)) |
-| [`math_passthrough`](crate::math_passthrough) | the library's math processor, a package of its own beside `stdcore`: two fallbacks in mathematics mode and their opaque element, a check stage providing `math`'s capability, rules marked `DefaultMark::Everywhere` for `flm.math`, `flm.math.environment` and the opaque element, two rules for `latex-recomposed` built from `math`'s library, and peer declarations of the tables its rules read |
-| [`refs`](crate::stdcore::features::refs) | six stages, six tables and an external table, a check added to `flm.validated`, two render option types, a late-initialization hook that compiles the join texts, two referencing elements (`\ref`, `\hyperref`) with a general rule and a recomposition rule each, content built into a synthesized value that a rule splices |
-| [`headings`](crate::stdcore::features::headings) | element data built from the configuration (one element value per heading kind, written under the names of its commands; [`HeadingDecl`](crate::stdcore::features::headings::HeadingDecl), [`HeadingCommand`](crate::stdcore::features::headings::HeadingCommand)), three aspects on one element, a rule reading the counter and anchor tables as optional peer tables, counters and counter styles contributed as peer contributions ([`headings::numbers`](crate::stdcore::features::headings::numbers)), a number written from a table and spliced, the peer declarations of a rule on the recomposed LaTeX ([`headings::latex::register`](crate::stdcore::features::headings::latex::register)) |
-| [`verbatim`](crate::stdcore::features::verbatim) | verbatim arguments and verbatim environment bodies |
-| [`lists`](crate::stdcore::features::lists) | environments built from the configuration (one element value per list kind), a scoped package whose command declares a reference point of its own counting through scoped instances found by walking up the tree, a body read into parts at lowering by one public reader ([`list_items`](crate::stdcore::features::lists::list_items)), a counter and per-depth counter styles contributed as peer contributions, a late-initialization hook compiling configured templates, a rule compiling a document's own template against the language the `Lowerer` gives ([`Lowerer::lang`](crate::core::lowering::Lowerer::lang)) |
-| [`xnotes`](crate::stdcore::features::xnotes) | one element with one value per configured xnote kind, whose optional argument refers to another feature's scoped package through a peer declaration ([`labels_of`](crate::stdcore::features::xnotes::labels_of)); a block role read from an argument's layout; two reference points per node built by one public function ([`ref_points`](crate::stdcore::features::xnotes::ref_points)); a service slot of xnote kinds filled by one public function that makes every per-kind declaration and its peer declarations ([`contribute_kind`](crate::stdcore::features::xnotes::contribute_kind)); an aspect of its own that another feature's element implements ([`XnoteSource`](crate::stdcore::features::xnotes::XnoteSource)); a `Compute`/`Document` stage collecting points by kind; public staging functions that another feature's rule calls, one call per xnote, identified by its position among the node's xnotes of its kind ([`stage_mark`](crate::stdcore::features::xnotes::stage_mark), [`stage_in_place`](crate::stdcore::features::xnotes::stage_in_place), [`stage_latex`](crate::stdcore::features::xnotes::stage_latex)); one public implementation of the copy aspect for all of them ([`copied_as`](crate::stdcore::features::xnotes::copied_as)); per kind a piece built by a `Document` stage ([`ListBuilder`](crate::stdcore::features::xnotes::ListBuilder)), which another stage writing [`piece_table`](crate::stdcore::features::xnotes::piece_table) replaces when preferred, and its list rule ([`ListRule`](crate::stdcore::features::xnotes::ListRule)) with rules on the `html` and `latex-recomposed` backends; a stylesheet of its own ([`xnotes::html::stylesheet`](crate::stdcore::features::xnotes::html::stylesheet)). Public recipes: [an xnote kind of your own](crate::guide::extending#an-xnote-kind-of-your-own), [several xnotes on one node](crate::guide::extending#several-xnotes-on-one-node) |
-| [`href`](crate::stdcore::features::href) | three commands as three values of one element; a braced verbatim argument read as characters ([`read_chars`](crate::lang::text::read_chars)), a command or mathematics there being the feature's own Error; an [`ApartFromText`](crate::model::aspects::ApartFromText) implementation returning that argument; a payload field the feature states rather than a backend guessing it ([`LinkPayload::shows_target`](crate::stdcore::backends::pres::LinkPayload::shows_target)); a recomposition rule writing a LaTeX hook of its own, defined by a definition piece contributed as a peer contribution and requiring a package, its argument read with [`chars_at_lowering`](crate::core::lowering::chars_at_lowering) and written with [`escape_url`](crate::stdcore::backends::latex::escape_url) |
-| [`defterm`](crate::stdcore::features::defterm) | an element referring to a point through the `refs` feature ([`Referencing`](crate::model::aspects::Referencing), the resolutions table read optionally as a peer table); a point carrying labels its element computes beside the written ones; a repeatable tack-on field of its own beside the `\label` field; a configured template compiled by a late-initialization hook and instantiated at lowering with a placeholder bound to a synthesized node carrying a content pointer, lowered through [`Lowerer::lower_region`](crate::core::lowering::Lowerer::lower_region); a run-in decoration staged at the head of a body's first paragraph ([`lower_blocks_with_edges`](crate::stdcore::backends::lowering::lower_blocks_with_edges)); a LaTeX definition written from its configuration |
-| [`theorems`](crate::stdcore::features::theorems) | environments built from the configuration, grouped into theorem classes ([`TheoremsConfig`](crate::stdcore::features::theorems::TheoremsConfig)); a counter and one counter style per kind contributed as peer contributions, a kind's words given as [`PrefixWords`](crate::stdcore::features::numbering::PrefixWords); an element that is a reference point and, for some kinds, a reference site read from an ordinary argument ([`title_reading`](crate::stdcore::features::theorems::title_reading)), with a site not shown ([`RefSite::shown`](crate::model::aspects::RefSite::shown)); a per-class template with two placeholders computed by an expansion hook, one possibly unbound so that `\IfValueT` tests it, compiled by a late-initialization hook; synthesized inline elements carrying [`ContentPointer`](crate::stdcore::backends::lowering::ContentPointer)s, one writing a reference from inside the pointed region ([`lower_reference`](crate::stdcore::features::refs::lower_reference)); a run-in and a final decoration placed as a body's two edges; a check of document scope in `flm.validated` ([`CHECK_PROOFS`](crate::stdcore::features::theorems::CHECK_PROOFS)) reading the resolutions only where the registry declares them; a stylesheet of its own ([`theorems::html::stylesheet`](crate::stdcore::features::theorems::html::stylesheet)) |
-| [`quote`](crate::stdcore::features::quote) | environments built from the configuration ([`QuoteConfig`](crate::stdcore::features::quote::QuoteConfig)) whose body layout derives from it; one scoped package per environment holding exactly the commands it accepts, one element declared under one name in several packages ([`sections_package`](crate::stdcore::features::quote::sections_package)); a body read into quotation sections at lowering with nothing stored, a lines section split at a field node into lines indented by a [`Length`](crate::stdcore::backends::pres::Length); a rule for a command met where it opens nothing, which reports it and lowers its content ([`SectionRule`](crate::stdcore::features::quote::SectionRule)) |
-| [`annotations`](crate::stdcore::features::annotations) | one element value per configured annotator and none without configuration; an argument parser of its own ([`AnnotationParser`](crate::stdcore::features::annotations::AnnotationParser); the form read back by [`form_of`](crate::stdcore::features::annotations::form_of)); a block-transparent element cut into cut parts with a continuation record and its payload reader ([`AnnotationPiece`](crate::stdcore::features::annotations::AnnotationPiece), [`payload_readers`](crate::stdcore::features::annotations::payload_readers)); an `ApartFromText` result depending on the form; a margin decoration; a general rule requiring the feature's style identifier, which the `html` backend delivers as a stylesheet ([`annotations::html`](crate::stdcore::features::annotations::html)) and the `latex-rendered` backend as a definition piece ([`annotations::latex_rendered`](crate::stdcore::features::annotations::latex_rendered)); rules of their own on the `text` and `latex-recomposed` backends, the LaTeX one declaring each annotator's command from the configuration ([`annotations::latex`](crate::stdcore::features::annotations::latex)); a render option read by the rules ([`AnnotationsRenderOptions`](crate::stdcore::features::annotations::AnnotationsRenderOptions)) |
-| [`graphics`](crate::stdcore::features::graphics) | one element declared in a scoped package of its own (`flm.graphics.includegraphics`, which another feature's body refers to) and, under a configuration setting, as an ordinary command too, both sharing one `ElementSpec`; key-values read at lowering ([`graphics::options`](crate::stdcore::features::graphics::options)); a braced verbatim argument read with `chars_at_lowering` by rules and stages alike; three service slots a host fills and nothing requires; a `Compute`/`PerTree` stage whose table is keyed by node address ([`INFO`](crate::stdcore::features::graphics::INFO)), so that value catch-up runs it again; one stage type created per backend, writing under the `copy` strategy into the backend's artifact table declared as a peer table, the stage not registered where the backend is absent ([`PublishStage`](crate::stdcore::features::graphics::PublishStage), [`published_table`](crate::stdcore::features::graphics::published_table)); a rule created per backend ([`image_rule`](crate::stdcore::features::graphics::image_rule)) computing lengths with [`Length::scaled`](crate::stdcore::backends::pres::Length::scaled); a LaTeX hook with an optional key-value argument ([`graphics::latex`](crate::stdcore::features::graphics::latex)) |
-| [`floats`](crate::stdcore::features::floats) | environments built from the configuration and from other features through one public function that makes every per-type declaration, as peer declarations where another feature owns them ([`contribute_type`](crate::stdcore::features::floats::contribute_type)); a service slot of trait objects ([`FloatContentHandler`](crate::stdcore::features::floats::FloatContentHandler)), given to the rule by a finalizer through [`Services::shared_named`](crate::core::services::Services::shared_named); a body whose scoped package holds the `refs` feature's own `\label` declaration beside fields of its own ([`label_package`](crate::stdcore::features::refs::label_package)), read at lowering by one public reader ([`read_float`](crate::stdcore::features::floats::read_float)); a document-scope check stage required by the rule ([`CHECK_HANDLERS`](crate::stdcore::features::floats::CHECK_HANDLERS)) |
-| [`cells`](crate::stdcore::features::cells) | an environment in a scoped package of its own and, under a configuration setting, everywhere; a block role decided per node by one predicate ([`stands_in_body`](crate::stdcore::features::cells::stands_in_body)) that the reader follows; an argument parser of its own over techy's optional group ([`CellStylesParser`](crate::stdcore::features::cells::CellStylesParser)); a scoped package adding one special character (`&`); a service slot of declarations holding no code, collected by a finalizer that refuses a name declared twice ([`CellStyle`](crate::stdcore::features::cells::CellStyle)); one reader of the presentation payload ([`read_grid`](crate::stdcore::features::cells::read_grid)); the dropped mark for what a rule leaves out; requirements chosen per backend ([`Lowerer::backend`](crate::core::lowering::Lowerer::backend)); a float content handler contributed as a peer contribution ([`CellsContent`](crate::stdcore::features::cells::CellsContent)). Public recipe: [a cell style of your own](crate::guide::extending#a-cell-style-of-your-own) |
-| [`citations`](crate::stdcore::features::citations) | two elements whose last argument is a tack-on argument holding further calls of the same shape; a document-scope stage over the element index writing a table keyed by citation key; a citation counter style compiled by a late-initialization hook without the `numbering` feature; one staging function two rules share; a service slot of providers asked by a compute stage; a check stage in `flm.validated`; a piece built by one list function |
-| [`input`](crate::stdcore::features::input) | a command declared as an inclusion ([`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion)), read by the language's own parser, which asks the host's [`InputResolver`](crate::lang::InputResolver) and parses a content input where the command is written, or records a heading input that the assembly places as a tree of its own; a rewrite stage ordered before the other rewrites by `before` edges alone, scheduled in every standard plan because its capability is a member of `flm.validated`; a rule lowering a placing node to `flm.pres.subtree`, which identifies the tree the run places there ([`Lowerer::placement`](crate::core::lowering::Lowerer::placement)), and a command whose file was not brought in to the dropped mark |
-| [`userdefs`](crate::stdcore::features::userdefs) | author-written user definitions, a late-initialization hook compiling them and recording what the build decided about each ([`RegistryBuildFacts`](crate::lang::rewrites::userdefs::RegistryBuildFacts): recomposable or why not, the effective signature, whether the name is shared by a definition for the other parsing mode, the per-mode definitions), three rules created per definition (`expand-in-tree`, `emit-call`, `instantiate-at-lowering`; [`kept`](crate::stdcore::features::userdefs::kept)) |
-| [`LoweringFeature`](crate::stdcore::backends::lowering::LoweringFeature) | registering the presentation vocabulary and the structural elements' default rules; two service slots and the native-set implications |
-| [`meta`](crate::stdcore::features::meta) | an option type bound on the document ([`DocMeta`](crate::stdcore::features::meta::DocMeta)) whose texts are parsed by one `Document` stage writing three piece tables, a capability added to `flm.validated`, three piece declarations contributed as peer contributions, and rules on the recomposed LaTeX under peer declarations |
-| [`PiecesFeature`](crate::stdcore::backends::pieces::PiecesFeature) | a service slot other features contribute to as peer contributions ([`PieceDecl`](crate::core::piece::PieceDecl)) and a render option read by a stage the feature does not register: each backend that places pieces creates a [`PiecesStage`](crate::stdcore::backends::pieces::PiecesStage) itself |
-| [`TextBackend`](crate::stdcore::backends::text::TextBackend) | a whole backend in one `register`: native set, stages, tables, render options, an output and a workflow, the shared pieces stage created for it, and its output regions |
-| [`LatexFamily`](crate::stdcore::backends::latex::LatexFamily) | presentation elements of a family's own (the construct elements), two service slots and the standard contributions to them, and one rule, the one that writes a template placeholder as raw LaTeX ([`placeholder_rule`](crate::stdcore::backends::latex::placeholder_rule)), registered under a peer declaration of the backend it is the default on |
-| [`LatexRecomposed`](crate::stdcore::backends::latex_recomposed::LatexRecomposed) | a backend over a typed sink: a native set of construct elements, rules requiring another tree state (`flm.blocks.raw`), a per-tree emit stage writing three tables, a pieces stage placing only the pieces a render lists for this backend, a document-scope regions stage (`flm.latex-recomposed.regions`) that lowers those pieces, assembles the style file from the requirement identifiers into its own table and writes the output's regions, and the backend's final stage assembling the entry artifact from the regions; each content feature's `latex.rs` registers its rule for this backend (`DefaultMark::OnBackends`) under peer declarations of the backend, the constructs and the tables it reads optionally, so a registry without the backend still builds |
-| [`HtmlBackend`](crate::stdcore::backends::html::HtmlBackend) | a backend over a typed sink whose HTML contract is data ([`conventions`](crate::stdcore::backends::html::conventions)): a per-tree emit stage writing the HTML with the requirements of each tree, the shared pieces stage and a document-scope stage writing each piece's HTML, the stage resolving definitions, a document-scope regions stage (`flm.html.regions`) writing the page's regions (content, pieces, stylesheets, scripts, title, language), and the backend's final stage assembling the page from them (a host's compose template is a second provider of the same table, reading the same regions); a capability refined by how the page is written (`flm.output.html.singlefile`); the construct element `flm.pres.html.tag`; the four names `html` (feature, backend, output, workflow) a feature imports to render on this backend ([`html::construct`](crate::stdcore::backends::html::construct); rules of a content feature for this backend: [`math_passthrough::MathPassthrough`](crate::math_passthrough::MathPassthrough), [`xnotes::html`](crate::stdcore::features::xnotes::html)) |
-| [`CheckWorkflow`](crate::stdcore::CheckWorkflow) | a feature declaring only a collection and a workflow over it |
+| [`textstyles`](crate::stdlib::features::textstyles) | the smallest complete feature: one element type with four values, a general rule and a rule on the recomposed LaTeX under a peer declaration of the backend, style names of its own mapped onto the presentation vocabulary |
+| [`literals`](crate::stdlib::features::literals) | a family of commands declared from one list, a macro and a special character sequence in one element type, a rule that emits a text node and a rule that emits nothing |
+| [`blocks`](crate::stdlib::features::blocks) | a rewrite stage, a capability with two refinements, an ordering edge declared only when the registry holds the capability it refers to, a configuration |
+| [`index`](crate::stdlib::features::index) | one table and one `Compute`/`PerTree` stage, nothing else |
+| [`refpoints`](crate::stdlib::features::refpoints) | one table and one `Compute`/`PerTree` stage that asks an aspect once per node, whose table two other features require rather than declare as a peer table |
+| [`numbering`](crate::stdlib::features::numbering) | five service slots other features contribute to as peer contributions (counters, counter styles, within-joiners, number writers, parent sets), a finalizer that checks the declarations against one another, a late-initialization hook that compiles every declared text, an option type bound on the document and on a render request ([`Bind::Either`](crate::model::options::Bind::Either)), one `Compute`/`Document` stage, and a table that carries the compiled data so that a consumer writes a number from the table alone |
+| [`math`](crate::stdlib::features::math) | declarations restricted to mathematics mode, a scoped package (the commands of an equation line), a body parser of its own that checks a body as it is parsed ([`lines::LinesBehavior`](crate::stdlib::features::math::lines::LinesBehavior)), an argument parser of its own (the spacing of `\\`), a reader of a body's structure for other features and backends ([`lines`](crate::stdlib::features::math::lines)), a capability declared for another feature to provide (`flm.math.content`), and a library of plain functions that processing features' rules call ([`frame`](crate::stdlib::features::math::frame), [`math::latex`](crate::stdlib::features::math::latex)); one rule on a formula, the rule of last resort of the display-math environments ([`unprocessed`](crate::stdlib::features::math::unprocessed)) |
+| [`math_passthrough`](crate::math_passthrough) | the library's math processor, a package of its own beside the standard features: two fallbacks in mathematics mode and their opaque element, a check stage providing `math`'s capability, rules marked `DefaultMark::Everywhere` for `flm.math`, `flm.math.environment` and the opaque element, two rules for `latex-recomposed` built from `math`'s library, and peer declarations of the tables its rules read |
+| [`refs`](crate::stdlib::features::refs) | six stages, six tables and an external table, a check added to `flm.validated`, two render option types, a late-initialization hook that compiles the join texts, two referencing elements (`\ref`, `\hyperref`) with a general rule and a recomposition rule each, content built into a synthesized value that a rule splices |
+| [`headings`](crate::stdlib::features::headings) | element data built from the configuration (one element value per heading kind, written under the names of its commands; [`HeadingDecl`](crate::stdlib::features::headings::HeadingDecl), [`HeadingCommand`](crate::stdlib::features::headings::HeadingCommand)), three aspects on one element, a rule reading the counter and anchor tables as optional peer tables, counters and counter styles contributed as peer contributions ([`headings::numbers`](crate::stdlib::features::headings::numbers)), a number written from a table and spliced, the peer declarations of a rule on the recomposed LaTeX ([`headings::latex::register`](crate::stdlib::features::headings::latex::register)) |
+| [`verbatim`](crate::stdlib::features::verbatim) | verbatim arguments and verbatim environment bodies |
+| [`lists`](crate::stdlib::features::lists) | environments built from the configuration (one element value per list kind), a scoped package whose command declares a reference point of its own counting through scoped instances found by walking up the tree, a body read into parts at lowering by one public reader ([`list_items`](crate::stdlib::features::lists::list_items)), a counter and per-depth counter styles contributed as peer contributions, a late-initialization hook compiling configured templates, a rule compiling a document's own template against the language the `Lowerer` gives ([`Lowerer::lang`](crate::core::lowering::Lowerer::lang)) |
+| [`xnotes`](crate::stdlib::features::xnotes) | one element with one value per configured xnote kind, whose optional argument refers to another feature's scoped package through a peer declaration ([`labels_of`](crate::stdlib::features::xnotes::labels_of)); a block role read from an argument's layout; two reference points per node built by one public function ([`ref_points`](crate::stdlib::features::xnotes::ref_points)); a service slot of xnote kinds filled by one public function that makes every per-kind declaration and its peer declarations ([`contribute_kind`](crate::stdlib::features::xnotes::contribute_kind)); an aspect of its own that another feature's element implements ([`XnoteSource`](crate::stdlib::features::xnotes::XnoteSource)); a `Compute`/`Document` stage collecting points by kind; public staging functions that another feature's rule calls, one call per xnote, identified by its position among the node's xnotes of its kind ([`stage_mark`](crate::stdlib::features::xnotes::stage_mark), [`stage_in_place`](crate::stdlib::features::xnotes::stage_in_place), [`stage_latex`](crate::stdlib::features::xnotes::stage_latex)); one public implementation of the copy aspect for all of them ([`copied_as`](crate::stdlib::features::xnotes::copied_as)); per kind a piece built by a `Document` stage ([`ListBuilder`](crate::stdlib::features::xnotes::ListBuilder)), which another stage writing [`piece_table`](crate::stdlib::features::xnotes::piece_table) replaces when preferred, and its list rule ([`ListRule`](crate::stdlib::features::xnotes::ListRule)) with rules on the `html` and `latex-recomposed` backends; a stylesheet of its own ([`xnotes::html::stylesheet`](crate::stdlib::features::xnotes::html::stylesheet)). Public recipes: [an xnote kind of your own](crate::guide::extending#an-xnote-kind-of-your-own), [several xnotes on one node](crate::guide::extending#several-xnotes-on-one-node) |
+| [`href`](crate::stdlib::features::href) | three commands as three values of one element; a braced verbatim argument read as characters ([`read_chars`](crate::lang::text::read_chars)), a command or mathematics there being the feature's own Error; an [`ApartFromText`](crate::model::aspects::ApartFromText) implementation returning that argument; a payload field the feature states rather than a backend guessing it ([`LinkPayload::shows_target`](crate::stdlib::backends::pres::LinkPayload::shows_target)); a recomposition rule writing a LaTeX hook of its own, defined by a definition piece contributed as a peer contribution and requiring a package, its argument read with [`chars_at_lowering`](crate::core::lowering::chars_at_lowering) and written with [`escape_url`](crate::stdlib::backends::latex::escape_url) |
+| [`defterm`](crate::stdlib::features::defterm) | an element referring to a point through the `refs` feature ([`Referencing`](crate::model::aspects::Referencing), the resolutions table read optionally as a peer table); a point carrying labels its element computes beside the written ones; a repeatable tack-on field of its own beside the `\label` field; a configured template compiled by a late-initialization hook and instantiated at lowering with a placeholder bound to a synthesized node carrying a content pointer, lowered through [`Lowerer::lower_region`](crate::core::lowering::Lowerer::lower_region); a run-in decoration staged at the head of a body's first paragraph ([`lower_blocks_with_edges`](crate::stdlib::backends::lowering::lower_blocks_with_edges)); a LaTeX definition written from its configuration |
+| [`theorems`](crate::stdlib::features::theorems) | environments built from the configuration, grouped into theorem classes ([`TheoremsConfig`](crate::stdlib::features::theorems::TheoremsConfig)); a counter and one counter style per kind contributed as peer contributions, a kind's words given as [`PrefixWords`](crate::stdlib::features::numbering::PrefixWords); an element that is a reference point and, for some kinds, a reference site read from an ordinary argument ([`title_reading`](crate::stdlib::features::theorems::title_reading)), with a site not shown ([`RefSite::shown`](crate::model::aspects::RefSite::shown)); a per-class template with two placeholders computed by an expansion hook, one possibly unbound so that `\IfValueT` tests it, compiled by a late-initialization hook; synthesized inline elements carrying [`ContentPointer`](crate::stdlib::backends::lowering::ContentPointer)s, one writing a reference from inside the pointed region ([`lower_reference`](crate::stdlib::features::refs::lower_reference)); a run-in and a final decoration placed as a body's two edges; a check of document scope in `flm.validated` ([`CHECK_PROOFS`](crate::stdlib::features::theorems::CHECK_PROOFS)) reading the resolutions only where the registry declares them; a stylesheet of its own ([`theorems::html::stylesheet`](crate::stdlib::features::theorems::html::stylesheet)) |
+| [`quote`](crate::stdlib::features::quote) | environments built from the configuration ([`QuoteConfig`](crate::stdlib::features::quote::QuoteConfig)) whose body layout derives from it; one scoped package per environment holding exactly the commands it accepts, one element declared under one name in several packages ([`sections_package`](crate::stdlib::features::quote::sections_package)); a body read into quotation sections at lowering with nothing stored, a lines section split at a field node into lines indented by a [`Length`](crate::stdlib::backends::pres::Length); a rule for a command met where it opens nothing, which reports it and lowers its content ([`SectionRule`](crate::stdlib::features::quote::SectionRule)) |
+| [`annotations`](crate::stdlib::features::annotations) | one element value per configured annotator and none without configuration; an argument parser of its own ([`AnnotationParser`](crate::stdlib::features::annotations::AnnotationParser); the form read back by [`form_of`](crate::stdlib::features::annotations::form_of)); a block-transparent element cut into cut parts with a continuation record and its payload reader ([`AnnotationPiece`](crate::stdlib::features::annotations::AnnotationPiece), [`payload_readers`](crate::stdlib::features::annotations::payload_readers)); an `ApartFromText` result depending on the form; a margin decoration; a general rule requiring the feature's style identifier, which the `html` backend delivers as a stylesheet ([`annotations::html`](crate::stdlib::features::annotations::html)) and the `latex-rendered` backend as a definition piece ([`annotations::latex_rendered`](crate::stdlib::features::annotations::latex_rendered)); rules of their own on the `text` and `latex-recomposed` backends, the LaTeX one declaring each annotator's command from the configuration ([`annotations::latex`](crate::stdlib::features::annotations::latex)); a render option read by the rules ([`AnnotationsRenderOptions`](crate::stdlib::features::annotations::AnnotationsRenderOptions)) |
+| [`graphics`](crate::stdlib::features::graphics) | one element declared in a scoped package of its own (`flm.graphics.includegraphics`, which another feature's body refers to) and, under a configuration setting, as an ordinary command too, both sharing one `ElementSpec`; key-values read at lowering ([`graphics::options`](crate::stdlib::features::graphics::options)); a braced verbatim argument read with `chars_at_lowering` by rules and stages alike; three service slots a host fills and nothing requires; a `Compute`/`PerTree` stage whose table is keyed by node address ([`INFO`](crate::stdlib::features::graphics::INFO)), so that value catch-up runs it again; one stage type created per backend, writing under the `copy` strategy into the backend's artifact table declared as a peer table, the stage not registered where the backend is absent ([`PublishStage`](crate::stdlib::features::graphics::PublishStage), [`published_table`](crate::stdlib::features::graphics::published_table)); a rule created per backend ([`image_rule`](crate::stdlib::features::graphics::image_rule)) computing lengths with [`Length::scaled`](crate::stdlib::backends::pres::Length::scaled); a LaTeX hook with an optional key-value argument ([`graphics::latex`](crate::stdlib::features::graphics::latex)) |
+| [`floats`](crate::stdlib::features::floats) | environments built from the configuration and from other features through one public function that makes every per-type declaration, as peer declarations where another feature owns them ([`contribute_type`](crate::stdlib::features::floats::contribute_type)); a service slot of trait objects ([`FloatContentHandler`](crate::stdlib::features::floats::FloatContentHandler)), given to the rule by a finalizer through [`Services::shared_named`](crate::core::services::Services::shared_named); a body whose scoped package holds the `refs` feature's own `\label` declaration beside fields of its own ([`label_package`](crate::stdlib::features::refs::label_package)), read at lowering by one public reader ([`read_float`](crate::stdlib::features::floats::read_float)); a document-scope check stage required by the rule ([`CHECK_HANDLERS`](crate::stdlib::features::floats::CHECK_HANDLERS)) |
+| [`cells`](crate::stdlib::features::cells) | an environment in a scoped package of its own and, under a configuration setting, everywhere; a block role decided per node by one predicate ([`stands_in_body`](crate::stdlib::features::cells::stands_in_body)) that the reader follows; an argument parser of its own over techy's optional group ([`CellStylesParser`](crate::stdlib::features::cells::CellStylesParser)); a scoped package adding one special character (`&`); a service slot of declarations holding no code, collected by a finalizer that refuses a name declared twice ([`CellStyle`](crate::stdlib::features::cells::CellStyle)); one reader of the presentation payload ([`read_grid`](crate::stdlib::features::cells::read_grid)); the dropped mark for what a rule leaves out; requirements chosen per backend ([`Lowerer::backend`](crate::core::lowering::Lowerer::backend)); a float content handler contributed as a peer contribution ([`CellsContent`](crate::stdlib::features::cells::CellsContent)). Public recipe: [a cell style of your own](crate::guide::extending#a-cell-style-of-your-own) |
+| [`citations`](crate::stdlib::features::citations) | two elements whose last argument is a tack-on argument holding further calls of the same shape; a document-scope stage over the element index writing a table keyed by citation key; a citation counter style compiled by a late-initialization hook without the `numbering` feature; one staging function two rules share; a service slot of providers asked by a compute stage; a check stage in `flm.validated`; a piece built by one list function |
+| [`input`](crate::stdlib::features::input) | a command declared as an inclusion ([`SyntaxDef::Inclusion`](crate::lang::mint::SyntaxDef::Inclusion)), read by the language's own parser, which asks the host's [`InputResolver`](crate::lang::InputResolver) and parses a content input where the command is written, or records a heading input that the assembly places as a tree of its own; a rewrite stage ordered before the other rewrites by `before` edges alone, scheduled in every standard plan because its capability is a member of `flm.validated`; a rule lowering a placing node to `flm.pres.subtree`, which identifies the tree the run places there ([`Lowerer::placement`](crate::core::lowering::Lowerer::placement)), and a command whose file was not brought in to the dropped mark |
+| [`userdefs`](crate::stdlib::features::userdefs) | author-written user definitions, a late-initialization hook compiling them and recording what the build decided about each ([`RegistryBuildFacts`](crate::lang::rewrites::userdefs::RegistryBuildFacts): recomposable or why not, the effective signature, whether the name is shared by a definition for the other parsing mode, the per-mode definitions), three rules created per definition (`expand-in-tree`, `emit-call`, `instantiate-at-lowering`; [`kept`](crate::stdlib::features::userdefs::kept)) |
+| [`LoweringFeature`](crate::stdlib::backends::lowering::LoweringFeature) | registering the presentation vocabulary and the structural elements' default rules; two service slots and the native-set implications |
+| [`metadata`](crate::stdlib::features::metadata) | an option type bound on the document ([`DocMeta`](crate::stdlib::features::metadata::DocMeta)) whose texts are parsed by one `Document` stage writing three piece tables, a capability added to `flm.validated`, three piece declarations contributed as peer contributions, and rules on the recomposed LaTeX under peer declarations |
+| [`PiecesFeature`](crate::stdlib::backends::pieces::PiecesFeature) | a service slot other features contribute to as peer contributions ([`PieceDecl`](crate::core::piece::PieceDecl)) and a render option read by a stage the feature does not register: each backend that places pieces creates a [`PiecesStage`](crate::stdlib::backends::pieces::PiecesStage) itself |
+| [`TextBackend`](crate::stdlib::backends::text::TextBackend) | a whole backend in one `register`: native set, stages, tables, render options, an output and a workflow, the shared pieces stage created for it, and its output regions |
+| [`LatexFamily`](crate::stdlib::backends::latex::LatexFamily) | presentation elements of a family's own (the construct elements), two service slots and the standard contributions to them, and one rule, the one that writes a template placeholder as raw LaTeX ([`placeholder_rule`](crate::stdlib::backends::latex::placeholder_rule)), registered under a peer declaration of the backend it is the default on |
+| [`LatexRecomposed`](crate::stdlib::backends::latex_recomposed::LatexRecomposed) | a backend over a typed sink: a native set of construct elements, rules requiring another tree state (`flm.blocks.raw`), a per-tree emit stage writing three tables, a pieces stage placing only the pieces a render lists for this backend, a document-scope regions stage (`flm.latex-recomposed.regions`) that lowers those pieces, assembles the style file from the requirement identifiers into its own table and writes the output's regions, and the backend's final stage assembling the entry artifact from the regions; each content feature's `latex.rs` registers its rule for this backend (`DefaultMark::OnBackends`) under peer declarations of the backend, the constructs and the tables it reads optionally, so a registry without the backend still builds |
+| [`HtmlBackend`](crate::stdlib::backends::html::HtmlBackend) | a backend over a typed sink whose HTML contract is data ([`conventions`](crate::stdlib::backends::html::conventions)): a per-tree emit stage writing the HTML with the requirements of each tree, the shared pieces stage and a document-scope stage writing each piece's HTML, the stage resolving definitions, a document-scope regions stage (`flm.html.regions`) writing the page's regions (content, pieces, stylesheets, scripts, title, language), and the backend's final stage assembling the page from them (a host's compose template is a second provider of the same table, reading the same regions); a capability refined by how the page is written (`flm.output.html.singlefile`); the construct element `flm.pres.html.tag`; the four names `html` (feature, backend, output, workflow) a feature imports to render on this backend ([`html::construct`](crate::stdlib::backends::html::construct); rules of a content feature for this backend: [`math_passthrough::MathPassthrough`](crate::math_passthrough::MathPassthrough), [`xnotes::html`](crate::stdlib::features::xnotes::html)) |
+| [`CheckWorkflow`](crate::stdlib::CheckWorkflow) | a feature declaring only a collection and a workflow over it |
 
-[`stdcore::package`](crate::stdcore::package) bundles them in this order: `textstyles`,
+[`stdlib::add_features`](crate::stdlib::add_features) adds them in this order: `textstyles`,
 `literals`, `blocks`, `index`, `refpoints`, `numbering`, `math`, `refs`,
 `headings`, `verbatim`, `lists`, `xnotes`, `href`, `defterm`, `theorems`, `quote`,
 `annotations`, `graphics`, `floats`, `cells`, `citations`, `input`, `userdefs`, `lowering`,
-`meta`, `toc`, `pieces`, `text`, `latex`, `latex-recomposed`, `latex-rendered`, `html`,
+`metadata`, `toc`, `pieces`, `text`, `latex`, `latex-recomposed`, `latex-rendered`, `html`,
 `check`.
-[`StdcoreConfig`](crate::stdcore::StdcoreConfig) holds the configuration of the sixteen
-that take one: `blocks` ([`BlocksConfig`](crate::stdcore::features::blocks::BlocksConfig)),
-`userdefs` ([`UserdefsConfig`](crate::stdcore::features::userdefs::UserdefsConfig)),
-`headings` ([`HeadingsConfig`](crate::stdcore::features::headings::HeadingsConfig)),
-`numbering` ([`NumberingConfig`](crate::stdcore::features::numbering::NumberingConfig)),
-`math` ([`MathConfig`](crate::stdcore::features::math::MathConfig)), `refs`
-([`RefsConfig`](crate::stdcore::features::refs::RefsConfig)), `lists`
-([`ListsConfig`](crate::stdcore::features::lists::ListsConfig)), `xnotes`
-([`XnotesConfig`](crate::stdcore::features::xnotes::XnotesConfig)), `defterm`
-([`DeftermConfig`](crate::stdcore::features::defterm::DeftermConfig)), `theorems`
-([`TheoremsConfig`](crate::stdcore::features::theorems::TheoremsConfig)), `quote`
-([`QuoteConfig`](crate::stdcore::features::quote::QuoteConfig)), `annotations`
-([`AnnotationsConfig`](crate::stdcore::features::annotations::AnnotationsConfig)),
-`graphics` ([`GraphicsConfig`](crate::stdcore::features::graphics::GraphicsConfig)),
-`floats` ([`FloatsConfig`](crate::stdcore::features::floats::FloatsConfig)), `cells`
-([`CellsConfig`](crate::stdcore::features::cells::CellsConfig)) and `citations`
-([`CitationsConfig`](crate::stdcore::features::citations::CitationsConfig)).
+[`StdlibConfig`](crate::stdlib::StdlibConfig) holds the configuration of the sixteen
+that take one: `blocks` ([`BlocksConfig`](crate::stdlib::features::blocks::BlocksConfig)),
+`userdefs` ([`UserdefsConfig`](crate::stdlib::features::userdefs::UserdefsConfig)),
+`headings` ([`HeadingsConfig`](crate::stdlib::features::headings::HeadingsConfig)),
+`numbering` ([`NumberingConfig`](crate::stdlib::features::numbering::NumberingConfig)),
+`math` ([`MathConfig`](crate::stdlib::features::math::MathConfig)), `refs`
+([`RefsConfig`](crate::stdlib::features::refs::RefsConfig)), `lists`
+([`ListsConfig`](crate::stdlib::features::lists::ListsConfig)), `xnotes`
+([`XnotesConfig`](crate::stdlib::features::xnotes::XnotesConfig)), `defterm`
+([`DeftermConfig`](crate::stdlib::features::defterm::DeftermConfig)), `theorems`
+([`TheoremsConfig`](crate::stdlib::features::theorems::TheoremsConfig)), `quote`
+([`QuoteConfig`](crate::stdlib::features::quote::QuoteConfig)), `annotations`
+([`AnnotationsConfig`](crate::stdlib::features::annotations::AnnotationsConfig)),
+`graphics` ([`GraphicsConfig`](crate::stdlib::features::graphics::GraphicsConfig)),
+`floats` ([`FloatsConfig`](crate::stdlib::features::floats::FloatsConfig)), `cells`
+([`CellsConfig`](crate::stdlib::features::cells::CellsConfig)) and `citations`
+([`CitationsConfig`](crate::stdlib::features::citations::CitationsConfig)).
 
 ## Pitfalls
 
@@ -2958,6 +3159,13 @@ that take one: `blocks` ([`BlocksConfig`](crate::stdcore::features::blocks::Bloc
 - Read arguments by name (`lower_arg_named`), not by position.
 - A rule that shows content written elsewhere points at it and lowers its region once;
   it never copies the document's content into a synthesized value.
+- In an extension, an unrestricted `walk()` or `descendants()` that tests each node
+  itself makes one call into the host per node, which is slow on a long document:
+  restrict the traversal (`elements`, `kinds`)
+  ([Traversals and sequences in an extension](#traversals-and-sequences-in-an-extension)).
+- In an extension, a `[...nodes]` of a body or of a traversal keeps one engine object per
+  node and can make a long document fail at the engine's memory limit: pass the sequence
+  on as it is.
 
 ## See also
 

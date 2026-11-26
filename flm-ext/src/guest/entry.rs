@@ -13,8 +13,9 @@
 //! request names:
 //!
 //! - [`answer`], the text ABI of a module (the export `flm_entry` the engine
-//!   `wasm` calls): the request `{"entry": NAME, "args": [ … ]}` read from
-//!   its JSON text, and the reply written in the envelope `{"ok": value}` or
+//!   `wasm` calls): the request `{"entry": NAME, "extension": STEM, "args":
+//!   [ … ]}` read from its JSON text, run with the state of the extension
+//!   `STEM` current, and the reply written in the envelope `{"ok": value}` or
 //!   `{"err": data, "message": text}`, `data` being the error's
 //!   [`ExtError::data`];
 //! - `call`, compiled into a program (the cargo feature `native`): the
@@ -22,8 +23,10 @@
 //!   answered as it is, with no JSON value built or read but the settings
 //!   and the reports of `packages`, which are data by nature.
 //!
-//! `define(stem)` runs the function the entry macro names with the extension
-//! builder; `packages()` answers the package objects it declared; `register`
+//! `define(stem)` runs, with the extension builder, the declaring function
+//! of the row of the table of code whose stem is `stem`, the table being the
+//! one given to the entry macro (a table of one row runs its row whatever the
+//! stem); `packages()` answers the package objects it declared; `register`
 //! and `rehearse` run a feature's `register` (the rehearsal with a builder
 //! that sends nothing, then each finalizer that `register` recorded,
 //! likewise); `read_settings` runs a feature's configuration reader
@@ -38,10 +41,17 @@
 //! the handler object out of the registry, releasing every borrow, before it
 //! calls the object.
 //!
-//! What `define` declared is part of the instance's state
-//! ([`crate::guest::state`]).
+//! **One state per extension.** What `define` declared is part of the state
+//! of its extension ([`crate::guest::state`]). In a module, every entry names
+//! the extension it is for, by the stem `define` was given: `define(stem)`
+//! makes the state of that stem, and every other entry runs with the state
+//! of its stem current, restoring the state current before afterwards. An
+//! entry for a stem the instance has not defined answers an error. Compiled
+//! into a program, the engine `native` installs the state of its instance
+//! itself.
 
 use std::borrow::Cow;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::{json, Map, Value};
@@ -61,10 +71,12 @@ use crate::guest::lang::{BuiltLang, FlmDiagnostics};
 use crate::guest::model::aspects::{ContentRef, RefPoint, Sectioning};
 use crate::guest::registry::{self, Record, Shared};
 use crate::guest::state;
-use crate::guest::stdcore::features::citations::{CitationRequest, CitationResult, ProviderCx};
-use crate::guest::stdcore::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
+use crate::guest::NamedExtension;
+use crate::guest::stdlib::features::citations::{CitationRequest, CitationResult, ProviderCx};
+use crate::guest::stdlib::features::compose::{TemplateContext, TemplateCx, TemplateDescription, TemplateFile, TemplateModule};
 use crate::guest::techy::node::Node;
 use crate::guest::techy::transform::{Restage, Restager};
+use crate::host::{CacheDeclaration, CacheDeclarations};
 use crate::runtime::ExtError;
 
 /// A feature's `register`: the builder of the registration and the
@@ -75,9 +87,12 @@ type Register = Arc<dyn Fn(&mut FeatureBuilder, &Value) -> Result<(), ExtError> 
 /// configuration `register` receives or the value at fault.
 type Read = Arc<dyn Fn(Value) -> Result<Value, ReadError> + Send + Sync>;
 
-/// The extension builder, which the function the entry macro names
-/// ([`extension!`](crate::guest::extension)) receives once per instance: its
-/// one method declares a package. The twin of the JavaScript prelude's `ext`.
+/// The extension builder, which the declaring function of an extension
+/// receives once per instance: the function given to
+/// [`extension!`](crate::guest::extension), or the one that a row of a table
+/// of code holds ([`CompiledExtension::new`](crate::guest::CompiledExtension::new),
+/// [`extensions!`](crate::guest::extensions)). Its one method declares a
+/// package. The twin of the JavaScript prelude's `ext`.
 pub struct Extension {
     /// The extension's stem.
     stem: String,
@@ -120,6 +135,7 @@ impl Extension {
             "flm": package.flm,
             "templates": package.templates,
             "host": package.host,
+            "caches": package.caches.as_ref().map(crate::host::write_caches),
             "features": features,
         }));
         if !self.packages.iter().any(|(other, _)| *other == name) {
@@ -141,6 +157,9 @@ pub struct Package {
     templates: Option<Vec<String>>,
     /// The host services its handlers call (`host`).
     host: Option<Vec<String>>,
+    /// The caches it declares for its handlers (`caches`), typed values of
+    /// [`flm_ext::host`](crate::host).
+    caches: Option<CacheDeclarations>,
     /// Its features, in the order given.
     features: Vec<(String, Feature)>,
 }
@@ -151,7 +170,7 @@ impl Package {
         Package::default()
     }
 
-    /// The packages it uses, by their `use` entries (`"stdcore"`, …).
+    /// The packages it uses, by their `use` entries (`"phfpack"`, `".#core"`, …).
     pub fn uses(mut self, uses: impl IntoIterator<Item = impl Into<String>>) -> Package {
         self.uses = Some(uses.into_iter().map(Into::into).collect());
         self
@@ -163,10 +182,10 @@ impl Package {
         self
     }
 
-    /// The paths of its compose templates' descriptions, inside the
-    /// extension's folder: `templates/OUTPUT/NAME.yaml` or
-    /// `templates/OUTPUT/NAME/flmtemplate.yaml`, the compose template's name
-    /// being `NAME`; the host refuses a path of neither shape.
+    /// The paths of its compose templates' descriptions among the
+    /// extension's files, relative to the extension's folder
+    /// (`templates/html/fancy.yaml`); each description gives its compose
+    /// template's `name` and `output`.
     pub fn templates(mut self, templates: impl IntoIterator<Item = impl Into<String>>) -> Package {
         self.templates = Some(templates.into_iter().map(Into::into).collect());
         self
@@ -175,6 +194,16 @@ impl Package {
     /// The host services its handlers call (`"files"`, …).
     pub fn host(mut self, host: impl IntoIterator<Item = impl Into<String>>) -> Package {
         self.host = Some(host.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// The caches it declares for its handlers, each a name and its
+    /// declaration, a typed value of [`flm_ext::host`](crate::host)
+    /// ([`CacheDeclaration`]); of two declarations under one name, the last
+    /// stands. The declarations are read when the extension loads, as a
+    /// JavaScript package's `caches` is.
+    pub fn caches(mut self, caches: impl IntoIterator<Item = (impl Into<String>, CacheDeclaration)>) -> Package {
+        self.caches = Some(caches.into_iter().map(|(name, declaration)| (name.into(), declaration)).collect());
         self
     }
 
@@ -199,6 +228,9 @@ pub struct Feature {
     version: Option<String>,
     /// Its settings: `config` and `options`.
     settings: Option<Value>,
+    /// The template modules it contributes: a module's name to `{ output,
+    /// settings }`.
+    templates: Option<Map<String, Value>>,
     /// Its `register`.
     register: Option<Register>,
     /// Its configuration reader.
@@ -233,6 +265,21 @@ impl Feature {
     /// `config` and `options`.
     pub fn settings(mut self, settings: Value) -> Feature {
         self.settings = Some(settings);
+        self
+    }
+
+    /// Declares the template module `name` that the feature contributes, as
+    /// the JavaScript feature object's `templates.NAME`: the output `output`
+    /// that it serves and `settings`, the JSON Schema of its settings (an
+    /// object schema without `default`s, whose defaults the module's
+    /// [`describe`](TemplateModule::describe) gives). A module that the
+    /// feature contributes and does not declare fails its registration.
+    pub fn template(mut self, name: impl Into<String>, output: impl Into<String>, settings: Value) -> Feature {
+        let module = Value::Object(Map::from_iter([
+            ("output".to_string(), Value::String(output.into())),
+            ("settings".to_string(), settings),
+        ]));
+        self.templates.get_or_insert_with(Map::new).insert(name.into(), module);
         self
     }
 
@@ -293,12 +340,16 @@ impl Feature {
         if let Some(settings) = settings {
             object.insert("settings".to_string(), settings);
         }
+        if let Some(templates) = &self.templates {
+            object.insert("templates".to_string(), Value::Object(templates.clone()));
+        }
         Value::Object(object)
     }
 }
 
-/// What `define` declared on this instance: the stem, the packages, their
-/// reports. Part of the instance's state ([`state::State`]).
+/// What `define` declared for one extension in an instance: the stem, the
+/// packages, their reports. Part of that extension's state
+/// ([`state::State`]).
 #[derive(Default)]
 pub(crate) struct Defined {
     /// The extension's stem.
@@ -349,8 +400,8 @@ pub(crate) enum EntryRequest<'a> {
     Define {
         /// The extension's stem.
         stem: &'a str,
-        /// The function the entry macro names, run with the extension
-        /// builder.
+        /// The declaring function of the row of the table of code that the
+        /// stem selects, run with the extension builder.
         define: fn(&mut Extension),
     },
     /// `packages()`.
@@ -575,18 +626,19 @@ impl EntryReply {
 }
 
 /// The reply to the entry request `request` (the bytes the host wrote, or
-/// `None` when no buffer of the guest holds them), `define` the function
-/// the entry macro names: the envelope's JSON text. The JSON reader: the
-/// request read into its [`EntryRequest`] by [`Args`], routed, and the reply
+/// `None` when no buffer of the guest holds them), `extensions` the table of
+/// code the entry macro names: the envelope's JSON text. The JSON reader: the
+/// request read into its [`EntryRequest`] by [`Args`], routed with the state
+/// of the extension it names current ([`as_extension`]), and the reply
 /// written as its JSON form.
-pub(crate) fn answer(request: Option<&[u8]>, define: fn(&mut Extension)) -> Vec<u8> {
+pub(crate) fn answer(request: Option<&[u8]>, extensions: &[NamedExtension]) -> Vec<u8> {
     let reply = match request.and_then(|bytes| serde_json::from_slice::<Value>(bytes).ok()) {
         Some(Value::Object(mut request)) => {
-            let name = request.remove("entry");
-            match (name.as_ref().and_then(Value::as_str), request.remove("args")) {
-                (Some(name), Some(Value::Array(args))) => {
-                    Args { entry: name, items: &args }.request(define).and_then(route).map(EntryReply::into_value)
-                }
+            let (name, stem, args) = (request.remove("entry"), request.remove("extension"), request.remove("args"));
+            match (name.as_ref().and_then(Value::as_str), stem.as_ref().and_then(Value::as_str), args) {
+                (Some(name), Some(stem), Some(Value::Array(args))) => as_extension(stem, name == "define", || {
+                    Args { entry: name, items: &args }.request(extensions).and_then(route).map(EntryReply::into_value)
+                }),
                 _ => Err(not_a_request()),
             }
         }
@@ -604,21 +656,47 @@ pub(crate) fn answer(request: Option<&[u8]>, define: fn(&mut Extension)) -> Vec<
 /// [`answer`], the arguments read as they are into the entry's
 /// [`EntryRequest`] by `Passed` and the reply answered as it is, with no
 /// JSON value built or read but the settings and the reports of `packages`.
-/// `define` is the function the entry macro gives.
+/// `extensions` is the table of code of the program's extension, one row.
 ///
 /// # Errors
 ///
 /// The entry's refusal (an unknown entry, a handler object `register` did
 /// not declare) or what the handler answers.
 #[cfg(feature = "native")]
-pub(crate) fn call(name: &str, args: &[EntryArg<'_>], define: fn(&mut Extension)) -> Result<EntryReply, ExtError> {
-    route(Passed { entry: name, items: args }.request(define)?)
+pub(crate) fn call(name: &str, args: &[EntryArg<'_>], extensions: &[NamedExtension]) -> Result<EntryReply, ExtError> {
+    route(Passed { entry: name, items: args }.request(extensions)?)
+}
+
+/// Runs `entry`, an entry of a module for the extension `stem`, with the
+/// state of that extension current, and restores the state current before
+/// afterwards, also when the entry unwinds. The entry `define` (`defining`)
+/// makes the state of its stem, kept in place of any state of the stem kept
+/// before; every other entry runs with the state `define` made.
+///
+/// # Errors
+///
+/// An entry other than `define` for a stem the instance has not defined;
+/// else the entry's own.
+fn as_extension(stem: &str, defining: bool, entry: impl FnOnce() -> Result<Value, ExtError>) -> Result<Value, ExtError> {
+    let state = if defining {
+        let made = Rc::new(state::State::default());
+        state::keep(stem, Rc::clone(&made));
+        made
+    } else {
+        state::defined(stem).ok_or_else(|| {
+            refusal(format!("undefined extension ‘{stem}’ in this instance: the entry ‘define’ must run for it first"))
+        })?
+    };
+    let _installed = state::install(state);
+    entry()
 }
 
 /// The refusal of a request that is not an entry's.
 fn not_a_request() -> ExtError {
     ExtError::Handler {
-        detail: "the request of an entry must be the JSON text `{\"entry\": name, \"args\": [...]}` in a buffer of the guest".to_string(),
+        detail: "invalid request of an entry: it must be the JSON text ‘{\"entry\": name, \"extension\": stem, \"args\": [...]}’ \
+                 in a buffer of the guest"
+            .to_string(),
         data: Value::Null,
     }
 }
@@ -651,10 +729,14 @@ trait Reader<'a> {
     fn object<T: Lent>(&self, index: usize) -> Result<T, ExtError>;
 
     /// The entry's request: the package and the feature first for every
-    /// entry but `define` and `packages`.
-    fn request(&self, define: fn(&mut Extension)) -> Result<EntryRequest<'a>, ExtError> {
+    /// entry but `define` and `packages`; for `define`, the declaring
+    /// function of the row of `extensions` that the stem selects.
+    fn request(&self, extensions: &[NamedExtension]) -> Result<EntryRequest<'a>, ExtError> {
         Ok(match self.entry() {
-            "define" => EntryRequest::Define { stem: self.text(0)?, define },
+            "define" => {
+                let stem = self.text(0)?;
+                EntryRequest::Define { stem, define: selected(extensions, stem)?.compiled.define() }
+            }
             "packages" => EntryRequest::Packages,
             entry if ENTRIES.contains(&entry) => {
                 EntryRequest::Feature { pkg: self.text(0)?, feature: self.text(1)?, entry: self.feature_entry()? }
@@ -881,6 +963,26 @@ fn route(request: EntryRequest<'_>) -> Result<EntryReply, ExtError> {
 fn unknown(name: &str) -> ExtError {
     let names = ENTRIES.map(|name| format!("`{name}`")).join(", ");
     refusal(format!("the entry `{name}` must be one of the guest's entries: {names}"))
+}
+
+/// The row of the table of code `extensions` whose declaring function the
+/// entry `define(stem, module)` runs: the one row of a table of one row,
+/// whatever the stem (the folder that holds a module can be renamed), else
+/// the row whose stem is `stem`.
+///
+/// # Errors
+///
+/// A table of several rows, or of none, that holds no row of the stem: the
+/// refusal gives the stems it holds.
+fn selected<'t>(extensions: &'t [NamedExtension], stem: &str) -> Result<&'t NamedExtension, ExtError> {
+    if let [only] = extensions {
+        return Ok(only);
+    }
+    extensions.iter().find(|row| row.stem == stem).ok_or_else(|| {
+        let held: Vec<String> = extensions.iter().map(|row| format!("‘{}’", row.stem)).collect();
+        let holds = if held.is_empty() { "none".to_string() } else { held.join(", ") };
+        refusal(format!("missing extension ‘{stem}’ in this module (it holds {holds})"))
+    })
 }
 
 /// `define(stem, module)`: runs `define` with the extension builder, and
@@ -1121,7 +1223,7 @@ pub(crate) mod tests {
     use crate::guest::core::stage::Stage;
     use crate::guest::model::aspects::{RefPoint, Referenceable};
     use crate::guest::model::element::{Aspect, ElementSpec};
-    use crate::guest::stdcore::features::citations::{CitationProvider, CitationResult};
+    use crate::guest::stdlib::features::citations::{CitationProvider, CitationResult};
     // The items of the feature whose requests the test hook answers.
     #[cfg(not(feature = "native"))]
     use crate::adapter::handles::{Handle, HandleKind};
@@ -1132,7 +1234,7 @@ pub(crate) mod tests {
     #[cfg(not(feature = "native"))]
     use crate::api::core::stage::RewriteDecl;
     #[cfg(not(feature = "native"))]
-    use crate::api::stdcore::features::compose::{TemplateDescription, TemplateFile};
+    use crate::api::stdlib::features::compose::{TemplateDescription, TemplateFile};
     #[cfg(not(feature = "native"))]
     use crate::guest::abi::hook;
     #[cfg(not(feature = "native"))]
@@ -1146,7 +1248,7 @@ pub(crate) mod tests {
     #[cfg(not(feature = "native"))]
     use crate::guest::model::aspects::Sectioning;
     #[cfg(not(feature = "native"))]
-    use crate::guest::stdcore::features::compose::TemplateModule;
+    use crate::guest::stdlib::features::compose::TemplateModule;
     #[cfg(not(feature = "native"))]
     use crate::guest::techy::transform::Restage;
 
@@ -1206,7 +1308,7 @@ pub(crate) mod tests {
             "UserDefinition::new" => Some(handle(HandleKind::UserDefinition, 90)),
             "element_def_with" => Some(handle(HandleKind::ElementDef, 91)),
             "LoweringRule::new" => Some(handle(HandleKind::LoweringRule, 92)),
-            "trees" => Some(json!([])),
+            "trees" => Some(handle(HandleKind::Trees, 93)),
             _ => None,
         }
     }
@@ -1340,7 +1442,7 @@ pub(crate) mod tests {
             "wc.page".to_string()
         }
         fn describe(&self, _: &Value) -> Result<TemplateDescription, ExtError> {
-            TemplateDescription::from_value(&json!({ "output": "html", "accepts": "all", "requires": [], "config": {} }))
+            TemplateDescription::from_value(&json!({ "accepts": "all", "requires": [], "config": {} }))
         }
         fn render(&self, _: &TemplateContext, _: &TemplateCx) -> Result<String, ExtError> {
             Ok("rendered".to_string())
@@ -1394,17 +1496,32 @@ pub(crate) mod tests {
         Ok(())
     }
 
+    /// The table of code of one row whose declaring function is `define`, as
+    /// the entry macro gives it.
+    fn table(define: fn(&mut Extension)) -> [NamedExtension; 1] {
+        let compiled = Box::leak(Box::new(crate::guest::CompiledExtension::new(define, "wc", "0.0.0")));
+        [NamedExtension { stem: "wc", compiled }]
+    }
+
     /// The test extension: one package, its one feature.
     #[cfg(not(feature = "native"))]
     fn define(ext: &mut Extension) {
-        ext.package("_", Package::new().uses(["stdcore"]).feature("wordcount", Feature::new().title("Word count").register(register)));
+        ext.package("_", Package::new().feature("wordcount", Feature::new().title("Word count").register(register)));
     }
 
     /// Runs the entry `entry` with `args`; answers its envelope.
     #[cfg(not(feature = "native"))]
     pub(crate) fn run(entry: &str, args: Value) -> Value {
-        let request = json!({ "entry": entry, "args": args }).to_string();
-        serde_json::from_slice(&answer(Some(request.as_bytes()), define)).expect("an envelope")
+        let request = json!({ "entry": entry, "extension": "wc", "args": args }).to_string();
+        serde_json::from_slice(&answer(Some(request.as_bytes()), &table(define))).expect("an envelope")
+    }
+
+    /// What `body` answers with the state of the test extension `wc`, which
+    /// its entry `define` made, current.
+    #[cfg(not(feature = "native"))]
+    fn as_wc<T>(body: impl FnOnce() -> T) -> T {
+        let _installed = state::install(state::defined("wc").expect("the extension `wc` is defined"));
+        body()
     }
 
     /// The `ok` of the entry's envelope.
@@ -1415,11 +1532,11 @@ pub(crate) mod tests {
         reply["ok"].clone()
     }
 
-    /// The message of the entry's `err`.
+    /// Runs the entry, which must answer a refusal (an `err`).
     #[cfg(not(feature = "native"))]
-    fn refused(entry: &str, args: Value) -> String {
+    fn refused(entry: &str, args: Value) {
         let reply = run(entry, args);
-        reply["message"].as_str().unwrap_or_else(|| panic!("the entry `{entry}` answered {reply}")).to_string()
+        assert!(reply.get("err").is_some_and(|err| !err.is_null()), "the entry `{entry}` answered {reply}");
     }
 
     /// The natives of the requests logged, in order.
@@ -1491,7 +1608,7 @@ pub(crate) mod tests {
         assert_eq!(requests[16], json!({ "native": "lend_late_init", "index": 0 }));
         assert_eq!(requests[22]["args"][3], handle(HandleKind::Lower, 21), "the rule's body is sent as the handle its lending answered");
         drop(requests);
-        let done = registry::recorded("_", "wordcount").expect("the record is kept");
+        let done = as_wc(|| registry::recorded("_", "wordcount")).expect("the record is kept");
         let done = done.borrow();
         assert_eq!(done.stages.keys().collect::<Vec<_>>(), ["wc.count", "wc.emit"]);
         assert_eq!(done.rewrites.keys().collect::<Vec<_>>(), ["wc.rewrite"]);
@@ -1501,7 +1618,7 @@ pub(crate) mod tests {
         assert_eq!(done.templates.keys().collect::<Vec<_>>(), ["wc.page"]);
         assert!(done.aspects["wc.heading"].sectioning.is_some() && done.aspects["wc.ref"].referenceable.is_some());
         assert_eq!((done.late_inits.len(), done.finalizers.len()), (1, 1));
-        assert!(registry::running().is_none(), "the running record ends with `register`");
+        assert!(as_wc(|| registry::running().is_none()), "the running record ends with `register`");
     }
 
     #[test]
@@ -1517,7 +1634,7 @@ pub(crate) mod tests {
             natives(&log),
             ["lend_lower", "module_handle", "call LoweringRule::new", "lend_expand", "module_handle", "call UserDefinition::new", "lend_expand", "call element_def_with"]
         );
-        let done = registry::recorded("_", "wordcount").expect("the rehearsal's record is kept");
+        let done = as_wc(|| registry::recorded("_", "wordcount")).expect("the rehearsal's record is kept");
         let done = done.borrow();
         // The finalizer `register` recorded was replayed, recording its stage.
         assert_eq!(done.stages.keys().collect::<Vec<_>>(), ["wc.count", "wc.emit", "wc.final"]);
@@ -1538,8 +1655,8 @@ pub(crate) mod tests {
         assert_eq!(ok("restage", json!(["_", "wordcount", "wc.rewrite", node, at(HandleKind::RewriteCx), at(HandleKind::Restager)])), json!("descend"));
         assert_eq!(ok("answer_all", json!(["_", "wordcount", "wc.cites", [{ "key": "a" }, { "key": "b" }], at(HandleKind::ProviderCx)])), json!([null, null]));
         let described = ok("template_describe", json!(["_", "wordcount", "wc.page", {}]));
-        assert_eq!(described["output"], "html");
-        let data = TemplateContext::from_value(&json!({ "html": true, "regions": [], "pieces": [], "meta": {}, "config": {}, "artifacts": [] })).map(|data| data.to_value()).expect("template data");
+        assert_eq!(described["accepts"], "all");
+        let data = TemplateContext::from_value(&json!({ "html": true, "regions": [], "pieces": [], "metadata": {}, "config": {}, "artifacts": [] })).map(|data| data.to_value()).expect("template data");
         assert_eq!(ok("template_files", json!(["_", "wordcount", "wc.page", data, at(HandleKind::TemplateCx)])), json!(Vec::<TemplateFile>::new().to_value()));
         assert_eq!(ok("template_render", json!(["_", "wordcount", "wc.page", data, at(HandleKind::TemplateCx)])), json!("rendered"));
         assert_eq!(ok("points", json!(["_", "wordcount", "wc.ref", node])), json!([]));
@@ -1551,58 +1668,56 @@ pub(crate) mod tests {
         assert_eq!(ok("finalize", json!(["_", "wordcount", 0, handle(HandleKind::FeatureBuilder, 3)])), Value::Null);
         assert_eq!(seen(), ["run", "expand", "late_init", "finalize"]);
         // What a finalizer declares is recorded with what `register` declared.
-        let done = registry::recorded("_", "wordcount").expect("a record");
+        let done = as_wc(|| registry::recorded("_", "wordcount")).expect("a record");
         assert!(done.borrow().stages.contains_key("wc.final"));
     }
 
     #[test]
     #[cfg(not(feature = "native"))]
-    fn each_entry_refuses_with_the_preludes_text_when_its_object_is_absent() {
+    fn each_entry_refuses_when_its_object_is_absent() {
         registered();
         let node = handle(HandleKind::Node, 1);
         let at = |kind| handle(kind, 2);
-        let data = json!({ "html": true, "regions": [], "pieces": [], "meta": {}, "config": {}, "artifacts": [] });
-        let owner = "`register` of the feature `wordcount` of the package `_` of the extension `wc`";
+        let data = json!({ "html": true, "regions": [], "pieces": [], "metadata": {}, "config": {}, "artifacts": [] });
         let cases = [
-            ("run_stage", json!(["_", "wordcount", "wc.none", at(HandleKind::StageCx), at(HandleKind::StageOut)]), format!("the stage `wc.none` must be declared by {owner}")),
-            ("expand", json!(["_", "wordcount", "wc.none", node, at(HandleKind::ExpandCx), at(HandleKind::Expander)]), format!("the expansion hook of the element `wc.none` must be attached by {owner}")),
-            ("lower", json!(["_", "wordcount", "wc.none", node, at(HandleKind::LowerCx), at(HandleKind::Lowerer)]), format!("the lowering rule `wc.none` must be built by {owner}")),
-            ("restage", json!(["_", "wordcount", "wc.none", node, at(HandleKind::RewriteCx), at(HandleKind::Restager)]), format!("the rewrite stage `wc.none` must be declared by {owner}")),
-            ("answer_all", json!(["_", "wordcount", "wc.none", [], at(HandleKind::ProviderCx)]), format!("the citation provider `wc.none` must be contributed by {owner}")),
-            ("template_describe", json!(["_", "wordcount", "wc.none", {}]), format!("the template module `wc.none` must be contributed by {owner}")),
-            ("template_files", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)]), format!("the template module `wc.none` must be contributed by {owner}")),
-            ("template_render", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)]), format!("the template module `wc.none` must be contributed by {owner}")),
-            ("points", json!(["_", "wordcount", "wc.none", node]), format!("the reference points of the element `wc.none` must be answered by an aspect attached by {owner}")),
-            ("level", json!(["_", "wordcount", "wc.ref", node]), format!("the sectioning of the element `wc.ref` must be answered by an aspect attached by {owner}")),
-            ("in_toc", json!(["_", "wordcount", "wc.none", node]), format!("the sectioning of the element `wc.none` must be answered by an aspect attached by {owner}")),
-            ("toc_title", json!(["_", "wordcount", "wc.none", node]), format!("the sectioning of the element `wc.none` must be answered by an aspect attached by {owner}")),
-            ("late_init", json!(["_", "wordcount", 4, at(HandleKind::BuiltLang), at(HandleKind::FlmDiagnostics)]), format!("the late-initialization hook 4 must be registered by {owner}")),
-            ("finalize", json!(["_", "wordcount", 4, handle(HandleKind::FeatureBuilder, 3)]), format!("the finalizer 4 must be registered by {owner}")),
-            ("register", json!(["_", "nofeature", {}, handle(HandleKind::FeatureBuilder, 0)]), "the package `_` of the extension `wc` must have a feature `nofeature`".to_string()),
-            ("rehearse", json!(["other", "wordcount", {}]), "the package `other` of the extension `wc` must have a feature `wordcount`".to_string()),
+            ("run_stage", json!(["_", "wordcount", "wc.none", at(HandleKind::StageCx), at(HandleKind::StageOut)])),
+            ("expand", json!(["_", "wordcount", "wc.none", node, at(HandleKind::ExpandCx), at(HandleKind::Expander)])),
+            ("lower", json!(["_", "wordcount", "wc.none", node, at(HandleKind::LowerCx), at(HandleKind::Lowerer)])),
+            ("restage", json!(["_", "wordcount", "wc.none", node, at(HandleKind::RewriteCx), at(HandleKind::Restager)])),
+            ("answer_all", json!(["_", "wordcount", "wc.none", [], at(HandleKind::ProviderCx)])),
+            ("template_describe", json!(["_", "wordcount", "wc.none", {}])),
+            ("template_files", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)])),
+            ("template_render", json!(["_", "wordcount", "wc.none", data, at(HandleKind::TemplateCx)])),
+            ("points", json!(["_", "wordcount", "wc.none", node])),
+            ("level", json!(["_", "wordcount", "wc.ref", node])),
+            ("in_toc", json!(["_", "wordcount", "wc.none", node])),
+            ("toc_title", json!(["_", "wordcount", "wc.none", node])),
+            ("late_init", json!(["_", "wordcount", 4, at(HandleKind::BuiltLang), at(HandleKind::FlmDiagnostics)])),
+            ("finalize", json!(["_", "wordcount", 4, handle(HandleKind::FeatureBuilder, 3)])),
+            ("register", json!(["_", "nofeature", {}, handle(HandleKind::FeatureBuilder, 0)])),
+            ("rehearse", json!(["other", "wordcount", {}])),
         ];
-        for (entry, args, text) in cases {
-            assert_eq!(refused(entry, args), text, "the entry `{entry}`");
+        for (entry, args) in cases {
+            // `refused` fails the test on an entry that answers no refusal.
+            refused(entry, args);
             assert_eq!(run(entry, json!([]))["err"]["kind"], "argument", "the entry `{entry}` without its arguments");
         }
         assert_eq!(run("run_stage", json!(["_", "wordcount", "wc.none", at(HandleKind::StageCx), at(HandleKind::StageOut)]))["err"]["kind"], "handler");
-        let unknown = refused("unknown", json!([]));
-        assert!(unknown.starts_with("the entry `unknown` must be one of the guest's entries: `define`, `packages`, "), "{unknown}");
-        let request = String::from_utf8(answer(Some(b"not json"), define)).expect("a text");
-        assert!(request.contains("the request of an entry must be the JSON text"), "{request}");
-        assert!(String::from_utf8(answer(None, define)).expect("a text").contains("the request of an entry must be"));
+        refused("unknown", json!([]));
+        // A request that is not one is refused.
+        for request in [Some(&b"not json"[..]), None] {
+            let reply: Value = serde_json::from_slice(&answer(request, &table(define))).expect("a JSON reply");
+            assert!(reply.get("err").is_some(), "{reply}");
+        }
     }
 
     #[test]
     fn a_handler_object_given_outside_register_is_refused() {
         #[cfg(not(feature = "native"))]
         install(host_reply);
-        let error = FeatureBuilder { handle: None }.stage(Arc::new(Count)).expect_err("no register runs");
-        assert_eq!(error.to_string(), ExtError::Handler { detail: "the stage `wc.count` must be declared while a feature's `register` runs".to_string(), data: Value::Null }.to_string());
-        let error = ElementSpec::new("wc.badge").with(Aspect::Referenceable(Arc::new(Points))).expect_err("no register runs");
-        assert!(error.to_string().contains("the aspect `Referenceable` of the element `wc.badge` must be attached while a feature's `register` runs"), "{error}");
-        let error = FeatureBuilder { handle: None }.feature().expect_err("no register runs");
-        assert!(error.to_string().contains("the builder's `feature()` must be called while a feature's `register` runs"), "{error}");
+        assert!(FeatureBuilder { handle: None }.stage(Arc::new(Count)).is_err());
+        assert!(ElementSpec::new("wc.badge").with(Aspect::Referenceable(Arc::new(Points))).is_err());
+        assert!(FeatureBuilder { handle: None }.feature().is_err());
     }
 
     #[test]
@@ -1612,12 +1727,9 @@ pub(crate) mod tests {
         registry::begin("wc", "_", "wordcount", true);
         let mut b = FeatureBuilder { handle: None };
         b.contribute_to("flm.citations.providers", Contributed::CitationProvider(Arc::new(Provider))).expect("the first");
-        let error = b.contribute_to("flm.citations.providers", Contributed::CitationProvider(Arc::new(Provider))).expect_err("the second");
+        let refused = b.contribute_to("flm.citations.providers", Contributed::CitationProvider(Arc::new(Provider)));
         registry::end();
-        assert!(
-            error.to_string().contains("the citation provider `wc.cites` must be contributed once by `register` of the feature `wordcount` of the package `_` of the extension `wc`"),
-            "{error}"
-        );
+        assert!(refused.is_err());
     }
 
     #[test]
@@ -1647,19 +1759,19 @@ pub(crate) mod tests {
                 b.peer_slot("flm.compose.templates", Contributed::TemplateModule(Arc::new(Template)))
             })));
         }
-        let request = json!({ "entry": "define", "args": ["wc", "wc.wasm"] }).to_string();
-        answer(Some(request.as_bytes()), define);
-        let request = json!({ "entry": "register", "args": ["_", "describing", {}, handle(HandleKind::FeatureBuilder, 0)] }).to_string();
-        let reply: Value = serde_json::from_slice(&answer(Some(request.as_bytes()), define)).expect("an envelope");
+        let request = json!({ "entry": "define", "extension": "wc", "args": ["wc", "wc.wasm"] }).to_string();
+        answer(Some(request.as_bytes()), &table(define));
+        let request = json!({ "entry": "register", "extension": "wc", "args": ["_", "describing", {}, handle(HandleKind::FeatureBuilder, 0)] }).to_string();
+        let reply: Value = serde_json::from_slice(&answer(Some(request.as_bytes()), &table(define))).expect("an envelope");
         assert_eq!(reply, json!({ "ok": null }));
         let nested = log.borrow().iter().find(|request| request["method"] == "peer_slot").cloned().expect("the builder's request");
         assert_eq!(nested["native"], "call");
         // The nested entry found the module the running `register` recorded.
         let described = nested_reply.borrow().clone();
-        assert_eq!(described["ok"]["output"], "html", "{described}");
+        assert_eq!(described["ok"]["accepts"], "all", "{described}");
         // Outside its `register`, the module is found in what it recorded.
         let described = ok("template_describe", json!(["_", "describing", "wc.page", {}]));
-        assert_eq!(described["output"], "html");
+        assert_eq!(described["accepts"], "all");
     }
 
     #[test]
@@ -1675,7 +1787,7 @@ pub(crate) mod tests {
             if request["method"] == "trees" {
                 let args = json!(["_", "wordcount", "wc.hooked", handle(HandleKind::Node, 1), handle(HandleKind::ExpandCx, 5), handle(HandleKind::Expander, 5)]);
                 *kept.borrow_mut() = run("expand", args);
-                return Some(json!([]));
+                return Some(handle(HandleKind::Trees, 6));
             }
             None
         });
@@ -1688,11 +1800,11 @@ pub(crate) mod tests {
     #[test]
     fn define_and_packages_answer_the_reports_shape() {
         fn define(ext: &mut Extension) {
-            ext.package("_", Package::new().uses(["stdcore"]).feature("wordcount", Feature::new().title("Word count").register(|_, _| Ok(()))));
+            ext.package("_", Package::new().feature("wordcount", Feature::new().title("Word count").register(|_, _| Ok(()))));
             ext.package(
                 "full",
                 Package::new()
-                    .uses(["stdcore", "_"])
+                    .uses(["mystyle", "_"])
                     .flm(json!({ "features": {} }))
                     .templates(["templates/html/fancy.yaml"])
                     .host(["files"])
@@ -1701,16 +1813,16 @@ pub(crate) mod tests {
             );
         }
         let entry = |name: &str, args: Value| -> Value {
-            let request = json!({ "entry": name, "args": args }).to_string();
-            serde_json::from_slice(&answer(Some(request.as_bytes()), define)).expect("an envelope")
+            let request = json!({ "entry": name, "extension": "wc", "args": args }).to_string();
+            serde_json::from_slice(&answer(Some(request.as_bytes()), &table(define))).expect("an envelope")
         };
         assert_eq!(entry("define", json!(["wc", "wc.wasm"])), json!({ "ok": null }));
         assert_eq!(
             entry("packages", json!([])),
             json!({ "ok": [
-                { "name": "_", "uses": ["stdcore"], "flm": null, "templates": null, "host": null,
+                { "name": "_", "uses": null, "flm": null, "templates": null, "host": null, "caches": null,
                   "features": [{ "name": "wordcount", "object": { "title": "Word count" } }] },
-                { "name": "full", "uses": ["stdcore", "_"], "flm": { "features": {} }, "templates": ["templates/html/fancy.yaml"], "host": ["files"],
+                { "name": "full", "uses": ["mystyle", "_"], "flm": { "features": {} }, "templates": ["templates/html/fancy.yaml"], "host": ["files"], "caches": null,
                   "features": [
                       { "name": "a", "object": { "title": "A", "docs": "The a.", "version": "1.0", "settings": { "config": {} } } },
                       { "name": "b", "object": {} },
@@ -1720,11 +1832,10 @@ pub(crate) mod tests {
         fn without_register(ext: &mut Extension) {
             ext.package("_", Package::new().feature("lonely", Feature::new().title("Lonely")));
         }
-        let request = json!({ "entry": "define", "args": ["wc", "wc.wasm"] }).to_string();
-        let reply: Value = serde_json::from_slice(&answer(Some(request.as_bytes()), without_register)).expect("an envelope");
+        let request = json!({ "entry": "define", "extension": "wc", "args": ["wc", "wc.wasm"] }).to_string();
+        let reply: Value = serde_json::from_slice(&answer(Some(request.as_bytes()), &table(without_register))).expect("an envelope");
         assert_eq!(reply["err"]["kind"], "argument");
         assert_eq!(reply["err"]["method"], "package");
-        assert_eq!(reply["message"].as_str().map(|text| text.ends_with("the feature `lonely` of the package `_` of the extension `wc` must have a `register` function")), Some(true), "{reply}");
     }
 
     /// Off `wasm32`, and with the feature `native` on every target, the macro

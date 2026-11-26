@@ -5,7 +5,7 @@
 // `FeatureBuilder::service_slot` takes. What differs: the slot declarations, the contributions and
 // the assembled services are the build's own records and are not mirrored; a feature declares and
 // contributes through the builder and reads through its context (`StageCx::service`).
-import { Handle, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
+import { Handle, Traversal, Sequence, call, module, register_class, record_stage, registering_feature, lend_stage, lend_expand, record_lower, lend_lower } from "flm:_runtime";
 
 // Mirrors `flm_core::core::services::Arity`.
 export const Arity = Object.freeze({ Single: "single", OrderedMany: "ordered-many" });

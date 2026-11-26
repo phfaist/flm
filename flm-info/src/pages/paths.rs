@@ -1,6 +1,9 @@
-//! The paths of the pages: the path of each thing a page shows, and the reading of a path.
+//! The paths of the pages: the path of each thing a page shows, the reading of a path, and
+//! the levels above a page that its path line lists.
 
 use flm_core::lang::mint::CallableKind;
+
+use super::Segment;
 
 /// The path of the root page.
 pub(crate) const ROOT: &str = "/";
@@ -97,7 +100,21 @@ pub(crate) fn entity(namespace: &str, name: &str, owner: Option<&str>) -> String
         ("workflow", _) => workflow(name),
         ("scoped-package", Some(owner)) => scoped_package(owner, name),
         ("settings-key", Some(owner)) => settings(owner),
-        _ => format!("{NAMESPACES}{namespace}/{name}"),
+        _ => entity_page(namespace, name),
+    }
+}
+
+/// The page `namespaces/<namespace>/<name>`.
+fn entity_page(namespace: &str, name: &str) -> String {
+    format!("{NAMESPACES}{namespace}/{name}")
+}
+
+/// The command written `name` (without the backslash; a trigger for specials) of the kind
+/// `kind`, as the titles of the pages write it: a macro with its backslash.
+pub(crate) fn command_name(kind: CallableKind, name: &str) -> String {
+    match kind {
+        CallableKind::Macro => format!("\\{name}"),
+        CallableKind::Environment | CallableKind::Specials => name.to_string(),
     }
 }
 
@@ -214,6 +231,111 @@ fn commands_location(feature: String, within: Option<String>, rest: &str) -> Opt
         Some("") => None,
         Some(name) => Some(Location::Command { feature, within, kind, name: name.to_string() }),
     }
+}
+
+impl Location {
+    /// The location of the page one level up: the section for a section's page, `/` for a
+    /// section; `None` for `/`.
+    fn parent(&self) -> Option<Location> {
+        Some(match self {
+            Location::Root => return None,
+            Location::PackageIndex
+            | Location::FeatureIndex
+            | Location::SettingsIndex
+            | Location::WorkflowIndex
+            | Location::NamespaceIndex
+            | Location::Program => Location::Root,
+            Location::Package(_) => Location::PackageIndex,
+            Location::Feature(_) => Location::FeatureIndex,
+            Location::CommandIndex { feature, within: None, .. } | Location::ScopedPackageIndex(feature) => {
+                Location::Feature(feature.clone())
+            }
+            Location::CommandIndex { feature, within: Some(name), .. } => {
+                Location::ScopedPackage { feature: feature.clone(), name: name.clone() }
+            }
+            Location::Command { feature, within, kind, .. } => {
+                Location::CommandIndex { feature: feature.clone(), within: within.clone(), kind: *kind }
+            }
+            Location::ScopedPackage { feature, .. } => Location::ScopedPackageIndex(feature.clone()),
+            Location::Settings(_) | Location::Parsing | Location::FrontMatter => Location::SettingsIndex,
+            Location::Workflow(_) => Location::WorkflowIndex,
+            Location::Namespace(_) => Location::NamespaceIndex,
+            Location::Entity { namespace, .. } => Location::Namespace(namespace.clone()),
+            Location::ProgramPaths | Location::ProgramExtensions => Location::Program,
+        })
+    }
+
+    /// The path of the page, as the tree writes it (`features/` for the section).
+    fn path(&self) -> String {
+        match self {
+            Location::Root => String::from(ROOT),
+            Location::PackageIndex => String::from(PACKAGES),
+            Location::Package(name) => package(name),
+            Location::FeatureIndex => String::from(FEATURES),
+            Location::Feature(name) => feature(name),
+            Location::CommandIndex { feature, within, kind } => kind_index(feature, within.as_deref(), *kind),
+            Location::Command { feature, within, kind, name } => command(feature, within.as_deref(), *kind, name),
+            Location::ScopedPackageIndex(feature) => scoped_packages(feature),
+            Location::ScopedPackage { feature, name } => scoped_package(feature, name),
+            Location::SettingsIndex => String::from(SETTINGS),
+            Location::Settings(feature) => settings(feature),
+            Location::Parsing => String::from(SETTINGS_PARSING),
+            Location::FrontMatter => String::from(SETTINGS_FRONT_MATTER),
+            Location::WorkflowIndex => String::from(WORKFLOWS),
+            Location::Workflow(name) => workflow(name),
+            Location::NamespaceIndex => String::from(NAMESPACES),
+            Location::Namespace(name) => namespace(name),
+            Location::Entity { namespace, name } => entity_page(namespace, name),
+            Location::Program => String::from(PROGRAM),
+            Location::ProgramPaths => String::from(PROGRAM_PATHS),
+            Location::ProgramExtensions => String::from(PROGRAM_EXTENSIONS),
+        }
+    }
+
+    /// What the level adds to the path of the level above: the fixed word of an index page
+    /// or of a fixed page, the whole name of a thing, or a command's name as its page's
+    /// title writes it. Empty for `/`.
+    fn segment(&self) -> String {
+        let word = match self {
+            Location::Root => "",
+            Location::PackageIndex => "packages",
+            Location::FeatureIndex => "features",
+            Location::SettingsIndex => "settings",
+            Location::WorkflowIndex => "workflows",
+            Location::NamespaceIndex => "namespaces",
+            Location::Program => "program",
+            Location::CommandIndex { kind, .. } => kind_segment(*kind),
+            Location::ScopedPackageIndex(_) => SCOPED_PACKAGES,
+            Location::Parsing => "parsing",
+            Location::FrontMatter => "front-matter",
+            Location::ProgramPaths => "paths",
+            Location::ProgramExtensions => "extensions",
+            Location::Package(name)
+            | Location::Feature(name)
+            | Location::ScopedPackage { name, .. }
+            | Location::Settings(name)
+            | Location::Workflow(name)
+            | Location::Namespace(name)
+            | Location::Entity { name, .. } => name,
+            Location::Command { kind, name, .. } => return command_name(*kind, name),
+        };
+        word.to_string()
+    }
+}
+
+/// The path line of the page at `location`: one segment per level, from the page's
+/// section down to the page itself; empty for `/`.
+pub(crate) fn line(location: &Location) -> Vec<Segment> {
+    let mut line = Vec::new();
+    let mut level = Some(location.clone());
+    while let Some(at) = level {
+        level = at.parent();
+        if level.is_some() {
+            line.push(Segment { text: at.segment(), path: at.path() });
+        }
+    }
+    line.reverse();
+    line
 }
 
 fn nonempty(text: Option<&str>) -> Option<&str> {

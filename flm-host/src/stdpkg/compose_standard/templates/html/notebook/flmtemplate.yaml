@@ -1,0 +1,41 @@
+# A standalone scientific notebook with a paper panel and FLM's own contents.
+name: notebook
+output: html
+engine: minijinja
+accepts: all
+requires: [flm.toc]
+
+main: ./notebook.html
+
+settings:
+  type: object
+  properties:
+    accent:
+      type: string
+      default: "#237867"
+      description: "The accent color, as a CSS color."
+    stylesheets:
+      type: array
+      items: {type: string}
+      default: []
+      description: "The addresses of further stylesheets that the page links to, after its own."
+    sidebar_image_url:
+      type: string
+      default: ""
+      description: "The address of the image shown at the top of the sidebar; empty for none."
+    sidebar_image_alt:
+      type: string
+      default: ""
+      description: "The text that stands for the image of the sidebar."
+    sidebar_image_link:
+      type: string
+      default: ""
+      description: "The address that the image of the sidebar links to; empty for no link."
+    fold_code:
+      type: boolean
+      default: true
+      description: "Whether code blocks can be folded."
+    code_label:
+      type: string
+      default: Code
+      description: "The words of the control that folds a code block."

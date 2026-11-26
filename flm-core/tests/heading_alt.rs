@@ -1,4 +1,4 @@
-//! The heading key `alt=` (`flm_core::stdcore::features::headings`): the
+//! The heading key `alt=` (`flm_core::stdlib::features::headings`): the
 //! alternative title a heading gives a table of contents. What the sectioning
 //! aspect answers for an entry (`Sectioning::toc_title`), with and without
 //! `alt=`; what the reader `heading_alt` returns; a later `alt=` replacing an
@@ -21,20 +21,20 @@ use flm_core::lang::copy::WrittenPiece;
 use flm_core::lang::text::plain_text;
 use flm_core::model::aspects::{ContentRef, Sectioning};
 use flm_core::model::element::element_of;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::text;
-use flm_core::stdcore::features::headings::{HEADING, TITLE_ARG, heading_alt};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::text;
+use flm_core::stdlib::features::headings::{HEADING, TITLE_ARG, heading_alt};
 use techy::core::node::{NodeRef, NodeTree};
 use techy::error::Severity;
 
 use common::lowering::text as printed;
-use common::stdcore::{registry, reports, run_workflow};
+use common::stdlib::{identifier_and_data, registry, reports, run_workflow};
 
 // --- helpers -------------------------------------------------------------------------------
 
 /// The standard package.
 fn std() -> Arc<FlmRegistry> {
-    registry(StdcoreConfig::new())
+    registry(StdlibConfig::new())
 }
 
 /// The first heading node of a parse of `text`, with what the test does with it.
@@ -70,14 +70,10 @@ fn callable_names(tree: &NodeTree<Flm>) -> Vec<String> {
 }
 
 /// The diagnostics of a run of `text` under the `text` workflow, as
-/// `(identifier, severity, message)`, with the printed text.
-fn run_text(text: &str) -> (Vec<(String, Severity, String)>, String) {
+/// `(identifier and data, severity)`, with the printed text.
+fn run_text(text: &str) -> (Vec<(String, Severity)>, String) {
     let run = run_workflow(&std(), text::WORKFLOW, &[text], &Overrides::none());
-    let reported = run
-        .diagnostics()
-        .iter()
-        .map(|d| (d.identifier().to_string(), d.severity(), d.message().to_string()))
-        .collect();
+    let reported = run.diagnostics().iter().map(|d| (identifier_and_data(d), d.severity())).collect();
     (reported, printed(&run))
 }
 
@@ -180,11 +176,7 @@ fn alt_without_a_value_is_an_error_and_the_heading_is_written() {
     let (reported, out) = run_text("\\section[alt]{A title}\n");
     assert_eq!(
         reported,
-        [(
-            String::from("flm.heading.missing-value"),
-            Severity::Error,
-            String::from("the heading option `alt` must be given a value")
-        )]
+        [(String::from("flm.heading.missing-value {\"key\":\"alt\"}"), Severity::Error)]
     );
     assert!(out.starts_with("A title\n"), "{out}");
 }
@@ -194,21 +186,10 @@ fn pdfbookmark_is_still_reserved_and_alt_is_not() {
     let (reported, _) = run_text("\\section[alt={Short}, pdfbookmark=B]{A title}\n");
     assert_eq!(
         reported,
-        [(
-            String::from("flm.heading.key-not-implemented"),
-            Severity::Warning,
-            String::from("the heading option `pdfbookmark` is not implemented yet")
-        )]
+        [(String::from("flm.heading.key-not-implemented {\"key\":\"pdfbookmark\"}"), Severity::Warning)]
     );
     let (reported, _) = run_text("\\section[color=red]{A title}\n");
-    assert_eq!(
-        reported,
-        [(
-            String::from("flm.heading.unknown-key"),
-            Severity::Error,
-            String::from("`color` is not a heading option; the heading options are `numbered`, `toc` and `alt`")
-        )]
-    );
+    assert_eq!(reported, [(String::from("flm.heading.unknown-key {\"key\":\"color\"}"), Severity::Error)]);
     // `reports` is the shape the other heading tests compare.
     let run = run_workflow(&std(), text::WORKFLOW, &["\\section[alt={}]{A title}\n"], &Overrides::none());
     assert!(reports(&run).is_empty(), "{}", run.diagnostics().render_all());
@@ -217,8 +198,8 @@ fn pdfbookmark_is_still_reserved_and_alt_is_not() {
 // --- `numbered=` and `toc=` written as a braced value with whitespace around it -------------
 
 /// What the heading of `text` says about itself, and what a render reports.
-fn occurrence_and_reports(text: &str) -> (flm_core::stdcore::features::headings::HeadingOccurrence, Vec<(String, Severity, String)>) {
-    let occurrence = with_heading(text, |node| flm_core::stdcore::features::headings::heading_options(&node, None));
+fn occurrence_and_reports(text: &str) -> (flm_core::stdlib::features::headings::HeadingOccurrence, Vec<(String, Severity)>) {
+    let occurrence = with_heading(text, |node| flm_core::stdlib::features::headings::heading_options(&node, None));
     (occurrence, run_text(text).0)
 }
 

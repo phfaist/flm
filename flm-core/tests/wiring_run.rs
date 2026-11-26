@@ -1,6 +1,6 @@
 //! The wired rewrite features through the runner
-//! (`flm_core::stdcore::features::blocks` and
-//! `flm_core::stdcore::features::userdefs`): a plan demanding block structure
+//! (`flm_core::stdlib::features::blocks` and
+//! `flm_core::stdlib::features::userdefs`): a plan demanding block structure
 //! expands and then structures; a kept plan structures around the use sites;
 //! the raw and kept alternatives freeze the parsed tree itself; the two
 //! expansion sets; the published trees tables; the registry-bound configuration
@@ -20,8 +20,8 @@ use flm_core::dump::expect;
 use flm_core::lang::GuardPolicy;
 use flm_core::lang::rewrites::blocks::BlocksConfig;
 use flm_core::lang::rewrites::userdefs::{Definition, ExpandPolicy, RecursionLimit};
-use flm_core::stdcore::features::blocks::{Blocks, STRUCTURED};
-use flm_core::stdcore::features::userdefs::{
+use flm_core::stdlib::features::blocks::{Blocks, STRUCTURED};
+use flm_core::stdlib::features::userdefs::{
     ALWAYS_EXPANDED, EXPANDED, Userdefs, UserdefsConfig,
 };
 

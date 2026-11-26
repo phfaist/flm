@@ -1,28 +1,40 @@
 //! Host services, through the Rust test double and a
 //! memory host: a stage reaches a service its package declared through
-//! `cx.host`, the `files` service in its two scopes (the extension's own files
-//! served by the adapter, the document's folder by the host's object), any
-//! other service through the generic handle; the service sees its caller.
+//! `cx.host`, the `files` service at a qualified path (the extension's own
+//! files under `self` served by the adapter, the other roots by the host's
+//! object), any
+//! other service through the generic handle; the service sees its caller and
+//! the scope of the handler call.
 
 mod common;
 
 use std::sync::{Arc, Mutex};
 
+use flm_core::progress::{Kind, Observer, Scope as ProgressScope, Sheet};
 use flm_ext::adapter::dispatch;
 use flm_ext::adapter::handles::{CallTable, Entry};
 use flm_ext::api::core::run::StageCx;
 use flm_ext::api::core::stage::{Effect, Needs, Scope, StageDecl};
-use flm_ext::api::host::{FilesScope, HostHandle};
+use flm_ext::api::host::HostHandle;
 use flm_ext::host::{HostAnswer, HostCaller, HostService, HostServiceError};
 use flm_ext::{ExtError, MemoryFiles};
 use serde_json::{json, Value};
 
 use common::double::{stage, Double};
-use common::{ext_items, registry_with, run_demanding, MemoryHostFiles};
+use common::{ext_items, registry_with, run_demanding_under, MemoryHostFiles};
 
 /// The package `wc`, whose stage `wc.read` writes to `wc.seen` what `probe`
 /// answers, built by `edit` from the double.
 fn reading(
+    edit: impl FnOnce(Double) -> Double,
+    probe: impl Fn(&dyn StageCx) -> Value + Send + Sync + 'static,
+) -> Vec<Value> {
+    reading_under(ProgressScope::none(), edit, probe)
+}
+
+/// As [`reading`], the run reporting under `progress`.
+fn reading_under(
+    progress: ProgressScope,
     edit: impl FnOnce(Double) -> Double,
     probe: impl Fn(&dyn StageCx) -> Value + Send + Sync + 'static,
 ) -> Vec<Value> {
@@ -36,16 +48,32 @@ fn reading(
         b.stage(Arc::clone(&read))
     });
     let registry = registry_with([double.package()]);
-    let run = run_demanding(&registry, &["wc.seen"], &["x"]);
+    let run = run_demanding_under(&registry, &["wc.seen"], &["x"], progress);
     assert!(common::diagnostics(&run).is_empty(), "{:?}", common::diagnostics(&run));
     ext_items(&run, "wc.seen")
 }
 
-/// An answer as data: the value, or `{error, kind}`.
+/// An answer as data: the value, or the error's data (`ExtError::data`)
+/// without its free text `detail`.
 fn answer<T: serde::Serialize>(result: Result<T, ExtError>) -> Value {
     match result {
         Ok(value) => serde_json::to_value(value).expect("data"),
-        Err(error) => json!({ "kind": error.kind(), "error": error.to_string() }),
+        Err(error) => {
+            let mut data = error.data();
+            if let Some(map) = data.as_object_mut() {
+                map.remove("detail");
+            }
+            data
+        }
+    }
+}
+
+/// As [`answer`], the error's `detail` kept: for a failure whose text the
+/// test's own host service gives.
+fn answer_with_detail<T: serde::Serialize>(result: Result<T, ExtError>) -> Value {
+    match result {
+        Ok(value) => serde_json::to_value(value).expect("data"),
+        Err(error) => error.data(),
     }
 }
 
@@ -66,55 +94,65 @@ fn the_document_s_folder() -> MemoryHostFiles {
 }
 
 #[test]
-fn a_stage_reads_a_declared_files_service_in_both_scopes() {
+fn a_stage_reads_a_declared_files_service_at_a_qualified_path() {
     let host = Arc::new(the_document_s_folder());
     let seen = reading(
         |double| double.host("files").offering(Arc::clone(&host) as Arc<dyn HostService>).files(the_extension_s_files()),
         |cx| {
             let files = files_of(cx);
-            let read = |scope, path: &str| answer(files.read_text(scope, path));
+            let read = |path: &str| answer(files.read_text(path));
+            // The document's folder is the test's own service: its texts are kept.
+            let read_document = |path: &str| answer_with_detail(files.read_text(path));
             json!([
-                read(FilesScope::Extension, "data/entries.json"),
-                read(FilesScope::Extension, "./data/../data/entries.json"),
-                read(FilesScope::Extension, "absent.json"),
-                read(FilesScope::Extension, "../x.json"),
-                read(FilesScope::Extension, "data\\entries.json"),
-                read(FilesScope::Document, "bib.json"),
-                read(FilesScope::Document, "absent.json"),
-                read(FilesScope::Document, "../x.json"),
-                read(FilesScope::Document, "outside.json"),
+                read("self:data/entries.json"),
+                read("self:./data/../data/entries.json"),
+                read("self:absent.json"),
+                read("self:../x.json"),
+                read("self:data\\entries.json"),
+                read_document("doc:bib.json"),
+                read_document("doc:absent.json"),
+                read_document("doc:../x.json"),
+                read_document("doc:outside.json"),
             ])
         },
     );
+    let refused = json!({ "kind": "host", "service": "files", "method": "read_text" });
     assert_eq!(
         seen,
         [json!([
             "[1, 2]",
             "[1, 2]",
             null,
-            { "kind": "host", "error": "`files.read_text`: the path `../x.json` leaves the extension's folder" },
-            {
-                "kind": "host",
-                "error": "`files.read_text`: the path `data\\entries.json` must use `/` as its separator, not `\\`",
-            },
+            refused,
+            null,
             "{}",
             null,
             {
-                "kind": "host",
-                "error": "`files.read_text`: the path `../x.json` must stay inside the document's folder `doc`",
+                "kind": "host", "service": "files", "method": "read_text",
+                "detail": "the path `../x.json` must stay inside the document's folder `doc`",
             },
             {
-                "kind": "host",
-                "error": "`files.read_text`: the file `outside.json` leads outside the document's folder `doc` through \
-                          a symbolic link",
+                "kind": "host", "service": "files", "method": "read_text",
+                "detail": "the file `outside.json` leads outside the document's folder `doc` through a symbolic link",
             },
         ])]
     );
-    // The host's object saw the document scope alone.
+    // The host's object saw the paths under `doc` alone.
     let calls = host.calls.lock().expect("the calls");
     let paths: Vec<&Value> = calls.iter().map(|(_, _, args)| &args["path"]).collect();
-    assert_eq!(paths, [&json!("bib.json"), &json!("absent.json"), &json!("../x.json"), &json!("outside.json")]);
-    assert!(calls.iter().all(|(_, method, args)| method == "read_text" && args["scope"] == "document"));
+    assert_eq!(paths, [&json!("doc:bib.json"), &json!("doc:absent.json"), &json!("doc:../x.json"), &json!("doc:outside.json")]);
+    assert!(calls.iter().all(|(_, method, _)| method == "read_text"));
+}
+
+#[test]
+fn a_bare_path_given_to_the_files_service_is_refused() {
+    let host = Arc::new(the_document_s_folder());
+    let seen = reading(
+        |double| double.host("files").offering(Arc::clone(&host) as Arc<dyn HostService>).files(the_extension_s_files()),
+        |cx| answer(files_of(cx).read_text("data/entries.json")),
+    );
+    assert_eq!(seen, [json!({ "kind": "host", "service": "files", "method": "read_text" })]);
+    assert!(host.calls.lock().expect("the calls").is_empty());
 }
 
 #[test]
@@ -126,18 +164,7 @@ fn an_undeclared_service_is_refused_even_when_the_host_offers_it() {
     );
     assert_eq!(
         seen,
-        [json!([
-            {
-                "kind": "argument",
-                "error": "`host`: the host service `files` must be declared in the `host` list of the package `_` of \
-                          the extension `wc` before a handler calls it",
-            },
-            {
-                "kind": "argument",
-                "error": "`host`: the host service `clock` must be declared in the `host` list of the package `_` of \
-                          the extension `wc` before a handler calls it; this program offers no host service `clock`",
-            },
-        ])]
+        [json!([{ "kind": "argument", "method": "host" }, { "kind": "argument", "method": "host" }])]
     );
 }
 
@@ -153,7 +180,7 @@ impl HostService for Echo {
         "echo"
     }
 
-    fn call(&self, caller: &HostCaller, method: &str, args: &Value) -> Result<HostAnswer, HostServiceError> {
+    fn call(&self, caller: &HostCaller, method: &str, args: &Value, _: &ProgressScope) -> Result<HostAnswer, HostServiceError> {
         self.callers.lock().expect("the callers").push(caller.clone());
         match method {
             "say" => Ok(HostAnswer::Data(args.clone())),
@@ -174,7 +201,7 @@ fn a_service_is_called_through_the_generic_handle_and_sees_its_caller() {
                 echo.name(),
                 answer(echo.call("say", json!({ "a": [1] }))),
                 answer(echo.call("bytes", Value::Null)),
-                answer(echo.call("shout", Value::Null)),
+                answer_with_detail(echo.call("shout", Value::Null)),
             ])
         },
     );
@@ -183,12 +210,8 @@ fn a_service_is_called_through_the_generic_handle_and_sees_its_caller() {
         [json!([
             "echo",
             { "a": [1] },
-            {
-                "kind": "argument",
-                "error": "`call`: the method `bytes` of the host service `echo` answers bytes, which a script cannot \
-                          receive",
-            },
-            { "kind": "host", "error": "`echo.shout`: the service `echo` has no method `shout`" },
+            { "kind": "argument", "method": "call" },
+            { "kind": "host", "service": "echo", "method": "shout", "detail": "the service `echo` has no method `shout`" },
         ])]
     );
     let callers = echo.callers.lock().expect("the callers");
@@ -199,8 +222,43 @@ fn a_service_is_called_through_the_generic_handle_and_sees_its_caller() {
     assert_eq!(&*caller.digest_input, b"the code");
 }
 
+/// A service `mark` that declares and finishes a row `test.mark` under the
+/// scope it receives.
+struct Marking;
+
+impl HostService for Marking {
+    fn name(&self) -> &str {
+        "mark"
+    }
+
+    fn call(&self, _: &HostCaller, _: &str, _: &Value, progress: &ProgressScope) -> Result<HostAnswer, HostServiceError> {
+        progress.child(&Kind::new("test.mark"), None).start().finish();
+        Ok(HostAnswer::Data(Value::Null))
+    }
+}
+
 #[test]
-fn the_dispatcher_lends_the_handles_and_refuses_an_unknown_scope_by_name() {
+fn a_service_receives_the_scope_of_the_handler_call() {
+    let (sheet, build) = Sheet::start(&Kind::new("test.build"), None, Observer::default(), None);
+    let seen = reading_under(
+        build.scope(),
+        |double| double.host("mark").offering(Arc::new(Marking) as Arc<dyn HostService>),
+        |cx| {
+            let HostHandle::Service(mark) = cx.host("mark").expect("declared") else { panic!("a generic handle") };
+            answer(mark.call("now", Value::Null))
+        },
+    );
+    assert_eq!(seen, [Value::Null]);
+    build.finish();
+    // The service's row is under the row of the stage whose handler called it.
+    let rows = sheet.snapshot().rows;
+    let mark = rows.iter().find(|row| row.kind == "test.mark").expect("the service's row");
+    let parent = rows.iter().find(|row| Some(row.id) == mark.parent).expect("its parent");
+    assert_eq!(parent.kind, "wc.read");
+}
+
+#[test]
+fn the_dispatcher_lends_the_handles_and_refuses_a_path_that_is_not_a_text() {
     let host: Arc<dyn HostService> = Arc::new(the_document_s_folder());
     let seen = reading(
         |double| double.host("files").offering(host).files(the_extension_s_files()),
@@ -215,8 +273,8 @@ fn the_dispatcher_lends_the_handles_and_refuses_an_unknown_scope_by_name() {
             let handle = files["@handle"].clone();
             json!([
                 handle["kind"],
-                call(&mut table, handle.clone(), "read_text", json!(["extension", "data/entries.json"])),
-                call(&mut table, handle, "read_text", json!(["elsewhere", "x"])),
+                call(&mut table, handle.clone(), "read_text", json!(["self:data/entries.json"])),
+                call(&mut table, handle, "read_text", json!([3])),
             ])
         },
     );
@@ -225,10 +283,7 @@ fn the_dispatcher_lends_the_handles_and_refuses_an_unknown_scope_by_name() {
         [json!([
             "files",
             "[1, 2]",
-            {
-                "kind": "argument",
-                "error": "`read_text`: the scope of a file read must be `extension` or `document`, not `elsewhere`",
-            },
+            { "kind": "argument", "method": "read_text" },
         ])]
     );
 }

@@ -12,12 +12,12 @@ use std::sync::Arc;
 use flm_core::core::plan::Overrides;
 use flm_core::core::registry::{DefContent, FlmRegistry};
 use flm_core::core::run::Run;
-use flm_core::stdcore::StdcoreConfig;
-use flm_core::stdcore::backends::html::conventions::{BLOCK_TAGS, BlockTag, block_tag};
-use flm_core::stdcore::backends::html::{DEFINITIONS_TABLE, WORKFLOW as HTML_WORKFLOW};
-use flm_core::stdcore::features::floats::{self, FloatNumbering, FloatType, FloatsConfig};
+use flm_core::stdlib::StdlibConfig;
+use flm_core::stdlib::backends::html::conventions::{BLOCK_TAGS, BlockTag, block_tag};
+use flm_core::stdlib::backends::html::{DEFINITIONS_TABLE, WORKFLOW as HTML_WORKFLOW};
+use flm_core::stdlib::features::floats::{self, FloatNumbering, FloatType, FloatsConfig};
 
-use common::stdcore::{identifiers_but_unknown_size, run_workflow};
+use common::stdlib::{UNCHECKED_OUTPUT, identifiers_but_unknown_size, run_workflow};
 
 // ---------------------------------------------------------------------------------------------
 // registries and runs
@@ -25,7 +25,7 @@ use common::stdcore::{identifiers_but_unknown_size, run_workflow};
 
 /// The standard package under its default configuration.
 fn std() -> Arc<FlmRegistry> {
-    common::stdcore::registry(StdcoreConfig::new())
+    common::stdlib::registry(StdlibConfig::new())
 }
 
 /// The run of the `html` workflow of `registry` over `document`.
@@ -34,10 +34,11 @@ fn html_run(registry: &Arc<FlmRegistry>, document: &str) -> Run {
 }
 
 /// The HTML fragment of `document` under `registry`; the run must report
-/// nothing.
+/// nothing but the Warning of its unchecked formulas and those of images of
+/// unknown size.
 fn html_output(registry: &Arc<FlmRegistry>, document: &str) -> String {
     let run = html_run(registry, document);
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     common::html::fragment(&run)
 }
 
@@ -94,7 +95,7 @@ const FOUR: &str = "\\begin{figure}\\includegraphics{a.png}\\end{figure}\n\n\
 #[test]
 fn the_four_floats_are_figures_holding_their_content_then_the_line_under_it() {
     let run = html_run(&std(), FOUR);
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     assert!(requires_style(&run));
     let html = common::html::fragment(&run);
     // A `figure` is numbered when it carries a label: the first two are not.
@@ -162,9 +163,9 @@ fn a_configured_type_is_a_figure_too_and_requires_the_stylesheet() {
     let config = FloatsConfig::new().float_type(
         FloatType::new("diagram", ["any"]).numbering(FloatNumbering::AutoNumbered),
     );
-    let registry = common::stdcore::registry(StdcoreConfig::new().floats(config));
+    let registry = common::stdlib::registry(StdlibConfig::new().floats(config));
     let run = html_run(&registry, "\\begin{diagram}\\label{diagram:x}Boxes.\\caption{Arrows}\\end{diagram}");
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     assert!(requires_style(&run));
     let html = common::html::fragment(&run);
     assert!(html.contains(
@@ -177,7 +178,7 @@ fn a_configured_type_is_a_figure_too_and_requires_the_stylesheet() {
 #[test]
 fn a_page_holding_no_float_carries_no_stylesheet_of_the_feature() {
     let run = html_run(&std(), "A paragraph.\n");
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     assert!(!requires_style(&run));
 }
 
@@ -217,7 +218,7 @@ fn a_footnote_and_a_reference_inside_a_caption_are_written_in_the_line_under_the
          \\ref{sec:results}.}\\label{figure:plot}\\end{figure}\n\n\
          See \\ref{figure:plot}.\n",
     );
-    assert_eq!(identifiers_but_unknown_size(&run), Vec::<String>::new(), "{}", run.diagnostics().render_all());
+    assert_eq!(identifiers_but_unknown_size(&run), [UNCHECKED_OUTPUT], "{}", run.diagnostics().render_all());
     let html = common::html::fragment(&run);
     let caption_at = html.find("<figcaption").expect("the line under the content");
     let caption = &html[caption_at..html[caption_at..].find("</figcaption>").expect("closed") + caption_at];

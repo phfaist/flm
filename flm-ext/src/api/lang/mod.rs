@@ -1,7 +1,9 @@
-//! Mirrors [`flm_core::lang`]: declarations, the text readers, the rewrites,
+//! Mirrors [`flm_core::lang`]: declarations, the text readers, the value of a
+//! key-value entry as pieces of the document, the rewrites,
 //! the names of the structural elements, and the built language and its
 //! diagnostics, which a late-initialization hook is lent.
 
+pub mod copy;
 pub mod mint;
 pub mod rewrites;
 pub mod structural;
