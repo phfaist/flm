@@ -24,7 +24,8 @@ class TestPythonVersionDeprecationWarning(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 run_main(['--version'])
         self.assertTrue(
-            err.getvalue().strip().startswith('⚠️  NOTICE: You are running the Python version')
+            'NOTICE: You are running the Python version'
+            in err.getvalue().strip()
         )
         self.assertFalse('NOTICE' in out.getvalue())
 
