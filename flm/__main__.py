@@ -48,11 +48,36 @@ def setup_logging(level):
 
 
 
+python_version_deprecation_warning = """\
+⚠️  NOTICE: You are running the Python version of FLM (flm-core), which is
+    no longer maintained and will receive no further updates.
+
+    FLM has been rewritten in Rust, and all future development happens
+    there.  Please switch to the new version:
+
+        https://github.com/phfaist/flm#install-flm
+
+    Both versions install a command named 'flm'.  To remove this one, run
+    'pip uninstall flm-core' (or uninstall it the same way you installed it).
+"""
+
+def print_python_version_deprecation_warning(stream=None):
+    if stream is None:
+        stream = sys.stderr
+    stream.write("\n" + python_version_deprecation_warning + "\n")
+    stream.flush()
+
+
 _default_enable_debug_pdb = False
 #_default_enable_debug_pdb = True
 
 
 def run_main(cmdargs=None, enable_debug_pdb=_default_enable_debug_pdb, exit_code_on_error=1):
+    # Alert users that this Python version of FLM is superseded by the Rust
+    # version.  Printed to stderr so as not to interfere with any output
+    # written to stdout.
+    print_python_version_deprecation_warning()
+
     try:
         _run_main_inner(cmdargs=cmdargs)
     except LatexWalkerError as e:
