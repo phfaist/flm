@@ -533,9 +533,9 @@ mod tests {
     #[test]
     fn a_key_added_is_one_line_indented_as_its_siblings_at_its_map_s_end() {
         let written = edited(COMMENTED, "flm.features.headings.numbered", Change::Set(json!(true)));
-        // The blank line after the map is the map's own, in the editor's view: the line comes
-        // after it.
-        assert_eq!(written, COMMENTED.replace("      style: plain\n\n", "      style: plain\n\n      numbered: true\n"));
+        // The line comes right after the map's last entry, before the blank line that follows
+        // the map.
+        assert_eq!(written, COMMENTED.replace("      style: plain\n\n", "      style: plain\n      numbered: true\n\n"));
     }
 
     #[test]
@@ -580,7 +580,7 @@ mod tests {
         let block = "---\nflm:\n  features:\n    citations:\n      mark: superscript  # as the journal\n\n    toc: {depth: 2}\n---\nHello.\n";
         let one_line = "---\nflm:\n  features: {citations: {mark: superscript}, toc: {depth: 2}}\n---\nHello.\n";
         for (text, off) in [
-            (block, block.replace("superscript  # as the journal\n\n", "superscript  # as the journal\n\n      enabled: false\n")),
+            (block, block.replace("superscript  # as the journal\n\n", "superscript  # as the journal\n      enabled: false\n\n")),
             (one_line, one_line.replace("{mark: superscript}", "{mark: superscript, enabled: false}")),
         ] {
             let switched_off = edited(text, "flm.features.citations.enabled", Change::Set(json!(false)));
@@ -682,25 +682,24 @@ mod tests {
         );
     }
 
-    /// Rests on the YAML editor's behavior of today (yaml-edit 0.3.2): the comment at the end
-    /// of the front matter's last line comes out on a line of its own below the block of
-    /// settings that replaces the line's value.
+    /// Rests on the YAML editor's behavior of today (yaml-edit 0.3.6): the comment at the end
+    /// of the front matter's last line stays on the key's line, above the block of settings
+    /// that replaces the line's value.
     #[test]
     fn a_value_with_a_comment_on_the_front_matter_s_last_line_replaced_by_a_map() {
         let text = "---\ntitle: Notes\nflm:\n  features:\n    theorems: false   # off\n---\nHello.\n";
         assert_eq!(
             edited(text, "flm.features.theorems", Change::Set(json!({ "x": 1 }))),
-            "---\ntitle: Notes\nflm:\n  features:\n    theorems:\n      x: 1\n   # off\n---\nHello.\n"
+            "---\ntitle: Notes\nflm:\n  features:\n    theorems: # off\n      x: 1\n---\nHello.\n"
         );
     }
 
-    /// Rests on the YAML editor's behavior of today (yaml-edit 0.3.2): a map written in place
-    /// of `null` followed by a comment, above a sibling, does not read back as the map. The
-    /// check before writing refuses the edit.
+    /// A whole number beyond the 64-bit integers of the YAML reader is written as it stands,
+    /// but does not read back as that number. The check before writing refuses the edit.
     #[test]
     fn an_edit_that_does_not_read_back_as_intended_is_refused() {
-        let text = "---\nflm:\n  features: null   # none\n  layout: blocks\n---\n";
-        let edits = one("flm.features.theorems", Change::Set(json!(false)));
+        let text = "---\nflm:\n  layout: blocks\n---\n";
+        let edits = one("flm.layout", Change::Set(json!(12345678901234567890u64)));
         let error = edit_front_matter(text, &edits).unwrap_err();
         assert_eq!(error, refused(&edits));
     }

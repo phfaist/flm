@@ -49,6 +49,18 @@ probably build some safeguards in, but we want to make sure they won't get in
 the user's way in their everyday use. For now, be careful. Remember, no
 warranties.)
 
+## Install FLM
+
+Binaries are available for download on github's release page:
+<https://github.com/phfaist/flm/releases>
+
+(Note: macOS won't let you run these binaries because they are not signed; run
+`xattr -d com.apple.quarantine flm` to bypass macOS' quarantine.)
+
+If you have a rust toolchain set up, you can also directly install flm by typing
+`cargo install flm`.
+
+
 ## Getting started
 
 A document resembles a LaTeX document, but with a special front matter block:

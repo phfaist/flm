@@ -79,14 +79,14 @@ sha2 = "0.11"
 # the extension layer gives an artifact's content: a file given to and read back from a
 # program run by the host service `programs`, and a blob of a value that the host service
 # `cache` stores and answers.
-base64 = "0.22"
+base64 = "0.23"
 # YAML, for the front matter: a reader written in Rust alone that gives the
 # position of every value (floor Rust 1.85). Its default feature, the decoding
 # of text in encodings other than UTF-8, is left out.
-saphyr = { version = "0.1", default-features = false }
+saphyr = { version = "0.4", default-features = false }
 # Templates, for the composer: no input or output of its own, builds for
-# WebAssembly, and delimiters that can be changed for LaTeX (`custom_syntax`).
-minijinja = { version = "2", default-features = false, features = ["builtins", "serde", "custom_syntax", "std_collections", "preserve_order", "multi_template", "loader", "json"] }
+# WebAssembly, and delimiters that can be changed for LaTeX (`SyntaxConfig`).
+minijinja = { version = "3", default-features = false, features = ["builtins", "serde", "std_collections", "preserve_order", "multi_template", "json"] }
 # Image files (cargo feature `graphics`). `image` reads and writes the raster formats
 # (PNG, JPEG, GIF, WebP) and converts between them; its other formats and its thread
 # pool are left out. `png`, the crate `image` reads PNG files with, gives the
@@ -133,7 +133,7 @@ which = { version = "8", optional = true }
 # Editing a front matter's text in place (cargo feature `watch`), for the preview's settings
 # requests: a parser that keeps every byte of the text, comments and blank lines included, and
 # changes one value at a time. Its default feature, base64 for binary values, is left out.
-yaml-edit = { version = "0.3.2", default-features = false, optional = true }
+yaml-edit = { version = "0.3.6", default-features = false, optional = true }
 # Gzip (cargo feature `watch`): a file of the preview's tools page, embedded compressed,
 # decompressed for a request that does not accept gzip.
 flate2 = { version = "1.1", optional = true }
@@ -145,7 +145,7 @@ zip = { version = "9.6", default-features = false, optional = true }
 # the programs it started: a signal sent to its process group (`killpg`), which the standard
 # library cannot send, through a safe call.
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.31", default-features = false, features = ["signal"], optional = true }
+nix = { version = "0.32", default-features = false, features = ["signal"], optional = true }
 
 # The link to a cache folder that the host service `programs` makes in a program's
 # temporary folder (cargo feature `fs`): a junction, which Windows lets every user make,

@@ -426,7 +426,7 @@ fn an_extension_template_includes_its_files_and_ships_a_file_of_the_document_fol
     );
     assert_eq!(
         std::fs::read_to_string(out.join("paper-script.js")).unwrap(),
-        format!("{script}\nsetup({{\"color\":\"teal\",\"title\":\"A \\u003cb\\u003ebold\\u003c/b\\u003e title\"}});\n")
+        format!("{script}\nsetup({{\"color\": \"teal\", \"title\": \"A \\u003cb\\u003ebold\\u003c/b\\u003e title\"}});\n")
     );
     // An included file that is gone: the template cannot be applied.
     std::fs::remove_file(dir.join("_flmextensions/including/dist/x.js")).unwrap();

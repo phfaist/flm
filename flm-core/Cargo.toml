@@ -94,8 +94,8 @@ workspace = true
 #   and the WebAssembly check, which
 #   builds no test target, does not see them. Continuous integration compiles
 #   every target on this workspace's floor of Rust 1.86, and both crates build
-#   there: html5ever 0.39 declares a minimum supported Rust version of 1.71,
-#   and markup5ever_rcdom declares none at all.
+#   there: html5ever 0.40 and markup5ever_rcdom 0.40 declare a minimum
+#   supported Rust version of 1.85.
 [dependencies]
 techy = { version = "0.2.0", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
@@ -112,7 +112,7 @@ unicode-segmentation = "1.13.2"
 unicode-normalization = { version = "0.1", default-features = false }
 untechxt = "0.1"
 fixed = { version = "1.30", default-features = false }
-base64 = "0.22"
+base64 = "0.23"
 
 # The HTML parser behind `tests/html_validity.rs` and `tests/html_emitter.rs`,
 # and the tree it builds into.
@@ -122,8 +122,8 @@ base64 = "0.22"
 # requirement must stay in step with html5ever's: a tree sink is written
 # against one version of the parser's interface.
 [dev-dependencies]
-html5ever = "0.39"
-markup5ever_rcdom = "0.39"
+html5ever = "0.40"
+markup5ever_rcdom = "0.40"
 # The keyword `pattern` of the schemas of settings, checked by the validator the tests of
 # the settings share with `flm-host` and `flm` (`tests/support/json_schema.rs`).
 regex = "1"

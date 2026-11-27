@@ -64,7 +64,7 @@ serde_json = "1"
 terminal_size = "0.4"
 # The system's folder of a user's caches (`dirs::cache_dir`), in which the program keeps its
 # cache when no option and no environment variable gives the folder.
-dirs = "6"
+dirs = "7"
 
 # On Unix, the signals that ask the program to end (Ctrl+C's interrupt, Ctrl+\'s quit
 # signal, the hang-up of a closed terminal, `SIGTERM`), handled under `watch`, `render` and
@@ -92,7 +92,7 @@ bundled-extensions = ["dep:flm-extensions", "flm-extensions/all", "flm-host/nati
 
 [dev-dependencies]
 # The address of an image written into a page, compared in a test (`tests/graphics.rs`).
-base64 = "0.22"
+base64 = "0.23"
 # The BibTeX export read back by a reader of that format (`tests/citations.rs`).
 biblatex = "0.12"
 # The keyword `pattern` of the schemas of settings, checked by the validator shared with

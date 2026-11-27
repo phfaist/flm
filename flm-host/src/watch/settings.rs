@@ -1110,7 +1110,7 @@ fn default_below(root: &Value, node: &Value, path: &[String], depth: usize) -> O
 fn yaml_text(value: &Value) -> String {
     let mut text = String::new();
     let mut emitter = YamlEmitter::new(&mut text);
-    emitter.multiline_strings(true);
+    emitter.multiline(true);
     // Writing into a `String` cannot fail.
     let _ = emitter.dump(&yaml_of(value));
     let mut text = text.strip_prefix("---").unwrap_or(&text).trim_start_matches([' ', '\n']).to_string();

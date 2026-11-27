@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use minijinja::syntax::SyntaxConfig;
-use minijinja::value::{Kwargs, Value as JinjaValue};
+use minijinja::value::{Kwargs, Serde, Value as JinjaValue};
 use minijinja::{AutoEscape, Environment, ErrorKind, State, UndefinedBehavior};
 use serde_json::Value;
 
@@ -216,20 +216,17 @@ impl TemplateEngine for MinijinjaEngine {
     ) -> Result<String, String> {
         let mut env = Environment::new();
         env.set_undefined_behavior(UndefinedBehavior::Strict);
-        env.set_trim_blocks(true);
-        env.set_lstrip_blocks(true);
-        env.set_keep_trailing_newline(true);
         let html = context.html;
         env.set_auto_escape_callback(move |_| escaping(html));
+        let mut syntax = SyntaxConfig::builder();
+        syntax.trim_blocks(true).lstrip_blocks(true).keep_trailing_newline(true);
         if let Some(delimiters) = &template.delimiters {
-            let syntax = SyntaxConfig::builder()
+            syntax
                 .block_delimiters(delimiters.block.0.clone(), delimiters.block.1.clone())
                 .variable_delimiters(delimiters.variable.0.clone(), delimiters.variable.1.clone())
-                .comment_delimiters(delimiters.comment.0.clone(), delimiters.comment.1.clone())
-                .build()
-                .map_err(|error| error.to_string())?;
-            env.set_syntax(syntax);
+                .comment_delimiters(delimiters.comment.0.clone(), delimiters.comment.1.clone());
         }
+        env.set_syntax(syntax.build().map_err(|error| error.to_string())?);
         let text = |text: &str| {
             if html { JinjaValue::from_safe_string(String::from(text)) } else { JinjaValue::from(text) }
         };
@@ -244,16 +241,16 @@ impl TemplateEngine for MinijinjaEngine {
                     ("words", JinjaValue::from(piece.words.as_str())),
                     ("place", JinjaValue::from(piece.place.as_str())),
                 ];
-                (piece.name.clone(), JinjaValue::from_iter(value))
+                (piece.name.clone(), JinjaValue::from_pairs(value))
             })
             .collect();
         let artifacts = context.artifacts.iter().map(|(name, path)| (name.clone(), JinjaValue::from(path.as_str())));
         let values: Vec<(String, JinjaValue)> = vec![
-            (String::from("regions"), JinjaValue::from_iter(regions)),
-            (String::from("pieces"), JinjaValue::from_iter(pieces)),
-            (String::from("metadata"), JinjaValue::from_serialize(&context.metadata)),
-            (String::from("config"), JinjaValue::from_serialize(Value::Object(context.config.clone()))),
-            (String::from("artifacts"), JinjaValue::from_iter(artifacts)),
+            (String::from("regions"), JinjaValue::from_pairs(regions)),
+            (String::from("pieces"), JinjaValue::from_pairs(pieces)),
+            (String::from("metadata"), JinjaValue::from(Serde(&context.metadata))),
+            (String::from("config"), JinjaValue::from(Serde(Value::Object(context.config.clone())))),
+            (String::from("artifacts"), JinjaValue::from_pairs(artifacts)),
         ];
         let includes = Includes {
             template: template.name.clone(),
@@ -291,7 +288,7 @@ impl TemplateEngine for MinijinjaEngine {
         let describe = |error: &minijinja::Error| describe(error, &includes.own());
         env.add_template_owned(name.clone(), template.text.clone()).map_err(|error| describe(&error))?;
         let compiled = env.get_template(&name).map_err(|error| describe(&error))?;
-        compiled.render(JinjaValue::from_iter(includes.values.iter().cloned())).map_err(|error| describe(&error))
+        compiled.render(JinjaValue::from_pairs(includes.values.iter().cloned())).map_err(|error| describe(&error))
     }
 }
 
@@ -615,7 +612,7 @@ impl Includes {
         kwargs: &Kwargs,
         failed: impl Fn() -> String,
     ) -> Result<JinjaValue, minijinja::Error> {
-        let outer = state.auto_escape() != AutoEscape::None;
+        let outer = !matches!(state.auto_escape(), AutoEscape::None);
         let html = kwargs.get::<Option<bool>>("html")?.unwrap_or(outer);
         let (escaped, mut passed) = {
             let levels = self.passed.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -645,7 +642,7 @@ impl Includes {
         env.set_recursion_limit(state.env().recursion_limit().saturating_sub(NESTED_COST));
         self.passed.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(Passed { html, values: passed });
         let _level = Level(self);
-        match env.render_named_str(name, text, JinjaValue::from_iter(values)) {
+        match env.render_named_str(name, text, JinjaValue::from_pairs(values)) {
             Ok(written) => Ok(JinjaValue::from_safe_string(written)),
             Err(error) => Err(self.error(failed()).with_source(error)),
         }
@@ -909,7 +906,7 @@ mod tests {
     fn the_filter_tojson_writes_a_value_as_json() {
         let template = template("", false);
         let written = engine().render_text(&template, "setup({{ config | tojson }});", None, &context(&template, false), &shipper());
-        assert_eq!(written.unwrap(), "setup({\"title\":\"A \\u003cb\\u003e\\u0026\\u003c/b\\u003e B\"});");
+        assert_eq!(written.unwrap(), "setup({\"title\": \"A \\u003cb\\u003e\\u0026\\u003c/b\\u003e B\"});");
     }
 
     #[test]

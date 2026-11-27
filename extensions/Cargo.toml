@@ -80,7 +80,7 @@ schemars = { version = "1", default-features = false, features = ["derive", "std
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"], optional = true }
 # Reads an image's content, which reaches `profile-tty` in the data form `{ base64 }`: the
 # version of `flm-ext`'s own dependency.
-base64 = { version = "0.22", optional = true }
+base64 = { version = "0.23", optional = true }
 # The highlighter of `syntax-highlight`.
 syntect = { version = "5.3", default-features = false, features = ["default-syntaxes", "default-themes", "regex-fancy"], optional = true }
 

@@ -64,7 +64,7 @@ semver = "1"
 schemars = { version = "1", default-features = false, features = ["derive", "std", "preserve_order"], optional = true }
 # Bytes that are not UTF-8 text, an artifact's content or a bytes argument, written `{ base64 }`
 # in their data form (the standard alphabet with padding); already in the lockfile through flm-core.
-base64 = "0.22"
+base64 = "0.23"
 # The JavaScript engine of the `quickjs` binding, with its module loader. Keep
 # `ENGINE_VERSION` in src/quickjs/mod.rs in step with this line.
 rquickjs = { version = "0.14", features = ["loader"], optional = true }
@@ -83,9 +83,9 @@ wasmi_core = { version = "2.0", default-features = false, optional = true }
 # The generator of the extension API's dispatcher, prelude and declarations
 # (`tests/api_surface.rs`) reads the sources under `src/api/` with `syn` and
 # prints their types with `quote`; both are in the lockfile already, through
-# `serde_derive`.
+# `clap_derive`.
 [dev-dependencies]
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "3", features = ["full", "extra-traits"] }
 quote = "1"
 # The text format of WebAssembly, in which the tests of the `wasm` binding
 # write their small guest modules.
@@ -97,5 +97,5 @@ flm-core = { workspace = true, default-features = false, features = ["docs"] }
 # into (`tests/math_mathjax.rs` parses a page and fails on a parse error); both
 # are in the lockfile already, through flm-core's tests, whose versions they
 # follow.
-html5ever = "0.39"
-markup5ever_rcdom = "0.39"
+html5ever = "0.40"
+markup5ever_rcdom = "0.40"

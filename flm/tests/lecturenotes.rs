@@ -184,7 +184,7 @@ fn a_document_s_settings_reach_the_glue_files_and_the_page() {
     );
     assert!(style.contains(".flm-toc li[data-flm-level=\"2\"]:not(.ln-open) > .flm-pres-list {"), "{style}");
     let script = read(out.join("paper-script.js"));
-    assert!(script.ends_with("\nwindow.flmLecturenotes.setup({\"navigation_heading_level\":2});\n"));
+    assert!(script.ends_with("\nwindow.flmLecturenotes.setup({\"navigation_heading_level\": 2});\n"));
     // With no `links`, no links in the bar; with an empty `css`, the glue stylesheet alone.
     let page = read(out.join("paper.html"));
     assert!(!page.contains("ln-topbar-links"));

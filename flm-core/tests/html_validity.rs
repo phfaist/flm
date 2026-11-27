@@ -14,9 +14,9 @@
 //!
 //! # The floor: what a failure here means
 //!
-//! The parser is `html5ever` **0.39**, the parser of the Servo browser
+//! The parser is `html5ever` **0.40**, the parser of the Servo browser
 //! engine, held under `[dev-dependencies]` of this crate; the tree it builds
-//! into is `markup5ever_rcdom` **0.39**, the reference tree html5ever's own
+//! into is `markup5ever_rcdom` **0.40**, the reference tree html5ever's own
 //! test suite uses. Those two version numbers are the floor's, so they are not
 //! left to a reader's trust: the test `the_floor_names_the_versions_in_use`
 //! reads both out of `Cargo.lock` and fails if either moves without this
@@ -274,10 +274,10 @@ fn goldens() -> Vec<Golden> {
 /// The parser this suite's floor is: the crate's name, and the version the
 /// module comment above names, without the patch number a lock file also
 /// carries.
-const PARSER: (&str, &str) = ("html5ever", "0.39");
+const PARSER: (&str, &str) = ("html5ever", "0.40");
 
 /// The tree the parser builds into, in the shape of [`PARSER`].
-const TREE: (&str, &str) = ("markup5ever_rcdom", "0.39");
+const TREE: (&str, &str) = ("markup5ever_rcdom", "0.40");
 
 /// The version the lock file `lock` records for the crate `crate_name`, when
 /// it holds one.

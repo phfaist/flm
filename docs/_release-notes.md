@@ -14,7 +14,8 @@ example.](https://github.com/phfaist/flm#getting-started)
 
 Installation: If you have a rust toolchain set up, you can install flm by typing
 `cargo install flm`. Otherwise, binaries are available for download on github's
-release page.
+release page. (Note: macOS won't let you run these binaries because they are not
+signed; run `xattr -d com.apple.quarantine flm` to bypass macOS' quarantine.)
 
 ## flm <0.6
 

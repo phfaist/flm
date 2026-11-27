@@ -537,11 +537,11 @@ fn read_function(attrs: &[syn::Attribute], sig: &syn::Signature, inherent: bool,
     for input in &sig.inputs {
         match input {
             syn::FnArg::Receiver(this) => {
-                receiver = Some(match (&this.reference, this.mutability) {
-                    (Some(_), Some(_)) => "&mut self",
-                    (Some(_), None) => "&self",
-                    (None, Some(_)) => "mut self",
-                    (None, None) => "self",
+                receiver = Some(match &this.kind {
+                    syn::ReceiverKind::Reference(_, _, Some(_)) => "&mut self",
+                    syn::ReceiverKind::Reference(_, _, None) => "&self",
+                    _ if this.mutability.is_some() => "mut self",
+                    _ => "self",
                 }
                 .to_string());
             }
@@ -701,7 +701,7 @@ fn bounds_text<'a>(bounds: impl Iterator<Item = &'a syn::TypeParamBound>) -> Str
 fn bound_text(bound: &syn::TypeParamBound) -> Option<String> {
     match bound {
         syn::TypeParamBound::Trait(bound) => {
-            let maybe = if matches!(bound.modifier, syn::TraitBoundModifier::Maybe(_)) { "?" } else { "" };
+            let maybe = if bound.maybe.is_some() { "?" } else { "" };
             Some(format!("{maybe}{}", path_text(&bound.path)))
         }
         syn::TypeParamBound::Lifetime(_) => None,
@@ -738,7 +738,7 @@ fn path_text(path: &syn::Path) -> String {
                 }
             }
             syn::PathArguments::Parenthesized(arguments) => {
-                let inputs: Vec<String> = arguments.inputs.iter().map(type_text).collect();
+                let inputs: Vec<String> = arguments.inputs.iter().map(|input| type_text(&input.ty)).collect();
                 let _ = write!(out, "({})", inputs.join(", "));
                 if let syn::ReturnType::Type(_, ty) = &arguments.output {
                     let _ = write!(out, " -> {}", type_text(ty));
